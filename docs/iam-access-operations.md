@@ -169,6 +169,108 @@ deletion through these grants. RestoreSecret is not granted or called by the
 module; recovery needs a separately approved external operation before the window
 expires. External policies can still affect access and must be reconciled.
 
+## Service-policy ownership, migration and drift
+
+The Developer Secrets Manager policy is now owned by each workload account's
+future [account-policy root/module](../infra/modules/iam_account_policies/README.md).
+It must exist with canonical name `Portfolio-Developer-SecretsManager`, path `/`,
+in **every** assigned account before the administrative Identity Center reference
+is provisioned. A policy in the management/delegated account is not sufficient.
+Account input values do not select a provider; the owning root must explicitly
+select and restrict its provider and be the sole state owner of this identity.
+
+Use the same reviewed region/Project contract across the account policy,
+secret metadata and human profiles. Account-specific ARN and PrincipalAccount
+conditions intentionally tighten the old multi-account Secrets Manager grant.
+The remaining EC2 inline, Operator and Access Admin policies are unchanged.
+
+For separately authorized future deployment or migration:
+
+1. Review actual policy exports and optional official validation results. Verify
+   quotas, per-account provider selection and the independent approval below.
+2. Create/verify the matching policy/default version in every workload account.
+   Check content, name/path, ownership, tags and unauthorized external versions.
+3. Attach the fixed Developer reference while old inline permissions remain.
+   Provider 6.72.0 automatically provisions to all already provisioned accounts;
+   verify completion and failures before continuing.
+4. Remove the old Secrets Manager inline statements and verify provisioning again.
+   The inline resource depends on the attachment, but there is no cross-state
+   dependency on account roots: external orchestration is mandatory.
+5. Reconcile account policy documents/default versions, references and actual role
+   attachments, provisioning status and approved assignments. A changed account
+   policy does not create copies in other accounts or trigger SSO provisioning.
+
+Rollback must preserve authorization deliberately. If the reviewed old inline
+still fits its approved inputs/quota, restore it and provision it **before**
+detaching the reference. Otherwise retain the reference and restore a reviewed
+account-policy version; do not force an oversized monolith back in or widen its
+scope. Detach also provisions. Keep account policies until every relevant
+reference/attachment and rollback check confirms removal is safe. No mutation,
+assignment or deployment is performed by this document or this Codex task.
+
+The current Identity Center table lists 25 managed policies per Permission Set;
+the IAM table lists role defaults 20/max25, but the Identity Center footnote still
+says default10. Use the repository's conservative budget10 as a portfolio choice,
+not an assertion of the actual account quota. Its configured one-reference check
+does not discover external attachments or target quotas; verify those externally.
+Do not mix the nonexclusive resource with an exclusive attachment manager.
+
+## Optional later official AWS policy validation
+
+The [executable toolkit](../scripts/aws-policy-validation/README.md) exports actual
+policies from successful mocked Terraform streams, creates a hashed manifest and
+synthetic positive/negative cases, and processes results without AWS access by
+default. Generate the bundle outside Git as documented there; do not commit plans,
+raw results, session information, credentials or real identifiers. CI exercises
+only offline export/check/default-run and deterministic mocked-response tests.
+
+A repository owner may later copy the private synthetic bundle into an already
+approved CloudShell/local session and intentionally use `run --execute-aws` as
+shown in the toolkit README. **Do not execute that flag in Codex Cloud or CI.**
+The runner refuses those environments and calls only:
+
+- `access-analyzer:ValidatePolicy` for identity-policy findings.
+- `iam:GetContextKeysForCustomPolicy` for context-key discovery.
+- `iam:SimulateCustomPolicy` for the explicitly supplied synthetic cases.
+
+These read APIs need `Resource: "*"` because no resource-level scope is supported;
+no analyzer, IAM user, access key, role, policy, assignment or STS call is needed.
+The user's existing approved identity must already have those permissions.
+CloudShell session/launch rights (including credential forwarding through
+`cloudshell:PutCredentials`) are separate prerequisites, not toolkit calls or
+new grants in this PR. If a suitable Console/Identity Center session or CloudShell
+authorization is absent, record that prerequisite and obtain it through the
+organization's existing approval process. Do not use the root account for routine
+validation or add keys/GitHub secrets to work around missing access.
+
+Inspect all finding categories separately: ERROR is a failure; SECURITY_WARNING,
+WARNING and SUGGESTION require the appropriate human review. The parser distinguishes
+allowed, implicit/explicit deny, unexpected decisions, missing context, unsupported
+or incomplete evaluation, API errors and pagination. Multi-resource requests need
+complete resource-specific coverage; a single Allow is not a successful API call.
+GetContext's listed keys can intentionally be absent for Null/IfExists; use actual
+MissingContextValues rather than inventing every absent key as an error.
+
+The private machine-readable and sanitized Markdown reports identify policy
+hash/version and API evidence. Share only the sanitized reports after review;
+never upload raw CloudShell responses or session data. Even an expected synthetic
+Allow establishes neither a real assumed session nor live service authorization,
+recipient governance, propagation or effective KMS/SCP/resource-policy access.
+No official authenticated validation has been run in this Codex task.
+
+## Resolution, evidence and remaining verification
+
+| Risk / requirement | Resolved by design/code | Validated by offline tests | Requires manual AWS API or live infrastructure verification |
+| --- | --- | --- | --- |
+| Inline growth and managed-policy identity | Separate bounded service policy, fixed reference and independent size/attachment guards | Actual sizes/headroom, 7+1 inventories, reference matching and quota rejection | Every target's matching policy, default version, external attachments and actual quotas |
+| Access Admin self/group assignment | Exact profiles/accounts retained; no unsupported recipient guard | Unchanged Admin JSON and forbidden privilege regressions | Independent approval/executor governance, memberships and audit; direct rights still permit bypass |
+| Main-route-table association | Existing route-table/subnet ARN and Project scope retained | Exact EC2 projection and supported keys | Actual association IDs/topology and approved execution; simulation does not exclude main changes |
+| VPC/subnet attribute values | No invented Boolean/attribute-value guarantee | Exact reviewed action/resource/condition structure | Runtime parameter context and network effects; plan approval is procedural |
+| CreateSecret initial value | Terraform never handles values; inherited Create action remains broader | No payload flow; create/tag/replica guards and unchanged owning-account semantics | Direct human initial-value capability remains; no documented IAM absence condition |
+| Missing UpdateSecret / recovery rights | Deliberately withheld along with retrieval, KMS and policy writes | Exact action/forbidden lists and implicit-deny cases | Separately approved metadata update/recovery process without Terraform values |
+| Effective IAM/KMS and propagation | Explicit scope and account ownership contracts | Mock plans, official-reference compatibility and response-parser tests | Official APIs not executed here; live account/key/SCP/resource-policy and provisioning evidence still needed |
+| Workloads and AWS deployment | No users, workload roles, assignments, root integration or deployment added | Exact intended resources only and no-call default/toolkit guards | Future authorized roots, workload permissions, connectivity and live operational readiness |
+
 ## Official evidence
 
 Reviewed on 2026-11-07 using public documentation only:
@@ -188,3 +290,12 @@ Reviewed on 2026-11-07 using public documentation only:
 - [Secrets Manager UpdateSecret payload behavior](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_UpdateSecret.html)
 - [Secrets Manager deletion and recovery](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_DeleteSecret.html)
 - [Secrets Manager ABAC creation/tag semantics](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_attribute-based-access-control.html)
+
+- [Customer-managed policy references](https://docs.aws.amazon.com/singlesignon/latest/userguide/howtocmp.html)
+- [Permission Set custom policies](https://docs.aws.amazon.com/singlesignon/latest/userguide/permissionsetcustom.html)
+- [Identity Center quotas](https://docs.aws.amazon.com/singlesignon/latest/userguide/limits.html)
+- [IAM quotas](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
+- [ValidatePolicy](https://docs.aws.amazon.com/access-analyzer/latest/APIReference/API_ValidatePolicy.html)
+- [SimulateCustomPolicy](https://docs.aws.amazon.com/IAM/latest/APIReference/API_SimulateCustomPolicy.html)
+- [GetContextKeysForCustomPolicy CLI schema](https://docs.aws.amazon.com/cli/latest/reference/iam/get-context-keys-for-custom-policy.html)
+- [CloudShell existing identity/session authentication](https://docs.aws.amazon.com/cloudshell/latest/userguide/sec-auth-with-identities.html)

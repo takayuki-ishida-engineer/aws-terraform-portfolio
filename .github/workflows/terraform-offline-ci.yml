@@ -25,6 +25,7 @@ jobs:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       CHECKPOINT_DISABLE: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
       AWS_EC2_METADATA_DISABLED: "true"
       AWS_SHARED_CREDENTIALS_FILE: /dev/null
       AWS_CONFIG_FILE: /dev/null
@@ -138,6 +139,61 @@ jobs:
             output.write(f"passed={summary['passed']}\n")
           PY
 
+      - name: Validate per-account managed policy and mock inventory
+        id: account_policies
+        working-directory: infra/modules/iam_account_policies
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/account-policies-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 - "$test_status" <<'PY'
+          import collections
+          import json
+          import os
+          import pathlib
+          import sys
+
+          summary = None
+          inventory_checked = False
+          diagnostics = collections.deque(maxlen=20)
+          with pathlib.Path(os.environ["RUNNER_TEMP"], "account-policies-tests.jsonl").open() as events:
+            for line in events:
+              event = json.loads(line)
+              if event.get("type") == "test_run":
+                run = event["test_run"]
+                if run.get("status") in {"pass", "fail", "error", "skip"}:
+                  print(event.get("@message", str(run)))
+              if event.get("type") == "diagnostic":
+                diagnostics.append(event.get("@message", "Terraform diagnostic"))
+              if event.get("type") == "test_plan" and not inventory_checked:
+                resources = event["test_plan"].get("resource_changes", [])
+                inventory = collections.Counter(resource.get("type") for resource in resources)
+                if inventory != {"aws_iam_policy": 1} or any(
+                  resource.get("mode") != "managed" or resource["change"]["actions"] != ["create"]
+                  for resource in resources
+                ):
+                  raise SystemExit(f"Unexpected Account policy plan inventory: {dict(inventory)}")
+                inventory_checked = True
+                print("Actual Account policy inventory:", dict(inventory))
+              if event.get("type") == "test_summary":
+                summary = event["test_summary"]
+          print("Actual Account policy test summary:", summary, flush=True)
+          expected = {"status": "pass", "passed": 24, "failed": 0, "errored": 0, "skipped": 0}
+          if int(sys.argv[1]) != 0 or not inventory_checked or not summary or any(summary.get(k) != v for k, v in expected.items()):
+            for diagnostic in diagnostics:
+              print(diagnostic, file=sys.stderr)
+            raise SystemExit(f"Account policy test validation failed (Terraform exit {sys.argv[1]}).")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={summary['passed']}\n")
+          PY
+
       - name: Validate IAM module and capture unmodified mock plans
         id: iam
         working-directory: infra/modules/iam_access
@@ -173,7 +229,7 @@ jobs:
               if event.get("type") == "test_summary":
                 summary = event["test_summary"]
           print("Actual IAM test summary:", summary, flush=True)
-          expected = {"status": "pass", "passed": 34, "failed": 0, "errored": 0, "skipped": 0}
+          expected = {"status": "pass", "passed": 39, "failed": 0, "errored": 0, "skipped": 0}
           if int(sys.argv[1]) != 0 or not summary or any(summary.get(k) != v for k, v in expected.items()):
             for diagnostic in diagnostics:
               print(diagnostic, file=sys.stderr)
@@ -202,7 +258,15 @@ jobs:
             --secretsmanager-reference "$RUNNER_TEMP/secretsmanager-authorization.json" \
             --ec2-reference "$RUNNER_TEMP/ec2-authorization.json" \
             --sso-reference "$RUNNER_TEMP/sso-authorization.json" \
-            --test-events "$RUNNER_TEMP/iam-tests.jsonl"
+            --test-events "$RUNNER_TEMP/iam-tests.jsonl" \
+            --account-test-events "$RUNNER_TEMP/account-policies-tests.jsonl"
+          python3 tests/check_authorization_equivalence.py \
+            --iam-test-events "$RUNNER_TEMP/iam-tests.jsonl" \
+            --account-test-events "$RUNNER_TEMP/account-policies-tests.jsonl" \
+            --ec2-reference "$RUNNER_TEMP/ec2-authorization.json" \
+            --sso-reference "$RUNNER_TEMP/sso-authorization.json" \
+            --secretsmanager-reference "$RUNNER_TEMP/secretsmanager-authorization.json" \
+            --self-test
 
       - name: Run authorization checker negative self-tests
         id: self_tests
@@ -210,6 +274,34 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/check_authorization_reference.py --self-test
+
+      - name: Test and export the offline AWS validation toolkit
+        id: toolkit
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PYTEST'
+          import os
+          import sys
+          import unittest
+
+          suite = unittest.defaultTestLoader.discover("scripts/aws-policy-validation/tests")
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if not result.wasSuccessful() or result.skipped or result.expectedFailures or result.testsRun != 70:
+            raise SystemExit("Toolkit offline self-tests failed, changed the reviewed count or skipped.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={result.testsRun}\n")
+          PYTEST
+          python3 scripts/aws-policy-validation/policy_validation.py export \
+            --iam-test-events "$RUNNER_TEMP/iam-tests.jsonl" \
+            --account-test-events "$RUNNER_TEMP/account-policies-tests.jsonl" \
+            --output-dir "$RUNNER_TEMP/policy-validation-bundle"
+          python3 scripts/aws-policy-validation/policy_validation.py offline-check \
+            --bundle "$RUNNER_TEMP/policy-validation-bundle"
+          # Default run is offline; never pass the authenticated-execution flag here.
+          python3 scripts/aws-policy-validation/policy_validation.py run \
+            --bundle "$RUNNER_TEMP/policy-validation-bundle" \
+            --output-dir "$RUNNER_TEMP/policy-validation-results"
 
       - name: Summarize actual validation results
         if: ${{ always() }}
@@ -221,6 +313,10 @@ jobs:
           VPC_PASSED: ${{ steps.vpc.outputs.passed }}
           SECRETS_RESULT: ${{ steps.secrets.outcome }}
           SECRETS_PASSED: ${{ steps.secrets.outputs.passed }}
+          ACCOUNT_RESULT: ${{ steps.account_policies.outcome }}
+          ACCOUNT_PASSED: ${{ steps.account_policies.outputs.passed }}
+          TOOLKIT_RESULT: ${{ steps.toolkit.outcome }}
+          TOOLKIT_PASSED: ${{ steps.toolkit.outputs.passed }}
           IAM_RESULT: ${{ steps.iam.outcome }}
           IAM_PASSED: ${{ steps.iam.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
@@ -236,12 +332,14 @@ jobs:
             ("Dev root init/validate, readonly lock", "DEV_RESULT", ""),
             ("VPC init/validate/mock tests", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
             ("Secrets Manager init/validate/mock inventory/tests", "SECRETS_RESULT", os.environ.get("SECRETS_PASSED", "")),
+            ("Account IAM policy init/validate/inventory/mock tests", "ACCOUNT_RESULT", os.environ.get("ACCOUNT_PASSED", "")),
             ("IAM init/validate/mock tests", "IAM_RESULT", os.environ.get("IAM_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
+            ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
           ]
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-            summary.write("## Offline Terraform validation\n\n| Check | Outcome | Verified native passes |\n| --- | --- | --- |\n")
+            summary.write("## Offline Terraform validation\n\n| Check | Outcome | Verified test passes |\n| --- | --- | --- |\n")
             for label, result, count in rows:
               summary.write(f"| {label} | {os.environ.get(result) or 'not run'} | {count or '—'} |\n")
             summary.write("\nCredential-free mock/static checks only. Live AWS authorization remains unverified.\n")

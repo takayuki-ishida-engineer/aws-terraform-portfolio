@@ -33,6 +33,10 @@ resource "aws_ssoadmin_permission_set_inline_policy" "developer" {
   permission_set_arn = aws_ssoadmin_permission_set.developer.arn
   inline_policy      = local.developer_policy
 
+  # References auto-provision. All workload policies must exist before execution.
+  # Attach while the old inline permissions still exist, then update the inline.
+  depends_on = [aws_ssoadmin_customer_managed_policy_attachment.developer]
+
   lifecycle {
     precondition {
       # Generated policy text is ASCII and compact: characters equal UTF-8 bytes.

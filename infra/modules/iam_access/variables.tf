@@ -48,7 +48,7 @@ variable "administration_account_id" {
 }
 
 variable "target_region" {
-  description = "Explicit portfolio region for EC2 permissions; its existence and partition compatibility must be verified outside Codex Cloud."
+  description = "Explicit portfolio region for EC2 and Operator secret-metadata permissions; its existence and partition compatibility must be verified outside Codex Cloud."
   type        = string
   nullable    = false
 
@@ -59,7 +59,7 @@ variable "target_region" {
 }
 
 variable "project_tag" {
-  description = "Reviewed Project tag value used for supported EC2 authorization conditions and Permission Set inventory tags."
+  description = "Reviewed Project tag value used for EC2 and Operator secret-metadata conditions and Permission Set inventory; per-account managed policies must use the same project contract."
   type        = string
   nullable    = false
 
