@@ -42,3 +42,58 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+
+# Saved Terraform plans and exported plan output (may contain secrets)
+*.tfplan
+*.tfplan.*
+*.plan
+*.plan.*
+tfplan
+tfplan.*
+planout
+planout.*
+plan.out
+plan.json
+
+# Local environment files and secrets
+.env
+.env.*
+*.env
+*.env.*
+.envrc
+.direnv/
+.secrets/
+secrets/
+*.secret
+*.secrets
+secrets.json
+secrets.yaml
+secrets.yml
+
+# Private keys and key stores
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_dsa
+id_dsa.*
+id_ecdsa
+id_ecdsa.*
+id_ed25519
+id_ed25519.*
+
+# Local cloud credentials and authentication files
+.aws/
+.credentials/
+credentials
+credentials.*
+*.credentials
+.netrc
+
+# Track provider dependency locks and non-secret feature settings
+!.terraform.lock.hcl
+!features.auto.tfvars
