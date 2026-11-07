@@ -77,49 +77,41 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-2 offline authorization hardening
+## Current phase only: Phase 3-CI offline validation
 
-Phases 0, 1, 2, 3-1 and the Phase 3-2 baseline are merged. This task authorizes
-hardening `infra/modules/iam_access/`, its mock tests, a lightweight offline
-authorization-reference checker, necessary README updates and a short operations
-runbook. Preserve all permanent rules above and all 21 existing mock tests.
+Phase 3-2 hardening is merged. This task authorizes only
+`.github/workflows/terraform-offline-ci.yml`, removal of `.github/.gitkeep`,
+minimal repository README updates and this phase-specific section. Preserve all
+permanent rules above and all existing Terraform source, policies, tests,
+backends, provider restrictions, dependency locks and the Python checker.
 
-- Define exactly Access Admin, Developer, and Operator Permission Sets and their
-  reviewed custom inline policies. No IAM users, groups, keys, passwords, identity
-  store identities, account assignments, organization instances, or workload roles.
-- Scope assignment administration to exact Developer/Operator ARNs, approved
-  workload accounts, and the existing instance. Require an explicit management or
-  registered delegated-administrator operating account; do not equate ordinary
-  member-account assignment with functioning administration.
-- Keep all privilege grants explicit. No administrator policies, administrative
-  action wildcards, arbitrary policy inputs, speculative service writes, PassRole,
-  secret plaintext or general data-plane access. Operator is metadata-only.
-- Verify all action/resource/condition support using official AWS documentation
-  and machine-readable authorization references. Add only researched operations
-  needed by the existing VPC implementation; do not invent attribute-value,
-  recipient or main-association conditions. Document self-assignment, delegation,
-  attribute/routing capabilities, metadata and effective-access limitations.
-- Distinguish IAM and Identity Center enforcement from procedural approval and
-  detective monitoring. Explain that enforced independent assignment approval
-  would require removing direct human assignment writes and a separately approved
-  controlled executor; do not silently change the approved Access Admin profile.
-- Keep deployment identifiers as required inputs. Documentation-only placeholder
-  labels must never enter active Terraform/tfvars; mock identifiers stay synthetic.
-- Keep provider/backend/state ownership in roots. Do not change the VPC module or
-  dev root, integrate this module into a root, or commit a child dependency lock.
-- Preserve the 21 existing mock tests and add real policy-JSON security
-  regressions. Every run must explicitly use `command = plan` and a mock AWS
-  provider. Never weaken assertions merely to make a failing test pass.
-- Never use AWS credentials or account APIs, including Access Analyzer. No real
-  AWS plan, apply, destroy, provisioning or deployment; only native mocked plans.
-- Run formatting, backend-disabled initialization, validation, tests, independent
-  generated-policy/reference inspection, and scope/secret/whitespace checks.
-  Separate Offline Design Readiness from incomplete Live Authorization Readiness;
-  mocks/static checks do not establish live AWS authorization.
-- Read public documentation only. If a required source domain is blocked, record
-  the exact host/URL/status, preserve valid work, push an explicitly incomplete
-  checkpoint if possible, and stop without a completion PR or allowlist bypass.
+- Use `ci/terraform-offline-validation` from latest `main`. Validate PRs targeting
+  `main` and pushes to `main`, without path filters or privileged trigger types.
+- Use GitHub-hosted Ubuntu, a bounded timeout, concurrency cancellation, only
+  `contents: read`, full verified upstream action SHAs and checkout without
+  persisted credentials. Install Terraform 1.17.0 with its wrapper disabled.
+- Use the committed root lock unchanged and read-only for dev validation. Seed
+  transient child locks from it to retain AWS Provider 6.72.0; never commit child
+  locks or introduce caching or uploaded test/plan/state artifacts.
+- Run repository formatting, backend-disabled init/validate for dev and both
+  modules, all 16 VPC and 25 IAM native mock-plan tests, current official public
+  EC2/SSO reference checks and all nine checker negative self-tests. Fail on any
+  command error, skipped/failed test, malformed/missing reference or checker error.
+- Keep IAM verbose JSONL and reference downloads under `RUNNER_TEMP`. Preserve
+  Terraform failure status and report actual outcomes in logs and job summaries.
+  Do not weaken existing tests or rewrite the checker to make CI pass.
+- Never bind AWS credentials, credential-bearing variables, GitHub secrets or
+  AWS OIDC. No AWS identities, account APIs, real plans, apply, destroy or deploy.
+  Only native tests with mocked AWS providers and `command = plan` are permitted.
+- Distinguish local checks from independent GitHub-hosted execution. Observe an
+  actual successful GitHub run before calling this CI phase complete. Mock/static
+  success does not establish effective AWS permissions or live authorization;
+  Access Admin self-assignment and other documented residual risks remain.
+- If CI exposes an existing implementation defect, document it and stop for
+  review. If a required official source is blocked, record host/URL/status,
+  preserve work, push an incomplete checkpoint when safe and stop without bypass.
 
-Use `fix/iam-vpc-authorization` from latest `main`, not a merged working branch.
-Commit, push, and create a PR to `main` for external review, then stop. Do not
-merge, delete the working branch, integrate a module, or begin Phase 3-3.
+Commit, push, create a PR to `main`, report local checks and the actual GitHub
+Actions run URL/status, then stop for external review. Do not merge, delete the
+branch, change existing infrastructure definitions, integrate modules or begin
+Phase 3-3.

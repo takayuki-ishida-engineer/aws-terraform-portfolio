@@ -1,0 +1,186 @@
+name: Terraform offline CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-validation:
+    name: Credential-free Terraform validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      CHECKPOINT_DISABLE: "1"
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_SHARED_CREDENTIALS_FILE: /dev/null
+      AWS_CONFIG_FILE: /dev/null
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Terraform
+        id: terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.17.0"
+          terraform_wrapper: false
+
+      - name: Check repository formatting
+        id: format
+        run: |
+          set -euo pipefail
+          terraform version
+          terraform fmt -check -recursive
+
+      - name: Validate development root with its committed lock
+        id: dev
+        working-directory: infra/services/dev/ca-central-1/serverless-api
+        run: |
+          set -euo pipefail
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          git diff --exit-code -- .terraform.lock.hcl
+
+      - name: Validate VPC module and mock tests
+        id: vpc
+        working-directory: infra/modules/vpc
+        run: |
+          set -euo pipefail
+          umask 077
+          # Seed only a transient child lock; retain AWS Provider 6.72.0.
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+          terraform test -no-color | tee "$RUNNER_TEMP/vpc-tests.txt"
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          lines = pathlib.Path(os.environ["RUNNER_TEMP"], "vpc-tests.txt").read_text().splitlines()
+          summaries = [line.strip() for line in lines if line.startswith(("Success!", "Failure!"))]
+          match = re.fullmatch(r"Success! (\d+) passed, (\d+) failed\.", summaries[0]) if len(summaries) == 1 else None
+          if not match or tuple(map(int, match.groups())) != (16, 0):
+            raise SystemExit("VPC tests must report exactly 16 passed, 0 failed and no skipped tests.")
+          # A skipped-test suffix would fail the full summary match above.
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={match[1]}\n")
+          PY
+
+      - name: Validate IAM module and capture unmodified mock plans
+        id: iam
+        working-directory: infra/modules/iam_access
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/iam-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 - "$test_status" <<'PY'
+          import collections
+          import json
+          import os
+          import pathlib
+          import sys
+
+          summary = None
+          diagnostics = collections.deque(maxlen=20)
+          with pathlib.Path(os.environ["RUNNER_TEMP"], "iam-tests.jsonl").open() as events:
+            for line in events:
+              event = json.loads(line)
+              if event.get("type") == "test_run":
+                run = event["test_run"]
+                if run.get("status") in {"pass", "fail", "error", "skip"}:
+                  print(event.get("@message", str(run)))
+              if event.get("type") == "diagnostic":
+                diagnostics.append(event.get("@message", "Terraform diagnostic"))
+              if event.get("type") == "test_summary":
+                summary = event["test_summary"]
+          print("Actual IAM test summary:", summary, flush=True)
+          expected = {"status": "pass", "passed": 25, "failed": 0, "errored": 0, "skipped": 0}
+          if int(sys.argv[1]) != 0 or not summary or any(summary.get(k) != v for k, v in expected.items()):
+            for diagnostic in diagnostics:
+              print(diagnostic, file=sys.stderr)
+            raise SystemExit(f"IAM test validation failed (Terraform exit {sys.argv[1]}).")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={summary['passed']}\n")
+          PY
+
+      - name: Check generated IAM policies against current official references
+        id: reference
+        working-directory: infra/modules/iam_access
+        run: |
+          set -euo pipefail
+          umask 077
+          # Public documentation only; an unavailable source fails this step.
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 120 \
+            https://servicereference.us-east-1.amazonaws.com/v1/ec2/ec2.json \
+            --output "$RUNNER_TEMP/ec2-authorization.json"
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 120 \
+            https://servicereference.us-east-1.amazonaws.com/v1/sso/sso.json \
+            --output "$RUNNER_TEMP/sso-authorization.json"
+          python3 tests/check_authorization_reference.py \
+            --ec2-reference "$RUNNER_TEMP/ec2-authorization.json" \
+            --sso-reference "$RUNNER_TEMP/sso-authorization.json" \
+            --test-events "$RUNNER_TEMP/iam-tests.jsonl"
+
+      - name: Run authorization checker negative self-tests
+        id: self_tests
+        working-directory: infra/modules/iam_access
+        run: |
+          set -euo pipefail
+          python3 tests/check_authorization_reference.py --self-test
+
+      - name: Summarize actual validation results
+        if: ${{ always() }}
+        env:
+          INSTALL_RESULT: ${{ steps.terraform.outcome }}
+          FORMAT_RESULT: ${{ steps.format.outcome }}
+          DEV_RESULT: ${{ steps.dev.outcome }}
+          VPC_RESULT: ${{ steps.vpc.outcome }}
+          VPC_PASSED: ${{ steps.vpc.outputs.passed }}
+          IAM_RESULT: ${{ steps.iam.outcome }}
+          IAM_PASSED: ${{ steps.iam.outputs.passed }}
+          REFERENCE_RESULT: ${{ steps.reference.outcome }}
+          SELF_TEST_RESULT: ${{ steps.self_tests.outcome }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+
+          rows = [
+            ("Terraform installation", "INSTALL_RESULT", ""),
+            ("Repository formatting", "FORMAT_RESULT", ""),
+            ("Dev root init/validate, readonly lock", "DEV_RESULT", ""),
+            ("VPC init/validate/mock tests", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
+            ("IAM init/validate/mock tests", "IAM_RESULT", os.environ.get("IAM_PASSED", "")),
+            ("Official authorization-reference check", "REFERENCE_RESULT", ""),
+            ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+            summary.write("## Offline Terraform validation\n\n| Check | Outcome | Verified native passes |\n| --- | --- | --- |\n")
+            for label, result, count in rows:
+              summary.write(f"| {label} | {os.environ.get(result) or 'not run'} | {count or '—'} |\n")
+            summary.write("\nCredential-free mock/static checks only. Live AWS authorization remains unverified.\n")
+          PY
