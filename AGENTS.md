@@ -77,38 +77,35 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 2
+## Current phase only: Phase 3-1
 
-Phases 0 and 1 are complete and merged through PRs #1 and #2. Phase 2 authorizes
-only the development root foundation at
-`infra/services/dev/ca-central-1/serverless-api/`. Preserve all permanent rules.
+Phases 0, 1, and 2 are complete and merged. This task authorizes only the reusable
+VPC child module in `infra/modules/vpc/`, its real native mock tests, and necessary
+repository documentation updates. Preserve all permanent rules above.
 
-- Keep environment `dev`, region `ca-central-1`, and service `serverless-api`
-  fixed in the root. Do not create additional roots or reusable child modules.
-- Add the requested Terraform foundation files, a comments-only
-  `features.auto.tfvars`, and a practical root README. Remove only the obsolete
-  `infra/services/dev/.gitkeep`; preserve module, staging, and production keeps.
-- Require Terraform `~> 1.17.0` and `hashicorp/aws` `~> 6.72.0`. Generate and commit
-  `.terraform.lock.hcl` only through successful initialization; never fabricate it.
-- Keep provider configuration in the root, with a required, validated 12-digit
-  account ID input and `allowed_account_ids`. Never hardcode a real account ID or
-  disable provider credential validation or account restrictions.
-- Use an explicit local backend. Do not add S3 backends, remote-state resources,
-  bootstrap scripts, or state migration tools.
-- Do not add AWS resources or data sources, real or placeholder child module
-  calls, stacks, workflows, deployment scripts, or speculative module tests.
-  Cross-region integrations and disaster recovery designs remain out of scope.
-- Never use AWS credentials or call AWS APIs. Do not run `terraform plan`,
-  `terraform apply`, or `terraform destroy` in Codex Cloud.
-- Inspect configuration and run formatting, backend-disabled initialization, and
-  validation when the required CLI and registry access are available. Report any
-  blocked checks accurately; do not bypass security controls to make checks pass.
+- Implement one IPv4 VPC, explicitly keyed private subnets, optional keyed public
+  subnets, one shared private route table, conditional IGW/public routing, and
+  their associations. Keep private-only defaults and fixed IP/DNS safeguards.
+- Require caller-supplied CIDRs, stable subnet keys, and explicit AZs; do not use
+  AWS data sources for discovery. Validate inputs and document unchecked behavior.
+- Keep provider/backend/authentication/region/account/state ownership in roots.
+  Do not add provider or backend configuration to the child module, or commit a
+  separate child-module lock file. Preserve the existing root lock unchanged.
+- Remove only the obsolete `infra/modules/.gitkeep`. Do not change any existing
+  service root or integrate the VPC module into one.
+- Do not add other modules, NAT/EIP, endpoints, flow logs, IPv6, peering/transit,
+  cross-region networking, private hosted zones, VPN/Direct Connect, firewalls,
+  security groups, custom ACLs, remote backends, or workflows.
+- Use `mock_provider "aws"` and explicit `command = plan` for every test run.
+  Only these mocked test plans are authorized; never run an actual AWS plan,
+  apply, destroy, deployment, or AWS API operation. Never use AWS credentials.
+- Run formatting, backend-disabled initialization, validation, native mock tests,
+  and scope/secret/whitespace checks. Investigate failures rather than weakening
+  assertions, enabling real authentication, or silently skipping required tests.
 - Update the repository README and only this phase-specific section of AGENTS.
-  Document actual validation results and distinguish current root-defined values
-  from future Root Override, Module Default, and Module Fixed configuration.
+  Document module sources/defaults/fixed settings, tests, and live-AWS limitations.
 
-Use `feat/phase-2-root-module` from the latest `main`, not a previous phase branch.
-Inspect the full staged diff, check scope and secrets, and run `git diff --check`.
-Commit, push, and open a PR for external manual review, then stop. Do not merge
-the PR or delete the working branch. Require manual PR review and explicit
-authorization before further implementation; do not begin Phase 3.
+Use `feat/module-vpc` from the latest `main`, not a previous phase branch. Commit,
+push, and open a PR for external review, then stop. Do not merge the PR or delete
+the working branch. Further module development or root integration requires a
+separate request and external PR review; do not begin Phase 3-2.
