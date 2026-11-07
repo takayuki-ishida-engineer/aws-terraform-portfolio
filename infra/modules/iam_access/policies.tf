@@ -100,6 +100,15 @@ locals {
     Version = "2012-10-17"
     Statement = concat(
       local.metadata_statements,
+      [
+        {
+          Sid       = "VpcProviderDefaultMetadata"
+          Effect    = "Allow"
+          Action    = ["ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"]
+          Resource  = ["*"]
+          Condition = { StringEquals = local.regional_equals }
+        }
+      ],
       [for spec in local.network_creates : {
         Sid       = spec.action
         Effect    = "Allow"
@@ -148,6 +157,27 @@ locals {
           Effect    = "Allow"
           Action    = ["ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute"]
           Resource  = local.route_table_arns
+          Condition = local.project_condition
+        },
+        {
+          Sid       = "ModifyProjectVpcAttributes"
+          Effect    = "Allow"
+          Action    = ["ec2:ModifyVpcAttribute"]
+          Resource  = local.vpc_arns
+          Condition = local.project_condition
+        },
+        {
+          Sid       = "ModifyProjectSubnetAttributes"
+          Effect    = "Allow"
+          Action    = ["ec2:ModifySubnetAttribute"]
+          Resource  = local.subnet_arns
+          Condition = local.project_condition
+        },
+        {
+          Sid       = "ManageProjectSubnetAssociations"
+          Effect    = "Allow"
+          Action    = ["ec2:AssociateRouteTable", "ec2:ReplaceRouteTableAssociation", "ec2:DisassociateRouteTable"]
+          Resource  = concat(local.route_table_arns, local.subnet_arns)
           Condition = local.project_condition
         },
         {

@@ -77,12 +77,12 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-2
+## Current phase only: Phase 3-2 offline authorization hardening
 
-Phases 0, 1, 2, and 3-1 are complete and merged. This task authorizes only
-`infra/modules/iam_access/` for human access using an existing organization IAM
-Identity Center instance, its mock tests, and necessary documentation updates.
-Preserve all permanent rules above and the existing WIP implementation/tests.
+Phases 0, 1, 2, 3-1 and the Phase 3-2 baseline are merged. This task authorizes
+hardening `infra/modules/iam_access/`, its mock tests, a lightweight offline
+authorization-reference checker, necessary README updates and a short operations
+runbook. Preserve all permanent rules above and all 21 existing mock tests.
 
 - Define exactly Access Admin, Developer, and Operator Permission Sets and their
   reviewed custom inline policies. No IAM users, groups, keys, passwords, identity
@@ -94,20 +94,32 @@ Preserve all permanent rules above and the existing WIP implementation/tests.
 - Keep all privilege grants explicit. No administrator policies, administrative
   action wildcards, arbitrary policy inputs, speculative service writes, PassRole,
   secret plaintext or general data-plane access. Operator is metadata-only.
-- Verify action/resource/condition support using official AWS documentation.
-  Document unverified or deferred privileges rather than inventing restrictions;
-  retain self-assignment, delegation, metadata and effective-access limitations.
+- Verify all action/resource/condition support using official AWS documentation
+  and machine-readable authorization references. Add only researched operations
+  needed by the existing VPC implementation; do not invent attribute-value,
+  recipient or main-association conditions. Document self-assignment, delegation,
+  attribute/routing capabilities, metadata and effective-access limitations.
+- Distinguish IAM and Identity Center enforcement from procedural approval and
+  detective monitoring. Explain that enforced independent assignment approval
+  would require removing direct human assignment writes and a separately approved
+  controlled executor; do not silently change the approved Access Admin profile.
+- Keep deployment identifiers as required inputs. Documentation-only placeholder
+  labels must never enter active Terraform/tfvars; mock identifiers stay synthetic.
 - Keep provider/backend/state ownership in roots. Do not change the VPC module or
   dev root, integrate this module into a root, or commit a child dependency lock.
-- Preserve the eight original mock tests and add real policy-JSON security
+- Preserve the 21 existing mock tests and add real policy-JSON security
   regressions. Every run must explicitly use `command = plan` and a mock AWS
   provider. Never weaken assertions merely to make a failing test pass.
 - Never use AWS credentials or account APIs, including Access Analyzer. No real
   AWS plan, apply, destroy, provisioning or deployment; only native mocked plans.
 - Run formatting, backend-disabled initialization, validation, tests, independent
-  generated-policy inspection, and scope/secret/whitespace checks. Update the
-  repository README and only this phase-specific AGENTS section.
+  generated-policy/reference inspection, and scope/secret/whitespace checks.
+  Separate Offline Design Readiness from incomplete Live Authorization Readiness;
+  mocks/static checks do not establish live AWS authorization.
+- Read public documentation only. If a required source domain is blocked, record
+  the exact host/URL/status, preserve valid work, push an explicitly incomplete
+  checkpoint if possible, and stop without a completion PR or allowlist bypass.
 
-Continue `feat/module-iam-access` without discarding or recreating the WIP.
+Use `fix/iam-vpc-authorization` from latest `main`, not a merged working branch.
 Commit, push, and create a PR to `main` for external review, then stop. Do not
 merge, delete the working branch, integrate a module, or begin Phase 3-3.
