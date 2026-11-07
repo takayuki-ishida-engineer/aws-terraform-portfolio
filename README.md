@@ -16,8 +16,9 @@ without account assignments. Its hardening completes the offline VPC authorizati
 design; live AWS authorization remains unverified.
 **No service root calls either module yet.**
 No AWS credentials were used and no
-AWS infrastructure was deployed or tested against a live account. There are no
-CI workflows.
+AWS infrastructure was deployed or tested against a live account.
+The offline CI workflow below independently repeats validation on GitHub-hosted
+runners; it never deploys infrastructure.
 
 ## Planned architecture
 
@@ -40,7 +41,8 @@ and production directories remain placeholders.
 .
 ├── .editorconfig
 ├── .github/
-│   └── .gitkeep
+│   └── workflows/
+│       └── terraform-offline-ci.yml
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md
@@ -90,7 +92,7 @@ and production directories remain placeholders.
 
 `AGENTS.md` records architecture and contributor guidance. Future architecture and
 operational documentation belongs in `docs/`, Terraform code in `infra/`, and tests
-in `tests/`. `.github/` is a placeholder; it contains no workflows.
+in `tests/`. `.github/workflows/` contains the offline validation workflow.
 
 `infra/modules/` contains independently tested VPC and human-access child modules,
 not yet called by a service root.
@@ -145,6 +147,66 @@ CloudTrail, reconciliation and replaceable identifier guidance. No real AWS acce
 identities, account assignments, deployments or workload execution roles were
 created.
 
+## Independent offline Terraform CI
+
+[Terraform offline CI](.github/workflows/terraform-offline-ci.yml) runs on every
+pull request targeting `main` and every push to `main`, without path filters.
+GitHub-hosted Ubuntu 24.04 executes it independently of Codex Cloud. Obsolete
+runs for the same PR/ref are cancelled; the job has a 20-minute timeout.
+
+It installs **Terraform 1.17.0** with the CLI wrapper disabled. The unchanged dev
+root lock selects **AWS Provider 6.72.0**; transient copies seed both child-module
+locks so their broader constraints do not select a newer provider. Those child
+locks, provider files and captured test output are never committed or uploaded.
+
+| Check | Initial required result |
+| --- | --- |
+| Repository `terraform fmt -check -recursive` | All Terraform configurations and native test files formatted |
+| Dev root `init` / `validate` | Backend disabled, no account-ID input, committed lock read-only and unchanged |
+| VPC module `init` / `validate` / native tests | 16 mock-plan tests pass, zero failures or skips |
+| IAM module `init` / `validate` / native tests | 25 mock-plan tests pass, zero failures, errors or skips |
+| Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO JSON |
+| Checker negative self-tests | All nine unsafe mutations rejected |
+
+Every command failure fails the job. Bash pipefail preserves the VPC test exit
+status; IAM's original Terraform exit status and structured summary are both
+checked. Exact initial test counts guard against omitted/skipped coverage; an
+intentional future coverage change requires reviewing these expectations too.
+Malformed or unavailable official JSON fails validation without a stale fallback.
+Temporary verbose IAM plans/reference files stay under `RUNNER_TEMP`; only test
+statuses and failure diagnostics are printed, with no artifact uploads.
+
+The GitHub token has only `contents: read`; checkout does not persist it. Actions
+are pinned to verified official release commits: checkout v7.0.1 and
+setup-terraform v4.0.1. Terraform runs with metadata lookup disabled, shared AWS
+configuration/credentials set to `/dev/null`, and no AWS keys, profiles, secrets,
+credential-bearing inputs or OIDC. No real-account plan, AWS account API, apply,
+destroy or deployment is authorized or executed by the workflow.
+
+Inspect the repository's **Actions → Terraform offline CI** run, its individual
+step logs and job summary, or the PR's **Checks** tab. A first successful run
+must actually be observed on GitHub before this CI phase is considered complete;
+local execution or YAML inspection alone does not establish GitHub CI success.
+The PR records the observed run URL/status rather than asserting success early.
+
+Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
+provider registry/release endpoints, and the current public documents at
+`https://servicereference.us-east-1.amazonaws.com/v1/ec2/ec2.json` and
+`https://servicereference.us-east-1.amazonaws.com/v1/sso/sso.json`. Python 3 and
+its standard library come from the runner; no Python packages, containers or
+provider cache are added. Codex Cloud's domain allowlist and GitHub-hosted runner
+networking are separate; changing one does not configure the other.
+
+A successful run confirms HCL validation, mocked behavior and static reference
+compatibility for the tested revision. It does not prove actual AWS authorization,
+effective permissions, runtime topology or Identity Center prerequisites.
+**Live Authorization Readiness remains incomplete.** Access Admin can still
+self-assign approved profiles within its scope; approval/audit controls and the
+controlled-executor trade-off remain as documented in the
+[IAM module](infra/modules/iam_access/README.md) and
+[operations runbook](docs/iam-access-operations.md). AWS credentials and deployment
+remain prohibited in this CI and in Codex Cloud.
+
 ## Configuration and secrets
 
 Terraform state, saved plans, local secrets, private keys, credentials, and local
@@ -152,5 +214,5 @@ environment files must stay out of version control. `.terraform.lock.hcl` remain
 trackable. Future `features.auto.tfvars` files may be tracked only when they contain
 non-secret feature settings; Terraform loads these files automatically.
 
-Phase 3-2 requires no AWS access. Do not add cloud credentials or run deployments
-as part of this foundation work.
+Offline validation requires no AWS account access. Do not add cloud credentials
+or run deployments as part of this work.
