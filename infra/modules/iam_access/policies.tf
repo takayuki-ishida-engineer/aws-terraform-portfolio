@@ -99,15 +99,12 @@ locals {
   developer_policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      local.metadata_statements,
       [
-        {
-          Sid       = "VpcProviderDefaultMetadata"
-          Effect    = "Allow"
-          Action    = ["ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"]
-          Resource  = ["*"]
-          Condition = { StringEquals = local.regional_equals }
-        }
+        # Same region/account conditions; combine only Developer's metadata reads.
+        merge(local.metadata_statements[0], {
+          Action = concat(local.metadata_statements[0].Action, ["ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"])
+        }),
+        local.metadata_statements[1]
       ],
       [for spec in local.network_creates : {
         Sid       = spec.action
@@ -125,52 +122,15 @@ locals {
           Condition = local.project_condition
         },
         {
-          Sid       = "DeleteProjectVpc"
-          Effect    = "Allow"
-          Action    = ["ec2:DeleteVpc"]
-          Resource  = local.vpc_arns
-          Condition = local.project_condition
-        },
-        {
-          Sid       = "DeleteProjectSubnet"
-          Effect    = "Allow"
-          Action    = ["ec2:DeleteSubnet"]
-          Resource  = local.subnet_arns
-          Condition = local.project_condition
-        },
-        {
-          Sid       = "DeleteProjectInternetGateway"
-          Effect    = "Allow"
-          Action    = ["ec2:DeleteInternetGateway"]
-          Resource  = local.internet_gateway_arns
-          Condition = local.project_condition
-        },
-        {
-          Sid       = "AttachProjectInternetGateway"
-          Effect    = "Allow"
-          Action    = ["ec2:AttachInternetGateway", "ec2:DetachInternetGateway"]
-          Resource  = concat(local.internet_gateway_arns, local.vpc_arns)
-          Condition = local.project_condition
-        },
-        {
-          Sid       = "ManageProjectRouteTable"
-          Effect    = "Allow"
-          Action    = ["ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute"]
-          Resource  = local.route_table_arns
-          Condition = local.project_condition
-        },
-        {
-          Sid       = "ModifyProjectVpcAttributes"
-          Effect    = "Allow"
-          Action    = ["ec2:ModifyVpcAttribute"]
-          Resource  = local.vpc_arns
-          Condition = local.project_condition
-        },
-        {
-          Sid       = "ModifyProjectSubnetAttributes"
-          Effect    = "Allow"
-          Action    = ["ec2:ModifySubnetAttribute"]
-          Resource  = local.subnet_arns
+          Sid    = "ManageExistingProjectNetwork"
+          Effect = "Allow"
+          Action = [
+            "ec2:DeleteVpc", "ec2:DeleteSubnet", "ec2:DeleteInternetGateway",
+            "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
+            "ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute",
+            "ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute"
+          ]
+          Resource  = local.network_arns
           Condition = local.project_condition
         },
         {
@@ -199,12 +159,69 @@ locals {
         Condition = merge(local.creation_condition, {
           StringEquals = merge(local.creation_condition.StringEquals, { "ec2:CreateAction" = spec.action })
         })
-      }]
+      }],
+      local.developer_secret_statements
     )
   })
 
+  secret_arns = [for id in sort(tolist(var.target_account_ids)) : "arn:${local.partition}:secretsmanager:${var.target_region}:${id}:secret:*"]
+  secret_metadata_statement = {
+    Sid       = "ReadProjectSecretMetadata"
+    Effect    = "Allow"
+    Action    = ["secretsmanager:DescribeSecret"]
+    Resource  = local.secret_arns
+    Condition = local.project_condition
+  }
+  developer_secret_statements = [
+    {
+      Sid      = "CreateProjectSecret"
+      Effect   = "Allow"
+      Action   = ["secretsmanager:CreateSecret"]
+      Resource = local.secret_arns
+      Condition = merge(local.creation_condition, {
+        Null         = { "secretsmanager:AddReplicaRegions" = "true" }
+        BoolIfExists = { "secretsmanager:ForceOverwriteReplicaSecret" = "false" }
+      })
+    },
+    {
+      # AWS's Secrets Manager ABAC tutorial documents resource tags on creation.
+      # Both values must match: existing unrelated secrets cannot be adopted.
+      Sid      = "TagProjectSecretIdentity"
+      Effect   = "Allow"
+      Action   = ["secretsmanager:TagResource"]
+      Resource = local.secret_arns
+      Condition = merge(local.creation_condition, {
+        StringEquals = merge(local.creation_condition.StringEquals, { "aws:ResourceTag/Project" = var.project_tag })
+      })
+    },
+    merge(local.secret_metadata_statement, {
+      Action = ["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"]
+    }),
+    {
+      Sid      = "EditProjectSecretTags"
+      Effect   = "Allow"
+      Action   = ["secretsmanager:TagResource", "secretsmanager:UntagResource"]
+      Resource = local.secret_arns
+      Condition = merge(local.project_condition, {
+        "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
+        Null                                     = { "aws:TagKeys" = "false" }
+      })
+    },
+    {
+      Sid      = "ScheduleProjectSecretDeletion"
+      Effect   = "Allow"
+      Action   = ["secretsmanager:DeleteSecret"]
+      Resource = local.secret_arns
+      Condition = merge(local.project_condition, {
+        BoolIfExists             = { "secretsmanager:ForceDeleteWithoutRecovery" = "false" }
+        NumericGreaterThanEquals = { "secretsmanager:RecoveryWindowInDays" = "7" }
+        NumericLessThanEquals    = { "secretsmanager:RecoveryWindowInDays" = "30" }
+      })
+    }
+  ]
+
   operator_policy = jsonencode({
     Version   = "2012-10-17"
-    Statement = local.metadata_statements
+    Statement = concat(local.metadata_statements, [local.secret_metadata_statement])
   })
 }

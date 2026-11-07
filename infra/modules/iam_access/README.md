@@ -9,8 +9,8 @@ has been deployed or connected to a real AWS account.
 | Fixed Permission Set name | Responsibility | Session |
 | --- | --- | --- |
 | `Portfolio-Access-Admin` | Assign/revoke only Developer and Operator in approved workload accounts | One hour (`PT1H`) |
-| `Portfolio-Developer` | Project-scoped current VPC lifecycle design; live authorization unverified | One hour (`PT1H`) |
-| `Portfolio-Operator` | VPC configuration metadata only | One hour (`PT1H`) |
+| `Portfolio-Developer` | Reviewed VPC and Secrets Manager container operations; live authorization unverified | One hour (`PT1H`) |
+| `Portfolio-Operator` | VPC and scoped Secrets Manager metadata only | One hour (`PT1H`) |
 
 There are no AWS-managed policy attachments. In particular, AdministratorAccess,
 PowerUserAccess and ReadOnlyAccess are not used. Human permissions do not define
@@ -117,6 +117,9 @@ All actions below are exact names. Let:
 
 The principal-account condition constrains the caller's account, not ownership of
 every returned shared resource. ARN account segments separately scope writes.
+The matrix shows each action's compatible resource projection. For compactness,
+equal-condition EC2 actions may share a statement containing the ARN union;
+unsupported action/resource-type combinations grant no additional permission.
 
 ### Access Admin: six SSO actions
 
@@ -176,6 +179,32 @@ and two provider metadata reads. There are no intentionally omitted operations
 identified for the implemented explicit-IPv4-CIDR VPC path. This is an offline
 design assessment, not proof that deployment or deletion will succeed in AWS.
 
+### Equivalent EC2 statement compaction and policy quota
+
+IAM Identity Center permits only one inline policy per Permission Set, with a
+non-adjustable **10,240-byte non-whitespace limit** (32,768 bytes total). To make
+room for reviewed Secrets Manager operations, seven equal-condition EC2
+statements are compiled into `ManageExistingProjectNetwork`. Its eleven actions
+are DeleteVpc, DeleteSubnet, DeleteInternetGateway, AttachInternetGateway,
+DetachInternetGateway, DeleteRouteTable, CreateRoute, ReplaceRoute, DeleteRoute,
+ModifyVpcAttribute and ModifySubnetAttribute, all with their `ec2:` prefix.
+The shared V/S/G/T ARN union has exactly the same per-action compatible resource
+projection and E condition as before. Create-time parent and tagging statements
+remain separate. Association actions remain T + S only; merging them with gateway
+ARNs would expand authority and is deliberately avoided.
+
+The Developer-only default-NACL/security-group describe pair is also combined
+with its four equal-condition regional metadata describes. Operator retains its
+original five EC2 actions; this compaction adds no actions or resource scope.
+
+The compact generated Developer policy is ASCII, so a native resource
+precondition can enforce its actual JSON length against 10,240 bytes. Target
+account count and Project length affect size; reduce the reviewed target scope
+or separately redesign policy composition if the guard rejects it. Do not bypass
+the quota guard or assume an increase can be requested. Native regressions and a
+before/after official-reference projection comparison verify the unchanged EC2
+boundaries. This structural equivalence is not IAM simulation.
+
 ### Five-action authorization decisions
 
 The [EC2 SAR](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ec2.html)
@@ -223,6 +252,61 @@ Provider evidence is pinned to v6.72.0:
 and [route-table association](https://github.com/hashicorp/terraform-provider-aws/blob/v6.72.0/internal/service/ec2/vpc_route_table_association.go).
 The module's routing and public-IP defaults are unchanged.
 
+### Secrets Manager: six Developer actions, one Operator action
+
+Let **Q** be `arn:<partition>:secretsmanager:<target_region>:<approved-target-id>:secret:*`
+for each approved target. Q contains explicit partition/region/account segments;
+`SecretId` includes the service-assigned suffix and may contain `/` from the name.
+All six actions require the SAR `Secret` resource type. R, E and C keep their
+existing meaning above; C uses the same five canonical creation tag keys.
+
+| Profile / exact action | Resource | Conditions / purpose |
+| --- | --- | --- |
+| Developer `secretsmanager:CreateSecret` | Q | C; `Null: secretsmanager:AddReplicaRegions = true`, `BoolIfExists: secretsmanager:ForceOverwriteReplicaSecret = false`; create a tagged container, no requested replicas/overwrite |
+| Developer `secretsmanager:TagResource` with Project supplied | Q | C **and** existing/resource `aws:ResourceTag/Project = project_tag`; creation authorization or reaffirming the same Project, not adopting unrelated secrets |
+| Developer `secretsmanager:DescribeSecret`, `secretsmanager:GetResourcePolicy` | Q | E; provider refresh reads both, even when no resource policy is managed |
+| Developer `secretsmanager:TagResource`, `secretsmanager:UntagResource` for other tags | Q | E; `ForAllValues:StringNotEqualsIgnoreCase` excludes Project; `Null: aws:TagKeys = false` |
+| Developer `secretsmanager:DeleteSecret` | Q | E; `BoolIfExists: ForceDeleteWithoutRecovery = false`; NumericGreaterThanEquals RecoveryWindowInDays 7 and NumericLessThanEquals 30 (both `secretsmanager:` keys) |
+| Operator `secretsmanager:DescribeSecret` | Q | E; metadata only, no list/policy/value read or mutations |
+
+CreateSecret with tags also requires TagResource. The official
+[IAM Secrets Manager ABAC tutorial](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_attribute-based-access-control.html)
+documents creation with matching resource/request tags. Requiring both Project
+values and exact canonical keys permits that path without a request-tag-only
+Allow that could adopt an unrelated existing secret. It can reaffirm the same
+Project on an existing matching resource; there is no invented Secrets Manager
+`CreateAction` key. Other Project casing variants cannot be introduced through
+these grants. Project governance by other identities remains an external trust
+boundary.
+
+The provider's safe deletion request supplies the recovery period and omits the
+force flag. BoolIfExists permits absence/false while rejecting true; numeric
+bounds require an explicit 7–30 day window. A caller omitting the window does not
+satisfy this policy, even though the service has a default. Module validation also
+rejects zero/fractional recovery windows. External restore remains a separately
+approved operation; RestoreSecret is not used by the implemented provider path.
+
+**CreateSecret is not an IAM-enforced metadata-only capability.** Its API accepts
+initial SecretString/SecretBinary payloads, and the published keys provide no
+reliable absence guard. Developer can initialize a value in a new in-scope secret;
+Terraform never receives or manages that value. `UpdateSecret` is deliberately
+withheld because it can also overwrite values; description and encryption-key
+changes therefore cannot be completed using this human Developer policy alone.
+A future controlled deployment identity needs separately reviewed permissions
+and an execution process that excludes payloads. Removing direct human create
+rights would be an additional design trade-off, not an effect of documentation.
+
+The production scope intentionally grants **no** GetSecretValue,
+BatchGetSecretValue, PutSecretValue, UpdateSecretVersionStage, rotation,
+RestoreSecret, ListSecrets, PutResourcePolicy, DeleteResourcePolicy or KMS access.
+The optional resource-policy model is omitted by the new module; workload
+identity policies and any approved deployment identity are separate designs.
+GetResourcePolicy is a required provider metadata read, not policy-edit authority.
+CMK creation/use requires independent KMS/key-policy review; no Decrypt or other
+KMS permission is automatically added to any human profile. Access Admin remains
+unchanged and has no direct Secrets Manager action; its self-assignment risk
+continues to apply to these newly reviewed Developer capabilities.
+
 ### Developer and Operator: metadata visibility
 
 | Exact action | Resource | Why / restriction |
@@ -233,7 +317,8 @@ The module's routing and public-IP defaults are unchanged.
 | `ec2:DescribeRouteTables` | `*` | Route/association metadata; no resource-level authorization support; R |
 | `ec2:DescribeVpcAttribute` | V | DNS/VPC attribute metadata; E |
 
-Operator has exactly these five actions and no write grants. The four wildcard
+Operator retains these five EC2 actions, plus only the scoped Secrets Manager
+DescribeSecret above, and has no write grants. The four wildcard
 describes cannot be Project-filtered through IAM and can expose other-project
 or shared-resource network metadata in the permitted region/account context.
 They do not retrieve workload content. Do not put secrets in tags or metadata.
@@ -244,7 +329,7 @@ lack resource-level authorization. The v6.72.0 VPC read path queries default
 NACL/security-group metadata; missing permissions produce warnings and missing
 computed metadata. These reads can expose other-project/shared configuration,
 including network rules, within the account/region context. They grant no ACL or
-security-group writes. Operator remains exactly the five actions above.
+security-group writes. Operator's EC2 grants remain exactly the five actions above.
 
 There is no DescribeTags/AvailabilityZones convenience permission, CloudWatch
 metrics/log events, Secrets Manager plaintext, SSM parameter values, KMS Decrypt,
@@ -278,9 +363,9 @@ capability in Operator. Monitoring extensions need a real requirement and review
   affect effective access. Trusted governance of the Project tag is essential.
 - Creation covers the reviewed explicit-CIDR paths. IPAM pool authorization and
   other optional EC2 dependencies are not granted or tested.
-- Increasing target-account count grows inline policies. Review rendered policy
-  sizes and applicable Identity Center quotas before externally provisioning;
-  format validation alone is not a service-quota or deployability check.
+- Increasing target-account count or Project length grows inline policies. The
+  Developer precondition rejects generated JSON beyond the hard 10,240-byte limit;
+  review all remaining service quotas and deployability outside Codex Cloud.
 - MFA must be enforced by the workforce identity provider / Identity Center
   authentication setup. Do not assume the IAM-user MFA-present key enforces MFA
   for federated sessions. Use temporary workforce sessions, not IAM user keys.
@@ -335,12 +420,13 @@ policy. All other actions remain ungranted, including these reviewed boundaries:
 | Project-tag changes, unscoped creates, all-resource EC2 writes | Would weaken the resource ownership boundary |
 | Permission Set/policy editing, Access Admin assignment targets, Identity Store membership writes, organization/delegated-admin setup, explicit `sso:ProvisionPermissionSet` | Preserve profile separation and bootstrap/governance boundaries; approved assignment still auto-provisions |
 | IAM role/user/policy administration and `iam:PassRole` | No workload execution roles or deployment identity in this phase |
-| Secrets Manager/SSM values, KMS Decrypt, S3 objects, database content, logs/events and future service writes | No plaintext/data-plane access or speculative services; Operator stays metadata-only |
+| Secret-value retrieval/existing-value updates, SSM values, KMS Decrypt, S3 objects, database content, logs/events and future service writes | No retrieval or speculative services; CreateSecret still accepts initial payloads as explicitly documented; Operator stays metadata-only |
 
 ## Future service expansion contract
 
-Do not add IAM workload roles, Secrets Manager, Lambda, S3, CloudWatch, API Gateway,
-ECS or PassRole writes merely because they are planned. Every future module PR
+Beyond the reviewed secret-container operations, do not add IAM workload roles,
+secret-value access, Lambda, S3, CloudWatch, API Gateway, ECS or PassRole writes
+merely because they are planned. Every future module PR
 must explicitly review: exact IAM actions, resource ARNs, request/resource
 conditions, operational purpose, escalation risks, new security tests and
 documentation. Future PassRole must name approved workload roles and service
@@ -361,10 +447,11 @@ terraform validate -no-color
 terraform test -no-color
 ```
 
-Formatting, initialization and validation passed; native tests passed **25 runs,
-zero failed**. All prior 21 tests, including the original eight WIP tests, remain.
-Four additional generated-policy regressions cover each attribute action,
-association lifecycle scope and the Developer-only provider metadata reads.
+Formatting, initialization and validation passed; native tests passed **34 runs,
+zero failed**. All prior 25 run names, including the original eight WIP tests,
+remain. New generated-policy regressions cover Secrets Manager creation, tags,
+recovery, profile separation and quota enforcement. Existing VPC assertions are
+adapted to the equivalent compact statement and still verify per-action scopes.
 Coverage includes policy JSON,
 binding, account/region/resource, creation-parent, tag-integrity, Operator
 confidentiality, forbidden-privilege and administrative-input regressions.
@@ -395,20 +482,27 @@ stream. Run from this module after the commands above, preserving test failure:
 ```sh
 curl --fail --silent --show-error https://servicereference.us-east-1.amazonaws.com/v1/ec2/ec2.json -o /tmp/aws-ec2-authorization.json
 curl --fail --silent --show-error https://servicereference.us-east-1.amazonaws.com/v1/sso/sso.json -o /tmp/aws-sso-authorization.json
+curl --fail --silent --show-error https://servicereference.us-east-1.amazonaws.com/v1/secretsmanager/secretsmanager.json -o /tmp/aws-secretsmanager-authorization.json
 terraform test -no-color -json -verbose > /tmp/iam-hardening-tests.jsonl &&
 python3 tests/check_authorization_reference.py \
   --ec2-reference /tmp/aws-ec2-authorization.json \
   --sso-reference /tmp/aws-sso-authorization.json \
+  --secretsmanager-reference /tmp/aws-secretsmanager-authorization.json \
   --test-events /tmp/iam-hardening-tests.jsonl
 python3 tests/check_authorization_reference.py --self-test
 ```
 
-Both public JSON endpoints returned HTTP 200, schema v1.5. Current checks passed
+All three public JSON endpoints returned HTTP 200, schema v1.5. The Secrets
+Manager URL was discovered from the canonical SAR HTML link, not guessed. Current checks passed
 for all three generated policies and the exact six-resource plan inventory.
-Nine negative mutation self-tests passed: unknown/wildcard actions, wildcard
+Seventeen negative mutation self-tests passed: the nine retained cases cover
+unknown/wildcard actions, wildcard
 write resources, unsupported ARN/key, wrong resource-tag context, missing parent
 VPC, optional IPAM resource without the required VPC, and NotAction are rejected.
-Failed/skipped/errored summaries are rejected.
+Eight additional Secrets Manager mutations reject fake payload-absence keys,
+unsupported action/resource/condition combinations and unscoped ARNs; a valid
+slash-containing secret ARN is accepted. Failed/skipped/errored summaries are
+rejected.
 The checker streams potentially large verbose output and does not contact AWS.
 
 It validates action names, ARN type compatibility, action/resource-specific keys
@@ -423,7 +517,7 @@ regressions complement this structural check; neither simulates IAM.
 
 Supported actions, selected ARN patterns and condition keys are researched;
 the current VPC operations are represented; security boundaries and residuals
-are documented. Formatting/init/validation, 25 mock tests and static reference
+are documented. Formatting/init/validation, 34 mock tests and static reference
 checks pass. This assessment is limited to the reviewed implementation and
 official public references, not an AWS service acceptance or execution result.
 
@@ -443,6 +537,14 @@ Official sources reviewed on 2026-11-07 (documentation reads only):
 - [EC2 Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ec2.html)
 - [Official EC2 machine-readable reference](https://servicereference.us-east-1.amazonaws.com/v1/ec2/ec2.json)
 - [Official IAM Identity Center machine-readable reference](https://servicereference.us-east-1.amazonaws.com/v1/sso/sso.json)
+- [Secrets Manager Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_secretsmanager.html)
+- [Official Secrets Manager machine-readable reference, linked by the SAR](https://servicereference.us-east-1.amazonaws.com/v1/secretsmanager/secretsmanager.json)
+- [Secrets Manager CreateSecret API](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_CreateSecret.html)
+- [Secrets Manager UpdateSecret API](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_UpdateSecret.html)
+- [Secrets Manager DeleteSecret API](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_DeleteSecret.html)
+- [Secrets Manager TagResource API](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_TagResource.html)
+- [Secrets Manager ABAC creation/tag example](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_attribute-based-access-control.html)
+- [IAM Identity Center policy quotas](https://docs.aws.amazon.com/singlesignon/latest/userguide/limits.html)
 - [Principal account and other global condition keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html)
 - [String/set condition operators](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html#Conditions_String)
 - [EC2 creation-time tagging](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/supported-iam-actions-tagging.html)

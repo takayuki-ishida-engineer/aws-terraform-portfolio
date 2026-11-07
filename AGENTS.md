@@ -77,41 +77,47 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-CI offline validation
+## Current phase only: Phase 3-3 Secrets Manager metadata
 
-Phase 3-2 hardening is merged. This task authorizes only
-`.github/workflows/terraform-offline-ci.yml`, removal of `.github/.gitkeep`,
-minimal repository README updates and this phase-specific section. Preserve all
-permanent rules above and all existing Terraform source, policies, tests,
-backends, provider restrictions, dependency locks and the Python checker.
+Phase 3-CI is merged and its main run succeeded. Use a new
+`feat/module-secrets-manager` branch from latest `main`. This task authorizes the
+new `infra/modules/secrets_manager/` child module, necessary IAM policies/tests/
+checker/documentation extensions, CI coverage, repository README and this section.
+Preserve the permanent rules above, VPC module, dev root and existing root lock.
 
-- Use `ci/terraform-offline-validation` from latest `main`. Validate PRs targeting
-  `main` and pushes to `main`, without path filters or privileged trigger types.
-- Use GitHub-hosted Ubuntu, a bounded timeout, concurrency cancellation, only
-  `contents: read`, full verified upstream action SHAs and checkout without
-  persisted credentials. Install Terraform 1.17.0 with its wrapper disabled.
-- Use the committed root lock unchanged and read-only for dev validation. Seed
-  transient child locks from it to retain AWS Provider 6.72.0; never commit child
-  locks or introduce caching or uploaded test/plan/state artifacts.
-- Run repository formatting, backend-disabled init/validate for dev and both
-  modules, all 16 VPC and 25 IAM native mock-plan tests, current official public
-  EC2/SSO reference checks and all nine checker negative self-tests. Fail on any
-  command error, skipped/failed test, malformed/missing reference or checker error.
-- Keep IAM verbose JSONL and reference downloads under `RUNNER_TEMP`. Preserve
-  Terraform failure status and report actual outcomes in logs and job summaries.
-  Do not weaken existing tests or rewrite the checker to make CI pass.
-- Never bind AWS credentials, credential-bearing variables, GitHub secrets or
-  AWS OIDC. No AWS identities, account APIs, real plans, apply, destroy or deploy.
-  Only native tests with mocked AWS providers and `command = plan` are permitted.
-- Distinguish local checks from independent GitHub-hosted execution. Observe an
-  actual successful GitHub run before calling this CI phase complete. Mock/static
-  success does not establish effective AWS permissions or live authorization;
-  Access Admin self-assignment and other documented residual risks remain.
-- If CI exposes an existing implementation defect, document it and stop for
-  review. If a required official source is blocked, record host/URL/status,
-  preserve work, push an incomplete checkpoint when safe and stop without bypass.
+- Use Approach A only: exactly one secret metadata container, optional existing
+  KMS key reference, and non-sensitive resource references. No secret versions,
+  payload inputs/data sources, password generation, provisioners, ephemeral or
+  write-only alternatives. Values are initialized/updated outside Terraform.
+- Use a stable validated name and required Project tag, safe tag ownership and
+  integer recovery days 7–30 (default 30). Never enable immediate force deletion.
+  Omit reader/resource-policy management in this phase; prefer workload identity
+  policies. Do not add KMS keys, policies, roles, roots or application integration.
+- Keep provider/account/region/backend ownership in roots. External CMKs require
+  independently verified existence, symmetry, account/region, key policy, cost,
+  lifecycle and permissions. Do not grant KMS Decrypt to human profiles.
+- Research Secrets Manager actions, ARNs and conditions against official HTML and
+  its linked machine-readable reference. Preserve EC2/SSO checks and all prior
+  test cases. Do not invent secret-payload, create-context or deletion conditions.
+- Document CreateSecret's residual initial-value-write capability. Withhold
+  UpdateSecret, policy writes, retrieval, rotation and unnecessary recovery or
+  listing privileges; explain human-profile lifecycle gaps. Access Admin remains
+  unchanged; Operator gains only scoped DescribeSecret metadata access.
+- Preserve existing EC2 action/resource/condition semantics during any equivalent
+  compaction needed by the non-adjustable inline-policy quota. Keep association
+  ARNs separate and enforce the generated Developer policy size limit.
+- Keep all native tests mocked with explicit `command = plan`. Use Terraform
+  1.17.0 / AWS Provider 6.72.0, transient child lock seeds, current public reference
+  downloads and actual test-result/inventory checks. Preserve CI trigger/token/
+  action-pin/credential boundaries and fail on errors or skipped tests.
+- Never request or use AWS credentials or authenticated AWS APIs, real plans,
+  apply, destroy, deployment or policy simulation. Documentation examples alone
+  may contain replacement labels; active inputs contain no invalid placeholders.
+- Record actual local and independent GitHub results. Observe completed/success
+  before claiming CI passed; live AWS authorization remains incomplete. If a
+  required public source is blocked, record exact host/URL/status, preserve work,
+  push an incomplete checkpoint when safe, then stop without bypassing controls.
 
-Commit, push, create a PR to `main`, report local checks and the actual GitHub
-Actions run URL/status, then stop for external review. Do not merge, delete the
-branch, change existing infrastructure definitions, integrate modules or begin
-Phase 3-3.
+Commit, push and open a PR to `main`; observe CI, report results and stop for
+external review. Do not merge, delete the branch, integrate into a service root,
+change permanent rules or start Phase 3-4.

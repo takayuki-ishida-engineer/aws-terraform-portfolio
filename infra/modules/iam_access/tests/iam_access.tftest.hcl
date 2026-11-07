@@ -182,15 +182,14 @@ run "developer_action_allowlist" {
 
   assert {
     condition = (
-      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement) == 21 &&
+      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement) == 19 &&
       toset([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement.Sid]) == toset([
         "RegionalNetworkMetadata", "ProjectVpcAttributes", "CreateVpc", "CreateSubnet", "CreateInternetGateway", "CreateRouteTable",
-        "UseExistingProjectVpc", "DeleteProjectVpc", "DeleteProjectSubnet", "DeleteProjectInternetGateway", "AttachProjectInternetGateway",
-        "ManageProjectRouteTable", "EditNonAuthorizationTags", "TagDuringCreateVpc", "TagDuringCreateSubnet", "TagDuringCreateInternetGateway", "TagDuringCreateRouteTable",
-        "VpcProviderDefaultMetadata", "ModifyProjectVpcAttributes", "ModifyProjectSubnetAttributes", "ManageProjectSubnetAssociations"
+        "UseExistingProjectVpc", "ManageExistingProjectNetwork", "EditNonAuthorizationTags", "TagDuringCreateVpc", "TagDuringCreateSubnet", "TagDuringCreateInternetGateway", "TagDuringCreateRouteTable",
+        "ManageProjectSubnetAssociations", "CreateProjectSecret", "TagProjectSecretIdentity", "ReadProjectSecretMetadata", "EditProjectSecretTags", "ScheduleProjectSecretDeletion"
       ])
     )
-    error_message = "All 21 reviewed statements must be present exactly once, so scoped assertion filters cannot pass vacuously."
+    error_message = "All 19 reviewed statements must be present exactly once, so scoped assertion filters cannot pass vacuously."
   }
 
   assert {
@@ -200,9 +199,10 @@ run "developer_action_allowlist" {
       "ec2:CreateInternetGateway", "ec2:DeleteInternetGateway", "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
       "ec2:CreateRouteTable", "ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute", "ec2:CreateTags", "ec2:DeleteTags",
       "ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute", "ec2:AssociateRouteTable", "ec2:ReplaceRouteTableAssociation", "ec2:DisassociateRouteTable",
-      "ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"
+      "ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups",
+      "secretsmanager:CreateSecret", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:DeleteSecret"
     ])
-    error_message = "Developer must have exactly the 27 reviewed VPC lifecycle/metadata actions, not unrelated services or administrative wildcards."
+    error_message = "Developer must retain the 27 reviewed EC2 actions and only six reviewed Secrets Manager actions, never unrelated services or administrative wildcards."
   }
 }
 
@@ -213,15 +213,14 @@ run "developer_account_region_and_resources" {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
       statement.Condition.StringEquals["aws:RequestedRegion"] == "ca-central-1" &&
       toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(["000000000000", "000000000001"]) &&
-      alltrue([for arn in statement.Resource : contains(["RegionalNetworkMetadata", "VpcProviderDefaultMetadata"], statement.Sid) ? arn == "*" : can(regex("^arn:aws:ec2:ca-central-1:00000000000[01]:(vpc|subnet|internet-gateway|route-table)/\\*$", arn))])
+      alltrue([for arn in statement.Resource : statement.Sid == "RegionalNetworkMetadata" ? arn == "*" : can(regex("^arn:aws:(ec2:ca-central-1:00000000000[01]:(vpc|subnet|internet-gateway|route-table)/\\*|secretsmanager:ca-central-1:00000000000[01]:secret:\\*)$", arn))])
     ])
-    error_message = "All Developer statements must enforce explicit account/region boundaries and only the four approved network ARN types."
+    error_message = "All Developer statements must enforce explicit account/region boundaries and only approved network or Secrets Manager ARN types."
   }
 
   assert {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
-      statement.Sid == "RegionalNetworkMetadata" ? toset(statement.Action) == toset(["ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables"]) :
-      statement.Sid == "VpcProviderDefaultMetadata" && toset(statement.Action) == toset(["ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"])
+      statement.Sid == "RegionalNetworkMetadata" && toset(statement.Action) == toset(["ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables", "ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"])
       if contains(statement.Resource, "*")
     ])
     error_message = "Only the six documented VPC/provider metadata actions may use a wildcard resource, in their exact statements."
@@ -288,20 +287,24 @@ run "developer_existing_resource_controls" {
   assert {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
       statement.Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio"
-      if contains(["UseExistingProjectVpc", "DeleteProjectVpc", "DeleteProjectSubnet", "DeleteProjectInternetGateway", "AttachProjectInternetGateway", "ManageProjectRouteTable", "EditNonAuthorizationTags", "ProjectVpcAttributes", "ModifyProjectVpcAttributes", "ModifyProjectSubnetAttributes", "ManageProjectSubnetAssociations"], statement.Sid)
+      if contains(["UseExistingProjectVpc", "ManageExistingProjectNetwork", "EditNonAuthorizationTags", "ProjectVpcAttributes", "ManageProjectSubnetAssociations"], statement.Sid)
     ])
-    error_message = "Every existing resource operation must require the Project authorization tag."
+    error_message = "Every existing network resource operation must retain the Project authorization tag."
   }
 
   assert {
-    condition = (
-      toset(one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "AttachProjectInternetGateway"]).Resource) == toset([
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ManageExistingProjectNetwork"])] :
+      contains(statement.Action, "ec2:AttachInternetGateway") && contains(statement.Action, "ec2:DetachInternetGateway") &&
+      toset([for arn in statement.Resource : arn if can(regex(":(vpc|internet-gateway)/", arn))]) == toset([
         "arn:aws:ec2:ca-central-1:000000000000:internet-gateway/*", "arn:aws:ec2:ca-central-1:000000000001:internet-gateway/*",
         "arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"
       ]) &&
-      toset(one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "ManageProjectRouteTable"]).Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:route-table/*", "arn:aws:ec2:ca-central-1:000000000001:route-table/*"])
-    )
-    error_message = "IGW attachment requires both project VPC and IGW resources; route writes authorize only scoped route tables."
+      alltrue([for action in ["ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute"] : contains(statement.Action, action)]) &&
+      toset([for arn in statement.Resource : arn if strcontains(arn, ":route-table/")]) == toset([
+        "arn:aws:ec2:ca-central-1:000000000000:route-table/*", "arn:aws:ec2:ca-central-1:000000000001:route-table/*"
+      ])
+    ])
+    error_message = "Compaction must preserve both compatible IGW/VPC resources for attachments and only scoped route-table resources for route actions."
   }
 }
 
@@ -310,12 +313,13 @@ run "operator_metadata_only" {
 
   assert {
     condition = (
-      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement) == 2 &&
+      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement) == 3 &&
+      toset([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : statement.Sid]) == toset(["RegionalNetworkMetadata", "ProjectVpcAttributes", "ReadProjectSecretMetadata"]) &&
       toset(flatten([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : statement.Action])) == toset([
-        "ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables", "ec2:DescribeVpcAttribute"
+        "ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables", "ec2:DescribeVpcAttribute", "secretsmanager:DescribeSecret"
       ])
     )
-    error_message = "Operator must receive only five network metadata actions, never writes, IAM management, log events or other data-plane reads."
+    error_message = "Operator must retain exactly five network metadata actions and add only DescribeSecret, never writes, IAM management or data-plane reads."
   }
 
   assert {
@@ -323,9 +327,12 @@ run "operator_metadata_only" {
       statement.Condition.StringEquals["aws:RequestedRegion"] == "ca-central-1" &&
       toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(["000000000000", "000000000001"]) &&
       (statement.Sid == "RegionalNetworkMetadata" ? statement.Resource == ["*"] :
-      toset(statement.Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) && statement.Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio")
+        statement.Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio" &&
+        (statement.Sid == "ProjectVpcAttributes" ?
+          toset(statement.Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) :
+      toset(statement.Resource) == toset(["arn:aws:secretsmanager:ca-central-1:000000000000:secret:*", "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"])))
     ])
-    error_message = "Operator's resource wildcard must be limited to region/account metadata, with VPC attributes project-scoped."
+    error_message = "Operator's wildcard stays limited to regional network metadata; VPC attributes and Secret metadata remain exactly Project/account/region scoped."
   }
 }
 
@@ -337,7 +344,7 @@ run "profile_privilege_escalation_regression" {
       for statement in jsondecode(policy.inline_policy).Statement :
       statement.Effect == "Allow" && !can(statement.NotAction) && !can(statement.NotResource) &&
       alltrue([for action in statement.Action : !strcontains(action, "*") && !contains([
-        "iam:PassRole", "secretsmanager:GetSecretValue", "ssm:GetParameter", "ssm:GetParameters", "kms:Decrypt", "s3:GetObject",
+        "iam:PassRole", "secretsmanager:GetSecretValue", "secretsmanager:BatchGetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:UpdateSecretVersionStage", "secretsmanager:RotateSecret", "secretsmanager:RestoreSecret", "secretsmanager:PutResourcePolicy", "secretsmanager:DeleteResourcePolicy", "ssm:GetParameter", "ssm:GetParameters", "kms:Decrypt", "s3:GetObject",
         "sso:PutInlinePolicyToPermissionSet", "sso:CreatePermissionSet", "sso:AttachManagedPolicyToPermissionSet"
       ], action)])
     ]]))
@@ -345,10 +352,13 @@ run "profile_privilege_escalation_regression" {
   }
 
   assert {
-    condition = alltrue(flatten([for policy in [aws_ssoadmin_permission_set_inline_policy.developer, aws_ssoadmin_permission_set_inline_policy.operator] : [
-      for statement in jsondecode(policy.inline_policy).Statement : alltrue([for action in statement.Action : startswith(action, "ec2:")])
+    condition = alltrue(flatten([for spec in [
+      { policy = aws_ssoadmin_permission_set_inline_policy.developer, secret_actions = ["secretsmanager:CreateSecret", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:DeleteSecret"] },
+      { policy = aws_ssoadmin_permission_set_inline_policy.operator, secret_actions = ["secretsmanager:DescribeSecret"] }
+      ] : [for statement in jsondecode(spec.policy.inline_policy).Statement :
+      alltrue([for action in statement.Action : startswith(action, "ec2:") || contains(spec.secret_actions, action)])
     ]]))
-    error_message = "Developer and Operator must not administer Identity Center or gain planned future service permissions."
+    error_message = "Developer and Operator must not administer Identity Center or gain services beyond EC2 and their exact reviewed Secret actions."
   }
 }
 
@@ -380,14 +390,14 @@ run "vpc_attribute_authorization" {
   command = plan
 
   assert {
-    condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
-      statement.Action == ["ec2:ModifyVpcAttribute"] &&
-      toset(statement.Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) &&
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if contains(s.Action, "ec2:ModifyVpcAttribute")])] :
+      statement.Sid == "ManageExistingProjectNetwork" &&
+      toset([for arn in statement.Resource : arn if strcontains(arn, ":vpc/")]) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) &&
       statement.Condition == { StringEquals = {
         "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
-      } } if statement.Sid == "ModifyProjectVpcAttributes"
+      } }
     ])
-    error_message = "VPC attribute writes must stay project/account/region scoped without fabricated Boolean or attribute-value guards."
+    error_message = "Compacted vpc attribute authorization must retain exactly its compatible vpc ARNs and Project/account/region conditions, without fabricated value guards."
   }
 }
 
@@ -395,14 +405,14 @@ run "subnet_attribute_authorization" {
   command = plan
 
   assert {
-    condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
-      statement.Action == ["ec2:ModifySubnetAttribute"] &&
-      toset(statement.Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:subnet/*", "arn:aws:ec2:ca-central-1:000000000001:subnet/*"]) &&
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if contains(s.Action, "ec2:ModifySubnetAttribute")])] :
+      statement.Sid == "ManageExistingProjectNetwork" &&
+      toset([for arn in statement.Resource : arn if strcontains(arn, ":subnet/")]) == toset(["arn:aws:ec2:ca-central-1:000000000000:subnet/*", "arn:aws:ec2:ca-central-1:000000000001:subnet/*"]) &&
       statement.Condition == { StringEquals = {
         "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
-      } } if statement.Sid == "ModifyProjectSubnetAttributes"
+      } }
     ])
-    error_message = "Subnet attribute writes must not gain VPC/gateway resources, cross-account scope or invented public-IP/IPv6 value restrictions."
+    error_message = "Compacted subnet attribute authorization must retain exactly its compatible subnet ARNs and Project/account/region conditions, without fabricated value guards."
   }
 }
 
@@ -429,10 +439,189 @@ run "provider_metadata_does_not_expand_operator" {
 
   assert {
     condition = (
-      one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "VpcProviderDefaultMetadata"]).Resource == ["*"] &&
-      toset(one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "VpcProviderDefaultMetadata"]).Action) == toset(["ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"]) &&
+      one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "RegionalNetworkMetadata"]).Resource == ["*"] &&
+      toset(one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "RegionalNetworkMetadata"]).Action) == toset(["ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables", "ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"]) &&
       alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : !contains(statement.Action, "ec2:DescribeNetworkAcls") && !contains(statement.Action, "ec2:DescribeSecurityGroups")])
     )
-    error_message = "Only Developer may gain the two provider-read dependencies; Operator must retain its existing five-action metadata policy."
+    error_message = "Only Developer may gain the two provider-read dependencies; Operator must retain its five existing EC2 metadata actions without gaining these provider-only reads."
   }
+}
+
+run "secret_action_and_resource_scope" {
+  command = plan
+
+  assert {
+    condition = (
+      length([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])]) == 5 &&
+      toset(flatten([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement.Action if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])])) == toset([
+        "secretsmanager:CreateSecret", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:DeleteSecret"
+      ]) &&
+      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
+        toset(statement.Resource) == toset(["arn:aws:secretsmanager:ca-central-1:000000000000:secret:*", "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"]) &&
+        statement.Condition.StringEquals["aws:RequestedRegion"] == "ca-central-1" &&
+        toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(["000000000000", "000000000001"])
+        if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])
+      ])
+    )
+    error_message = "Exactly five Secret statements must contain only the six reviewed actions and approved account/region Secret ARNs, never all-resource grants."
+  }
+}
+
+run "secret_creation_controls" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "CreateProjectSecret"])] :
+      statement.Action == ["secretsmanager:CreateSecret"] &&
+      statement.Condition == {
+        StringEquals = {
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:RequestTag/Project" = "test-portfolio"
+        }
+        "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
+        Null                        = { "secretsmanager:AddReplicaRegions" = "true" }
+        BoolIfExists                = { "secretsmanager:ForceOverwriteReplicaSecret" = "false" }
+      }
+    ])
+    error_message = "Secret creation must require canonical Project request tags and reject replicas/overwrite without inventing payload-absence conditions."
+  }
+}
+
+run "secret_tag_identity_boundaries" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "TagProjectSecretIdentity"])] :
+      statement.Action == ["secretsmanager:TagResource"] &&
+      statement.Condition == {
+        StringEquals = {
+          "aws:RequestedRegion"     = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"],
+          "aws:ResourceTag/Project" = "test-portfolio", "aws:RequestTag/Project" = "test-portfolio"
+        }
+        "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
+      }
+    ])
+    error_message = "Identity tagging must require both resource and request Project values and exact canonical keys; request tags alone must never authorize adopting unrelated secrets."
+  }
+}
+
+run "secret_existing_tag_integrity" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "EditProjectSecretTags"])] :
+      toset(statement.Action) == toset(["secretsmanager:TagResource", "secretsmanager:UntagResource"]) &&
+      statement.Condition == {
+        StringEquals = {
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+        }
+        "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
+        Null                                     = { "aws:TagKeys" = "false" }
+      }
+    ])
+    error_message = "Existing Secret tag edits must require matching ownership, exclude every Project spelling and reject omitted tag lists."
+  }
+}
+
+run "secret_deletion_recovery_controls" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ScheduleProjectSecretDeletion"])] :
+      statement.Action == ["secretsmanager:DeleteSecret"] &&
+      statement.Condition == {
+        StringEquals = {
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+        }
+        BoolIfExists             = { "secretsmanager:ForceDeleteWithoutRecovery" = "false" }
+        NumericGreaterThanEquals = { "secretsmanager:RecoveryWindowInDays" = "7" }
+        NumericLessThanEquals    = { "secretsmanager:RecoveryWindowInDays" = "30" }
+      }
+    ])
+    error_message = "Deletion must require explicit recovery 7-30 and deny force deletion while allowing the provider's omitted ForceDeleteWithoutRecovery flag."
+  }
+}
+
+run "secret_profile_separation" {
+  command = plan
+
+  assert {
+    condition = (
+      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Action == ["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"] &&
+      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Action == ["secretsmanager:DescribeSecret"] &&
+      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.access_admin.inline_policy).Statement : alltrue([for action in statement.Action : startswith(action, "sso:")])]) &&
+      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : alltrue([for action in statement.Action : !startswith(action, "secretsmanager:") || action == "secretsmanager:DescribeSecret"])])
+    )
+    error_message = "Only Developer may read the policy metadata required by provider refresh; Operator gets DescribeSecret only and Access Admin remains SSO-only."
+  }
+
+  assert {
+    condition = alltrue([for statement in [
+      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]),
+      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"])
+      ] : statement.Condition == { StringEquals = {
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+      } }
+    ])
+    error_message = "Both profiles' Secret metadata reads must remain strictly Project/account/region scoped."
+  }
+}
+
+run "vpc_effective_authorization_preserved" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ManageExistingProjectNetwork"])] :
+      toset(statement.Action) == toset([
+        "ec2:DeleteVpc", "ec2:DeleteSubnet", "ec2:DeleteInternetGateway", "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
+        "ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute", "ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute"
+      ]) &&
+      toset(statement.Resource) == toset(flatten([for kind in ["vpc", "subnet", "internet-gateway", "route-table"] : [
+        for account in ["000000000000", "000000000001"] : "arn:aws:ec2:ca-central-1:${account}:${kind}/*"
+      ]])) &&
+      statement.Condition == { StringEquals = {
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+      } }
+    ])
+    error_message = "Same-condition compaction must preserve the exact eleven existing actions and four account-scoped ARN types, with unchanged Project/region/account conditions."
+  }
+
+  assert {
+    # Types are the action-specific compatible resources from the official EC2 SAR.
+    condition = alltrue([for spec in [
+      { action = "DeleteVpc", types = ["vpc"] }, { action = "ModifyVpcAttribute", types = ["vpc"] },
+      { action = "DeleteSubnet", types = ["subnet"] }, { action = "ModifySubnetAttribute", types = ["subnet"] },
+      { action = "DeleteInternetGateway", types = ["internet-gateway"] },
+      { action = "AttachInternetGateway", types = ["vpc", "internet-gateway"] }, { action = "DetachInternetGateway", types = ["vpc", "internet-gateway"] },
+      { action = "DeleteRouteTable", types = ["route-table"] }, { action = "CreateRoute", types = ["route-table"] },
+      { action = "ReplaceRoute", types = ["route-table"] }, { action = "DeleteRoute", types = ["route-table"] }
+      ] : alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if contains(s.Action, "ec2:${spec.action}")])] :
+        toset([for arn in statement.Resource : arn if anytrue([for kind in spec.types : strcontains(arn, ":${kind}/")])]) == toset(flatten([
+          for kind in spec.types : [for account in ["000000000000", "000000000001"] : "arn:aws:ec2:ca-central-1:${account}:${kind}/*"]
+        ]))
+      ])
+    ])
+    error_message = "Each compacted action must retain exactly the same compatible resource ARN projection as before compaction; association grants must remain separate."
+  }
+}
+
+run "rendered_policy_size_within_quota" {
+  command = plan
+  variables {
+    project_tag = "aws-terraform-portfolio"
+  }
+
+  assert {
+    condition = alltrue([for policy in [aws_ssoadmin_permission_set_inline_policy.access_admin, aws_ssoadmin_permission_set_inline_policy.developer, aws_ssoadmin_permission_set_inline_policy.operator] :
+      length(policy.inline_policy) <= 10240
+    ])
+    error_message = "The actual compact ASCII policy documents must remain below the non-adjustable inline policy quota for the reviewed two-account fixture and full portfolio Project tag."
+  }
+}
+
+run "inline_policy_quota_overflow" {
+  command = plan
+  variables {
+    target_account_ids = [for account in range(100, 120) : format("%012d", account)]
+  }
+  expect_failures = [aws_ssoadmin_permission_set_inline_policy.developer]
 }

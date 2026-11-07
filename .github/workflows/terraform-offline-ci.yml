@@ -83,6 +83,61 @@ jobs:
             output.write(f"passed={match[1]}\n")
           PY
 
+      - name: Validate Secrets Manager module and mock inventory
+        id: secrets
+        working-directory: infra/modules/secrets_manager
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/secrets-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 - "$test_status" <<'PY'
+          import collections
+          import json
+          import os
+          import pathlib
+          import sys
+
+          summary = None
+          inventory_checked = False
+          diagnostics = collections.deque(maxlen=20)
+          with pathlib.Path(os.environ["RUNNER_TEMP"], "secrets-tests.jsonl").open() as events:
+            for line in events:
+              event = json.loads(line)
+              if event.get("type") == "test_run":
+                run = event["test_run"]
+                if run.get("status") in {"pass", "fail", "error", "skip"}:
+                  print(event.get("@message", str(run)))
+              if event.get("type") == "diagnostic":
+                diagnostics.append(event.get("@message", "Terraform diagnostic"))
+              if event.get("type") == "test_plan" and not inventory_checked:
+                resources = event["test_plan"].get("resource_changes", [])
+                inventory = collections.Counter(resource.get("type") for resource in resources)
+                if inventory != {"aws_secretsmanager_secret": 1} or any(
+                  resource.get("mode") != "managed" or resource["change"]["actions"] != ["create"]
+                  for resource in resources
+                ):
+                  raise SystemExit(f"Unexpected Secrets Manager plan inventory: {dict(inventory)}")
+                inventory_checked = True
+                print("Actual Secrets Manager inventory:", dict(inventory))
+              if event.get("type") == "test_summary":
+                summary = event["test_summary"]
+          print("Actual Secrets Manager test summary:", summary, flush=True)
+          expected = {"status": "pass", "passed": 31, "failed": 0, "errored": 0, "skipped": 0}
+          if int(sys.argv[1]) != 0 or not inventory_checked or not summary or any(summary.get(k) != v for k, v in expected.items()):
+            for diagnostic in diagnostics:
+              print(diagnostic, file=sys.stderr)
+            raise SystemExit(f"Secrets Manager test validation failed (Terraform exit {sys.argv[1]}).")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={summary['passed']}\n")
+          PY
+
       - name: Validate IAM module and capture unmodified mock plans
         id: iam
         working-directory: infra/modules/iam_access
@@ -118,7 +173,7 @@ jobs:
               if event.get("type") == "test_summary":
                 summary = event["test_summary"]
           print("Actual IAM test summary:", summary, flush=True)
-          expected = {"status": "pass", "passed": 25, "failed": 0, "errored": 0, "skipped": 0}
+          expected = {"status": "pass", "passed": 34, "failed": 0, "errored": 0, "skipped": 0}
           if int(sys.argv[1]) != 0 or not summary or any(summary.get(k) != v for k, v in expected.items()):
             for diagnostic in diagnostics:
               print(diagnostic, file=sys.stderr)
@@ -140,7 +195,11 @@ jobs:
           curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 120 \
             https://servicereference.us-east-1.amazonaws.com/v1/sso/sso.json \
             --output "$RUNNER_TEMP/sso-authorization.json"
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 120 \
+            https://servicereference.us-east-1.amazonaws.com/v1/secretsmanager/secretsmanager.json \
+            --output "$RUNNER_TEMP/secretsmanager-authorization.json"
           python3 tests/check_authorization_reference.py \
+            --secretsmanager-reference "$RUNNER_TEMP/secretsmanager-authorization.json" \
             --ec2-reference "$RUNNER_TEMP/ec2-authorization.json" \
             --sso-reference "$RUNNER_TEMP/sso-authorization.json" \
             --test-events "$RUNNER_TEMP/iam-tests.jsonl"
@@ -160,6 +219,8 @@ jobs:
           DEV_RESULT: ${{ steps.dev.outcome }}
           VPC_RESULT: ${{ steps.vpc.outcome }}
           VPC_PASSED: ${{ steps.vpc.outputs.passed }}
+          SECRETS_RESULT: ${{ steps.secrets.outcome }}
+          SECRETS_PASSED: ${{ steps.secrets.outputs.passed }}
           IAM_RESULT: ${{ steps.iam.outcome }}
           IAM_PASSED: ${{ steps.iam.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
@@ -174,6 +235,7 @@ jobs:
             ("Repository formatting", "FORMAT_RESULT", ""),
             ("Dev root init/validate, readonly lock", "DEV_RESULT", ""),
             ("VPC init/validate/mock tests", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
+            ("Secrets Manager init/validate/mock inventory/tests", "SECRETS_RESULT", os.environ.get("SECRETS_PASSED", "")),
             ("IAM init/validate/mock tests", "IAM_RESULT", os.environ.get("IAM_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
