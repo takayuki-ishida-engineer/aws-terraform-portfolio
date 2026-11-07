@@ -5,11 +5,12 @@ architecture and clear day-to-day operations.
 
 ## Current status
 
-**Infrastructure is not yet implemented.** Phase 0 repository foundations are
-complete. Phase 1 adds infrastructure directory placeholders and documentation
-only. No Terraform root modules, child modules, provider configurations, backends,
-resources, tests, or CI workflows have been implemented. No cloud credentials are
-configured and no infrastructure has been deployed or tested in this phase.
+Phases 0 and 1 are complete. Phase 2 adds the representative development root at
+`infra/services/dev/ca-central-1/serverless-api/`, with fixed identity, version
+constraints, AWS provider account restrictions, and an explicit local backend.
+**AWS infrastructure resources and reusable child modules are not yet
+implemented.** There are no data sources, module calls, tests, or CI workflows.
+No AWS credentials were used and no AWS infrastructure was deployed or tested.
 
 ## Planned architecture
 
@@ -23,9 +24,8 @@ configured and no infrastructure has been deployed or tested in this phase.
   outside Terraform so they do not enter configuration, plans, or state.
 - Prioritize maintainability and operational clarity over unnecessary complexity.
 
-These are design decisions for future work. The module library and environment
-directories are placeholders only; region and service directories have not been
-created.
+The development root foundation now follows this layout. The reusable module
+library and the staging and production directories remain placeholders.
 
 ## Repository foundation
 
@@ -44,7 +44,17 @@ created.
 │   │   └── .gitkeep
 │   └── services/
 │       ├── dev/
-│       │   └── .gitkeep
+│       │   └── ca-central-1/
+│       │       └── serverless-api/
+│       │           ├── .terraform.lock.hcl
+│       │           ├── README.md
+│       │           ├── backend.tf
+│       │           ├── features.auto.tfvars
+│       │           ├── main.tf
+│       │           ├── outputs.tf
+│       │           ├── providers.tf
+│       │           ├── variables.tf
+│       │           └── versions.tf
 │       ├── stg/
 │       │   └── .gitkeep
 │       └── prod/
@@ -59,8 +69,18 @@ in `tests/`. `.github/` is a placeholder; it contains no workflows.
 
 `infra/modules/` will hold reusable AWS Terraform child modules.
 `infra/services/` will hold independently managed Terraform root modules at
-`<environment>/<region>/<service>/`. Its `dev/`, `stg/`, and `prod/` directories are
-currently empty placeholders for development, staging, and production.
+`<environment>/<region>/<service>/`. The `dev/ca-central-1/serverless-api/` root is
+the only implemented root foundation; `stg/` and `prod/` are still placeholders.
+
+## Phase 2 validation
+
+From the development root, Terraform CLI 1.17.0 passed `terraform fmt -check
+-recursive`, `terraform init -backend=false -input=false -no-color`, and
+`terraform validate -no-color`. Initialization installed HashiCorp-signed AWS
+Provider 6.72.0 and generated the committed dependency lock file. These checks
+used no AWS credentials and made no AWS API calls; no plan, deployment, or live
+account verification was performed. See the [root README](infra/services/dev/ca-central-1/serverless-api/README.md)
+for file responsibilities, effective configuration, and validation boundaries.
 
 ## Configuration and secrets
 
@@ -69,5 +89,5 @@ environment files must stay out of version control. `.terraform.lock.hcl` remain
 trackable. Future `features.auto.tfvars` files may be tracked only when they contain
 non-secret feature settings; Terraform loads these files automatically.
 
-Phase 1 requires no cloud access. Do not add cloud credentials or run deployments
+Phase 2 requires no AWS access. Do not add cloud credentials or run deployments
 as part of this foundation work.

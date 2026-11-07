@@ -77,30 +77,38 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 1
+## Current phase only: Phase 2
 
-Phase 0 is complete and merged through PR #1. Phase 1 is limited to infrastructure
-directory scaffolding and necessary documentation updates. Infrastructure remains
-unimplemented; the permanent rules above continue to apply unchanged.
+Phases 0 and 1 are complete and merged through PRs #1 and #2. Phase 2 authorizes
+only the development root foundation at
+`infra/services/dev/ca-central-1/serverless-api/`. Preserve all permanent rules.
 
-- Add empty `.gitkeep` files only in `infra/modules/` and
-  `infra/services/dev/`, `infra/services/stg/`, and `infra/services/prod/`.
-- Remove the obsolete `infra/.gitkeep`; preserve all other foundation files.
-- Update `README.md` and only this phase-specific section of `AGENTS.md` to reflect
-  the actual structure and implementation status.
-- Do not implement Terraform: no `.tf` files, root or child modules, provider or
-  backend configurations, or resources. Do not add region or service directories.
-- Do not create `infra/stacks/`, `infra/common/`, `infra/scripts/`,
-  `infra/ansible/`, `infra/packer/`, or `infra/tfstate/`.
-- Do not add CI workflows, tests, scripts, or deployment configurations. Do not
-  introduce credentials, secrets, tokens, or account-specific identifiers.
-- Cloud deployments and AWS API operations are prohibited during Phase 1. Do not
-  run `terraform apply` or `terraform destroy`.
-- Inspect the final tree and staged changes, confirm the permanent policies are
-  intact, check for secrets, and run `git diff --check` before committing.
+- Keep environment `dev`, region `ca-central-1`, and service `serverless-api`
+  fixed in the root. Do not create additional roots or reusable child modules.
+- Add the requested Terraform foundation files, a comments-only
+  `features.auto.tfvars`, and a practical root README. Remove only the obsolete
+  `infra/services/dev/.gitkeep`; preserve module, staging, and production keeps.
+- Require Terraform `~> 1.17.0` and `hashicorp/aws` `~> 6.72.0`. Generate and commit
+  `.terraform.lock.hcl` only through successful initialization; never fabricate it.
+- Keep provider configuration in the root, with a required, validated 12-digit
+  account ID input and `allowed_account_ids`. Never hardcode a real account ID or
+  disable provider credential validation or account restrictions.
+- Use an explicit local backend. Do not add S3 backends, remote-state resources,
+  bootstrap scripts, or state migration tools.
+- Do not add AWS resources or data sources, real or placeholder child module
+  calls, stacks, workflows, deployment scripts, or speculative module tests.
+  Cross-region integrations and disaster recovery designs remain out of scope.
+- Never use AWS credentials or call AWS APIs. Do not run `terraform plan`,
+  `terraform apply`, or `terraform destroy` in Codex Cloud.
+- Inspect configuration and run formatting, backend-disabled initialization, and
+  validation when the required CLI and registry access are available. Report any
+  blocked checks accurately; do not bypass security controls to make checks pass.
+- Update the repository README and only this phase-specific section of AGENTS.
+  Document actual validation results and distinguish current root-defined values
+  from future Root Override, Module Default, and Module Fixed configuration.
 
-Use the new `chore/phase-1-structure` branch from the latest `main`; do not reuse
-the merged Phase 0 branch. Commit, push, and open a PR for manual review. Report
-the tree, changed files, and verification results, then stop. Do not merge the PR
-or delete the working branch. Require manual review and explicit authorization
-before proceeding to Phase 2.
+Use `feat/phase-2-root-module` from the latest `main`, not a previous phase branch.
+Inspect the full staged diff, check scope and secrets, and run `git diff --check`.
+Commit, push, and open a PR for external manual review, then stop. Do not merge
+the PR or delete the working branch. Require manual PR review and explicit
+authorization before further implementation; do not begin Phase 3.
