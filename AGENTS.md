@@ -5,7 +5,7 @@
 These rules persist across phases. Preserve existing files and content wherever
 possible, keep changes small and reviewable, and avoid unrelated modifications.
 Work only within the explicitly authorized scope. Future phases are allowed when
-explicitly authorized; Phase 0 restrictions below do not permanently prohibit
+explicitly authorized; phase-specific restrictions below do not permanently prohibit
 future implementation.
 
 ### Terraform architecture and responsibility boundaries
