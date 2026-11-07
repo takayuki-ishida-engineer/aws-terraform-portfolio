@@ -1,0 +1,737 @@
+{
+  "classification": "SYNTHETIC OFFLINE AUTHORIZATION REGRESSION FIXTURE; no actual AWS identities or secret values",
+  "policies": {
+    "access_admin": {
+      "Statement": [
+        {
+          "Action": [
+            "sso:CreateAccountAssignment",
+            "sso:DeleteAccountAssignment"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": "000000000002"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:sso:::instance/ssoins-0000000000000000",
+            "arn:aws:sso:::account/000000000000",
+            "arn:aws:sso:::account/000000000001",
+            "arn:aws:sso:::permissionSet/ssoins-0000000000000000/ps-0000000000000002",
+            "arn:aws:sso:::permissionSet/ssoins-0000000000000000/ps-0000000000000003"
+          ],
+          "Sid": "AssignApprovedProfiles"
+        },
+        {
+          "Action": [
+            "sso:ListAccountAssignments"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": "000000000002"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:sso:::instance/ssoins-0000000000000000",
+            "arn:aws:sso:::account/000000000000",
+            "arn:aws:sso:::account/000000000001",
+            "arn:aws:sso:::permissionSet/ssoins-0000000000000000/ps-0000000000000002",
+            "arn:aws:sso:::permissionSet/ssoins-0000000000000000/ps-0000000000000003"
+          ],
+          "Sid": "ReadApprovedAssignments"
+        },
+        {
+          "Action": [
+            "sso:DescribePermissionSet"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": "000000000002"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:sso:::instance/ssoins-0000000000000000",
+            "arn:aws:sso:::permissionSet/ssoins-0000000000000000/ps-0000000000000002",
+            "arn:aws:sso:::permissionSet/ssoins-0000000000000000/ps-0000000000000003"
+          ],
+          "Sid": "ReadApprovedProfiles"
+        },
+        {
+          "Action": [
+            "sso:DescribeAccountAssignmentCreationStatus",
+            "sso:DescribeAccountAssignmentDeletionStatus"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": "000000000002"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:sso:::instance/ssoins-0000000000000000"
+          ],
+          "Sid": "ReadAssignmentRequestStatus"
+        }
+      ],
+      "Version": "2012-10-17"
+    },
+    "developer": {
+      "Statement": [
+        {
+          "Action": [
+            "ec2:DescribeVpcs",
+            "ec2:DescribeSubnets",
+            "ec2:DescribeInternetGateways",
+            "ec2:DescribeRouteTables",
+            "ec2:DescribeNetworkAcls",
+            "ec2:DescribeSecurityGroups"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "*"
+          ],
+          "Sid": "RegionalNetworkMetadata"
+        },
+        {
+          "Action": [
+            "ec2:DescribeVpcAttribute"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000001:vpc/*"
+          ],
+          "Sid": "ProjectVpcAttributes"
+        },
+        {
+          "Action": [
+            "ec2:CreateVpc"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000001:vpc/*"
+          ],
+          "Sid": "CreateVpc"
+        },
+        {
+          "Action": [
+            "ec2:CreateSubnet"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:subnet/*",
+            "arn:aws:ec2:ca-central-1:000000000001:subnet/*"
+          ],
+          "Sid": "CreateSubnet"
+        },
+        {
+          "Action": [
+            "ec2:CreateInternetGateway"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:internet-gateway/*",
+            "arn:aws:ec2:ca-central-1:000000000001:internet-gateway/*"
+          ],
+          "Sid": "CreateInternetGateway"
+        },
+        {
+          "Action": [
+            "ec2:CreateRouteTable"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:route-table/*",
+            "arn:aws:ec2:ca-central-1:000000000001:route-table/*"
+          ],
+          "Sid": "CreateRouteTable"
+        },
+        {
+          "Action": [
+            "ec2:CreateSubnet",
+            "ec2:CreateRouteTable"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000001:vpc/*"
+          ],
+          "Sid": "UseExistingProjectVpc"
+        },
+        {
+          "Action": [
+            "ec2:DeleteVpc",
+            "ec2:DeleteSubnet",
+            "ec2:DeleteInternetGateway",
+            "ec2:AttachInternetGateway",
+            "ec2:DetachInternetGateway",
+            "ec2:DeleteRouteTable",
+            "ec2:CreateRoute",
+            "ec2:ReplaceRoute",
+            "ec2:DeleteRoute",
+            "ec2:ModifyVpcAttribute",
+            "ec2:ModifySubnetAttribute"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000001:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000000:subnet/*",
+            "arn:aws:ec2:ca-central-1:000000000001:subnet/*",
+            "arn:aws:ec2:ca-central-1:000000000000:internet-gateway/*",
+            "arn:aws:ec2:ca-central-1:000000000001:internet-gateway/*",
+            "arn:aws:ec2:ca-central-1:000000000000:route-table/*",
+            "arn:aws:ec2:ca-central-1:000000000001:route-table/*"
+          ],
+          "Sid": "ManageExistingProjectNetwork"
+        },
+        {
+          "Action": [
+            "ec2:AssociateRouteTable",
+            "ec2:ReplaceRouteTableAssociation",
+            "ec2:DisassociateRouteTable"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:route-table/*",
+            "arn:aws:ec2:ca-central-1:000000000001:route-table/*",
+            "arn:aws:ec2:ca-central-1:000000000000:subnet/*",
+            "arn:aws:ec2:ca-central-1:000000000001:subnet/*"
+          ],
+          "Sid": "ManageProjectSubnetAssociations"
+        },
+        {
+          "Action": [
+            "ec2:CreateTags",
+            "ec2:DeleteTags"
+          ],
+          "Condition": {
+            "ForAllValues:StringNotEqualsIgnoreCase": {
+              "aws:TagKeys": [
+                "Project"
+              ]
+            },
+            "Null": {
+              "aws:TagKeys": "false"
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000001:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000000:subnet/*",
+            "arn:aws:ec2:ca-central-1:000000000001:subnet/*",
+            "arn:aws:ec2:ca-central-1:000000000000:internet-gateway/*",
+            "arn:aws:ec2:ca-central-1:000000000001:internet-gateway/*",
+            "arn:aws:ec2:ca-central-1:000000000000:route-table/*",
+            "arn:aws:ec2:ca-central-1:000000000001:route-table/*"
+          ],
+          "Sid": "EditNonAuthorizationTags"
+        },
+        {
+          "Action": [
+            "ec2:CreateTags"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1",
+              "ec2:CreateAction": "CreateVpc"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000001:vpc/*"
+          ],
+          "Sid": "TagDuringCreateVpc"
+        },
+        {
+          "Action": [
+            "ec2:CreateTags"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1",
+              "ec2:CreateAction": "CreateSubnet"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:subnet/*",
+            "arn:aws:ec2:ca-central-1:000000000001:subnet/*"
+          ],
+          "Sid": "TagDuringCreateSubnet"
+        },
+        {
+          "Action": [
+            "ec2:CreateTags"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1",
+              "ec2:CreateAction": "CreateInternetGateway"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:internet-gateway/*",
+            "arn:aws:ec2:ca-central-1:000000000001:internet-gateway/*"
+          ],
+          "Sid": "TagDuringCreateInternetGateway"
+        },
+        {
+          "Action": [
+            "ec2:CreateTags"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1",
+              "ec2:CreateAction": "CreateRouteTable"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:route-table/*",
+            "arn:aws:ec2:ca-central-1:000000000001:route-table/*"
+          ],
+          "Sid": "TagDuringCreateRouteTable"
+        },
+        {
+          "Action": [
+            "secretsmanager:CreateSecret"
+          ],
+          "Condition": {
+            "BoolIfExists": {
+              "secretsmanager:ForceOverwriteReplicaSecret": "false"
+            },
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "Null": {
+              "secretsmanager:AddReplicaRegions": "true"
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:secretsmanager:ca-central-1:000000000000:secret:*",
+            "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"
+          ],
+          "Sid": "CreateProjectSecret"
+        },
+        {
+          "Action": [
+            "secretsmanager:TagResource"
+          ],
+          "Condition": {
+            "ForAllValues:StringEquals": {
+              "aws:TagKeys": [
+                "Environment",
+                "ManagedBy",
+                "Name",
+                "Project",
+                "Service"
+              ]
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestTag/Project": "test-portfolio",
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:secretsmanager:ca-central-1:000000000000:secret:*",
+            "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"
+          ],
+          "Sid": "TagProjectSecretIdentity"
+        },
+        {
+          "Action": [
+            "secretsmanager:DescribeSecret",
+            "secretsmanager:GetResourcePolicy"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:secretsmanager:ca-central-1:000000000000:secret:*",
+            "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"
+          ],
+          "Sid": "ReadProjectSecretMetadata"
+        },
+        {
+          "Action": [
+            "secretsmanager:TagResource",
+            "secretsmanager:UntagResource"
+          ],
+          "Condition": {
+            "ForAllValues:StringNotEqualsIgnoreCase": {
+              "aws:TagKeys": [
+                "Project"
+              ]
+            },
+            "Null": {
+              "aws:TagKeys": "false"
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:secretsmanager:ca-central-1:000000000000:secret:*",
+            "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"
+          ],
+          "Sid": "EditProjectSecretTags"
+        },
+        {
+          "Action": [
+            "secretsmanager:DeleteSecret"
+          ],
+          "Condition": {
+            "BoolIfExists": {
+              "secretsmanager:ForceDeleteWithoutRecovery": "false"
+            },
+            "NumericGreaterThanEquals": {
+              "secretsmanager:RecoveryWindowInDays": "7"
+            },
+            "NumericLessThanEquals": {
+              "secretsmanager:RecoveryWindowInDays": "30"
+            },
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:secretsmanager:ca-central-1:000000000000:secret:*",
+            "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"
+          ],
+          "Sid": "ScheduleProjectSecretDeletion"
+        }
+      ],
+      "Version": "2012-10-17"
+    },
+    "operator": {
+      "Statement": [
+        {
+          "Action": [
+            "ec2:DescribeVpcs",
+            "ec2:DescribeSubnets",
+            "ec2:DescribeInternetGateways",
+            "ec2:DescribeRouteTables"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "*"
+          ],
+          "Sid": "RegionalNetworkMetadata"
+        },
+        {
+          "Action": [
+            "ec2:DescribeVpcAttribute"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:ec2:ca-central-1:000000000000:vpc/*",
+            "arn:aws:ec2:ca-central-1:000000000001:vpc/*"
+          ],
+          "Sid": "ProjectVpcAttributes"
+        },
+        {
+          "Action": [
+            "secretsmanager:DescribeSecret"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalAccount": [
+                "000000000000",
+                "000000000001"
+              ],
+              "aws:RequestedRegion": "ca-central-1",
+              "aws:ResourceTag/Project": "test-portfolio"
+            }
+          },
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:secretsmanager:ca-central-1:000000000000:secret:*",
+            "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"
+          ],
+          "Sid": "ReadProjectSecretMetadata"
+        }
+      ],
+      "Version": "2012-10-17"
+    }
+  },
+  "provenance": {
+    "aggregate_policy_sha256": "eac48255db9f590f73c7fe89fb84ce86a4a731c3214f4918078cb12f6fb949f1",
+    "approved_repository_commit": "325ead5fb9031be8f2cbab1689e36b408465e274",
+    "aws_provider_version": "6.72.0",
+    "generation": "Parsed first successful native mock-plan resource_changes from the retained passing Phase 3-3 JSONL stream; no policy document manually rewritten.",
+    "native_test_source_git_blob": "9dab6234858e78979454b44b622cd118304be20b",
+    "native_test_summary": {
+      "errored": 0,
+      "failed": 0,
+      "passed": 34,
+      "skipped": 0,
+      "status": "pass"
+    },
+    "policy_sha256": {
+      "access_admin": "4fa4a4428542a7e5e1f1357b1343450c7a85d2c3e65bab36e673e3b971a532dc",
+      "developer": "94138446899ec7bffeee6d5834a19e4d44e39931a954ce623bc26b0f478b174a",
+      "operator": "bfb4c0fed557a6b9e3dadd9cb8095060018e2deddc0ca7206fd385cda78ca66a"
+    },
+    "policy_source_git_blob": "e459a0d603ea5f5a3df662e045fb62b069f90c05",
+    "rendered_source_commit": "87be73073726428d07b826fd4e182ab0c07c1001",
+    "terraform_version": "1.17.0"
+  },
+  "schema_version": 1
+}

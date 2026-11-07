@@ -77,47 +77,53 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-3 Secrets Manager metadata
+## Current phase only: Phase 3-3.5 IAM scalability and validation readiness
 
-Phase 3-CI is merged and its main run succeeded. Use a new
-`feat/module-secrets-manager` branch from latest `main`. This task authorizes the
-new `infra/modules/secrets_manager/` child module, necessary IAM policies/tests/
-checker/documentation extensions, CI coverage, repository README and this section.
-Preserve the permanent rules above, VPC module, dev root and existing root lock.
+Phase 3-3 is merged and main CI succeeded. Work only on
+`fix/iam-policy-scalability-validation` from latest `main`. This task authorizes
+the per-account IAM policy module, Developer service-policy composition and
+attachment, actual-policy regression/export/validation toolkit, offline CI and
+relevant documentation. Preserve all permanent rules above, existing VPC and
+Secrets Manager resources, dev root, provider constraints and root lock.
 
-- Use Approach A only: exactly one secret metadata container, optional existing
-  KMS key reference, and non-sensitive resource references. No secret versions,
-  payload inputs/data sources, password generation, provisioners, ephemeral or
-  write-only alternatives. Values are initialized/updated outside Terraform.
-- Use a stable validated name and required Project tag, safe tag ownership and
-  integer recovery days 7–30 (default 30). Never enable immediate force deletion.
-  Omit reader/resource-policy management in this phase; prefer workload identity
-  policies. Do not add KMS keys, policies, roles, roots or application integration.
-- Keep provider/account/region/backend ownership in roots. External CMKs require
-  independently verified existence, symmetry, account/region, key policy, cost,
-  lifecycle and permissions. Do not grant KMS Decrypt to human profiles.
-- Research Secrets Manager actions, ARNs and conditions against official HTML and
-  its linked machine-readable reference. Preserve EC2/SSO checks and all prior
-  test cases. Do not invent secret-payload, create-context or deletion conditions.
-- Document CreateSecret's residual initial-value-write capability. Withhold
-  UpdateSecret, policy writes, retrieval, rotation and unnecessary recovery or
-  listing privileges; explain human-profile lifecycle gaps. Access Admin remains
-  unchanged; Operator gains only scoped DescribeSecret metadata access.
-- Preserve existing EC2 action/resource/condition semantics during any equivalent
-  compaction needed by the non-adjustable inline-policy quota. Keep association
-  ARNs separate and enforce the generated Developer policy size limit.
-- Keep all native tests mocked with explicit `command = plan`. Use Terraform
-  1.17.0 / AWS Provider 6.72.0, transient child lock seeds, current public reference
-  downloads and actual test-result/inventory checks. Preserve CI trigger/token/
-  action-pin/credential boundaries and fail on errors or skipped tests.
-- Never request or use AWS credentials or authenticated AWS APIs, real plans,
-  apply, destroy, deployment or policy simulation. Documentation examples alone
-  may contain replacement labels; active inputs contain no invalid placeholders.
-- Record actual local and independent GitHub results. Observe completed/success
-  before claiming CI passed; live AWS authorization remains incomplete. If a
-  required public source is blocked, record exact host/URL/status, preserve work,
-  push an incomplete checkpoint when safe, then stop without bypassing controls.
+- Preserve exactly Portfolio-Access-Admin, Portfolio-Developer and
+  Portfolio-Operator. Access Admin and Operator policies stay unchanged. Developer
+  retains exact reviewed EC2 permissions inline; move only the reviewed six
+  Secrets Manager actions into an account-owned customer-managed policy.
+- Use fixed policy identity Portfolio-Developer-SecretsManager, path /. Each
+  workload account's owning root must select/restrict its provider and create
+  its matching policy before the Identity Center reference is provisioned.
+  The reference creates no account policy and auto-provisions assigned accounts.
+- Add no users, roles, groups, keys, assignments, KMS resources, roots, workload
+  permissions, arbitrary policy injection, speculative services or deployment.
+  Preserve all existing tag, region/account, creation and recovery safeguards;
+  explicitly document intentional owning-account scope tightening.
+- Enforce separate inline and managed-policy quotas and the reviewed attachment
+  budget. Compare actual rendered policy unions with the generated approved
+  synthetic baseline; do not replace meaningful authorization tests with counts.
+- Prepare the stdlib/AWS CLI validation toolkit with actual mocked-plan exports,
+  reviewed cases, private outputs, accurate findings/result parsing and deterministic
+  offline tests. Default execution must make zero AWS CLI/API or credential calls.
+- Authenticated toolkit execution requires an explicit user flag in a later
+  authorized CloudShell/local session, and is refused in Codex Cloud and CI.
+  Only ValidatePolicy, SimulateCustomPolicy and GetContextKeysForCustomPolicy are
+  prepared; do not execute them here, call STS, discover/request credentials or
+  provision an execution identity. No new IAM user, keys, secrets or OIDC.
+- Treat missing context, unsupported simulation, partial multi-resource results
+  and incomplete/API-error responses honestly. Unexpected grants fail; warnings
+  require review. Synthetic policy context is not an assumed session or proof of
+  effective authorization, propagation, KMS access or live infrastructure safety.
+- Preserve all prior native cases, with actual cross-module policies where the
+  source moved. Use only mock AWS providers and explicit plan commands with
+  Terraform 1.17.0 / AWS Provider 6.72.0. CI remains read-only and credential-free,
+  uploads no plans/state/raw results and fails on errors/skips or changed counts.
+- Document migration order, rollback, drift, customer-policy ownership and all
+  inherent residual risks. Distinguish code resolution, offline evidence and
+  unperformed manual AWS/live verification. Never suggest routine root usage.
+- If an essential public source is blocked, record exact host/URL/status, preserve
+  valid work, push an explicitly incomplete checkpoint if safe and stop for the
+  user to publish an allowlist update. Do not bypass or fabricate evidence.
 
-Commit, push and open a PR to `main`; observe CI, report results and stop for
-external review. Do not merge, delete the branch, integrate into a service root,
-change permanent rules or start Phase 3-4.
+Commit, push, open a PR, observe completed/success GitHub CI and stop for external
+review. Do not merge, delete the branch, perform CloudShell validation, integrate
+service roots or begin Phase 3-4.

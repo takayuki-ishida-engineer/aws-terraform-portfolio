@@ -159,8 +159,7 @@ locals {
         Condition = merge(local.creation_condition, {
           StringEquals = merge(local.creation_condition.StringEquals, { "ec2:CreateAction" = spec.action })
         })
-      }],
-      local.developer_secret_statements
+      }]
     )
   })
 
@@ -172,54 +171,6 @@ locals {
     Resource  = local.secret_arns
     Condition = local.project_condition
   }
-  developer_secret_statements = [
-    {
-      Sid      = "CreateProjectSecret"
-      Effect   = "Allow"
-      Action   = ["secretsmanager:CreateSecret"]
-      Resource = local.secret_arns
-      Condition = merge(local.creation_condition, {
-        Null         = { "secretsmanager:AddReplicaRegions" = "true" }
-        BoolIfExists = { "secretsmanager:ForceOverwriteReplicaSecret" = "false" }
-      })
-    },
-    {
-      # AWS's Secrets Manager ABAC tutorial documents resource tags on creation.
-      # Both values must match: existing unrelated secrets cannot be adopted.
-      Sid      = "TagProjectSecretIdentity"
-      Effect   = "Allow"
-      Action   = ["secretsmanager:TagResource"]
-      Resource = local.secret_arns
-      Condition = merge(local.creation_condition, {
-        StringEquals = merge(local.creation_condition.StringEquals, { "aws:ResourceTag/Project" = var.project_tag })
-      })
-    },
-    merge(local.secret_metadata_statement, {
-      Action = ["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"]
-    }),
-    {
-      Sid      = "EditProjectSecretTags"
-      Effect   = "Allow"
-      Action   = ["secretsmanager:TagResource", "secretsmanager:UntagResource"]
-      Resource = local.secret_arns
-      Condition = merge(local.project_condition, {
-        "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
-        Null                                     = { "aws:TagKeys" = "false" }
-      })
-    },
-    {
-      Sid      = "ScheduleProjectSecretDeletion"
-      Effect   = "Allow"
-      Action   = ["secretsmanager:DeleteSecret"]
-      Resource = local.secret_arns
-      Condition = merge(local.project_condition, {
-        BoolIfExists             = { "secretsmanager:ForceDeleteWithoutRecovery" = "false" }
-        NumericGreaterThanEquals = { "secretsmanager:RecoveryWindowInDays" = "7" }
-        NumericLessThanEquals    = { "secretsmanager:RecoveryWindowInDays" = "30" }
-      })
-    }
-  ]
-
   operator_policy = jsonencode({
     Version   = "2012-10-17"
     Statement = concat(local.metadata_statements, [local.secret_metadata_statement])

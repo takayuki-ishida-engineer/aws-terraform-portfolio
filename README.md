@@ -10,7 +10,8 @@ Phases 0, 1, 2, and 3-1 are complete. The representative development root at
 constraints, AWS provider account restrictions, and an explicit local backend,
 retains its Phase 2 foundation. The reusable
 [`VPC`](infra/modules/vpc/README.md),
-[`IAM access`](infra/modules/iam_access/README.md) and
+[`IAM access`](infra/modules/iam_access/README.md),
+[`account IAM policies`](infra/modules/iam_account_policies/README.md) and
 [`Secrets Manager`](infra/modules/secrets_manager/README.md) modules have native
 mock tests.
 Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
@@ -19,6 +20,10 @@ design; live AWS authorization remains unverified.
 Phase 3-3 adds one metadata-only secret container with no values or resource
 policy. Human IAM extensions explicitly document the CreateSecret value-write
 residual and withheld UpdateSecret/policy administration.
+Phase 3-3.5 keeps Developer EC2 inline and moves its six Secrets Manager actions
+into a workload-account-owned managed policy with a fixed Identity Center
+reference. An executable toolkit prepares optional user-run AWS validation;
+Codex Cloud and CI perform only offline checks.
 **No service root calls these modules yet.**
 No AWS credentials were used and no
 AWS infrastructure was deployed or tested against a live account.
@@ -56,13 +61,26 @@ and production directories remain placeholders.
 │   └── iam-access-operations.md
 ├── infra/
 │   ├── modules/
-│   │   ├── iam_access/
+│   │   ├── iam_account_policies/
 │   │   │   ├── README.md
 │   │   │   ├── main.tf
 │   │   │   ├── outputs.tf
 │   │   │   ├── policies.tf
 │   │   │   ├── tests/
+│   │   │   │   └── iam_account_policies.tftest.hcl
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
+│   │   ├── iam_access/
+│   │   │   ├── README.md
+│   │   │   ├── attachments.tf
+│   │   │   ├── main.tf
+│   │   │   ├── outputs.tf
+│   │   │   ├── policies.tf
+│   │   │   ├── tests/
+│   │   │   │   ├── check_authorization_equivalence.py
 │   │   │   │   ├── check_authorization_reference.py
+│   │   │   │   ├── fixtures/
+│   │   │   │   │   └── phase_3_3_policies.json
 │   │   │   │   └── iam_access.tftest.hcl
 │   │   │   ├── variables.tf
 │   │   │   └── versions.tf
@@ -99,6 +117,14 @@ and production directories remain placeholders.
 │       │   └── .gitkeep
 │       └── prod/
 │           └── .gitkeep
+├── scripts/
+│   └── aws-policy-validation/
+│       ├── README.md
+│       ├── policy_cases.py
+│       ├── policy_validation.py
+│       └── tests/
+│           ├── test_decisions.py
+│           └── test_toolkit.py
 └── tests/
     └── .gitkeep
 ```
@@ -107,7 +133,7 @@ and production directories remain placeholders.
 operational documentation belongs in `docs/`, Terraform code in `infra/`, and tests
 in `tests/`. `.github/workflows/` contains the offline validation workflow.
 
-`infra/modules/` contains independently tested VPC, human-access and secret-metadata modules,
+`infra/modules/` contains independently tested VPC, human-access, account-policy and secret-metadata modules,
 not yet called by a service root.
 `infra/services/` will hold independently managed Terraform root modules at
 `<environment>/<region>/<service>/`. The `dev/ca-central-1/serverless-api/` root is
@@ -160,7 +186,7 @@ CloudTrail, reconciliation and replaceable identifier guidance. No real AWS acce
 identities, account assignments, deployments or workload execution roles were
 created.
 
-## Phase 3-3 secret metadata
+## Phase 3-3 baseline secret metadata
 
 The [Secrets Manager module](infra/modules/secrets_manager/README.md) defines
 exactly `aws_secretsmanager_secret.this`: stable metadata/name/tags, a 30-day
@@ -189,6 +215,50 @@ managed-resource inventory and actual test counts; expected counts are not a
 substitute for an observed successful GitHub run. No AWS credentials, deployment
 or live authorization verification is involved.
 
+## Phase 3-3.5 policy scalability and validation readiness
+
+Exactly three Permission Sets remain. Developer uses its reviewed EC2 inline
+policy plus a reference to **Portfolio-Developer-SecretsManager**, path **/**.
+The new [account-policy module](infra/modules/iam_account_policies/README.md)
+creates that IAM policy in one approved workload account through its future
+owning root. The administrative reference creates no workload-account policy;
+every assigned account must already contain the matching name/path before
+provisioning. No roots, users, roles, keys or assignments are added here.
+
+The two-target synthetic Developer inline shrinks from **9,877 to 7,184 bytes**,
+leaving **3,056** below 10,240. The independent Secrets Manager policy is **2,346
+characters**, leaving **3,798** below 6,144. Both have generated-size guards.
+A full portfolio Project/two-target inline is 7,301 bytes. Each future service
+needs its own reviewed bounded document/reference rather than indefinite inline
+growth. The configured reference count is one, checked against a conservative
+portfolio budget of 10 and the current Identity Center service limit of 25;
+actual target-role quotas and externally managed attachments remain prerequisites.
+See the IAM README for the current official quota-table/footnote discrepancy.
+
+A generated approved-baseline regression compares actual action/compatible-ARN/
+condition projections: EC2, Operator and Access Admin are unchanged. Secrets
+Manager intentionally narrows resources and PrincipalAccount to its owning account;
+all six reviewed actions and tag/creation/recovery safeguards remain. CreateSecret
+still accepts initial values; UpdateSecret, retrieval, policy editing and KMS
+privileges remain withheld. The [migration/runbook](docs/iam-access-operations.md)
+covers precreation, attachment/re-provisioning, inline removal, rollback and drift.
+
+The [AWS policy-validation toolkit](scripts/aws-policy-validation/README.md)
+exports four actual policies from successful native mock plans, hashes them in a
+manifest, generates 54 clearly synthetic cases and defaults to zero AWS CLI/API
+calls. Its 70 deterministic offline tests cover findings, decisions, pagination,
+missing/unsupported/incomplete responses, private output and the no-call default.
+Only a later user-run `run --execute-aws` in an authorized existing CloudShell/
+local session enables three read-only official validation APIs; execution is
+refused in Codex Cloud and GitHub Actions. No new identity, access key, analyzer,
+STS discovery or AWS resource is needed or created by the toolkit.
+
+Design/code readiness and offline evidence are separate from **unperformed AWS
+API validation and live verification**. Policy simulation cannot establish a real
+session, recipient governance, main-route-table exclusion, attribute-value
+controls, assignment propagation or effective KMS/SCP/resource-policy access.
+Security warnings require human review and incomplete results stay inconclusive.
+
 ## Independent offline Terraform CI
 
 [Terraform offline CI](.github/workflows/terraform-offline-ci.yml) runs on every
@@ -197,7 +267,7 @@ GitHub-hosted Ubuntu 24.04 executes it independently of Codex Cloud. Obsolete
 runs for the same PR/ref are cancelled; the job has a 20-minute timeout.
 
 It installs **Terraform 1.17.0** with the CLI wrapper disabled. The unchanged dev
-root lock selects **AWS Provider 6.72.0**; transient copies seed all three child-module
+root lock selects **AWS Provider 6.72.0**; transient copies seed all four child-module
 locks so their broader constraints do not select a newer provider. Those child
 locks, provider files and captured test output are never committed or uploaded.
 
@@ -207,13 +277,16 @@ locks, provider files and captured test output are never committed or uploaded.
 | Dev root `init` / `validate` | Backend disabled, no account-ID input, committed lock read-only and unchanged |
 | VPC module `init` / `validate` / native tests | 16 mock-plan tests pass, zero failures or skips |
 | Secrets Manager module `init` / `validate` / native tests | 31 mock-plan tests pass, no failures/errors/skips; actual plan contains exactly one secret container |
-| IAM module `init` / `validate` / native tests | 34 mock-plan tests pass, zero failures, errors or skips |
+| Account IAM policy module | 24 mock-plan tests pass; actual plan contains exactly one IAM policy |
+| IAM module `init` / `validate` / native tests | 39 mock-plan tests pass; exactly three Permission Sets, three inline policies and one Developer reference |
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
-| Checker negative self-tests | All 17 unsafe mutations rejected; nine original cases retained |
+| Checker negative self-tests | 24 cases pass, including all prior 17 |
+| Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
+| Validation toolkit | 70 offline self-tests pass without skips; actual export/manifest/cases and default no-AWS run succeed |
 
 Every command failure fails the job. Bash pipefail preserves the VPC test exit
-status; IAM and Secrets Manager original Terraform exit statuses and structured
-summaries are checked, alongside the Secrets Manager managed-resource inventory. Exact initial test counts guard against omitted/skipped coverage; an
+status; IAM, Secrets Manager and account-policy original Terraform exit statuses and
+structured summaries are checked, alongside exact managed-resource inventories. Exact initial test counts guard against omitted/skipped coverage; an
 intentional future coverage change requires reviewing these expectations too.
 Malformed or unavailable official JSON fails validation without a stale fallback.
 Temporary verbose mock plans/reference files stay under `RUNNER_TEMP`; only test

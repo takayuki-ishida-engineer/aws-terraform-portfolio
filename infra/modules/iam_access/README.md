@@ -1,7 +1,8 @@
 # Human access through IAM Identity Center
 
-This module defines three distinct Permission Sets and their custom inline
-policies in an **existing organization IAM Identity Center instance**. It does
+This module defines three distinct Permission Sets, their inline policies and
+one Developer customer-managed-policy reference in an **existing organization
+IAM Identity Center instance**. It does
 not create an instance, users, groups, access keys, passwords, account assignments,
 Organizations configuration, workload roles, or deployment identities. Nothing
 has been deployed or connected to a real AWS account.
@@ -11,6 +12,11 @@ has been deployed or connected to a real AWS account.
 | `Portfolio-Access-Admin` | Assign/revoke only Developer and Operator in approved workload accounts | One hour (`PT1H`) |
 | `Portfolio-Developer` | Reviewed VPC and Secrets Manager container operations; live authorization unverified | One hour (`PT1H`) |
 | `Portfolio-Operator` | VPC and scoped Secrets Manager metadata only | One hour (`PT1H`) |
+
+Developer uses EC2 inline plus the account-owned Secrets Manager policy below.
+Access Admin and Operator retain their reviewed inline policies. This module
+creates no account-owned IAM policy: each workload account's future owning root
+must use [`iam_account_policies`](../iam_account_policies/README.md) first.
 
 There are no AWS-managed policy attachments. In particular, AdministratorAccess,
 PowerUserAccess and ReadOnlyAccess are not used. Human permissions do not define
@@ -43,6 +49,12 @@ Future workload IAM must be designed and reviewed independently.
 The caller's provider must use the Identity Center home region. `target_region`
 is the separate EC2 portfolio authorization region; it does not configure the
 SSO provider endpoint. Verify region/partition compatibility externally.
+
+The customer-managed reference must not be provisioned into any target account
+until that account contains **Portfolio-Developer-SecretsManager** at path **/**.
+A policy existing in the administrative account does not satisfy this contract.
+Name/path matching alone does not guarantee correct content; the per-account
+module generates consistent account-specific policies that must be reviewed.
 
 Each Permission Set has one `aws_ssoadmin_permission_set_inline_policy`. Explicit
 references bind it to the corresponding Permission Set; Access Admin's policy
@@ -98,6 +110,13 @@ per application environment.
 
 These are resource references, not active user sessions or account assignments.
 No workforce identities, credentials, or target-account identifiers are output.
+
+Additional non-secret outputs are `developer_customer_managed_policy_references`
+(actual attachment name/path), `developer_inline_policy_quota` (actual bytes,
+10,240-byte limit and remaining capacity), and `developer_managed_attachment_quota`
+(actual configured count, conservative budget, service limit and available slots).
+These describe configuration; they do not verify target-account policy existence
+or live quota/role propagation.
 
 ## Complete permission matrix
 
@@ -179,31 +198,46 @@ and two provider metadata reads. There are no intentionally omitted operations
 identified for the implemented explicit-IPv4-CIDR VPC path. This is an offline
 design assessment, not proof that deployment or deletion will succeed in AWS.
 
-### Equivalent EC2 statement compaction and policy quota
+### Service-specific composition and quotas
 
-IAM Identity Center permits only one inline policy per Permission Set, with a
-non-adjustable **10,240-byte non-whitespace limit** (32,768 bytes total). To make
-room for reviewed Secrets Manager operations, seven equal-condition EC2
-statements are compiled into `ManageExistingProjectNetwork`. Its eleven actions
-are DeleteVpc, DeleteSubnet, DeleteInternetGateway, AttachInternetGateway,
-DetachInternetGateway, DeleteRouteTable, CreateRoute, ReplaceRoute, DeleteRoute,
-ModifyVpcAttribute and ModifySubnetAttribute, all with their `ec2:` prefix.
-The shared V/S/G/T ARN union has exactly the same per-action compatible resource
-projection and E condition as before. Create-time parent and tagging statements
-remain separate. Association actions remain T + S only; merging them with gateway
-ARNs would expand authority and is deliberately avoided.
+Developer's reviewed **27 EC2 actions** remain in the existing inline resource.
+The six Secrets Manager actions now live in one workload-account-owned managed
+policy, attached by fixed name/path. Access Admin and Operator are unchanged.
+The prior compact EC2 statements are retained; future services should add a
+separately reviewed, bounded service policy rather than grow this inline
+indefinitely. No arbitrary policy/name/path input or speculative service is added.
 
-The Developer-only default-NACL/security-group describe pair is also combined
-with its four equal-condition regional metadata describes. Operator retains its
-original five EC2 actions; this compaction adds no actions or resource scope.
+| Actual synthetic fixture | Before | After | Limit / new headroom |
+| --- | --- | --- | --- |
+| Developer inline, two targets / `test-portfolio` | 9,877 bytes | 7,184 bytes | 10,240 / 3,056 bytes |
+| Developer inline, two targets / full portfolio Project | 10,048 bytes | 7,301 bytes | 10,240 / 2,939 bytes |
+| Account Secrets Manager policy / `test-portfolio` | Part of monolith | 2,346 characters | 6,144 / 3,798 characters |
 
-The compact generated Developer policy is ASCII, so a native resource
-precondition can enforce its actual JSON length against 10,240 bytes. Target
-account count and Project length affect size; reduce the reviewed target scope
-or separately redesign policy composition if the guard rejects it. Do not bypass
-the quota guard or assume an increase can be requested. Native regressions and a
-before/after official-reference projection comparison verify the unchanged EC2
-boundaries. This structural equivalence is not IAM simulation.
+Compact policy inputs are ASCII, so native preconditions measure actual encoded
+size correctly. Identity Center allows one inline document, at most 32,768 total
+bytes and **10,240 non-whitespace bytes**; the compact inline guard satisfies both.
+IAM customer-managed policies have an independent **6,144 non-whitespace character**
+limit. Oversized account/Project/region configurations are rejected, not widened.
+All three Permission Sets, three inline resources, one Developer-only reference
+and the one per-account policy are checked from actual mocked-plan inventories.
+
+Current Identity Center documentation lists **25 managed policies per Permission
+Set**. The current IAM quota table lists **20 default / 25 maximum policies per
+role**, while the Identity Center page's footnote still says 10: the sources are
+inconsistent about the role default. The repository therefore uses a clearly
+**conservative portfolio budget of 10**, not a claim that 10 is today's IAM default.
+The one configured reference is checked against both budget 10 and service limit
+25. Externally managed attachments and each target's actual IAM quota must still
+be verified before provisioning; this module does not discover or change quotas.
+Do not combine this nonexclusive attachment with an exclusive attachment manager.
+
+The six removed Secrets Manager grants preserve the prior conditions within the
+owning account. Previously a principal in any approved account could match any
+approved account's secret ARN; the managed policy intentionally narrows both its
+principal condition and resource ARN to its own account. The effective union is
+compared against an approved Terraform-rendered synthetic baseline, not merely
+an action count. EC2, Access Admin and Operator remain identical; twelve deliberate
+mutations verify that the comparison rejects widened or missing privileges.
 
 ### Five-action authorization decisions
 
@@ -254,19 +288,24 @@ The module's routing and public-IP defaults are unchanged.
 
 ### Secrets Manager: six Developer actions, one Operator action
 
-Let **Q** be `arn:<partition>:secretsmanager:<target_region>:<approved-target-id>:secret:*`
-for each approved target. Q contains explicit partition/region/account segments;
+Developer's six actions are generated by `iam_account_policies`, not this
+module's inline document. For that policy, let **Q** be
+`arn:<partition>:secretsmanager:<region>:<account_id>:secret:*`, **Rₐ** be the
+explicit region plus scalar `aws:PrincipalAccount = account_id`, **Eₐ** add the
+matching Project resource tag, and **Cₐ** add the Project request tag plus the five
+canonical creation keys. Operator keeps its previous multi-target Q/R/E scope.
+Q contains explicit partition/region/account segments;
 `SecretId` includes the service-assigned suffix and may contain `/` from the name.
-All six actions require the SAR `Secret` resource type. R, E and C keep their
-existing meaning above; C uses the same five canonical creation tag keys.
+All six actions require the SAR `Secret` resource type. The per-account policy
+uses the same five canonical creation keys and Project identity as the roots.
 
 | Profile / exact action | Resource | Conditions / purpose |
 | --- | --- | --- |
-| Developer `secretsmanager:CreateSecret` | Q | C; `Null: secretsmanager:AddReplicaRegions = true`, `BoolIfExists: secretsmanager:ForceOverwriteReplicaSecret = false`; create a tagged container, no requested replicas/overwrite |
-| Developer `secretsmanager:TagResource` with Project supplied | Q | C **and** existing/resource `aws:ResourceTag/Project = project_tag`; creation authorization or reaffirming the same Project, not adopting unrelated secrets |
-| Developer `secretsmanager:DescribeSecret`, `secretsmanager:GetResourcePolicy` | Q | E; provider refresh reads both, even when no resource policy is managed |
-| Developer `secretsmanager:TagResource`, `secretsmanager:UntagResource` for other tags | Q | E; `ForAllValues:StringNotEqualsIgnoreCase` excludes Project; `Null: aws:TagKeys = false` |
-| Developer `secretsmanager:DeleteSecret` | Q | E; `BoolIfExists: ForceDeleteWithoutRecovery = false`; NumericGreaterThanEquals RecoveryWindowInDays 7 and NumericLessThanEquals 30 (both `secretsmanager:` keys) |
+| Developer `secretsmanager:CreateSecret` | Q | Cₐ; `Null: secretsmanager:AddReplicaRegions = true`, `BoolIfExists: secretsmanager:ForceOverwriteReplicaSecret = false`; create a tagged container, no requested replicas/overwrite |
+| Developer `secretsmanager:TagResource` with Project supplied | Q | Cₐ **and** existing/resource `aws:ResourceTag/Project = project_tag`; creation authorization or reaffirming the same Project, not adopting unrelated secrets |
+| Developer `secretsmanager:DescribeSecret`, `secretsmanager:GetResourcePolicy` | Q | Eₐ; provider refresh reads both, even when no resource policy is managed |
+| Developer `secretsmanager:TagResource`, `secretsmanager:UntagResource` for other tags | Q | Eₐ; `ForAllValues:StringNotEqualsIgnoreCase` excludes Project; `Null: aws:TagKeys = false` |
+| Developer `secretsmanager:DeleteSecret` | Q | Eₐ; `BoolIfExists: ForceDeleteWithoutRecovery = false`; NumericGreaterThanEquals RecoveryWindowInDays 7 and NumericLessThanEquals 30 (both `secretsmanager:` keys) |
 | Operator `secretsmanager:DescribeSecret` | Q | E; metadata only, no list/policy/value read or mutations |
 
 CreateSecret with tags also requires TagResource. The official
@@ -363,9 +402,10 @@ capability in Operator. Monitoring extensions need a real requirement and review
   affect effective access. Trusted governance of the Project tag is essential.
 - Creation covers the reviewed explicit-CIDR paths. IPAM pool authorization and
   other optional EC2 dependencies are not granted or tested.
-- Increasing target-account count or Project length grows inline policies. The
-  Developer precondition rejects generated JSON beyond the hard 10,240-byte limit;
-  review all remaining service quotas and deployability outside Codex Cloud.
+- The new managed reference requires an existing matching policy in every assigned
+  account; it creates none. Account policy content updates do not deploy themselves
+  to other accounts. Both inline/account quota guards and actual attachment quotas
+  require continued review; independently owned policy drift can alter access.
 - MFA must be enforced by the workforce identity provider / Identity Center
   authentication setup. Do not assume the IAM-user MFA-present key enforces MFA
   for federated sessions. Use temporary workforce sessions, not IAM user keys.
@@ -422,6 +462,41 @@ policy. All other actions remain ungranted, including these reviewed boundaries:
 | IAM role/user/policy administration and `iam:PassRole` | No workload execution roles or deployment identity in this phase |
 | Secret-value retrieval/existing-value updates, SSM values, KMS Decrypt, S3 objects, database content, logs/events and future service writes | No retrieval or speculative services; CreateSecret still accepts initial payloads as explicitly documented; Operator stays metadata-only |
 
+## Future deployment, migration and rollback
+
+This is a design only: no root integration, assignments or AWS deployment exists.
+For any separately authorized external execution:
+
+1. Review/export policies and perform the optional official checks using the
+   [validation toolkit](../../../scripts/aws-policy-validation/README.md). These
+   checks do not establish effective authorization or production readiness.
+2. Each workload account's owning root creates/verifies its fixed-name/path policy
+   using that account's explicitly restricted provider. Check exact account,
+   region, Project, policy JSON/default version, quota and existing attachments.
+3. Only after every target is ready, add the Developer reference. Provider 6.72.0
+   attaches it and automatically provisions all already provisioned accounts.
+4. Remove the Secrets Manager statements from the inline policy and verify
+   provisioning/access again. The inline resource depends on the attachment to
+   serialize this initial transition; separate account roots still need external
+   orchestration. Do not assume Terraform dependencies span states/accounts.
+5. Reconcile policy identities/content/default versions in all accounts, the
+   Developer reference, IAM role attachments and provisioning outcomes. No account
+   assignments are created by this migration.
+
+For rollback, retain workload policies. Restore the reviewed old inline and
+provision it **before** detaching the reference only when the old inline still
+fits the approved scope/quota. If it cannot fit, keep the reference and restore a
+reviewed managed-policy version instead; do not drop access or widen scope to
+force the monolith back in. Detaching the reference also auto-provisions and must
+be reviewed. Do not delete workload policies until all relevant references/role
+attachments and drift checks establish that removal is safe.
+
+IAM policy-content updates are owned by each account root, create a new default
+policy version and require review across every target. Changing an account policy
+does not call SSO provisioning or replicate that policy to other accounts. Fixed
+name/path changes require a new explicit migration; do not mix exclusive managers
+or reuse policy identity for unrelated unreviewed content.
+
 ## Future service expansion contract
 
 Beyond the reviewed secret-container operations, do not add IAM workload roles,
@@ -447,18 +522,19 @@ terraform validate -no-color
 terraform test -no-color
 ```
 
-Formatting, initialization and validation passed; native tests passed **34 runs,
-zero failed**. All prior 25 run names, including the original eight WIP tests,
-remain. New generated-policy regressions cover Secrets Manager creation, tags,
-recovery, profile separation and quota enforcement. Existing VPC assertions are
-adapted to the equivalent compact statement and still verify per-action scopes.
+Formatting, initialization and validation passed; native tests passed **39 runs,
+zero failed**. All prior 34 run names remain. A native alternate-module fixture
+renders the actual account policy; retained Secrets Manager assertions inspect
+that policy rather than an empty inline placeholder. New attachment, quota and
+multi-account/Project cases validate the split without weakening the old guards.
 Coverage includes policy JSON,
 binding, account/region/resource, creation-parent, tag-integrity, Operator
 confidentiality, forbidden-privilege and administrative-input regressions.
 Every run explicitly uses `command = plan` and `mock_provider "aws"`; only computed
 Permission Set ARNs are overridden. Generated plan inventory was independently
-checked: exactly three Permission Sets and three inline policies, no identities
-or assignments. Actual generated IAM JSON was reviewed against official tables.
+checked: exactly three Permission Sets, three inline policies and one Developer reference,
+plus exactly one account-owned managed policy in its independent module. No
+identities or assignments are created. Actual generated IAM JSON was reviewed against official tables.
 
 Validation excluded inherited AWS credential/profile and Terraform input bindings,
 used `/dev/null` for shared AWS config/credentials, and disabled metadata lookup.
@@ -477,7 +553,9 @@ account-identifier checks supplement the tests.
 
 The stdlib-only [checker](tests/check_authorization_reference.py) consumes official
 JSON and the **actual rendered policies** from a successful native test event
-stream. Run from this module after the commands above, preserving test failure:
+stream. First generate both successful JSONL streams using the
+[toolkit export guide](../../../scripts/aws-policy-validation/README.md#export-actual-synthetic-policies);
+run from this module with both streams, preserving test failure:
 
 ```sh
 curl --fail --silent --show-error https://servicereference.us-east-1.amazonaws.com/v1/ec2/ec2.json -o /tmp/aws-ec2-authorization.json
@@ -488,36 +566,38 @@ python3 tests/check_authorization_reference.py \
   --ec2-reference /tmp/aws-ec2-authorization.json \
   --sso-reference /tmp/aws-sso-authorization.json \
   --secretsmanager-reference /tmp/aws-secretsmanager-authorization.json \
-  --test-events /tmp/iam-hardening-tests.jsonl
+  --test-events /tmp/iam-hardening-tests.jsonl \
+  --account-test-events /tmp/account-policies-tests.jsonl
 python3 tests/check_authorization_reference.py --self-test
 ```
 
 All three public JSON endpoints returned HTTP 200, schema v1.5. The Secrets
 Manager URL was discovered from the canonical SAR HTML link, not guessed. Current checks passed
-for all three generated policies and the exact six-resource plan inventory.
-Seventeen negative mutation self-tests passed: the nine retained cases cover
+for all four generated policies and exact seven-resource Identity Center plus
+one-resource account-policy inventories.
+Twenty-four negative mutation self-tests passed: the nine retained cases cover
 unknown/wildcard actions, wildcard
 write resources, unsupported ARN/key, wrong resource-tag context, missing parent
 VPC, optional IPAM resource without the required VPC, and NotAction are rejected.
 Eight additional Secrets Manager mutations reject fake payload-absence keys,
 unsupported action/resource/condition combinations and unscoped ARNs; a valid
 slash-containing secret ARN is accepted. Failed/skipped/errored summaries are
-rejected.
-The checker streams potentially large verbose output and does not contact AWS.
+rejected. Seven added inventory mutations reject wrong profiles, names, paths
+and unexpected IAM resources. The checker streams potentially large verbose output and does not contact AWS.
 
 It validates action names, ARN type compatibility, action/resource-specific keys
 and a manually reviewed required-resource overlay. Global exceptions are only
 `aws:PrincipalAccount` and `aws:RequestedRegion`. JSON does not encode HTML's
 required-resource asterisks; the checker cannot prove condition values, API
 runtime context, parameter enforcement, all parent-resource evaluation, main-table
-exclusion, full lifecycle success, quotas or effective access. Native exact-policy
+exclusion, full lifecycle success, other live account/service quotas or effective access. Native exact-policy
 regressions complement this structural check; neither simulates IAM.
 
 ### Offline Design Readiness: complete
 
 Supported actions, selected ARN patterns and condition keys are researched;
 the current VPC operations are represented; security boundaries and residuals
-are documented. Formatting/init/validation, 34 mock tests and static reference
+are documented. Formatting/init/validation, 39 IAM mock tests, 24 account-policy tests and static reference
 checks pass. This assessment is limited to the reviewed implementation and
 official public references, not an AWS service acceptance or execution result.
 
@@ -545,6 +625,10 @@ Official sources reviewed on 2026-11-07 (documentation reads only):
 - [Secrets Manager TagResource API](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_TagResource.html)
 - [Secrets Manager ABAC creation/tag example](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_attribute-based-access-control.html)
 - [IAM Identity Center policy quotas](https://docs.aws.amazon.com/singlesignon/latest/userguide/limits.html)
+- [IAM customer-managed policy and role quotas](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
+- [Customer-managed name/path/account requirements](https://docs.aws.amazon.com/singlesignon/latest/userguide/howtocmp.html)
+- [Permission Set custom policy responsibilities](https://docs.aws.amazon.com/singlesignon/latest/userguide/permissionsetcustom.html)
+- [Provider 6.72.0 customer-managed reference behavior](https://github.com/hashicorp/terraform-provider-aws/blob/v6.72.0/internal/service/ssoadmin/customer_managed_policy_attachment.go)
 - [Principal account and other global condition keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html)
 - [String/set condition operators](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html#Conditions_String)
 - [EC2 creation-time tagging](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/supported-iam-actions-tagging.html)

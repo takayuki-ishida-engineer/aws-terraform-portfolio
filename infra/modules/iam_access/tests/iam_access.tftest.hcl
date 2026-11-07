@@ -56,6 +56,29 @@ run "permission_set_identity_and_sessions" {
   }
 }
 
+run "account_policy_fixture" {
+  command = plan
+
+  module {
+    source = "../iam_account_policies"
+  }
+
+  variables {
+    account_id  = "000000000000"
+    region      = "ca-central-1"
+    project_tag = "test-portfolio"
+  }
+
+  assert {
+    condition = (
+      output.policy_name == "Portfolio-Developer-SecretsManager" &&
+      output.policy_path == "/" &&
+      output.policy_json == aws_iam_policy.developer_secrets_manager.policy
+    )
+    error_message = "The account fixture must render the real reviewed policy with the same canonical identity as the Identity Center reference."
+  }
+}
+
 run "default_inventory_tags" {
   command = plan
 
@@ -182,14 +205,14 @@ run "developer_action_allowlist" {
 
   assert {
     condition = (
-      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement) == 19 &&
+      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement) == 14 &&
       toset([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement.Sid]) == toset([
         "RegionalNetworkMetadata", "ProjectVpcAttributes", "CreateVpc", "CreateSubnet", "CreateInternetGateway", "CreateRouteTable",
         "UseExistingProjectVpc", "ManageExistingProjectNetwork", "EditNonAuthorizationTags", "TagDuringCreateVpc", "TagDuringCreateSubnet", "TagDuringCreateInternetGateway", "TagDuringCreateRouteTable",
-        "ManageProjectSubnetAssociations", "CreateProjectSecret", "TagProjectSecretIdentity", "ReadProjectSecretMetadata", "EditProjectSecretTags", "ScheduleProjectSecretDeletion"
+        "ManageProjectSubnetAssociations"
       ])
     )
-    error_message = "All 19 reviewed statements must be present exactly once, so scoped assertion filters cannot pass vacuously."
+    error_message = "All 14 reviewed inline statements must be present exactly once, so scoped assertion filters cannot pass vacuously."
   }
 
   assert {
@@ -199,10 +222,9 @@ run "developer_action_allowlist" {
       "ec2:CreateInternetGateway", "ec2:DeleteInternetGateway", "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
       "ec2:CreateRouteTable", "ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute", "ec2:CreateTags", "ec2:DeleteTags",
       "ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute", "ec2:AssociateRouteTable", "ec2:ReplaceRouteTableAssociation", "ec2:DisassociateRouteTable",
-      "ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups",
-      "secretsmanager:CreateSecret", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:DeleteSecret"
+      "ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"
     ])
-    error_message = "Developer must retain the 27 reviewed EC2 actions and only six reviewed Secrets Manager actions, never unrelated services or administrative wildcards."
+    error_message = "Developer inline must retain exactly the 27 reviewed EC2 actions; Secrets Manager is owned by the separately tested account policy."
   }
 }
 
@@ -213,9 +235,9 @@ run "developer_account_region_and_resources" {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
       statement.Condition.StringEquals["aws:RequestedRegion"] == "ca-central-1" &&
       toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(["000000000000", "000000000001"]) &&
-      alltrue([for arn in statement.Resource : statement.Sid == "RegionalNetworkMetadata" ? arn == "*" : can(regex("^arn:aws:(ec2:ca-central-1:00000000000[01]:(vpc|subnet|internet-gateway|route-table)/\\*|secretsmanager:ca-central-1:00000000000[01]:secret:\\*)$", arn))])
+      alltrue([for arn in statement.Resource : statement.Sid == "RegionalNetworkMetadata" ? arn == "*" : can(regex("^arn:aws:ec2:ca-central-1:00000000000[01]:(vpc|subnet|internet-gateway|route-table)/\\*$", arn))])
     ])
-    error_message = "All Developer statements must enforce explicit account/region boundaries and only approved network or Secrets Manager ARN types."
+    error_message = "All Developer inline statements must enforce the unchanged account/region boundaries and only reviewed EC2 ARN types."
   }
 
   assert {
@@ -340,8 +362,8 @@ run "profile_privilege_escalation_regression" {
   command = plan
 
   assert {
-    condition = alltrue(flatten([for policy in [aws_ssoadmin_permission_set_inline_policy.access_admin, aws_ssoadmin_permission_set_inline_policy.developer, aws_ssoadmin_permission_set_inline_policy.operator] : [
-      for statement in jsondecode(policy.inline_policy).Statement :
+    condition = alltrue(flatten([for document in [aws_ssoadmin_permission_set_inline_policy.access_admin.inline_policy, aws_ssoadmin_permission_set_inline_policy.developer.inline_policy, aws_ssoadmin_permission_set_inline_policy.operator.inline_policy, run.account_policy_fixture.policy_json] : [
+      for statement in jsondecode(document).Statement :
       statement.Effect == "Allow" && !can(statement.NotAction) && !can(statement.NotResource) &&
       alltrue([for action in statement.Action : !strcontains(action, "*") && !contains([
         "iam:PassRole", "secretsmanager:GetSecretValue", "secretsmanager:BatchGetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:UpdateSecretVersionStage", "secretsmanager:RotateSecret", "secretsmanager:RestoreSecret", "secretsmanager:PutResourcePolicy", "secretsmanager:DeleteResourcePolicy", "ssm:GetParameter", "ssm:GetParameters", "kms:Decrypt", "s3:GetObject",
@@ -353,7 +375,7 @@ run "profile_privilege_escalation_regression" {
 
   assert {
     condition = alltrue(flatten([for spec in [
-      { policy = aws_ssoadmin_permission_set_inline_policy.developer, secret_actions = ["secretsmanager:CreateSecret", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:DeleteSecret"] },
+      { policy = aws_ssoadmin_permission_set_inline_policy.developer, secret_actions = [] },
       { policy = aws_ssoadmin_permission_set_inline_policy.operator, secret_actions = ["secretsmanager:DescribeSecret"] }
       ] : [for statement in jsondecode(spec.policy.inline_policy).Statement :
       alltrue([for action in statement.Action : startswith(action, "ec2:") || contains(spec.secret_actions, action)])
@@ -452,14 +474,14 @@ run "secret_action_and_resource_scope" {
 
   assert {
     condition = (
-      length([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])]) == 5 &&
-      toset(flatten([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement.Action if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])])) == toset([
+      length([for statement in jsondecode(run.account_policy_fixture.policy_json).Statement : statement if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])]) == 5 &&
+      toset(flatten([for statement in jsondecode(run.account_policy_fixture.policy_json).Statement : statement.Action if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])])) == toset([
         "secretsmanager:CreateSecret", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:DeleteSecret"
       ]) &&
-      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
-        toset(statement.Resource) == toset(["arn:aws:secretsmanager:ca-central-1:000000000000:secret:*", "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"]) &&
+      alltrue([for statement in jsondecode(run.account_policy_fixture.policy_json).Statement :
+        toset(statement.Resource) == toset(["arn:aws:secretsmanager:ca-central-1:000000000000:secret:*"]) &&
         statement.Condition.StringEquals["aws:RequestedRegion"] == "ca-central-1" &&
-        toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(["000000000000", "000000000001"])
+        statement.Condition.StringEquals["aws:PrincipalAccount"] == "000000000000"
         if alltrue([for action in statement.Action : startswith(action, "secretsmanager:")])
       ])
     )
@@ -471,11 +493,11 @@ run "secret_creation_controls" {
   command = plan
 
   assert {
-    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "CreateProjectSecret"])] :
+    condition = alltrue([for statement in [one([for s in jsondecode(run.account_policy_fixture.policy_json).Statement : s if s.Sid == "CreateProjectSecret"])] :
       statement.Action == ["secretsmanager:CreateSecret"] &&
       statement.Condition == {
         StringEquals = {
-          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:RequestTag/Project" = "test-portfolio"
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:RequestTag/Project" = "test-portfolio"
         }
         "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
         Null                        = { "secretsmanager:AddReplicaRegions" = "true" }
@@ -490,11 +512,11 @@ run "secret_tag_identity_boundaries" {
   command = plan
 
   assert {
-    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "TagProjectSecretIdentity"])] :
+    condition = alltrue([for statement in [one([for s in jsondecode(run.account_policy_fixture.policy_json).Statement : s if s.Sid == "TagProjectSecretIdentity"])] :
       statement.Action == ["secretsmanager:TagResource"] &&
       statement.Condition == {
         StringEquals = {
-          "aws:RequestedRegion"     = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"],
+          "aws:RequestedRegion"     = "ca-central-1", "aws:PrincipalAccount" = "000000000000",
           "aws:ResourceTag/Project" = "test-portfolio", "aws:RequestTag/Project" = "test-portfolio"
         }
         "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
@@ -508,11 +530,11 @@ run "secret_existing_tag_integrity" {
   command = plan
 
   assert {
-    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "EditProjectSecretTags"])] :
+    condition = alltrue([for statement in [one([for s in jsondecode(run.account_policy_fixture.policy_json).Statement : s if s.Sid == "EditProjectSecretTags"])] :
       toset(statement.Action) == toset(["secretsmanager:TagResource", "secretsmanager:UntagResource"]) &&
       statement.Condition == {
         StringEquals = {
-          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/Project" = "test-portfolio"
         }
         "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
         Null                                     = { "aws:TagKeys" = "false" }
@@ -526,11 +548,11 @@ run "secret_deletion_recovery_controls" {
   command = plan
 
   assert {
-    condition = alltrue([for statement in [one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ScheduleProjectSecretDeletion"])] :
+    condition = alltrue([for statement in [one([for s in jsondecode(run.account_policy_fixture.policy_json).Statement : s if s.Sid == "ScheduleProjectSecretDeletion"])] :
       statement.Action == ["secretsmanager:DeleteSecret"] &&
       statement.Condition == {
         StringEquals = {
-          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/Project" = "test-portfolio"
         }
         BoolIfExists             = { "secretsmanager:ForceDeleteWithoutRecovery" = "false" }
         NumericGreaterThanEquals = { "secretsmanager:RecoveryWindowInDays" = "7" }
@@ -546,7 +568,7 @@ run "secret_profile_separation" {
 
   assert {
     condition = (
-      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Action == ["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"] &&
+      one([for s in jsondecode(run.account_policy_fixture.policy_json).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Action == ["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"] &&
       one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Action == ["secretsmanager:DescribeSecret"] &&
       alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.access_admin.inline_policy).Statement : alltrue([for action in statement.Action : startswith(action, "sso:")])]) &&
       alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : alltrue([for action in statement.Action : !startswith(action, "secretsmanager:") || action == "secretsmanager:DescribeSecret"])])
@@ -555,14 +577,15 @@ run "secret_profile_separation" {
   }
 
   assert {
-    condition = alltrue([for statement in [
-      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]),
-      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"])
-      ] : statement.Condition == { StringEquals = {
+    condition = (
+      one([for s in jsondecode(run.account_policy_fixture.policy_json).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Condition == { StringEquals = {
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/Project" = "test-portfolio"
+      } } &&
+      one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Condition == { StringEquals = {
         "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
       } }
-    ])
-    error_message = "Both profiles' Secret metadata reads must remain strictly Project/account/region scoped."
+    )
+    error_message = "Developer managed permissions must be narrowed to the owning account while Operator's original metadata scope remains unchanged."
   }
 }
 
@@ -624,4 +647,77 @@ run "inline_policy_quota_overflow" {
     target_account_ids = [for account in range(100, 120) : format("%012d", account)]
   }
   expect_failures = [aws_ssoadmin_permission_set_inline_policy.developer]
+}
+
+run "developer_customer_managed_attachment" {
+  command = plan
+
+  assert {
+    condition = (
+      length(aws_ssoadmin_customer_managed_policy_attachment.developer) == 1 &&
+      keys(aws_ssoadmin_customer_managed_policy_attachment.developer) == ["secrets_manager"] &&
+      aws_ssoadmin_customer_managed_policy_attachment.developer["secrets_manager"].instance_arn == var.instance_arn &&
+      aws_ssoadmin_customer_managed_policy_attachment.developer["secrets_manager"].permission_set_arn == output.developer_permission_set_arn &&
+      output.developer_customer_managed_policy_references == {
+        secrets_manager = { name = run.account_policy_fixture.policy_name, path = run.account_policy_fixture.policy_path }
+      }
+    )
+    error_message = "Exactly the reviewed account policy name/path must attach only to Developer and the supplied instance."
+  }
+}
+
+run "developer_policy_capacity_and_attachment_budget" {
+  command = plan
+
+  assert {
+    condition = (
+      output.developer_inline_policy_quota.non_whitespace_bytes == length(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy) &&
+      output.developer_inline_policy_quota.limit_non_whitespace_bytes == 10240 &&
+      output.developer_inline_policy_quota.remaining_bytes == 10240 - length(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy) &&
+      output.developer_inline_policy_quota.remaining_bytes >= 2500 &&
+      output.developer_managed_attachment_quota == {
+        count = 1, portfolio_budget = 10, permission_set_limit = 25, remaining_portfolio_slots = 9
+      } &&
+      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : alltrue([for action in statement.Action : startswith(action, "ec2:")])])
+    )
+    error_message = "Actual inline headroom must materially improve, with one reference under the conservative portfolio budget and service limit."
+  }
+}
+
+run "three_account_full_project_capacity" {
+  command = plan
+  variables {
+    target_account_ids = ["000000000000", "000000000001", "000000000003"]
+    project_tag        = "aws-terraform-portfolio"
+  }
+
+  assert {
+    condition = (
+      output.developer_inline_policy_quota.non_whitespace_bytes < 10240 &&
+      output.developer_inline_policy_quota.remaining_bytes > 0 &&
+      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
+        toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(var.target_account_ids)
+      ])
+    )
+    error_message = "A three-account portfolio case must fit without removing explicit account restrictions."
+  }
+}
+
+run "single_account_maximum_project_capacity" {
+  command = plan
+  variables {
+    target_account_ids = ["000000000000"]
+    project_tag        = join("", [for i in range(63) : "p"])
+  }
+
+  assert {
+    condition = (
+      output.developer_inline_policy_quota.non_whitespace_bytes < 10240 &&
+      output.developer_inline_policy_quota.remaining_bytes > 0 &&
+      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
+        statement.Condition.StringEquals["aws:PrincipalAccount"] == ["000000000000"]
+      ])
+    )
+    error_message = "Maximum Project identity length must remain supported without weakening account scope."
+  }
 }
