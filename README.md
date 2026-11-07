@@ -12,7 +12,9 @@ retains its Phase 2 foundation. The reusable
 [`VPC`](infra/modules/vpc/README.md) and
 [`IAM access`](infra/modules/iam_access/README.md) modules have native mock tests.
 Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
-without account assignments. **No service root calls either module yet.**
+without account assignments. Its hardening completes the offline VPC authorization
+design; live AWS authorization remains unverified.
+**No service root calls either module yet.**
 No AWS credentials were used and no
 AWS infrastructure was deployed or tested against a live account. There are no
 CI workflows.
@@ -43,7 +45,8 @@ and production directories remain placeholders.
 ├── AGENTS.md
 ├── README.md
 ├── docs/
-│   └── .gitkeep
+│   ├── .gitkeep
+│   └── iam-access-operations.md
 ├── infra/
 │   ├── modules/
 │   │   ├── iam_access/
@@ -52,6 +55,7 @@ and production directories remain placeholders.
 │   │   │   ├── outputs.tf
 │   │   │   ├── policies.tf
 │   │   │   ├── tests/
+│   │   │   │   ├── check_authorization_reference.py
 │   │   │   │   └── iam_access.tftest.hcl
 │   │   │   ├── variables.tf
 │   │   │   └── versions.tf
@@ -117,18 +121,27 @@ sources, networking defaults, and limitations.
 ## Phase 3-2 human-access validation
 
 Terraform 1.17.0 / AWS Provider 6.72.0 passed formatting, backend-disabled
-initialization using retained verified provider files, validation, and **21
+initialization using retained verified provider files, validation, and **25
 mock-plan tests with zero failures**. The eight WIP tests remain in the suite.
-Actual generated IAM JSON and the six-resource plan inventory were reviewed
-against official AWS authorization references. Existing VPC and dev root files,
+Actual generated IAM JSON and the six-resource plan inventory passed the
+stdlib-only static checker against official EC2/SSO authorization JSON, with
+HTML-reviewed required-resource markers and nine negative checker self-tests.
+Existing VPC and dev root files,
 including the root dependency lock, remain unchanged.
 
 Access Admin requires an existing organization instance and an externally verified
-management or registered delegated-administrator account. Developer deliberately
-grants only a verified VPC-management subset, not complete VPC-module provisioning
-permissions. Operator has metadata visibility only. See the [IAM access README](infra/modules/iam_access/README.md)
-for the complete action/resource/condition matrix, self-assignment risks, deferred
-permissions, and offline-only authorization limitations. No real AWS access,
+management or registered delegated-administrator account. Developer has 27 explicit
+EC2 actions representing the current VPC lifecycle, with Project/account/region
+scope. Operator retains exactly five metadata actions. Offline Design Readiness
+is complete; **Live Authorization Readiness is not complete**. Mock/static checks
+do not prove runtime authorization, DNS/public-IP value restrictions or exclusion
+of main-route-table replacement. Direct Access Admin rights cannot prevent
+self-assignment; independent approval remains procedural unless a separately
+reviewed executor design removes direct human assignment writes.
+See the [IAM access README](infra/modules/iam_access/README.md) for the complete
+action/resource/condition matrix and residual risks, and the
+[operations runbook](docs/iam-access-operations.md) for external approval,
+CloudTrail, reconciliation and replaceable identifier guidance. No real AWS access,
 identities, account assignments, deployments or workload execution roles were
 created.
 

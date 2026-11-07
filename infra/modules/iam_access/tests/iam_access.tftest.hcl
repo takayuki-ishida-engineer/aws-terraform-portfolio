@@ -182,14 +182,15 @@ run "developer_action_allowlist" {
 
   assert {
     condition = (
-      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement) == 17 &&
+      length(jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement) == 21 &&
       toset([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement.Sid]) == toset([
         "RegionalNetworkMetadata", "ProjectVpcAttributes", "CreateVpc", "CreateSubnet", "CreateInternetGateway", "CreateRouteTable",
         "UseExistingProjectVpc", "DeleteProjectVpc", "DeleteProjectSubnet", "DeleteProjectInternetGateway", "AttachProjectInternetGateway",
-        "ManageProjectRouteTable", "EditNonAuthorizationTags", "TagDuringCreateVpc", "TagDuringCreateSubnet", "TagDuringCreateInternetGateway", "TagDuringCreateRouteTable"
+        "ManageProjectRouteTable", "EditNonAuthorizationTags", "TagDuringCreateVpc", "TagDuringCreateSubnet", "TagDuringCreateInternetGateway", "TagDuringCreateRouteTable",
+        "VpcProviderDefaultMetadata", "ModifyProjectVpcAttributes", "ModifyProjectSubnetAttributes", "ManageProjectSubnetAssociations"
       ])
     )
-    error_message = "All 17 reviewed statements must be present exactly once, so scoped assertion filters cannot pass vacuously."
+    error_message = "All 21 reviewed statements must be present exactly once, so scoped assertion filters cannot pass vacuously."
   }
 
   assert {
@@ -197,9 +198,11 @@ run "developer_action_allowlist" {
       "ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables", "ec2:DescribeVpcAttribute",
       "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:CreateSubnet", "ec2:DeleteSubnet",
       "ec2:CreateInternetGateway", "ec2:DeleteInternetGateway", "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
-      "ec2:CreateRouteTable", "ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute", "ec2:CreateTags", "ec2:DeleteTags"
+      "ec2:CreateRouteTable", "ec2:DeleteRouteTable", "ec2:CreateRoute", "ec2:ReplaceRoute", "ec2:DeleteRoute", "ec2:CreateTags", "ec2:DeleteTags",
+      "ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute", "ec2:AssociateRouteTable", "ec2:ReplaceRouteTableAssociation", "ec2:DisassociateRouteTable",
+      "ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"
     ])
-    error_message = "Developer must have exactly the reviewed 20 EC2 actions, excluding unverified attribute/association writes and future services."
+    error_message = "Developer must have exactly the 27 reviewed VPC lifecycle/metadata actions, not unrelated services or administrative wildcards."
   }
 }
 
@@ -210,17 +213,18 @@ run "developer_account_region_and_resources" {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
       statement.Condition.StringEquals["aws:RequestedRegion"] == "ca-central-1" &&
       toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(["000000000000", "000000000001"]) &&
-      alltrue([for arn in statement.Resource : statement.Sid == "RegionalNetworkMetadata" ? arn == "*" : can(regex("^arn:aws:ec2:ca-central-1:00000000000[01]:(vpc|subnet|internet-gateway|route-table)/\\*$", arn))])
+      alltrue([for arn in statement.Resource : contains(["RegionalNetworkMetadata", "VpcProviderDefaultMetadata"], statement.Sid) ? arn == "*" : can(regex("^arn:aws:ec2:ca-central-1:00000000000[01]:(vpc|subnet|internet-gateway|route-table)/\\*$", arn))])
     ])
     error_message = "All Developer statements must enforce explicit account/region boundaries and only the four approved network ARN types."
   }
 
   assert {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
-      toset(statement.Action) == toset(["ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables"])
+      statement.Sid == "RegionalNetworkMetadata" ? toset(statement.Action) == toset(["ec2:DescribeVpcs", "ec2:DescribeSubnets", "ec2:DescribeInternetGateways", "ec2:DescribeRouteTables"]) :
+      statement.Sid == "VpcProviderDefaultMetadata" && toset(statement.Action) == toset(["ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"])
       if contains(statement.Resource, "*")
     ])
-    error_message = "Only the four documented non-resource-scopeable metadata actions may use a wildcard resource."
+    error_message = "Only the six documented VPC/provider metadata actions may use a wildcard resource, in their exact statements."
   }
 }
 
@@ -284,7 +288,7 @@ run "developer_existing_resource_controls" {
   assert {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
       statement.Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio"
-      if contains(["UseExistingProjectVpc", "DeleteProjectVpc", "DeleteProjectSubnet", "DeleteProjectInternetGateway", "AttachProjectInternetGateway", "ManageProjectRouteTable", "EditNonAuthorizationTags", "ProjectVpcAttributes"], statement.Sid)
+      if contains(["UseExistingProjectVpc", "DeleteProjectVpc", "DeleteProjectSubnet", "DeleteProjectInternetGateway", "AttachProjectInternetGateway", "ManageProjectRouteTable", "EditNonAuthorizationTags", "ProjectVpcAttributes", "ModifyProjectVpcAttributes", "ModifyProjectSubnetAttributes", "ManageProjectSubnetAssociations"], statement.Sid)
     ])
     error_message = "Every existing resource operation must require the Project authorization tag."
   }
@@ -370,4 +374,65 @@ run "malformed_instance_arn" {
     instance_arn = "not-an-arn"
   }
   expect_failures = [var.instance_arn]
+}
+
+run "vpc_attribute_authorization" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
+      statement.Action == ["ec2:ModifyVpcAttribute"] &&
+      toset(statement.Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) &&
+      statement.Condition == { StringEquals = {
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+      } } if statement.Sid == "ModifyProjectVpcAttributes"
+    ])
+    error_message = "VPC attribute writes must stay project/account/region scoped without fabricated Boolean or attribute-value guards."
+  }
+}
+
+run "subnet_attribute_authorization" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
+      statement.Action == ["ec2:ModifySubnetAttribute"] &&
+      toset(statement.Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:subnet/*", "arn:aws:ec2:ca-central-1:000000000001:subnet/*"]) &&
+      statement.Condition == { StringEquals = {
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+      } } if statement.Sid == "ModifyProjectSubnetAttributes"
+    ])
+    error_message = "Subnet attribute writes must not gain VPC/gateway resources, cross-account scope or invented public-IP/IPv6 value restrictions."
+  }
+}
+
+run "association_lifecycle_authorization" {
+  command = plan
+
+  assert {
+    condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
+      toset(statement.Action) == toset(["ec2:AssociateRouteTable", "ec2:ReplaceRouteTableAssociation", "ec2:DisassociateRouteTable"]) &&
+      toset(statement.Resource) == toset([
+        "arn:aws:ec2:ca-central-1:000000000000:route-table/*", "arn:aws:ec2:ca-central-1:000000000001:route-table/*",
+        "arn:aws:ec2:ca-central-1:000000000000:subnet/*", "arn:aws:ec2:ca-central-1:000000000001:subnet/*"
+      ]) &&
+      statement.Condition == { StringEquals = {
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+      } } if statement.Sid == "ManageProjectSubnetAssociations"
+    ])
+    error_message = "Association grants must use only reviewed route-table/subnet resources and supported conditions, never a fake IsMain or association-ARN restriction."
+  }
+}
+
+run "provider_metadata_does_not_expand_operator" {
+  command = plan
+
+  assert {
+    condition = (
+      one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "VpcProviderDefaultMetadata"]).Resource == ["*"] &&
+      toset(one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "VpcProviderDefaultMetadata"]).Action) == toset(["ec2:DescribeNetworkAcls", "ec2:DescribeSecurityGroups"]) &&
+      alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : !contains(statement.Action, "ec2:DescribeNetworkAcls") && !contains(statement.Action, "ec2:DescribeSecurityGroups")])
+    )
+    error_message = "Only Developer may gain the two provider-read dependencies; Operator must retain its existing five-action metadata policy."
+  }
 }
