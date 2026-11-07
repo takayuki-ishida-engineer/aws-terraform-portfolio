@@ -5,12 +5,14 @@ architecture and clear day-to-day operations.
 
 ## Current status
 
-Phases 0 and 1 are complete. Phase 2 adds the representative development root at
+Phases 0, 1, and 2 are complete. The representative development root at
 `infra/services/dev/ca-central-1/serverless-api/`, with fixed identity, version
-constraints, AWS provider account restrictions, and an explicit local backend.
-**AWS infrastructure resources and reusable child modules are not yet
-implemented.** There are no data sources, module calls, tests, or CI workflows.
-No AWS credentials were used and no AWS infrastructure was deployed or tested.
+constraints, AWS provider account restrictions, and an explicit local backend,
+retains its Phase 2 foundation. Phase 3-1 adds the reusable
+[`infra/modules/vpc/`](infra/modules/vpc/README.md) module and native mock tests.
+**No service root calls this module yet.** No AWS credentials were used and no
+AWS infrastructure was deployed or tested against a live account. There are no
+CI workflows.
 
 ## Planned architecture
 
@@ -24,8 +26,8 @@ No AWS credentials were used and no AWS infrastructure was deployed or tested.
   outside Terraform so they do not enter configuration, plans, or state.
 - Prioritize maintainability and operational clarity over unnecessary complexity.
 
-The development root foundation now follows this layout. The reusable module
-library and the staging and production directories remain placeholders.
+The development root foundation and VPC module follow this layout. The staging
+and production directories remain placeholders.
 
 ## Repository foundation
 
@@ -41,7 +43,14 @@ library and the staging and production directories remain placeholders.
 │   └── .gitkeep
 ├── infra/
 │   ├── modules/
-│   │   └── .gitkeep
+│   │   └── vpc/
+│   │       ├── README.md
+│   │       ├── main.tf
+│   │       ├── outputs.tf
+│   │       ├── tests/
+│   │       │   └── vpc.tftest.hcl
+│   │       ├── variables.tf
+│   │       └── versions.tf
 │   └── services/
 │       ├── dev/
 │       │   └── ca-central-1/
@@ -67,7 +76,8 @@ library and the staging and production directories remain placeholders.
 operational documentation belongs in `docs/`, Terraform code in `infra/`, and tests
 in `tests/`. `.github/` is a placeholder; it contains no workflows.
 
-`infra/modules/` will hold reusable AWS Terraform child modules.
+`infra/modules/` contains the independently tested VPC child module, not yet called
+by a service root.
 `infra/services/` will hold independently managed Terraform root modules at
 `<environment>/<region>/<service>/`. The `dev/ca-central-1/serverless-api/` root is
 the only implemented root foundation; `stg/` and `prod/` are still placeholders.
@@ -82,6 +92,16 @@ used no AWS credentials and made no AWS API calls; no plan, deployment, or live
 account verification was performed. See the [root README](infra/services/dev/ca-central-1/serverless-api/README.md)
 for file responsibilities, effective configuration, and validation boundaries.
 
+## Phase 3-1 module validation
+
+From `infra/modules/vpc/`, Terraform CLI 1.17.0 with AWS Provider 6.72.0 passed
+formatting, backend-disabled initialization, validation, and native mock tests:
+**16 passed, zero failed**. All test runs use mocked `command = plan`; no actual
+AWS plan, API calls, credentials, deployments, or live integration tests were
+used. The existing development root and its dependency lock remain unchanged.
+See the [module README](infra/modules/vpc/README.md) for coverage, configuration
+sources, networking defaults, and limitations.
+
 ## Configuration and secrets
 
 Terraform state, saved plans, local secrets, private keys, credentials, and local
@@ -89,5 +109,5 @@ environment files must stay out of version control. `.terraform.lock.hcl` remain
 trackable. Future `features.auto.tfvars` files may be tracked only when they contain
 non-secret feature settings; Terraform loads these files automatically.
 
-Phase 2 requires no AWS access. Do not add cloud credentials or run deployments
+Phase 3-1 requires no AWS access. Do not add cloud credentials or run deployments
 as part of this foundation work.
