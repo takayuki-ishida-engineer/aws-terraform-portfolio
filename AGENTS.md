@@ -77,35 +77,37 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-1
+## Current phase only: Phase 3-2
 
-Phases 0, 1, and 2 are complete and merged. This task authorizes only the reusable
-VPC child module in `infra/modules/vpc/`, its real native mock tests, and necessary
-repository documentation updates. Preserve all permanent rules above.
+Phases 0, 1, 2, and 3-1 are complete and merged. This task authorizes only
+`infra/modules/iam_access/` for human access using an existing organization IAM
+Identity Center instance, its mock tests, and necessary documentation updates.
+Preserve all permanent rules above and the existing WIP implementation/tests.
 
-- Implement one IPv4 VPC, explicitly keyed private subnets, optional keyed public
-  subnets, one shared private route table, conditional IGW/public routing, and
-  their associations. Keep private-only defaults and fixed IP/DNS safeguards.
-- Require caller-supplied CIDRs, stable subnet keys, and explicit AZs; do not use
-  AWS data sources for discovery. Validate inputs and document unchecked behavior.
-- Keep provider/backend/authentication/region/account/state ownership in roots.
-  Do not add provider or backend configuration to the child module, or commit a
-  separate child-module lock file. Preserve the existing root lock unchanged.
-- Remove only the obsolete `infra/modules/.gitkeep`. Do not change any existing
-  service root or integrate the VPC module into one.
-- Do not add other modules, NAT/EIP, endpoints, flow logs, IPv6, peering/transit,
-  cross-region networking, private hosted zones, VPN/Direct Connect, firewalls,
-  security groups, custom ACLs, remote backends, or workflows.
-- Use `mock_provider "aws"` and explicit `command = plan` for every test run.
-  Only these mocked test plans are authorized; never run an actual AWS plan,
-  apply, destroy, deployment, or AWS API operation. Never use AWS credentials.
-- Run formatting, backend-disabled initialization, validation, native mock tests,
-  and scope/secret/whitespace checks. Investigate failures rather than weakening
-  assertions, enabling real authentication, or silently skipping required tests.
-- Update the repository README and only this phase-specific section of AGENTS.
-  Document module sources/defaults/fixed settings, tests, and live-AWS limitations.
+- Define exactly Access Admin, Developer, and Operator Permission Sets and their
+  reviewed custom inline policies. No IAM users, groups, keys, passwords, identity
+  store identities, account assignments, organization instances, or workload roles.
+- Scope assignment administration to exact Developer/Operator ARNs, approved
+  workload accounts, and the existing instance. Require an explicit management or
+  registered delegated-administrator operating account; do not equate ordinary
+  member-account assignment with functioning administration.
+- Keep all privilege grants explicit. No administrator policies, administrative
+  action wildcards, arbitrary policy inputs, speculative service writes, PassRole,
+  secret plaintext or general data-plane access. Operator is metadata-only.
+- Verify action/resource/condition support using official AWS documentation.
+  Document unverified or deferred privileges rather than inventing restrictions;
+  retain self-assignment, delegation, metadata and effective-access limitations.
+- Keep provider/backend/state ownership in roots. Do not change the VPC module or
+  dev root, integrate this module into a root, or commit a child dependency lock.
+- Preserve the eight original mock tests and add real policy-JSON security
+  regressions. Every run must explicitly use `command = plan` and a mock AWS
+  provider. Never weaken assertions merely to make a failing test pass.
+- Never use AWS credentials or account APIs, including Access Analyzer. No real
+  AWS plan, apply, destroy, provisioning or deployment; only native mocked plans.
+- Run formatting, backend-disabled initialization, validation, tests, independent
+  generated-policy inspection, and scope/secret/whitespace checks. Update the
+  repository README and only this phase-specific AGENTS section.
 
-Use `feat/module-vpc` from the latest `main`, not a previous phase branch. Commit,
-push, and open a PR for external review, then stop. Do not merge the PR or delete
-the working branch. Further module development or root integration requires a
-separate request and external PR review; do not begin Phase 3-2.
+Continue `feat/module-iam-access` without discarding or recreating the WIP.
+Commit, push, and create a PR to `main` for external review, then stop. Do not
+merge, delete the working branch, integrate a module, or begin Phase 3-3.

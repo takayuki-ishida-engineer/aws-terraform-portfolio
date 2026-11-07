@@ -5,12 +5,15 @@ architecture and clear day-to-day operations.
 
 ## Current status
 
-Phases 0, 1, and 2 are complete. The representative development root at
+Phases 0, 1, 2, and 3-1 are complete. The representative development root at
 `infra/services/dev/ca-central-1/serverless-api/`, with fixed identity, version
 constraints, AWS provider account restrictions, and an explicit local backend,
-retains its Phase 2 foundation. Phase 3-1 adds the reusable
-[`infra/modules/vpc/`](infra/modules/vpc/README.md) module and native mock tests.
-**No service root calls this module yet.** No AWS credentials were used and no
+retains its Phase 2 foundation. The reusable
+[`VPC`](infra/modules/vpc/README.md) and
+[`IAM access`](infra/modules/iam_access/README.md) modules have native mock tests.
+Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
+without account assignments. **No service root calls either module yet.**
+No AWS credentials were used and no
 AWS infrastructure was deployed or tested against a live account. There are no
 CI workflows.
 
@@ -43,6 +46,15 @@ and production directories remain placeholders.
 │   └── .gitkeep
 ├── infra/
 │   ├── modules/
+│   │   ├── iam_access/
+│   │   │   ├── README.md
+│   │   │   ├── main.tf
+│   │   │   ├── outputs.tf
+│   │   │   ├── policies.tf
+│   │   │   ├── tests/
+│   │   │   │   └── iam_access.tftest.hcl
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
 │   │   └── vpc/
 │   │       ├── README.md
 │   │       ├── main.tf
@@ -76,8 +88,8 @@ and production directories remain placeholders.
 operational documentation belongs in `docs/`, Terraform code in `infra/`, and tests
 in `tests/`. `.github/` is a placeholder; it contains no workflows.
 
-`infra/modules/` contains the independently tested VPC child module, not yet called
-by a service root.
+`infra/modules/` contains independently tested VPC and human-access child modules,
+not yet called by a service root.
 `infra/services/` will hold independently managed Terraform root modules at
 `<environment>/<region>/<service>/`. The `dev/ca-central-1/serverless-api/` root is
 the only implemented root foundation; `stg/` and `prod/` are still placeholders.
@@ -102,6 +114,24 @@ used. The existing development root and its dependency lock remain unchanged.
 See the [module README](infra/modules/vpc/README.md) for coverage, configuration
 sources, networking defaults, and limitations.
 
+## Phase 3-2 human-access validation
+
+Terraform 1.17.0 / AWS Provider 6.72.0 passed formatting, backend-disabled
+initialization using retained verified provider files, validation, and **21
+mock-plan tests with zero failures**. The eight WIP tests remain in the suite.
+Actual generated IAM JSON and the six-resource plan inventory were reviewed
+against official AWS authorization references. Existing VPC and dev root files,
+including the root dependency lock, remain unchanged.
+
+Access Admin requires an existing organization instance and an externally verified
+management or registered delegated-administrator account. Developer deliberately
+grants only a verified VPC-management subset, not complete VPC-module provisioning
+permissions. Operator has metadata visibility only. See the [IAM access README](infra/modules/iam_access/README.md)
+for the complete action/resource/condition matrix, self-assignment risks, deferred
+permissions, and offline-only authorization limitations. No real AWS access,
+identities, account assignments, deployments or workload execution roles were
+created.
+
 ## Configuration and secrets
 
 Terraform state, saved plans, local secrets, private keys, credentials, and local
@@ -109,5 +139,5 @@ environment files must stay out of version control. `.terraform.lock.hcl` remain
 trackable. Future `features.auto.tfvars` files may be tracked only when they contain
 non-secret feature settings; Terraform loads these files automatically.
 
-Phase 3-1 requires no AWS access. Do not add cloud credentials or run deployments
+Phase 3-2 requires no AWS access. Do not add cloud credentials or run deployments
 as part of this foundation work.
