@@ -5,11 +5,11 @@ architecture and clear day-to-day operations.
 
 ## Current status
 
-**Infrastructure is not yet implemented.** Phase 0 establishes repository
-documentation, conventions, and empty directory placeholders only. There are no
-Terraform modules, provider configurations, resources, tests, or CI workflows yet.
-No cloud credentials are configured and no infrastructure is deployed by this
-phase.
+**Infrastructure is not yet implemented.** Phase 0 repository foundations are
+complete. Phase 1 adds infrastructure directory placeholders and documentation
+only. No Terraform root modules, child modules, provider configurations, backends,
+resources, tests, or CI workflows have been implemented. No cloud credentials are
+configured and no infrastructure has been deployed or tested in this phase.
 
 ## Planned architecture
 
@@ -23,8 +23,9 @@ phase.
   outside Terraform so they do not enter configuration, plans, or state.
 - Prioritize maintainability and operational clarity over unnecessary complexity.
 
-These are design decisions for future work. The environment, region, service, and
-module directories have not been created.
+These are design decisions for future work. The module library and environment
+directories are placeholders only; region and service directories have not been
+created.
 
 ## Repository foundation
 
@@ -39,7 +40,15 @@ module directories have not been created.
 ├── docs/
 │   └── .gitkeep
 ├── infra/
-│   └── .gitkeep
+│   ├── modules/
+│   │   └── .gitkeep
+│   └── services/
+│       ├── dev/
+│       │   └── .gitkeep
+│       ├── stg/
+│       │   └── .gitkeep
+│       └── prod/
+│           └── .gitkeep
 └── tests/
     └── .gitkeep
 ```
@@ -48,6 +57,11 @@ module directories have not been created.
 operational documentation belongs in `docs/`, Terraform code in `infra/`, and tests
 in `tests/`. `.github/` is a placeholder; it contains no workflows.
 
+`infra/modules/` will hold reusable AWS Terraform child modules.
+`infra/services/` will hold independently managed Terraform root modules at
+`<environment>/<region>/<service>/`. Its `dev/`, `stg/`, and `prod/` directories are
+currently empty placeholders for development, staging, and production.
+
 ## Configuration and secrets
 
 Terraform state, saved plans, local secrets, private keys, credentials, and local
@@ -55,5 +69,5 @@ environment files must stay out of version control. `.terraform.lock.hcl` remain
 trackable. Future `features.auto.tfvars` files may be tracked only when they contain
 non-secret feature settings; Terraform loads these files automatically.
 
-Phase 0 requires no cloud access. Do not add cloud credentials or run deployments
+Phase 1 requires no cloud access. Do not add cloud credentials or run deployments
 as part of this foundation work.
