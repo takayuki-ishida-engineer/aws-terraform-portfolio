@@ -139,6 +139,36 @@ No network change, AWS API call, real-account plan, apply or destroy is performe
 by this runbook or authorized inside Codex Cloud. Logging, enforcement automation
 and any additional execution or inspection privileges require a separate design.
 
+## Secret-container and value responsibilities
+
+The [Secrets Manager module](../infra/modules/secrets_manager/README.md) owns one
+metadata container only. Do not send values to Terraform, tests, CI, plans or
+state. After an independently authorized external deployment, a separate approved
+operational identity initializes/updates values and verifies the intended current
+version. This module does not make a value or AWSCURRENT version exist.
+
+Developer can call CreateSecret with initial payload parameters through the AWS
+API: no documented IAM condition reliably enforces their absence. The Terraform
+resource never supplies those parameters, but that does not constrain a human
+using the same action. Account/region/Project scope and creation-tag governance
+still apply; direct rights can bypass procedural approval. Existing Access Admin
+self-assignment can confer these reviewed Developer capabilities and remains a
+separate governance risk.
+
+UpdateSecret is withheld because it can overwrite values; metadata description/
+CMK updates require a separately reviewed controlled deployment identity and
+payload-free workflow. Resource-policy writes, value retrieval/updates, rotation
+and KMS Decrypt are not granted. Operator receives only DescribeSecret metadata;
+names, descriptions, tags and policy documents must contain no confidential data.
+Provider refresh additionally needs Developer's scoped GetResourcePolicy even
+though the module does not own a resource policy.
+
+Review recovery periods, deletion intent and name-reuse impact before scheduled
+deletions. Developer must explicitly request 7–30 days and cannot force immediate
+deletion through these grants. RestoreSecret is not granted or called by the
+module; recovery needs a separately approved external operation before the window
+expires. External policies can still affect access and must be reconciled.
+
 ## Official evidence
 
 Reviewed on 2026-11-07 using public documentation only:
@@ -152,3 +182,9 @@ Reviewed on 2026-11-07 using public documentation only:
 - [IAM Identity Center CloudTrail event sources](https://docs.aws.amazon.com/singlesignon/latest/userguide/logging-using-cloudtrail.html)
 - [EC2 Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ec2.html)
 - [Machine-readable EC2 authorization reference](https://servicereference.us-east-1.amazonaws.com/v1/ec2/ec2.json)
+
+- [Secrets Manager authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_secretsmanager.html)
+- [Secrets Manager CreateSecret payload and tagging behavior](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_CreateSecret.html)
+- [Secrets Manager UpdateSecret payload behavior](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_UpdateSecret.html)
+- [Secrets Manager deletion and recovery](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_DeleteSecret.html)
+- [Secrets Manager ABAC creation/tag semantics](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_attribute-based-access-control.html)

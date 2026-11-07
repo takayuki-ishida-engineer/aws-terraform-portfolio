@@ -18,6 +18,7 @@ from collections import Counter, defaultdict
 # Explicit overlay for actions used here, reviewed against these HTML tables:
 # https://docs.aws.amazon.com/service-authorization/latest/reference/list_ec2.html
 # https://docs.aws.amazon.com/service-authorization/latest/reference/list_iam-identity-center.html
+# https://docs.aws.amazon.com/service-authorization/latest/reference/list_secretsmanager.html
 # Other resource types in an action's JSON entry remain request-dependent/optional.
 REQUIRED = {
   "ec2:CreateVpc": {"vpc"},
@@ -44,6 +45,12 @@ REQUIRED = {
   "sso:DescribePermissionSet": {"Instance", "PermissionSet"},
   "sso:DescribeAccountAssignmentCreationStatus": {"Instance"},
   "sso:DescribeAccountAssignmentDeletionStatus": {"Instance"},
+  "secretsmanager:CreateSecret": {"Secret"},
+  "secretsmanager:DescribeSecret": {"Secret"},
+  "secretsmanager:GetResourcePolicy": {"Secret"},
+  "secretsmanager:TagResource": {"Secret"},
+  "secretsmanager:UntagResource": {"Secret"},
+  "secretsmanager:DeleteSecret": {"Secret"},
 }
 # Only these universal, single-valued global keys are exceptions to SAR entries:
 # https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html
@@ -65,7 +72,11 @@ def strings(value):
 
 def pattern(template):
   """Escape literals; only AWS-documented ${...} placeholders are variable."""
-  return "".join("[^:/]+" if part.startswith("${") else re.escape(part)
+  # Secrets Manager names may contain '/', unlike ARN account/region segments.
+  # Limit this exception to its documented terminal SecretId placeholder.
+  secret_path = template.startswith("arn:") and ":secretsmanager:" in template and template.endswith(":secret:${SecretId}")
+  return "".join("[^:]+" if secret_path and part == "${SecretId}" else
+         "[^:/]+" if part.startswith("${") else re.escape(part)
          for part in re.split(r"(\$\{[^}]+\})", template))
 
 
@@ -75,7 +86,8 @@ def condition_matches(key, allowed):
 
 
 def index_reference(document, service):
-  require(document.get("ServiceName") == {"ec2": "EC2", "sso": "IAM Identity Center"}[service]
+  require(document.get("ServiceName") == {
+    "ec2": "EC2", "sso": "IAM Identity Center", "secretsmanager": "Secrets Manager"}[service]
       and document.get("Version") == "v1.5",
       f"expected official {service} SAR schema v1.5")
   return ({action["Name"]: action for action in document["Actions"]},
@@ -222,25 +234,84 @@ def self_test():
     except ValueError:
       continue
     raise ValueError(f"self-test failed to reject {label}")
-  print(f"Self-test passed: valid parameterized keys accepted; {len(mutations)} unsafe mutations rejected.")
+  secret_count = secretsmanager_self_test()
+  print(f"Self-test passed: valid parameterized keys and secret paths accepted; {len(mutations) + secret_count} unsafe mutations rejected ({len(mutations)} original, {secret_count} Secrets Manager).")
+
+
+def secretsmanager_self_test():
+  # Minimal official v1.5 action/key subsets; no secret payload is supplied.
+  tags = ["aws:ResourceTag/${TagKey}", "aws:TagKeys"]
+  definitions = {
+    "CreateSecret": ["aws:RequestTag/${TagKey}", "aws:TagKeys"],
+    "DescribeSecret": ["aws:ResourceTag/${TagKey}"],
+    "GetResourcePolicy": ["aws:ResourceTag/${TagKey}"],
+    "TagResource": tags + ["aws:RequestTag/${TagKey}"],
+    "UntagResource": tags,
+    "DeleteSecret": ["aws:ResourceTag/${TagKey}",
+      "secretsmanager:ForceDeleteWithoutRecovery", "secretsmanager:RecoveryWindowInDays"],
+  }
+  fixture = {"ServiceName": "Secrets Manager", "Version": "v1.5",
+    "Actions": [{"Name": name, "ActionConditionKeys": keys,
+      "Resources": [{"Name": "Secret"}]} for name, keys in definitions.items()],
+    "Resources": [{"Name": "Secret", "ARNFormats": [
+      "arn:${Partition}:secretsmanager:${Region}:${Account}:secret:${SecretId}"]}]}
+  refs = {"secretsmanager": index_reference(fixture, "secretsmanager")}
+  arn = "arn:aws:secretsmanager:ca-central-1:000000000000:secret:portfolio/dev/database-000000"
+  base = {"Version": "2012-10-17", "Statement": [{
+    "Effect": "Allow", "Action": ["secretsmanager:DescribeSecret"], "Resource": [arn],
+    "Condition": {"StringEquals": {"aws:ResourceTag/Project": "test"}}}]}
+  check_policy(base, refs)
+  # Also exercise the deletion and tag-integrity keys used by generated policies.
+  deletion = copy.deepcopy(base)
+  deletion["Statement"][0].update(Action=["secretsmanager:DeleteSecret"])
+  deletion["Statement"][0]["Condition"].update({
+    "BoolIfExists": {"secretsmanager:ForceDeleteWithoutRecovery": "false"},
+    "NumericGreaterThanEquals": {"secretsmanager:RecoveryWindowInDays": "7"},
+    "NumericLessThanEquals": {"secretsmanager:RecoveryWindowInDays": "30"}})
+  check_policy(deletion, refs)
+  tag = copy.deepcopy(base)
+  tag["Statement"][0].update(Action=["secretsmanager:TagResource"])
+  tag["Statement"][0]["Condition"]["StringEquals"]["aws:RequestTag/Project"] = "test"
+  tag["Statement"][0]["Condition"]["ForAllValues:StringEquals"] = {"aws:TagKeys": ["Name", "Project"]}
+  check_policy(tag, refs)
+  mutations = {
+    "unknown secret action": lambda p: p["Statement"][0].update(Action=["secretsmanager:Typo"]),
+    "secret action wildcard": lambda p: p["Statement"][0].update(Action=["secretsmanager:Describe*"]),
+    "unscoped secret resource": lambda p: p["Statement"][0].update(Resource=["*"]),
+    "unsupported secret resource": lambda p: p["Statement"][0].update(Resource=["arn:aws:kms:ca-central-1:000000000000:key/00000000-0000-0000-0000-000000000000"]),
+    "fabricated payload-absence condition": lambda p: p["Statement"][0].update(Action=["secretsmanager:CreateSecret"], Condition={"Null": {"secretsmanager:SecretString": "true", "secretsmanager:SecretBinary": "true"}}),
+    "unsupported untag request-tag condition": lambda p: p["Statement"][0].update(Action=["secretsmanager:UntagResource"], Condition={"StringEquals": {"aws:RequestTag/Project": "test"}}),
+    "wildcard secret account": lambda p: p["Statement"][0].update(Resource=[arn.replace("000000000000", "*")]),
+    "colon inside secret identifier": lambda p: p["Statement"][0].update(Resource=[arn.replace("portfolio/dev", "portfolio:dev")]),
+  }
+  for label, mutate in mutations.items():
+    candidate = copy.deepcopy(base)
+    mutate(candidate)
+    try:
+      check_policy(candidate, refs)
+    except ValueError:
+      continue
+    raise ValueError(f"self-test failed to reject {label}")
+  return len(mutations)
 
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--ec2-reference")
   parser.add_argument("--sso-reference")
+  parser.add_argument("--secretsmanager-reference")
   parser.add_argument("--test-events")
   parser.add_argument("--self-test", action="store_true")
   args = parser.parse_args()
   if args.self_test:
     self_test()
-  paths = (args.ec2_reference, args.sso_reference, args.test_events)
+  paths = (args.ec2_reference, args.sso_reference, args.secretsmanager_reference, args.test_events)
   if not any(paths):
-    require(args.self_test, "supply all three input paths or --self-test")
+    require(args.self_test, "supply all four input paths or --self-test")
     return
-  require(all(paths), "all three input paths are required")
+  require(all(paths), "all four input paths are required")
   references = {}
-  for service, path in zip(("ec2", "sso"), paths[:2]):
+  for service, path in zip(("ec2", "sso", "secretsmanager"), paths[:3]):
     with open(path, encoding="utf-8") as source:
       references[service] = index_reference(json.load(source), service)
   policies = read_test_events(args.test_events)
