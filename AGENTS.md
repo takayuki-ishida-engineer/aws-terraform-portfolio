@@ -77,18 +77,30 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 0
+## Current phase only: Phase 1
 
-Infrastructure is not yet implemented. Phase 0 contains only the root foundation
-files (`README.md`, `AGENTS.md`, `.gitignore`, `.editorconfig`) and `.gitkeep`
-placeholders in `.github/`, `infra/`, `tests/`, and `docs/`.
+Phase 0 is complete and merged through PR #1. Phase 1 is limited to infrastructure
+directory scaffolding and necessary documentation updates. Infrastructure remains
+unimplemented; the permanent rules above continue to apply unchanged.
 
-Do not create nested Terraform directories, modules, providers, resources,
-backends, workflows, tests, or scripts during Phase 0. The paths and architecture
-above are policies for future authorized work, not instructions to create them
-now. For this PR review correction, modify only `AGENTS.md` and preserve all other
-foundation files.
+- Add empty `.gitkeep` files only in `infra/modules/` and
+  `infra/services/dev/`, `infra/services/stg/`, and `infra/services/prod/`.
+- Remove the obsolete `infra/.gitkeep`; preserve all other foundation files.
+- Update `README.md` and only this phase-specific section of `AGENTS.md` to reflect
+  the actual structure and implementation status.
+- Do not implement Terraform: no `.tf` files, root or child modules, provider or
+  backend configurations, or resources. Do not add region or service directories.
+- Do not create `infra/stacks/`, `infra/common/`, `infra/scripts/`,
+  `infra/ansible/`, `infra/packer/`, or `infra/tfstate/`.
+- Do not add CI workflows, tests, scripts, or deployment configurations. Do not
+  introduce credentials, secrets, tokens, or account-specific identifiers.
+- Cloud deployments and AWS API operations are prohibited during Phase 1. Do not
+  run `terraform apply` or `terraform destroy`.
+- Inspect the final tree and staged changes, confirm the permanent policies are
+  intact, check for secrets, and run `git diff --check` before committing.
 
-Report changed files and verification results, then stop and await review. Do not
-merge PR #1, delete its working branch, or proceed to Phase 1 without an explicit
-request.
+Use the new `chore/phase-1-structure` branch from the latest `main`; do not reuse
+the merged Phase 0 branch. Commit, push, and open a PR for manual review. Report
+the tree, changed files, and verification results, then stop. Do not merge the PR
+or delete the working branch. Require manual review and explicit authorization
+before proceeding to Phase 2.
