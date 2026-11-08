@@ -77,34 +77,33 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-3.6 simulator context classification
+## Current phase only: Phase 3-3.7 independent guardrail verification
 
-Phase 3-3.5 is merged and main CI succeeded. Use the new
-`fix/iam-simulator-context-classification` branch from latest `main`. This task
-authorizes a narrow toolkit request/classification correction, deterministic
-regressions, the toolkit README, minimal CI/test-count documentation and this
-section. Preserve approved Terraform policies/architecture and permanent rules.
+Use `test/iam-guardrail-negative-verification` from latest `main`. This task
+authorizes a narrow static oracle, semantic negative tests, separate report
+evidence, relevant documentation and the reviewed CI Python test-count update.
+Preserve all permanent rules and approved Terraform policies/architecture.
 
-- Derive projections only from actual rendered policy documents. Omit only
-  provably action-nonmatching statements; independently verify semantic structure
-  for the tested action. Preserve every relevant Allow/Deny, resource and condition.
-- Do not resource-filter or build a generic evaluator. Uncertain action selectors
-  cannot justify dropping a statement or proving absent authorization.
-- Keep missing context from potentially applicable statements inconclusive. Never
-  invent values or erase intentional Null/IfExists absence to force a result.
-  Preserve unexpected-Allow, explicit/implicit deny, pagination, malformed-response
-  and complete multi-resource safeguards.
-- Label static action absence separately from AWS simulation evidence. Preserve
-  all four intentionally unsupported protections as inconclusive. Bind new request
-  evidence to original/projected hashes and case; do not relabel legacy captures.
-- Record the owner's prior 21/29 supported result counts accurately, without raw
-  reports/session identifiers, and require a human AWS rerun before claiming any
-  previously inconclusive case resolved. Codex performs no authenticated AWS calls.
-- Preserve all previous tests and add meaningful classification/semantic-mutation
-  regressions. Keep Terraform 1.17.0, Provider 6.72.0, mock plan tests, read-only CI,
-  action pins, no-credentials/no-OIDC/no-artifact boundaries and Approach A.
-- Do not create or use credentials, users or keys; no AWS APIs, real plans, apply,
-  destroy, deployment, policy changes, roots or next infrastructure phase.
+- Verify existing-resource Project-tag protection for CreateTags and the separate
+  Secrets Manager replica/overwrite guards using actual successful mock-plan
+  exports. Enumerate all relevant Allow/Deny statements in both Developer policies.
+- Keep the oracle independent of simulation projection and AWS response parsing.
+  Reject unsupported or ambiguous input; do not build a generic IAM evaluator.
+  Demonstrate unsafe synthetic mutations with other conditions satisfied, rather
+  than relying only on policy checksums or statement names.
+- Report sources/hashes, conditions, synthetic decisions and mutation evidence
+  separately from AWS simulation and existing static action inventory. Do not
+  relabel the owner's two missing-context cases or fabricate context values.
+- Attribute the owner's latest 33 passing/two inconclusive AWS simulations,
+  15 static checks and four unsupported protections accurately. Static proofs do
+  not establish deployed-role authorization or production readiness.
+- Preserve the 54 cases, 35 AWS candidates, 15 static inventory checks, four
+  unsupported protections, strict missing-context parsing and projection logic.
+  Keep all previous tests; no skips or weakened expectations.
+- Preserve Terraform 1.17.0, AWS Provider 6.72.0, Approach A, mock plan tests,
+  credential-free read-only CI, action pins and no-OIDC/no-artifact boundaries.
+  No AWS credentials/APIs, identities, real plans, apply, destroy or deployment;
+  do not commit raw CloudShell responses or account/session identifiers.
 
-Commit, push, open a PR, report actual checks and CI status, then stop for
-independent review. Do not merge or delete the working branch.
+Commit, push, open a PR and observe completed CI, then stop for independent
+review. Do not merge, delete the branch or begin Phase 3-4.

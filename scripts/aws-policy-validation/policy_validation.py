@@ -19,6 +19,7 @@ import sys
 sys.dont_write_bytecode = True
 from policy_cases import build_cases
 from simulation_projection import METHOD, content_sha256, project_policies, verify_projection
+from guardrail_verification import verify_guardrails
 
 
 FORMAT_VERSION = 1
@@ -600,7 +601,14 @@ def parse_capture(manifest, policies, cases, capture):
           "details": f"Case {case['id']} expected {case['expected']} but received {evaluation['decision']}."})
   require(not calls, "Capture contains unreviewed or unsupported extra API subjects.")
   statuses = [value["status"] for group in ("validations", "contexts", "simulations", "static_checks") for value in report[group].values()]
-  report["status"] = "failed" if "failed" in statuses else "review_required" if not capture["complete"] or any(status != "passed" for status in statuses) else "passed"
+  report["guardrail_proofs"] = guardrail_report(manifest, policies)
+  proof_status = report["guardrail_proofs"]["status"]
+  if proof_status == "failed":
+    report["findings_requiring_changes"].append({"type": "INDEPENDENT_GUARDRAIL_MISMATCH",
+        "policy": "developer", "issue_code": "guardrail_proof_failed",
+        "details": "Independent static guardrail verification failed; inspect its separate evidence."})
+  all_statuses = [*statuses, proof_status]
+  report["status"] = "failed" if "failed" in all_statuses else "review_required" if not capture["complete"] or any(status != "passed" for status in all_statuses) else "passed"
   report["simulation_counts"] = dict(collections.Counter(value["status"] for value in report["simulations"].values()))
   report["static_check_counts"] = dict(collections.Counter(value["status"] for value in report["static_checks"].values()))
   report["capture_complete"] = capture["complete"]
@@ -637,16 +645,65 @@ def markdown_report(report):
       lines.append(f"- {finding['type']} / {finding['policy']} / {finding['issue_code']}: {redact(finding['details']).replace(chr(10), ' ')}")
     if not findings:
       lines.append("No policy findings returned in the available responses; missing/inconclusive results remain distinct.")
+  lines.extend(guardrail_markdown(report["guardrail_proofs"]))
   lines.extend(["", "## Limitations", "", *["- " + value for value in LIMITATIONS], ""])
   return "\n".join(lines)
+
+
+def guardrail_report(manifest, policies):
+  """Separate static evidence; never replace or relabel simulator decisions."""
+  try:
+    result = verify_guardrails(policies, manifest["scope"])
+    require(isinstance(result, dict) and result.get("status") in {"passed", "failed", "inconclusive"},
+        "Malformed independent guardrail result.")
+  except (ValueError, TypeError, KeyError) as error:
+    result = {"status": "inconclusive", "evidence_type": "independent_static_guardrail_verification",
+        "aws_simulated": False, "reason": "unsupported_guardrail_input", "details": redact(error)}
+  return {**result, "source_export_sha256": {identifier: manifest["policies"][identifier]["sha256"]
+      for identifier in ("developer_inline", "developer_secrets_manager")}}
+
+
+def guardrail_markdown(proofs):
+  lines = ["", "## Independent static guardrail proofs", "",
+      f"Status: **{proofs['status']}**.",
+      "Separate static evidence, not an AWS Simulator result or deployed-role authorization proof.",
+      "Independent proof never changes the AWS cases' response classification.", "",
+      "| Source policy | Export SHA-256 | Canonical JSON SHA-256 |",
+      "| --- | --- | --- |"]
+  for identifier, value in proofs["source_export_sha256"].items():
+    lines.append(f"| {identifier} | {value} | {proofs.get('source_sha256', {}).get(identifier, 'unverified')} |")
+  for action, evidence in proofs.get("actions", {}).items():
+    lines.extend(["", f"### {action}", ""])
+    for statement in evidence.get("applicable_statements", []):
+      lines.append(f"- {statement['policy']} / {statement['sid']} / {statement['effect']}: "
+          f"{redact(compact(statement.get('conditions', {})))}")
+  lines.extend(["", "| Structural check | Action | Status | Certificate |",
+      "| --- | --- | --- | --- |"])
+  for value in proofs.get("structural_checks", []):
+    lines.append(f"| {value['policy']} / {value['sid']} | {value['action']} | {value['status']} | {value['certificate']} |")
+  lines.extend(["", "| Synthetic scenario | Expected within reviewed set | Static decision | Status |",
+      "| --- | --- | --- | --- |"])
+  for value in proofs.get("scenarios", []):
+    lines.append(f"| {value['id']} | {value['expected']} | {value['actual']} | {value['status']} |")
+  lines.extend(["", "| Negative mutation | Baseline decision | Mutated decision | Regression exposed | Status |",
+      "| --- | --- | --- | --- | --- |"])
+  for value in proofs.get("negative_mutations", []):
+    lines.append(f"| {value['id']} | {value['baseline']['actual']} | {value['mutated']['actual']} | "
+        f"{value['regression_exposed']} | {value['status']} |")
+  if "reason" in proofs:
+    lines.extend(["", f"Verification incomplete: {redact(proofs['reason'])}."])
+  lines.extend(["", *["- " + value for value in proofs.get("limitations", [])]])
+  return lines
 
 
 def offline_report(manifest, cases, policies):
   plans = {case["id"]: simulation_plan(case, policies) for case in cases}
   static = {case["id"]: static_inventory_result(case, plans[case["id"]]) for case in cases
       if plans[case["id"]]["kind"] == "static_action_inventory"}
-  return {"format_version": FORMAT_VERSION, "mode": "offline",
-      "status": "failed" if any(value["status"] == "failed" for value in static.values()) else "offline_ready",
+  proofs = guardrail_report(manifest, policies)
+  status = "failed" if proofs["status"] == "failed" or any(value["status"] == "failed" for value in static.values()) else "review_required" if proofs["status"] != "passed" else "offline_ready"
+  return {"format_version": FORMAT_VERSION, "mode": "offline", "status": status,
+      "guardrail_proofs": proofs,
       "aws_api_calls": 0, "projection_method": METHOD, "static_checks": static,
       "simulation_plan_counts": dict(collections.Counter(plan["kind"] for plan in plans.values())),
       "fixture_version": manifest["fixture_version"], "bundle_sha256": bundle_identity(manifest),
@@ -688,7 +745,7 @@ def main(argv=None):
   if args.command == "offline-check":
     report = offline_report(manifest, cases, policies)
     print(json.dumps(report, indent=2))
-    return 1 if report["status"] == "failed" else 0
+    return 1 if report["status"] == "failed" else 2 if report["status"] == "review_required" else 0
   if args.command == "run" and args.execute_aws:
     live_execution_allowed()
   directory = private_directory(args.output_dir)
