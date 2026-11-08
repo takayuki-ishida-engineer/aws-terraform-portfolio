@@ -1,5 +1,9 @@
 # aws-terraform-portfolio
 
+See the [offline MVP acceptance audit](docs/offline-mvp-acceptance.md) and
+[future live-validation readiness gates](docs/dev-live-validation-readiness.md).
+Offline acceptance does not authorize AWS deployment.
+
 An AWS infrastructure portfolio built with Terraform, focused on maintainable
 architecture and clear day-to-day operations.
 
