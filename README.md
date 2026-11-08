@@ -15,8 +15,9 @@ retains its Phase 2 foundation. The reusable
 [`Secrets Manager`](infra/modules/secrets_manager/README.md),
 [`Lambda`](infra/modules/lambda/README.md),
 [`CloudWatch Logs`](infra/modules/cloudwatch_logs/README.md),
-[`Lambda execution role`](infra/modules/lambda_execution_role/README.md) and
-[`S3 artifact bucket`](infra/modules/s3_artifact_bucket/README.md) modules have native
+[`Lambda execution role`](infra/modules/lambda_execution_role/README.md),
+[`S3 artifact bucket`](infra/modules/s3_artifact_bucket/README.md) and
+[`API Gateway HTTP API`](infra/modules/api_gateway_http/README.md) modules have native
 mock tests.
 Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
 without account assignments. Its hardening completes the offline VPC authorization
@@ -46,6 +47,10 @@ Phase 3-7 adds an independent private general-purpose S3 artifact bucket with
 fixed versioning, public access blocking, ACL-disabled ownership, SSE-S3 default
 encryption and an HTTPS-only Deny with the AWS service-principal exception. It
 creates no objects or upload pipeline and grants no artifact-read permissions.
+Phase 3-8 adds an independent HTTP API entry point for one existing Lambda:
+AWS_PROXY payload 2.0, a $default AWS_IAM route and auto-deploy stage, access logs,
+fixed throttling and an exact API/stage/route-scoped Lambda invoke permission.
+It creates no Lambda, execution role, log group or client IAM identity.
 **No service root calls these modules yet.**
 No AWS credentials were used in Codex Cloud or CI, and no
 AWS infrastructure was deployed or tested against a live account.
@@ -83,6 +88,15 @@ and production directories remain placeholders.
 │   └── iam-access-operations.md
 ├── infra/
 │   ├── modules/
+│   │   ├── api_gateway_http/
+│   │   │   ├── README.md
+│   │   │   ├── main.tf
+│   │   │   ├── outputs.tf
+│   │   │   ├── tests/
+│   │   │   │   ├── api_gateway_http.tftest.hcl
+│   │   │   │   └── check_api_gateway_configuration.py
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
 │   │   ├── cloudwatch_logs/
 │   │   │   ├── README.md
 │   │   │   ├── main.tf
@@ -324,7 +338,7 @@ GitHub-hosted Ubuntu 24.04 executes it independently of Codex Cloud. Obsolete
 runs for the same PR/ref are cancelled; the job has a 20-minute timeout.
 
 It installs **Terraform 1.17.0** with the CLI wrapper disabled. The unchanged dev
-root lock selects **AWS Provider 6.72.0**; transient copies seed all eight child-module
+root lock selects **AWS Provider 6.72.0**; transient copies seed all nine child-module
 locks so their broader constraints do not select a newer provider. Those child
 locks, provider files and captured test output are never committed or uploaded.
 
@@ -340,6 +354,7 @@ locks, provider files and captured test output are never committed or uploaded.
 | CloudWatch Logs module `init` / `validate` / native tests | 51 mock-plan tests pass; 18 positive plans contain one log group and 33 rejected-input plans contain no resources; lifecycle, finite retention and defaults are inspected |
 | Lambda execution role `init` / `validate` / native tests | 64 mock-plan tests pass; 15 complete role/inline-policy plans, 13 empty input rejections and 36 safe role-only partial plans; actual trust/policy/SAR, 675 static matrix cases, 14 semantic mutations, 44 capture and five reference faults checked |
 | S3 artifact bucket `init` / `validate` / native tests | 37 mock-plan tests pass: seven complete six-resource plans, 27 empty input rejections and three bucket-only effective-tag rejections; actual fixed configuration/policy, 17 security mutations and 18 capture faults checked; missing required input separately rejected before planning |
+| API Gateway HTTP API `init` / `validate` / native tests | 47 mock-plan tests pass: eight complete five-resource configurations and 39 classified input/postcondition rejections; actual IAM route, Lambda permission fields, log JSON, throttling and outputs checked; 17 unsafe mutations and 19 capture faults rejected; four missing required inputs separately fail before planning |
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
 | Checker negative self-tests | 24 cases pass, including all prior 17 |
 | Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
@@ -350,9 +365,14 @@ status; IAM, Secrets Manager, account-policy, Lambda and CloudWatch Logs origina
 structured summaries are checked, alongside exact managed-resource inventories. Exact initial test counts guard against omitted/skipped coverage; an
 intentional future coverage change requires reviewing these expectations too.
 The S3 module adds 37 native tests to the existing 295, for **332 total**.
+The HTTP API module adds 47 to that baseline, for **379 total**; all existing
+153 Python tests and IAM reference/guardrail verification remain required.
 Rejected-input runs prove validation boundaries; they are not successful resource
 configurations. The missing-required-input check intentionally fails Terraform
-outside that passing-test count and must emit no resource plan.
+outside that passing-test count and must emit no resource plan. The HTTP API
+likewise independently checks each of its four mandatory inputs outside its 47
+passing runs. Lambda permission fields in a mock plan are not a validated copy
+of the full deployed Lambda resource-policy JSON.
 Malformed or unavailable official JSON fails validation without a stale fallback.
 Temporary verbose mock plans/reference files stay under `RUNNER_TEMP`; only test
 statuses and failure diagnostics are printed, with no artifact uploads.
@@ -425,6 +445,16 @@ Noncurrent versions accumulate storage charges and require a separately reviewed
 retention policy. Nonempty-bucket deletion must not silently delete versions;
 force_destroy=false does not prevent prior removal of other module settings.
 No existing module/service root or deployment identity is changed.
+
+The [API Gateway HTTP module](infra/modules/api_gateway_http/README.md) owns only
+the HTTP entry point and its narrow permission to invoke one existing Lambda.
+Clients need SigV4 and separately scoped execute-api:Invoke; AWS_IAM does not
+make the endpoint private. Lambda's application must understand payload 2.0.
+The root supplies a dedicated existing API access-log group, distinct from the
+Lambda application logs, and separately reviewed logging/deployment permissions.
+Fixed 10/20 rate/burst settings are best-effort targets, not absolute cost caps.
+Stage/output dependencies order configuration without proving real propagation,
+log delivery, application responses or deployed Lambda policy authorization.
 
 Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
 provider registry/release endpoints, and the current public documents at
