@@ -77,36 +77,36 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-4 reusable Lambda module
+## Current phase only: Phase 3-5 reusable CloudWatch Logs module
 
-Use `feat/lambda-module` from latest `main`. Implement the reusable child module
-at `infra/modules/lambda/`, its mock tests/documentation, the offline CI extension
-and relevant repository documentation. Preserve all permanent rules above.
+Use `feat/cloudwatch-logs-module` from verified healthy latest `main`. Implement
+`infra/modules/cloudwatch_logs/`, its native mocks, documentation and the offline
+CI extension. Preserve all permanent rules above and existing implementations.
 
-- Own exactly one Lambda function, validated configuration and operational
-  outputs. Accept existing execution-role, log-group and versioned S3 ZIP artifact
-  references. No IAM resources, policies, log groups, artifact builds/uploads,
-  buckets, secrets, triggers, invocation permissions or deployment pipelines.
-- Keep providers/backends in roots. Runtime and handler are explicit; use a small
-  documented runtime set, secure defaults and coupled VPC input validation.
-  Do not expose unused AWS features through speculative switches.
-- Use non-secret environment configuration and secret names/ARNs only. Preserve
-  Approach A; applications retrieve values outside Terraform under separately
-  reviewed IAM/KMS permissions and connectivity.
-- Document external role trust/permissions, pre-existing logging/retention,
-  immutable artifact ownership, runtime/architecture/layer compatibility, same
-  region requirements and VPC connectivity. Offline syntax checks do not prove
-  existence, authorization, execution or production readiness.
-- Do not modify existing VPC, IAM Access, account-policy or Secrets Manager
-  implementations or the dev service root. No stg/prod roots, service composition,
-  cross-region replication or disaster recovery orchestration.
-- Use Terraform 1.17.0 / AWS Provider 6.72.0 with mocked providers and explicit
-  plan tests only. Preserve all existing 110 native and 153 Python tests, policy
-  reference/equivalence/negative checks and independent guardrail evidence.
-  Preserve CI action pins, read-only permissions, no-credentials/no-OIDC and
-  no-artifact/no-deployment boundaries.
-- No AWS credentials, real AWS APIs, live plans, apply, destroy or deployment.
-  Synthetic artifact/role names and account IDs only; no actual secret values.
+- Own exactly one log group. Require a stable explicit name, finite retention
+  defaulting to 30 days and deletion protection defaulting to true. Fix STANDARD
+  class and `skip_destroy = false`; do not hide deletion through state orphaning.
+- Accept only an optional existing KMS key ARN and caller-owned non-secret tags.
+  Do not create KMS resources/policies/grants or invent Project metadata. Roots
+  retain providers, backends and default tags.
+- Read all six outputs from the resource. Treat the provider's group ARN as an
+  identity reference, not an IAM grant or log-stream pattern. Document the pinned
+  provider's ARN normalization and later resource-scoped stream permissions.
+- Document finite retention, service/account policy limits, deletion protection's
+  separate disable/apply-before-teardown procedure outside Codex Cloud, KMS
+  suitability/authorization/history and drift/import/ownership risks.
+- No Lambda integration, workload IAM, log streams, filters, monitoring resources,
+  networking, artifacts or deployment pipelines. Do not alter existing VPC,
+  IAM Access, account policies, Secrets Manager, Lambda or the dev service root.
+  No stg/prod roots, cross-region/DR features or Phase 4 composition.
+- Keep Terraform 1.17.0 / AWS Provider 6.72.0, all 180 existing native mocks,
+  153 Python tests, policy-reference/equivalence/negative validations and
+  independent guardrails. New positive plans must contain one log group and
+  rejected inputs no resources; exercise CI capture failures as well as counts.
+- Preserve CI action pins, read-only permissions, no-credentials/no-OIDC and
+  no-artifact/no-deployment boundaries. No AWS credentials, real AWS APIs,
+  authenticated plans, apply/destroy or deployment in Codex Cloud. Preserve
+  Approach A; no actual log data, secrets or account/session identifiers.
 
-Commit, push, open a PR and confirm completed GitHub CI, then stop for independent
-review. Do not merge, delete the branch or begin Phase 4 integration.
+Commit, push, open a PR and confirm completed/success GitHub CI, then stop for
+independent review. Do not merge, delete the branch or begin Phase 4.

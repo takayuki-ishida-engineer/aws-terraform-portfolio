@@ -312,6 +312,82 @@ jobs:
             output.write(f"passed={summaries[0]['passed']}\n")
           PY
 
+      - name: Validate CloudWatch Logs module and lifecycle configuration
+        id: cloudwatch_logs
+        working-directory: infra/modules/cloudwatch_logs
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/cloudwatch-logs-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 - "$test_status" <<'PY'
+          import collections
+          import json
+          import os
+          import pathlib
+          import sys
+
+          positive_runs = {"default_log_group_configuration", "resource_attribute_outputs", "lambda_log_group_name",
+              "workload_log_group_name", "maximum_name_length", "supported_name_characters", "minimum_finite_retention",
+              "weekly_retention", "supported_400_day_retention", "supported_731_day_retention", "maximum_supported_retention",
+              "explicit_disposable_development_override", "existing_symmetric_key_reference", "existing_multi_region_key_reference",
+              "govcloud_partition_key_syntax", "china_partition_key_syntax", "caller_owned_unicode_tags", "maximum_tag_count_and_lengths"}
+          finite_retention = {1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653}
+          summaries, plans, passed, errors, seen_plans, rejected_plans = [], [], set(), set(), set(), set()
+          diagnostics = collections.deque(maxlen=20)
+          with pathlib.Path(os.environ["RUNNER_TEMP"], "cloudwatch-logs-tests.jsonl").open() as events:
+            for line in events:
+              event = json.loads(line)
+              key = (event.get("@testfile"), event.get("@testrun"))
+              if event.get("@level") == "error":
+                errors.add(key)
+              if event.get("type") == "test_run":
+                run = event["test_run"]
+                if run.get("status") == "pass":
+                  passed.add(key)
+                if run.get("status") in {"pass", "fail", "error", "skip"}:
+                  print(event.get("@message", str(run)))
+              if event.get("type") == "diagnostic":
+                diagnostics.append(event.get("@message", "Terraform diagnostic"))
+              if event.get("type") == "test_plan":
+                if key not in passed or key in seen_plans:
+                  raise SystemExit("Log group plan must follow a unique passing native test.")
+                seen_plans.add(key)
+                resources = event["test_plan"].get("resource_changes", [])
+                if key[1] not in positive_runs:
+                  if resources:
+                    raise SystemExit("Rejected log group input must not produce planned resources.")
+                  rejected_plans.add(key)
+                  continue
+                if len(resources) != 1 or resources[0].get("type") != "aws_cloudwatch_log_group" or resources[0].get("name") != "this" or resources[0].get("mode") != "managed" or resources[0].get("change", {}).get("actions") != ["create"]:
+                  raise SystemExit("Every positive mock plan must contain exactly one CloudWatch Log Group and no other resources.")
+                config = resources[0]["change"]["after"]
+                if config.get("log_group_class") != "STANDARD" or config.get("skip_destroy") is not False or type(config.get("retention_in_days")) is not int or config["retention_in_days"] not in finite_retention or type(config.get("deletion_protection_enabled")) is not bool:
+                  raise SystemExit("Every log group must retain STANDARD, normal deletion, finite retention and explicit deletion protection configuration.")
+                plans.append((key, config))
+              if event.get("type") == "test_summary":
+                summaries.append(event["test_summary"])
+          expected = {"status": "pass", "passed": 51, "failed": 0, "errored": 0, "skipped": 0}
+          if int(sys.argv[1]) != 0 or len(plans) != len(positive_runs) or {key[1] for key, _ in plans} != positive_runs or len(rejected_plans) != 33 or seen_plans != passed or len(summaries) != 1 or not errors <= passed or any(summaries[0].get(key) != value for key, value in expected.items()) or len(passed) != expected["passed"]:
+            for diagnostic in diagnostics:
+              print(diagnostic, file=sys.stderr)
+            raise SystemExit(f"CloudWatch Logs validation failed (Terraform exit {sys.argv[1]}).")
+          key, config = plans[0]
+          # name_prefix is Optional+Computed and receives a mock-generated value
+          # even with an explicit name; verify the actual name, not that metadata.
+          if key[1] != "default_log_group_configuration" or config.get("name") != "/portfolio/test/application" or config.get("retention_in_days") != 30 or config.get("deletion_protection_enabled") is not True or config.get("kms_key_id") is not None or config.get("tags"):
+            raise SystemExit("Actual default log group configuration must use the explicit name, 30-day retention, protection, normal encryption and no additional tags.")
+          print("Actual CloudWatch Logs configuration checked across", len(plans), "positive plans and", len(rejected_plans), "resource-free input rejections; summary:", summaries[0])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={summaries[0]['passed']}\n")
+          PY
+
       - name: Check generated IAM policies against current official references
         id: reference
         working-directory: infra/modules/iam_access
@@ -395,6 +471,8 @@ jobs:
           IAM_PASSED: ${{ steps.iam.outputs.passed }}
           LAMBDA_RESULT: ${{ steps.lambda.outcome }}
           LAMBDA_PASSED: ${{ steps.lambda.outputs.passed }}
+          LOGS_RESULT: ${{ steps.cloudwatch_logs.outcome }}
+          LOGS_PASSED: ${{ steps.cloudwatch_logs.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
           SELF_TEST_RESULT: ${{ steps.self_tests.outcome }}
         run: |
@@ -411,6 +489,7 @@ jobs:
             ("Account IAM policy init/validate/inventory/mock tests", "ACCOUNT_RESULT", os.environ.get("ACCOUNT_PASSED", "")),
             ("IAM init/validate/mock tests", "IAM_RESULT", os.environ.get("IAM_PASSED", "")),
             ("Lambda init/validate/mock inventory/tests", "LAMBDA_RESULT", os.environ.get("LAMBDA_PASSED", "")),
+            ("CloudWatch Logs init/validate/mock inventory/tests", "LOGS_RESULT", os.environ.get("LOGS_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
             ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
