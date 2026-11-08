@@ -8,7 +8,7 @@ architecture and clear day-to-day operations.
 Phases 0, 1, 2, and 3-1 are complete. The representative development root at
 `infra/services/dev/ca-central-1/serverless-api/`, with fixed identity, version
 constraints, AWS provider account restrictions, and an explicit local backend,
-retains its Phase 2 foundation. The reusable
+now composes the reviewed workload modules in Phase 3-9. The reusable
 [`VPC`](infra/modules/vpc/README.md),
 [`IAM access`](infra/modules/iam_access/README.md),
 [`account IAM policies`](infra/modules/iam_account_policies/README.md),
@@ -51,7 +51,19 @@ Phase 3-8 adds an independent HTTP API entry point for one existing Lambda:
 AWS_PROXY payload 2.0, a $default AWS_IAM route and auto-deploy stage, access logs,
 fixed throttling and an exact API/stage/route-scoped Lambda invoke permission.
 It creates no Lambda, execution role, log group or client IAM identity.
-**No service root calls these modules yet.**
+Phase 3-9 integrates seven module instances into the
+[development serverless API root](infra/services/dev/ca-central-1/serverless-api/README.md):
+artifact bucket (six resources), secret metadata (one), two distinct log groups
+(two), Lambda execution role/inline policy (two), Lambda (one), and HTTP API with
+its exact invoke permission (five), for **17 managed resources**. VPC, Identity
+Center and human/account IAM modules remain outside this workload. Secret reading
+is disabled by default; enabling it grants only exact-secret reads and supplies
+an ARN reference, never a value or CMK decrypt permission. Required artifact
+bucket/key/version and runtime/handler inputs have no invented deployment defaults.
+An empty bucket cannot supply a preexisting ZIP: separately approved artifact
+bootstrap/publication, workload-account/deployment permissions, secret
+initialization, SigV4 clients and log delivery remain external prerequisites.
+Configuration and mock dependencies do not prove operational readiness.
 No AWS credentials were used in Codex Cloud or CI, and no
 AWS infrastructure was deployed or tested against a live account.
 The offline CI workflow below independently repeats validation on GitHub-hosted
@@ -69,7 +81,7 @@ runners; it never deploys infrastructure.
   outside Terraform so they do not enter configuration, plans, or state.
 - Prioritize maintainability and operational clarity over unnecessary complexity.
 
-The development root foundation and VPC module follow this layout. The staging
+The development workload root and reusable modules follow this layout. The staging
 and production directories remain placeholders.
 
 ## Repository foundation
@@ -182,6 +194,10 @@ and production directories remain placeholders.
 │       │           ├── main.tf
 │       │           ├── outputs.tf
 │       │           ├── providers.tf
+│       │           ├── tests/
+│       │           │   ├── root_integration.tftest.hcl
+│       │           │   ├── check_root_integration.py
+│       │           │   └── check_required_inputs.py
 │       │           ├── variables.tf
 │       │           └── versions.tf
 │       ├── stg/
@@ -204,11 +220,12 @@ and production directories remain placeholders.
 operational documentation belongs in `docs/`, Terraform code in `infra/`, and tests
 in `tests/`. `.github/workflows/` contains the offline validation workflow.
 
-`infra/modules/` contains independently tested VPC, human-access, account-policy and secret-metadata modules,
-not yet called by a service root.
-`infra/services/` will hold independently managed Terraform root modules at
+`infra/modules/` contains independently tested reusable infrastructure modules.
+The development workload root composes six of those sources into seven instances;
+VPC and human/account IAM modules remain independently managed designs.
+`infra/services/` holds independently managed Terraform root modules at
 `<environment>/<region>/<service>/`. The `dev/ca-central-1/serverless-api/` root is
-the only implemented root foundation; `stg/` and `prod/` are still placeholders.
+the only implemented workload root; `stg/` and `prod/` are still placeholders.
 
 ## Phase 2 validation
 
@@ -346,6 +363,7 @@ locks, provider files and captured test output are never committed or uploaded.
 | --- | --- |
 | Repository `terraform fmt -check -recursive` | All Terraform configurations and native test files formatted |
 | Dev root `init` / `validate` | Backend disabled, no account-ID input, committed lock read-only and unchanged |
+| Dev root integration | Actual seven-instance/17-resource offline plans, secret disabled/enabled, runtime/handler boundaries, actual outputs and cross-module bindings; separate required/malformed-input checks and focused checker mutations/capture faults |
 | VPC module `init` / `validate` / native tests | 16 mock-plan tests pass, zero failures or skips |
 | Secrets Manager module `init` / `validate` / native tests | 31 mock-plan tests pass, no failures/errors/skips; actual plan contains exactly one secret container |
 | Account IAM policy module | 24 mock-plan tests pass; actual plan contains exactly one IAM policy |
@@ -365,8 +383,10 @@ status; IAM, Secrets Manager, account-policy, Lambda and CloudWatch Logs origina
 structured summaries are checked, alongside exact managed-resource inventories. Exact initial test counts guard against omitted/skipped coverage; an
 intentional future coverage change requires reviewing these expectations too.
 The S3 module adds 37 native tests to the existing 295, for **332 total**.
-The HTTP API module adds 47 to that baseline, for **379 total**; all existing
-153 Python tests and IAM reference/guardrail verification remain required.
+The HTTP API module adds 47 to that baseline, for **379 existing module tests**;
+Phase 3-9 adds root integration coverage. Current exact root/overall counts and
+checker mutation/input results are reported from successful CI logs in the PR;
+all existing 153 Python tests and IAM reference/guardrail verification remain required.
 Rejected-input runs prove validation boundaries; they are not successful resource
 configurations. The missing-required-input check intentionally fails Terraform
 outside that passing-test count and must emit no resource plan. The HTTP API
@@ -462,8 +482,11 @@ provider registry/release endpoints, and the current public documents at
 `https://servicereference.us-east-1.amazonaws.com/v1/sso/sso.json`, and
 `https://servicereference.us-east-1.amazonaws.com/v1/secretsmanager/secretsmanager.json`.
 The Secrets Manager endpoint was discovered from its official SAR page. Python 3 and
-its standard library come from the runner; no Python packages, containers or
-provider cache are added. Codex Cloud's domain allowlist and GitHub-hosted runner
+its standard library come from the runner; no Python packages or containers are
+added. A shared job-local `TF_PLUGIN_CACHE_DIR` reuses the locked AWS provider
+binary across the root and nine child-module validations. Existing strict cleanup
+and disk/provider-storage measurements remain in place; there is no persistent
+cache or artifact upload. Codex Cloud's domain allowlist and GitHub-hosted runner
 networking are separate; changing one does not configure the other.
 
 A successful run confirms HCL validation, mocked behavior and static reference
