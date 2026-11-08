@@ -425,6 +425,50 @@ jobs:
           set -euo pipefail
           python3 tests/check_authorization_reference.py --self-test
 
+      - name: Validate Lambda execution role and actual least-privilege policies
+        id: execution_role
+        working-directory: infra/modules/lambda_execution_role
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/execution-role-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          # Public authorization-reference JSON only; no AWS account APIs.
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 120 \
+            https://servicereference.us-east-1.amazonaws.com/v1/logs/logs.json \
+            --output "$RUNNER_TEMP/logs-authorization.json"
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 120 \
+            https://servicereference.us-east-1.amazonaws.com/v1/kms/kms.json \
+            --output "$RUNNER_TEMP/kms-authorization.json"
+          python3 tests/check_execution_policy.py \
+            --test-events "$RUNNER_TEMP/execution-role-tests.jsonl" \
+            --terraform-exit-code "$test_status" \
+            --logs-reference "$RUNNER_TEMP/logs-authorization.json" \
+            --secretsmanager-reference "$RUNNER_TEMP/secretsmanager-authorization.json" \
+            --kms-reference "$RUNNER_TEMP/kms-authorization.json" \
+            --self-test > "$RUNNER_TEMP/execution-role-static.json"
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+
+          report = json.loads(pathlib.Path(os.environ["RUNNER_TEMP"], "execution-role-static.json").read_text())
+          expected = {"native_tests": 64, "positive_plans": 15, "negative_plans": 49, "matrix_cases": 675,
+              "semantic_mutation_count": 14, "capture_failure_injections": 44, "reference_failure_injections": 5}
+          if report.get("status") != "passed" or report.get("evidence_type") != "static_actual_policy_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
+            raise SystemExit("Execution-role static verification counts or evidence contract changed; review required.")
+          print("Actual execution-role verification:", {key: report[key] for key in ("native_tests", "positive_plans", "negative_plan_shapes", "matrix_cases", "semantic_mutation_count", "capture_failure_injections", "reference_failure_injections")})
+          print("Static policy-set evidence only; no AWS Simulator or deployed-role authorization proof.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={report['native_tests']}\n")
+          PY
+
       - name: Test and export the offline AWS validation toolkit
         id: toolkit
         run: |
@@ -473,6 +517,8 @@ jobs:
           LAMBDA_PASSED: ${{ steps.lambda.outputs.passed }}
           LOGS_RESULT: ${{ steps.cloudwatch_logs.outcome }}
           LOGS_PASSED: ${{ steps.cloudwatch_logs.outputs.passed }}
+          EXECUTION_RESULT: ${{ steps.execution_role.outcome }}
+          EXECUTION_PASSED: ${{ steps.execution_role.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
           SELF_TEST_RESULT: ${{ steps.self_tests.outcome }}
         run: |
@@ -490,6 +536,7 @@ jobs:
             ("IAM init/validate/mock tests", "IAM_RESULT", os.environ.get("IAM_PASSED", "")),
             ("Lambda init/validate/mock inventory/tests", "LAMBDA_RESULT", os.environ.get("LAMBDA_PASSED", "")),
             ("CloudWatch Logs init/validate/mock inventory/tests", "LOGS_RESULT", os.environ.get("LOGS_PASSED", "")),
+            ("Lambda execution role init/validate/policy matrix/mutations", "EXECUTION_RESULT", os.environ.get("EXECUTION_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
             ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
