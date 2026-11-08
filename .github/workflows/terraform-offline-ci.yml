@@ -229,6 +229,36 @@ jobs:
           set -euo pipefail
           python3 "$RUNNER_TEMP/provider-storage.py" after_first_init
 
+      - name: Verify development serverless API root integration
+        id: root_integration
+        working-directory: infra/services/dev/ca-central-1/serverless-api
+        run: |
+          set -euo pipefail
+          umask 077
+          # Reuse the root initialization, committed lock and job-local provider cache.
+          python3 tests/check_required_inputs.py --terraform terraform
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/root-integration-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 tests/check_root_integration.py \
+            --test-events "$RUNNER_TEMP/root-integration-tests.jsonl" \
+            --terraform-exit-code "$test_status" \
+            --self-test > "$RUNNER_TEMP/root-integration-static.json"
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+
+          report = json.loads(pathlib.Path(os.environ["RUNNER_TEMP"], "root-integration-static.json").read_text())
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0:
+            raise SystemExit("Root integration actual-plan verification failed.")
+          print("Actual development root integration verification:", report)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={report['native_tests']}\n")
+          PY
+
       - name: Validate VPC module and mock tests
         id: vpc
         working-directory: infra/modules/vpc
@@ -801,6 +831,8 @@ jobs:
           INSTALL_RESULT: ${{ steps.terraform.outcome }}
           FORMAT_RESULT: ${{ steps.format.outcome }}
           DEV_RESULT: ${{ steps.dev.outcome }}
+          ROOT_RESULT: ${{ steps.root_integration.outcome }}
+          ROOT_PASSED: ${{ steps.root_integration.outputs.passed }}
           VPC_RESULT: ${{ steps.vpc.outcome }}
           VPC_PASSED: ${{ steps.vpc.outputs.passed }}
           SECRETS_RESULT: ${{ steps.secrets.outcome }}
@@ -832,6 +864,7 @@ jobs:
             ("Terraform installation", "INSTALL_RESULT", ""),
             ("Repository formatting", "FORMAT_RESULT", ""),
             ("Dev root init/validate, readonly lock", "DEV_RESULT", ""),
+            ("Dev serverless API root integration/plans/mutations", "ROOT_RESULT", os.environ.get("ROOT_PASSED", "")),
             ("VPC init/validate/mock tests", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
             ("Secrets Manager init/validate/mock inventory/tests", "SECRETS_RESULT", os.environ.get("SECRETS_PASSED", "")),
             ("Account IAM policy init/validate/inventory/mock tests", "ACCOUNT_RESULT", os.environ.get("ACCOUNT_PASSED", "")),
@@ -849,6 +882,9 @@ jobs:
             summary.write("## Offline Terraform validation\n\n| Check | Outcome | Verified test passes |\n| --- | --- | --- |\n")
             for label, result, count in rows:
               summary.write(f"| {label} | {os.environ.get(result) or 'not run'} | {count or '—'} |\n")
+            terraform_counts = [count for _label, result, count in rows if result != "TOOLKIT_RESULT" and count]
+            if all(os.environ.get(result) == "success" for _label, result, _count in rows):
+              summary.write(f"\nTotal verified Terraform mock tests: {sum(map(int, terraform_counts))}.\n")
             summary.write("\nCredential-free mock/static checks only. Live AWS authorization remains unverified.\n")
           PY
 
