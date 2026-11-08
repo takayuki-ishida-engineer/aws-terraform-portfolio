@@ -14,8 +14,9 @@ retains its Phase 2 foundation. The reusable
 [`account IAM policies`](infra/modules/iam_account_policies/README.md),
 [`Secrets Manager`](infra/modules/secrets_manager/README.md),
 [`Lambda`](infra/modules/lambda/README.md),
-[`CloudWatch Logs`](infra/modules/cloudwatch_logs/README.md) and
-[`Lambda execution role`](infra/modules/lambda_execution_role/README.md) modules have native
+[`CloudWatch Logs`](infra/modules/cloudwatch_logs/README.md),
+[`Lambda execution role`](infra/modules/lambda_execution_role/README.md) and
+[`S3 artifact bucket`](infra/modules/s3_artifact_bucket/README.md) modules have native
 mock tests.
 Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
 without account assignments. Its hardening completes the offline VPC authorization
@@ -41,6 +42,10 @@ Phase 3-6 adds an independent workload execution role and one scoped inline
 policy. It trusts only Lambda, writes streams under one exact existing log group,
 and optionally reads one exact secret with separately constrained CMK decrypt.
 It expands no human permissions and provides no VPC ENI or deployment grants.
+Phase 3-7 adds an independent private general-purpose S3 artifact bucket with
+fixed versioning, public access blocking, ACL-disabled ownership, SSE-S3 default
+encryption and an HTTPS-only Deny with the AWS service-principal exception. It
+creates no objects or upload pipeline and grants no artifact-read permissions.
 **No service root calls these modules yet.**
 No AWS credentials were used in Codex Cloud or CI, and no
 AWS infrastructure was deployed or tested against a live account.
@@ -125,6 +130,15 @@ and production directories remain placeholders.
 │   │   │   ├── tests/
 │   │   │   │   ├── check_execution_policy.py
 │   │   │   │   └── lambda_execution_role.tftest.hcl
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
+│   │   ├── s3_artifact_bucket/
+│   │   │   ├── README.md
+│   │   │   ├── main.tf
+│   │   │   ├── outputs.tf
+│   │   │   ├── tests/
+│   │   │   │   ├── check_bucket_configuration.py
+│   │   │   │   └── s3_artifact_bucket.tftest.hcl
 │   │   │   ├── variables.tf
 │   │   │   └── versions.tf
 │   │   ├── secrets_manager/
@@ -310,7 +324,7 @@ GitHub-hosted Ubuntu 24.04 executes it independently of Codex Cloud. Obsolete
 runs for the same PR/ref are cancelled; the job has a 20-minute timeout.
 
 It installs **Terraform 1.17.0** with the CLI wrapper disabled. The unchanged dev
-root lock selects **AWS Provider 6.72.0**; transient copies seed all seven child-module
+root lock selects **AWS Provider 6.72.0**; transient copies seed all eight child-module
 locks so their broader constraints do not select a newer provider. Those child
 locks, provider files and captured test output are never committed or uploaded.
 
@@ -325,6 +339,7 @@ locks, provider files and captured test output are never committed or uploaded.
 | Lambda module `init` / `validate` / native tests | 70 mock-plan tests pass; 13 positive plans contain one Lambda only and 57 rejected-input plans contain no resources; default artifact/role/logging/compute settings are inspected |
 | CloudWatch Logs module `init` / `validate` / native tests | 51 mock-plan tests pass; 18 positive plans contain one log group and 33 rejected-input plans contain no resources; lifecycle, finite retention and defaults are inspected |
 | Lambda execution role `init` / `validate` / native tests | 64 mock-plan tests pass; 15 complete role/inline-policy plans, 13 empty input rejections and 36 safe role-only partial plans; actual trust/policy/SAR, 675 static matrix cases, 14 semantic mutations, 44 capture and five reference faults checked |
+| S3 artifact bucket `init` / `validate` / native tests | 37 mock-plan tests pass: seven complete six-resource plans, 27 empty input rejections and three bucket-only effective-tag rejections; actual fixed configuration/policy, 17 security mutations and 18 capture faults checked; missing required input separately rejected before planning |
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
 | Checker negative self-tests | 24 cases pass, including all prior 17 |
 | Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
@@ -334,6 +349,10 @@ Every command failure fails the job. Bash pipefail preserves the VPC test exit
 status; IAM, Secrets Manager, account-policy, Lambda and CloudWatch Logs original Terraform exit statuses and
 structured summaries are checked, alongside exact managed-resource inventories. Exact initial test counts guard against omitted/skipped coverage; an
 intentional future coverage change requires reviewing these expectations too.
+The S3 module adds 37 native tests to the existing 295, for **332 total**.
+Rejected-input runs prove validation boundaries; they are not successful resource
+configurations. The missing-required-input check intentionally fails Terraform
+outside that passing-test count and must emit no resource plan.
 Malformed or unavailable official JSON fails validation without a stale fallback.
 Temporary verbose mock plans/reference files stay under `RUNNER_TEMP`; only test
 statuses and failure diagnostics are printed, with no artifact uploads.
@@ -394,6 +413,18 @@ the authenticated provider account; future roots must restrict providers and
 order inline-policy readiness before Lambda deployment/invocation. This role is
 initially non-VPC. It creates no workload resources or root integration and does
 not change human Identity Center policies or claim deployed authorization.
+
+The [S3 artifact-bucket module](infra/modules/s3_artifact_bucket/README.md) owns
+exactly six bucket/security resources in the standard shared namespace. Its
+outputs wait for the required Terraform configuration dependencies, while S3
+versioning propagation still needs external verification. The future artifact
+owner builds/uploads the ZIP and supplies an actual immutable S3 object version
+to the Lambda module in the same Region; that is not a Lambda function version.
+Default AES256 encryption does not forbid every upload encryption override.
+Noncurrent versions accumulate storage charges and require a separately reviewed
+retention policy. Nonempty-bucket deletion must not silently delete versions;
+force_destroy=false does not prevent prior removal of other module settings.
+No existing module/service root or deployment identity is changed.
 
 Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
 provider registry/release endpoints, and the current public documents at
