@@ -35,6 +35,55 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Free disk space using the approved cleanup allowlist
+        id: disk_cleanup
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h /
+          cleanup_before_bytes=$(df -B1 --output=avail / | tail -n 1)
+
+          readonly -a cleanup_paths=(
+            /usr/share/dotnet
+            /usr/local/lib/android
+            /opt/ghc
+            /usr/local/.ghcup
+            /opt/hostedtoolcache/CodeQL
+            /usr/share/swift
+            /usr/local/go
+            /opt/hostedtoolcache/go
+            /usr/lib/jvm
+            /opt/hostedtoolcache/Ruby
+            /home/runner/.rvm
+          )
+          for path in "${cleanup_paths[@]}"; do
+            if [[ -e "$path" || -L "$path" ]]; then
+              sudo du -sh -- "$path"
+              sudo rm -rf -- "$path"
+            else
+              printf 'Skipping missing path: %s\n' "$path"
+            fi
+          done
+
+          echo "Disk usage after cleanup:"
+          df -h /
+          cleanup_after_bytes=$(df -B1 --output=avail / | tail -n 1)
+          cleanup_freed_bytes=$((cleanup_after_bytes - cleanup_before_bytes))
+          printf 'Disk space freed: %s bytes\n' "$cleanup_freed_bytes"
+          git --version
+          python3 --version
+          node --version
+
+          {
+            printf 'before_available_bytes=%s\n' "$cleanup_before_bytes"
+            printf 'after_available_bytes=%s\n' "$cleanup_after_bytes"
+            printf 'freed_bytes=%s\n' "$cleanup_freed_bytes"
+          } >> "$GITHUB_OUTPUT"
+          {
+            printf '## Runner disk cleanup\n\n'
+            printf 'Root filesystem available-space increase: %s bytes.\n' "$cleanup_freed_bytes"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install Terraform
         id: terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
