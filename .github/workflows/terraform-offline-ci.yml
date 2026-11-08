@@ -30,6 +30,118 @@ jobs:
       AWS_SHARED_CREDENTIALS_FILE: /dev/null
       AWS_CONFIG_FILE: /dev/null
     steps:
+      - name: Prepare job-local provider cache and disk measurements
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/terraform-plugin-cache"
+          echo "TF_PLUGIN_CACHE_DIR=$RUNNER_TEMP/terraform-plugin-cache" >> "$GITHUB_ENV"
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/terraform-plugin-cache"
+          cat > "$RUNNER_TEMP/provider-storage.py" <<'PY'
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import sys
+
+          checkpoint = sys.argv[1]
+          workspace = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          temporary = pathlib.Path(os.environ["RUNNER_TEMP"])
+          cache = pathlib.Path(os.environ.get("TF_PLUGIN_CACHE_DIR", str(temporary / "terraform-plugin-cache")))
+          print(f"Provider storage checkpoint: {checkpoint}", flush=True)
+
+          def command(arguments):
+              output = subprocess.check_output(arguments, text=True)
+              print(output, end="", flush=True)
+              return output
+
+          command(["df", "-h", "/"])
+          filesystem = command(["df", "-B1", "/"])
+          available = int(filesystem.splitlines()[-1].split()[3])
+          cache_bytes = None
+          if cache.is_dir():
+              command(["du", "-sh", str(cache)])
+              cache_bytes = int(command(["du", "-s", "-B1", str(cache)]).split()[0])
+          else:
+              print("Provider cache not created; no cache usage available.", flush=True)
+
+          package = pathlib.Path("registry.terraform.io/hashicorp/aws/6.72.0/linux_amd64")
+          binaries = list((cache / package).glob("terraform-provider-aws_v6.72.0*"))
+          cache_binary = binaries[0] if len(binaries) == 1 else None
+          rows = []
+          for root, directories, _files in os.walk(workspace):
+              providers = pathlib.Path(root) / ".terraform/providers"
+              directories[:] = [name for name in directories if name not in {".git", ".terraform"}]
+              if not providers.is_dir():
+                  continue
+              print("Module provider directory:", providers, flush=True)
+              command(["du", "-sh", str(providers)])
+              local_bytes = int(command(["du", "-s", "-B1", str(providers)]).split()[0])
+              command(["find", str(providers), "-type", "l", "-printf", "%p -> %l\n"])
+              installed = list((providers / package).glob("terraform-provider-aws_v6.72.0*"))
+              row = {"module": str(pathlib.Path(root).relative_to(workspace)),
+                     "providers": str(providers), "local_allocated_bytes_no_follow": local_bytes,
+                     "initialized": len(installed) == 1, "shares_cache_binary": False}
+              if row["initialized"]:
+                  binary = installed[0]
+                  stat = binary.stat()
+                  shared = cache_binary is not None and binary.samefile(cache_binary)
+                  symlink = any(path.is_symlink() for path in (binary, *binary.parents)
+                                if path == providers or providers in path.parents)
+                  row.update({"shares_cache_binary": shared,
+                              "link_kind": "symlink" if symlink else "hardlink" if shared else "independent copy",
+                              "resolved_binary": str(binary.resolve()),
+                              "referenced_logical_bytes": stat.st_size,
+                              "referenced_allocated_bytes": stat.st_blocks * 512,
+                              "device": stat.st_dev, "inode": stat.st_ino})
+              rows.append(row)
+
+          # One non-following du invocation deduplicates hardlinks across operands.
+          operands = ([str(cache)] if cache.is_dir() else []) + [row["providers"] for row in rows]
+          deduplicated = {}
+          if operands:
+              output = command(["du", "-s", "-B1", "--", *operands])
+              deduplicated = {path: int(size) for size, path in
+                              (line.split("\t", 1) for line in output.splitlines())}
+          for row in rows:
+              row["deduplicated_allocated_bytes"] = deduplicated.get(row["providers"], 0)
+          initialized = [row for row in rows if row["initialized"]]
+          references = sum(row["shares_cache_binary"] for row in initialized)
+          identities = {(row["device"], row["inode"]) for row in initialized}
+          stat = cache_binary.stat() if cache_binary is not None else None
+          report = {"checkpoint": checkpoint, "available_bytes": available,
+                    "cache_allocated_bytes": cache_bytes, "modules": rows,
+                    "initialized_modules": len(initialized), "confirmed_cache_references": references,
+                    "unique_referenced_binaries": len(identities),
+                    "combined_allocated_bytes_no_follow": sum(deduplicated.values()),
+                    "module_allocated_bytes_deduplicated": sum(row["deduplicated_allocated_bytes"] for row in rows),
+                    "logical_bytes_across_references": sum(row.get("referenced_logical_bytes", 0) for row in rows),
+                    "cache_binary_logical_bytes": stat.st_size if stat else None,
+                    "cache_binary_allocated_bytes": stat.st_blocks * 512 if stat else None,
+                    "estimated_avoided_binary_bytes": (references - 1) * stat.st_blocks * 512 if stat and references else None}
+          # Referenced logical sizes are not local disk usage; estimates assume independent copies.
+          with (temporary / "provider-storage.jsonl").open("a") as output:
+              output.write(json.dumps(report) + "\n")
+          print("Provider storage summary:", json.dumps({key: value for key, value in report.items() if key != "modules"}), flush=True)
+          for row in rows:
+              print("Provider reference:", json.dumps(row), flush=True)
+
+          if checkpoint == "after_modules":
+              expected = {"infra/services/dev/ca-central-1/serverless-api"} | {
+                  "infra/modules/" + name for name in (
+                      "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda",
+                      "cloudwatch_logs", "lambda_execution_role", "s3_artifact_bucket", "api_gateway_http")}
+              if {row["module"] for row in initialized} != expected or references != 10 or len(identities) != 1:
+                  raise SystemExit("Expected ten initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+          if checkpoint == "job_completion":
+              snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+                  summary.write("\n## Provider storage measurements\n\n| Checkpoint | Available bytes | Cache allocated bytes | Cache references |\n| --- | ---: | ---: | ---: |\n")
+                  for item in snapshots:
+                      summary.write(f"| {item['checkpoint']} | {item['available_bytes']} | {item['cache_allocated_bytes']} | {item['confirmed_cache_references']} |\n")
+                  summary.write("\nPhysical du measurements do not follow symlinks and the combined invocation deduplicates hardlinks. Resolved binary sizes are reference metadata; avoided duplicate bytes are an estimate assuming independent copies, not a runner free-space saving.\n")
+          PY
+          python3 "$RUNNER_TEMP/provider-storage.py" before_cleanup
+
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,6 +196,11 @@ jobs:
             printf 'Root filesystem available-space increase: %s bytes.\n' "$cleanup_freed_bytes"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Measure disk usage after runner cleanup
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/provider-storage.py" after_cleanup
+
       - name: Install Terraform
         id: terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -106,6 +223,11 @@ jobs:
           terraform init -backend=false -input=false -no-color -lockfile=readonly
           terraform validate -no-color
           git diff --exit-code -- .terraform.lock.hcl
+
+      - name: Measure provider storage after the first initialization
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/provider-storage.py" after_first_init
 
       - name: Validate VPC module and mock tests
         id: vpc
@@ -640,6 +762,11 @@ jobs:
             output.write(f"passed={report['native_tests']}\n")
           PY
 
+      - name: Measure shared provider storage after all modules
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/provider-storage.py" after_modules
+
       - name: Test and export the offline AWS validation toolkit
         id: toolkit
         run: |
@@ -724,3 +851,21 @@ jobs:
               summary.write(f"| {label} | {os.environ.get(result) or 'not run'} | {count or '—'} |\n")
             summary.write("\nCredential-free mock/static checks only. Live AWS authorization remains unverified.\n")
           PY
+
+      - name: Record final provider and disk usage even after failure
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -f "$RUNNER_TEMP/provider-storage.py" ]]; then
+            python3 "$RUNNER_TEMP/provider-storage.py" job_completion
+          else
+            echo "Measurement helper unavailable after an earlier failure."
+            df -h /
+            df -B1 /
+            if [[ -d "$RUNNER_TEMP/terraform-plugin-cache" ]]; then
+              du -sh "$RUNNER_TEMP/terraform-plugin-cache"
+              du -s -B1 "$RUNNER_TEMP/terraform-plugin-cache"
+            else
+              echo "Provider cache not created."
+            fi
+          fi
