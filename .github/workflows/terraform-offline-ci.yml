@@ -520,6 +520,77 @@ jobs:
             output.write(f"passed={report['native_tests']}\n")
           PY
 
+      - name: Validate API Gateway HTTP API and actual permission fields
+        id: http_api
+        working-directory: infra/modules/api_gateway_http
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import shutil
+          import subprocess
+          import tempfile
+
+          module = pathlib.Path.cwd()
+          # Synthetic references only. Missing inputs fail before resource planning.
+          function = "arn:aws:lambda:ca-central-1:000000000000:function:test-handler"
+          inputs = {"api_name": "test-http-api", "lambda_function_arn": function,
+              "lambda_invoke_arn": f"arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/{function}/invocations",
+              "access_log_group_arn": "arn:aws:logs:ca-central-1:000000000000:log-group:/test/api/access"}
+          for missing in inputs:
+              fixture = pathlib.Path(tempfile.mkdtemp(prefix="http-api-missing-", dir=os.environ["RUNNER_TEMP"]))
+              for source in [*module.glob("*.tf"), module / ".terraform.lock.hcl"]:
+                  shutil.copy2(source, fixture / source.name)
+              (fixture / "tests").mkdir()
+              variables = "\n".join(f"  {key} = {json.dumps(value)}" for key, value in inputs.items() if key != missing)
+              (fixture / "tests/missing.tftest.hcl").write_text('mock_provider "aws" {}\nvariables {\n' + variables + '\n}\nrun "missing_input" {\n  command = plan\n}\n')
+              env = dict(os.environ, TF_DATA_DIR=str(module / ".terraform"))
+              capture = fixture / "missing.jsonl"
+              with capture.open("w") as output:
+                  process = subprocess.run(["terraform", f"-chdir={fixture}", "test", "-no-color", "-json", "-verbose"], env=env, stdout=output, stderr=subprocess.PIPE, text=True)
+              required_error = False
+              with capture.open() as events:
+                  for line in events:
+                      event = json.loads(line)
+                      if event.get("type") == "test_plan":
+                          raise SystemExit(f"Missing {missing} unexpectedly emitted a plan.")
+                      diagnostic = event.get("diagnostic", {})
+                      required_error |= event.get("type") == "diagnostic" and diagnostic.get("summary") == "No value for required variable" and missing in diagnostic.get("detail", "")
+              if process.returncode == 0 or not required_error:
+                  raise SystemExit(f"Missing required {missing} was not independently rejected.")
+              print(f"Missing required {missing}: rejected before resource planning.")
+          PY
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/http-api-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 tests/check_api_gateway_configuration.py \
+            --test-events "$RUNNER_TEMP/http-api-tests.jsonl" \
+            --terraform-exit-code "$test_status" \
+            --self-test > "$RUNNER_TEMP/http-api-static.json"
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+
+          report = json.loads(pathlib.Path(os.environ["RUNNER_TEMP"], "http-api-static.json").read_text())
+          expected = {"native_tests": 47, "positive_plans": 8, "negative_plans": 39,
+              "semantic_mutation_count": 17, "capture_failure_injections": 19}
+          if report.get("status") != "passed" or report.get("evidence_type") != "static_actual_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
+            raise SystemExit("HTTP API actual-plan verification contract/counts changed; review required.")
+          print("Actual HTTP API verification:", {key: report[key] for key in expected})
+          print("Planned permission fields only; no deployed Lambda policy or AWS authorization verified.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={report['native_tests']}\n")
+          PY
+
       - name: Test and export the offline AWS validation toolkit
         id: toolkit
         run: |
@@ -572,6 +643,8 @@ jobs:
           EXECUTION_PASSED: ${{ steps.execution_role.outputs.passed }}
           ARTIFACT_RESULT: ${{ steps.artifact_bucket.outcome }}
           ARTIFACT_PASSED: ${{ steps.artifact_bucket.outputs.passed }}
+          HTTP_API_RESULT: ${{ steps.http_api.outcome }}
+          HTTP_API_PASSED: ${{ steps.http_api.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
           SELF_TEST_RESULT: ${{ steps.self_tests.outcome }}
         run: |
@@ -591,6 +664,7 @@ jobs:
             ("CloudWatch Logs init/validate/mock inventory/tests", "LOGS_RESULT", os.environ.get("LOGS_PASSED", "")),
             ("Lambda execution role init/validate/policy matrix/mutations", "EXECUTION_RESULT", os.environ.get("EXECUTION_PASSED", "")),
             ("S3 artifact bucket init/validate/configuration/policy/mutations", "ARTIFACT_RESULT", os.environ.get("ARTIFACT_PASSED", "")),
+            ("HTTP API init/validate/permission fields/logging/mutations", "HTTP_API_RESULT", os.environ.get("HTTP_API_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
             ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
