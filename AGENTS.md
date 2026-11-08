@@ -117,56 +117,25 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: Phase 3-9 development serverless API integration
+## Current phase only: Phase 3-10 offline MVP acceptance and readiness
 
-Use `feat/dev-serverless-api-integration` from verified healthy latest `main`.
-Integrate only the existing dev/ca-central-1/serverless-api root, focused root
-mock tests and actual-plan checker, documentation and one offline CI step.
-Preserve all permanent rules above.
+Use docs/offline-mvp-acceptance from latest verified main. Perform an evidence-based
+offline acceptance audit and document future live-validation approval gates only.
+Change only docs/offline-mvp-acceptance.md, docs/dev-live-validation-readiness.md,
+minimal links in repository/root READMEs, and this current-phase section.
+Preserve every permanent rule above, including execution efficiency.
 
-- Compose exactly seven instances: artifact_bucket, secret_metadata, lambda_logs,
-  api_access_logs, lambda_execution_role, lambda_function and http_api. Complete
-  positive configurations contain exactly 17 managed resources and no data sources.
-  Keep VPC, Identity Center and human/account IAM modules outside this workload.
-- Preserve fixed dev/ca-central-1/serverless-api/aws-terraform-portfolio identity,
-  root-owned provider default tags and allowed_account_ids guard, local backend,
-  Terraform 1.17.0, AWS Provider 6.72.0 and the committed dependency lock.
-- Require explicit non-secret bucket name, artifact key, immutable non-null object
-  version, runtime and matching handler. Never package, upload, discover or inspect
-  an artifact. An empty bucket cannot supply the required ZIP: separately approved
-  artifact bootstrap/publication and state ownership remain external prerequisites.
-- Use stable distinct names and actual child outputs for ARN/name/ID connections.
-  Preserve S3 security/versioning ordering, log-group references, role/policy
-  readiness before Lambda, and existing API route/permission/stage dependencies.
-  Configuration ordering does not prove service propagation or operational readiness.
-- Keep two separate 30-day, deletion-protected STANDARD Log Groups, no explicit
-  CMKs and skip_destroy=false. Access-log destination references do not prove
-  actual API Gateway log delivery.
-- Use Secrets Manager approach A metadata only. Default enable_secret_read=false:
-  null role secret reference, no secret/KMS permissions or Lambda secret variable.
-  When enabled, use only the actual exact secret ARN for reviewed read actions and
-  the non-secret SECRET_ARN reference; keep CMK decrypt disabled. Flag changes
-  require real plan review outside Codex Cloud. Values/AWSCURRENT/runtime retrieval
-  remain separately owned and unverified.
-- Preserve non-VPC Lambda defaults and the AWS_IAM HTTP API, payload 2.0, exact
-  Lambda invoke permission, metadata-only access logs and 10/20 throttling. Keep
-  human deployment, workload execution and API invocation authorization separate.
-  No human identities, PassRole grants, artifact IAM grants or extra resources.
-- Test actual child implementations with offline command=plan mocked providers;
-  use coherent synthetic computed attributes without whole-module replacements.
-  Check exact 17-resource plans, bindings, outputs and permissions; independently
-  classify input rejection, unsafe mutations and missing/malformed capture evidence.
-- Preserve every child module/test, IAM policy/reference/guardrail check, provider
-  and backend file, version and lock, all 379 existing native/153 Python tests,
-  and the HTTP API's 17 security mutations/19 capture-failure injections.
-- Preserve pinned actions, runner cleanup, shared job-local TF_PLUGIN_CACHE_DIR,
-  disk/cache measurements, read-only permissions, triggers and concurrency. Reuse
-  initialized locked root; add no credentials, OIDC deployment or artifact uploads.
-- Never use/request AWS credentials, account APIs, authenticated plans, apply or
-  destroy in Codex Cloud/CI. No live deployment, real artifact or secret values,
-  Organizations Management Account testing, remote state, production or next phase.
-
-Commit, push, and open a PR. Perform the required affected local verification,
-report the PR URL and HEAD SHA, confirm CI was triggered if immediately observable,
-and stop without waiting for CI completion. Independent review and completed CI
-verification occur separately. Do not merge or delete the feature branch.
+- Inspect source and existing successful CI evidence; classify offline acceptance
+  separately from unverified live prerequisites. Document actual defects as blockers;
+  do not silently fix implementation or invent evidence, approvals or identities.
+- Preserve Terraform, IAM, providers/backends/locks, tests, CI and module documents.
+  Do not rerun full local regressions for this documentation-only task.
+- Never request/use AWS credentials, authenticated APIs/plans, apply or destroy.
+  No provisioning, uploads, secret values, runtime code, remote state, Master Policy
+  PDF recreation, live validation or next phase is authorized.
+- Verify documentation consistency, links/counts, permanent-rule preservation,
+  changed-file scope, credential patterns and git diff --check.
+- Commit, push and open a PR; report URL, HEAD and actual local verification.
+  Confirm CI triggering only if immediately observable; never wait or repeatedly
+  poll for completion. Independent review verifies completed CI separately.
+  Do not merge automatically or delete the feature branch.

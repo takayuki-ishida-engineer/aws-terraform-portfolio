@@ -1,5 +1,9 @@
 # Development serverless API integration
 
+See the [offline MVP acceptance audit](../../../../../docs/offline-mvp-acceptance.md)
+and [live-validation approval gates](../../../../../docs/dev-live-validation-readiness.md).
+These documents authorize no live AWS operations.
+
 This root describes one `dev` / `ca-central-1` / `serverless-api` workload for
 project `aws-terraform-portfolio`. Phase 3-9 composes seven existing module
 instances into a 17-resource configuration. Validation uses offline mocked plans;
