@@ -11,8 +11,9 @@ constraints, AWS provider account restrictions, and an explicit local backend,
 retains its Phase 2 foundation. The reusable
 [`VPC`](infra/modules/vpc/README.md),
 [`IAM access`](infra/modules/iam_access/README.md),
-[`account IAM policies`](infra/modules/iam_account_policies/README.md) and
-[`Secrets Manager`](infra/modules/secrets_manager/README.md) modules have native
+[`account IAM policies`](infra/modules/iam_account_policies/README.md),
+[`Secrets Manager`](infra/modules/secrets_manager/README.md) and
+[`Lambda`](infra/modules/lambda/README.md) modules have native
 mock tests.
 Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
 without account assignments. Its hardening completes the offline VPC authorization
@@ -24,6 +25,13 @@ Phase 3-3.5 keeps Developer EC2 inline and moves its six Secrets Manager actions
 into a workload-account-owned managed policy with a fixed Identity Center
 reference. An executable toolkit prepares optional user-run AWS validation;
 Codex Cloud and CI perform only offline checks.
+Phase 3-4 adds one reusable Lambda function module using an explicit versioned
+S3 ZIP, runtime/handler and existing execution-role/log-group references. It owns
+no IAM, logging, artifact or network dependencies. Defaults are x86_64, 128 MB,
+10 seconds, 512 MB temporary storage, no VPC/layers/environment/tags and no
+reserved concurrency override. Publishing is disabled; logging uses Text format
+and tracing is PassThrough. The module supports reviewed Node.js 22, Python 3.13
+and Java 21 runtimes without assuming a language by default.
 **No service root calls these modules yet.**
 No AWS credentials were used in Codex Cloud or CI, and no
 AWS infrastructure was deployed or tested against a live account.
@@ -82,6 +90,14 @@ and production directories remain placeholders.
 │   │   │   │   ├── fixtures/
 │   │   │   │   │   └── phase_3_3_policies.json
 │   │   │   │   └── iam_access.tftest.hcl
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
+│   │   ├── lambda/
+│   │   │   ├── README.md
+│   │   │   ├── main.tf
+│   │   │   ├── outputs.tf
+│   │   │   ├── tests/
+│   │   │   │   └── lambda.tftest.hcl
 │   │   │   ├── variables.tf
 │   │   │   └── versions.tf
 │   │   ├── secrets_manager/
@@ -267,7 +283,7 @@ GitHub-hosted Ubuntu 24.04 executes it independently of Codex Cloud. Obsolete
 runs for the same PR/ref are cancelled; the job has a 20-minute timeout.
 
 It installs **Terraform 1.17.0** with the CLI wrapper disabled. The unchanged dev
-root lock selects **AWS Provider 6.72.0**; transient copies seed all four child-module
+root lock selects **AWS Provider 6.72.0**; transient copies seed all five child-module
 locks so their broader constraints do not select a newer provider. Those child
 locks, provider files and captured test output are never committed or uploaded.
 
@@ -279,13 +295,14 @@ locks, provider files and captured test output are never committed or uploaded.
 | Secrets Manager module `init` / `validate` / native tests | 31 mock-plan tests pass, no failures/errors/skips; actual plan contains exactly one secret container |
 | Account IAM policy module | 24 mock-plan tests pass; actual plan contains exactly one IAM policy |
 | IAM module `init` / `validate` / native tests | 39 mock-plan tests pass; exactly three Permission Sets, three inline policies and one Developer reference |
+| Lambda module `init` / `validate` / native tests | 70 mock-plan tests pass; 13 positive plans contain one Lambda only and 57 rejected-input plans contain no resources; default artifact/role/logging/compute settings are inspected |
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
 | Checker negative self-tests | 24 cases pass, including all prior 17 |
 | Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
 | Validation toolkit | 153 offline self-tests pass without skips; actual export/manifest/cases, independent guardrail proofs and default no-AWS run succeed |
 
 Every command failure fails the job. Bash pipefail preserves the VPC test exit
-status; IAM, Secrets Manager and account-policy original Terraform exit statuses and
+status; IAM, Secrets Manager, account-policy and Lambda original Terraform exit statuses and
 structured summaries are checked, alongside exact managed-resource inventories. Exact initial test counts guard against omitted/skipped coverage; an
 intentional future coverage change requires reviewing these expectations too.
 Malformed or unavailable official JSON fails validation without a stale fallback.
@@ -323,6 +340,14 @@ are included in offline reports and CI. These proofs neither upgrade the two
 AWS cases nor change the 54-case inventory. They do not establish deployed-role
 authorization or production readiness. See the
 [guardrail limitations](scripts/aws-policy-validation/README.md#independent-guardrail-verification-phase-3-37).
+
+The [Lambda module](infra/modules/lambda/README.md) documents Root Override,
+Module Default and Module Fixed settings, plus externally managed role trust,
+logging/retention, artifacts, runtime/layer compatibility and VPC connectivity.
+Only non-secret configuration and Secrets Manager names/ARNs belong in its
+environment map. Setting a log-group reference does not prove its existence;
+external provisioning and restricted role permissions must prevent accidental
+service-created groups. No Lambda integration or service-root change is included.
 
 Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
 provider registry/release endpoints, and the current public documents at
