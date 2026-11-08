@@ -238,6 +238,80 @@ jobs:
             output.write(f"passed={summary['passed']}\n")
           PY
 
+      - name: Validate Lambda module and actual mock configuration
+        id: lambda
+        working-directory: infra/modules/lambda
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/lambda-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 - "$test_status" <<'PY'
+          import collections
+          import json
+          import os
+          import pathlib
+          import sys
+
+          positive_runs = {"default_function_configuration", "resource_attribute_outputs", "node_runtime_and_compute_overrides",
+              "java_runtime_on_arm64", "maximum_compute_boundaries", "minimum_timeout_and_name_description_boundaries",
+              "existing_versioned_layers_and_concurrency", "maximum_layer_count_and_zero_concurrency",
+              "existing_vpc_references", "maximum_vpc_reference_counts", "nonsecret_configuration_and_secret_reference",
+              "environment_byte_boundary", "caller_owned_tags"}
+          summaries, plans, passed, errors, seen_plans, rejected_plans = [], [], set(), set(), set(), set()
+          diagnostics = collections.deque(maxlen=20)
+          with pathlib.Path(os.environ["RUNNER_TEMP"], "lambda-tests.jsonl").open() as events:
+            for line in events:
+              event = json.loads(line)
+              key = (event.get("@testfile"), event.get("@testrun"))
+              if event.get("@level") == "error":
+                errors.add(key)
+              if event.get("type") == "test_run":
+                run = event["test_run"]
+                if run.get("status") == "pass":
+                  passed.add(key)
+                if run.get("status") in {"pass", "fail", "error", "skip"}:
+                  print(event.get("@message", str(run)))
+              if event.get("type") == "diagnostic":
+                diagnostics.append(event.get("@message", "Terraform diagnostic"))
+              if event.get("type") == "test_plan":
+                if key not in passed or key in seen_plans:
+                  raise SystemExit("Lambda plan must follow a unique passing native test.")
+                seen_plans.add(key)
+                resources = event["test_plan"].get("resource_changes", [])
+                if key[1] not in positive_runs:
+                  if resources:
+                    raise SystemExit("Rejected Lambda input must not produce planned resources.")
+                  rejected_plans.add(key)
+                  continue
+                if len(resources) != 1 or resources[0].get("type") != "aws_lambda_function" or resources[0].get("name") != "this" or resources[0].get("mode") != "managed" or resources[0].get("change", {}).get("actions") != ["create"]:
+                  raise SystemExit("Every positive Lambda mock plan must contain exactly one Lambda function and no other resources.")
+                plans.append((key, resources[0]["change"]["after"]))
+              if event.get("type") == "test_summary":
+                summaries.append(event["test_summary"])
+          expected = {"status": "pass", "passed": 70, "failed": 0, "errored": 0, "skipped": 0}
+          if int(sys.argv[1]) != 0 or len(plans) != len(positive_runs) or {key[1] for key, _ in plans} != positive_runs or len(rejected_plans) != 57 or seen_plans != passed or len(summaries) != 1 or not errors <= passed or any(summaries[0].get(key) != value for key, value in expected.items()) or len(passed) != expected["passed"]:
+            for diagnostic in diagnostics:
+              print(diagnostic, file=sys.stderr)
+            raise SystemExit(f"Lambda mock validation failed (Terraform exit {sys.argv[1]}).")
+          key, config = plans[0]
+          defaults = {"function_name": "portfolio-test-lambda", "role": "arn:aws:iam::000000000000:role/portfolio/test-lambda-execution",
+              "s3_bucket": "portfolio-test-artifacts", "s3_key": "lambda/test/function.zip", "s3_object_version": "synthetic-version-001",
+              "runtime": "python3.13", "handler": "app.handler", "architectures": ["x86_64"], "memory_size": 128, "timeout": 10,
+              "package_type": "Zip", "publish": False, "reserved_concurrent_executions": None}
+          if key[1] != "default_function_configuration" or any(config.get(name) != value for name, value in defaults.items()) or config.get("ephemeral_storage") != [{"size": 512}] or config.get("logging_config") != [{"application_log_level": None, "log_format": "Text", "log_group": "/portfolio/test/lambda", "system_log_level": None}] or config.get("tracing_config") != [{"mode": "PassThrough"}] or any(config.get(name) for name in ("vpc_config", "environment", "layers", "tags", "filename", "image_uri")):
+            raise SystemExit("Actual default Lambda attributes differ from the reviewed ZIP/artifact/role/logging/security contract.")
+          print("Actual Lambda inventory/configuration checked across", len(plans), "positive mock plans and", len(rejected_plans), "resource-free input rejections; summary:", summaries[0])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={summaries[0]['passed']}\n")
+          PY
+
       - name: Check generated IAM policies against current official references
         id: reference
         working-directory: infra/modules/iam_access
@@ -319,6 +393,8 @@ jobs:
           TOOLKIT_PASSED: ${{ steps.toolkit.outputs.passed }}
           IAM_RESULT: ${{ steps.iam.outcome }}
           IAM_PASSED: ${{ steps.iam.outputs.passed }}
+          LAMBDA_RESULT: ${{ steps.lambda.outcome }}
+          LAMBDA_PASSED: ${{ steps.lambda.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
           SELF_TEST_RESULT: ${{ steps.self_tests.outcome }}
         run: |
@@ -334,6 +410,7 @@ jobs:
             ("Secrets Manager init/validate/mock inventory/tests", "SECRETS_RESULT", os.environ.get("SECRETS_PASSED", "")),
             ("Account IAM policy init/validate/inventory/mock tests", "ACCOUNT_RESULT", os.environ.get("ACCOUNT_PASSED", "")),
             ("IAM init/validate/mock tests", "IAM_RESULT", os.environ.get("IAM_PASSED", "")),
+            ("Lambda init/validate/mock inventory/tests", "LAMBDA_RESULT", os.environ.get("LAMBDA_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
             ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
