@@ -161,7 +161,7 @@ def _has(item, operator, key, values, subset=False):
 
 
 def _structural(item, action, scope):
-  """Necessary sufficient blocking forms per Allow; no scenario sampling here."""
+  """Reviewed sufficient blocking forms per Allow; no scenario sampling here."""
   if item["statement"]["Effect"] == "Deny":
     return {"policy": item["policy"], "sid": item["sid"], "action": action,
             "status": "passed", "certificate": "explicit_deny_included_in_scenario_evaluation"}
