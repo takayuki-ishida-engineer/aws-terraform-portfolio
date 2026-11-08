@@ -77,33 +77,36 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
-## Current phase only: Phase 3-3.7 independent guardrail verification
+## Current phase only: Phase 3-4 reusable Lambda module
 
-Use `test/iam-guardrail-negative-verification` from latest `main`. This task
-authorizes a narrow static oracle, semantic negative tests, separate report
-evidence, relevant documentation and the reviewed CI Python test-count update.
-Preserve all permanent rules and approved Terraform policies/architecture.
+Use `feat/lambda-module` from latest `main`. Implement the reusable child module
+at `infra/modules/lambda/`, its mock tests/documentation, the offline CI extension
+and relevant repository documentation. Preserve all permanent rules above.
 
-- Verify existing-resource Project-tag protection for CreateTags and the separate
-  Secrets Manager replica/overwrite guards using actual successful mock-plan
-  exports. Enumerate all relevant Allow/Deny statements in both Developer policies.
-- Keep the oracle independent of simulation projection and AWS response parsing.
-  Reject unsupported or ambiguous input; do not build a generic IAM evaluator.
-  Demonstrate unsafe synthetic mutations with other conditions satisfied, rather
-  than relying only on policy checksums or statement names.
-- Report sources/hashes, conditions, synthetic decisions and mutation evidence
-  separately from AWS simulation and existing static action inventory. Do not
-  relabel the owner's two missing-context cases or fabricate context values.
-- Attribute the owner's latest 33 passing/two inconclusive AWS simulations,
-  15 static checks and four unsupported protections accurately. Static proofs do
-  not establish deployed-role authorization or production readiness.
-- Preserve the 54 cases, 35 AWS candidates, 15 static inventory checks, four
-  unsupported protections, strict missing-context parsing and projection logic.
-  Keep all previous tests; no skips or weakened expectations.
-- Preserve Terraform 1.17.0, AWS Provider 6.72.0, Approach A, mock plan tests,
-  credential-free read-only CI, action pins and no-OIDC/no-artifact boundaries.
-  No AWS credentials/APIs, identities, real plans, apply, destroy or deployment;
-  do not commit raw CloudShell responses or account/session identifiers.
+- Own exactly one Lambda function, validated configuration and operational
+  outputs. Accept existing execution-role, log-group and versioned S3 ZIP artifact
+  references. No IAM resources, policies, log groups, artifact builds/uploads,
+  buckets, secrets, triggers, invocation permissions or deployment pipelines.
+- Keep providers/backends in roots. Runtime and handler are explicit; use a small
+  documented runtime set, secure defaults and coupled VPC input validation.
+  Do not expose unused AWS features through speculative switches.
+- Use non-secret environment configuration and secret names/ARNs only. Preserve
+  Approach A; applications retrieve values outside Terraform under separately
+  reviewed IAM/KMS permissions and connectivity.
+- Document external role trust/permissions, pre-existing logging/retention,
+  immutable artifact ownership, runtime/architecture/layer compatibility, same
+  region requirements and VPC connectivity. Offline syntax checks do not prove
+  existence, authorization, execution or production readiness.
+- Do not modify existing VPC, IAM Access, account-policy or Secrets Manager
+  implementations or the dev service root. No stg/prod roots, service composition,
+  cross-region replication or disaster recovery orchestration.
+- Use Terraform 1.17.0 / AWS Provider 6.72.0 with mocked providers and explicit
+  plan tests only. Preserve all existing 110 native and 153 Python tests, policy
+  reference/equivalence/negative checks and independent guardrail evidence.
+  Preserve CI action pins, read-only permissions, no-credentials/no-OIDC and
+  no-artifact/no-deployment boundaries.
+- No AWS credentials, real AWS APIs, live plans, apply, destroy or deployment.
+  Synthetic artifact/role names and account IDs only; no actual secret values.
 
-Commit, push, open a PR and observe completed CI, then stop for independent
-review. Do not merge, delete the branch or begin Phase 3-4.
+Commit, push, open a PR and confirm completed GitHub CI, then stop for independent
+review. Do not merge, delete the branch or begin Phase 4 integration.
