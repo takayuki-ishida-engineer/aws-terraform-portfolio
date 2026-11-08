@@ -14,6 +14,8 @@ effective authorization, deployment and production readiness remain unverified.
 
 - `policy_validation.py`: exporter, checksum/quota checks, guarded manual API
   runner, pagination handling, response parser and sanitized reports.
+- `simulation_projection.py`: conservative exact-action projection and independent
+  structural equivalence verification for each request.
 - `policy_cases.py`: deterministic reviewed cases generated from the exported
   synthetic scope, never duplicated standalone policy JSON.
 - `tests/`: deterministic stdlib tests using synthetic documents and mocked
@@ -113,6 +115,84 @@ applicable. Identity Center propagation, actual KMS/key policy evaluation,
 resource policies, organization controls and workload connectivity remain outside
 the simulator's evidence.
 
+## Missing-context classification correction (Phase 3-3.6)
+
+The owner reported a complete authorized CloudShell capture from the previous
+tool: four ValidatePolicy checks and three GetContextKeys checks passed; 21
+supported simulations passed, 29 supported simulations were inconclusive with
+missing context, and four intentionally unsupported cases stayed inconclusive.
+No actionable authorization mismatch was reported. These are the owner's
+observations, not an AWS run performed or independently revalidated by Codex.
+No raw CloudShell capture, real identifier or session detail is committed here.
+
+Each Developer simulation previously received both its EC2 inline and Secrets
+Manager policy. AWS reported keys from unrelated statements, for example Secrets
+Manager replica/deletion keys for `developer-vpc-unapproved-region`. Discovery
+of a key in the complete composition does not establish that the key can affect
+every action. The correction narrows **requests**, not approved permissions or
+the strict response missing-context rule.
+
+For each case, the tool derives an action-only projection from the actual
+Terraform-generated documents. It omits only statements whose plain exact Action
+values provably cannot match the tested action; IAM action names/prefixes are
+case-insensitive. Every retained statement is copied whole, including all
+Resources, Conditions and Allow/Deny effects. It does not filter by resource,
+evaluate condition values or build a generic IAM evaluator. Ambiguous wildcard,
+NotAction or unknown action selectors cannot justify omission or static absence.
+The approved bundle's existing exact-action/Allow validation is unchanged.
+
+A separate structural verifier checks the complete retained/omitted partition
+against the original documents and rejects changed resources, conditions, added
+statements or dropped matching Allow/Deny statements. Case/profile, source and
+projected document hashes and the exact request hash bind the evidence to its
+original bundle. ActionNames, all requested resource ARNs and ContextEntries are
+preserved. **No context values are invented**: Null/IfExists absence remains
+intentional, and same-action alternatives are retained even when they may need
+additional context.
+
+The current 54-case bundle has three distinct paths:
+
+| Evidence path | Cases | Interpretation |
+| --- | --- | --- |
+| Projected AWS requests | 35 | Requires later actual AWS responses; any returned missing context remains inconclusive |
+| Static action-inventory checks | 15 | No statement can match the action in this reviewed set; no simulator call and no claimed AWS Deny |
+| Intentionally unsupported protections | 4 | Remain inconclusive; never converted to static or passing Deny results |
+
+The 35 request candidates comprise nine Developer EC2 cases, 20 Developer
+Secrets Manager cases, three Operator metadata cases and three Access Admin
+assignment cases. In particular, `developer-vpc-unapproved-region` and the other
+Developer EC2 requests no longer include Secrets Manager statements or their
+unrelated keys. Each is safely eligible for simulation of the projected set;
+that does not guarantee a conclusive AWS response. Same-action alternatives such
+as TagResource/CreateTags and intentionally absent Null/IfExists keys still keep
+any reported missing context inconclusive.
+
+The 15 static checks cover Developer unrelated EC2/IAM writes and the eight
+forbidden secret/KMS actions, Operator secret-value/write/IAM/Identity Center
+actions, and Access Admin unrelated account creation. The earlier aggregate
+21/29 results do not identify which individual cases belonged to each outcome;
+no per-case resolution of that historical capture is inferred here.
+
+Static absence means only `not_granted_by_reviewed_policy_set`. It is separate
+from AWS-simulated evidence and does not exclude grants from other policies.
+A positive case whose action disappeared fails rather than passing statically.
+Missing account, region, Project/tag, recovery or other context from potentially
+applicable statements remains inconclusive; malformed/paginated/multi-resource
+checks and unexpected-Allow/deny protections remain strict.
+
+New captures use format version 2 and the action-projection/request identity.
+Original policy bundles remain format version 1 and unchanged. Replay of a legacy
+version-1 capture retains its full-policy simulation interpretation and strict
+missing-context classification, including unexpected-Allow detection. It cannot
+silently become evidence of a new projected request. New-format records with
+missing or mismatched request proof are unverified, and extra simulator records
+for static-only cases are rejected rather than ignored.
+
+**The reported 29 inconclusive cases are not claimed resolved.** The owner must
+rerun the revised tool in their separately authorized session. Even a projected
+request can remain inconclusive for a same-action alternative or intentionally
+absent key. The four inherent limitations and live authorization gaps remain.
+
 ## Later manual owner execution in CloudShell
 
 **Do not run this section from Codex Cloud or GitHub Actions.** The executable
@@ -149,8 +229,10 @@ python3 scripts/aws-policy-validation/policy_validation.py run \
 
 These path labels are documentation placeholders, not active Terraform values.
 The CLI uses `--cli-input-json file://...`, `--no-paginate`, JSON output and the
-fixture's explicit region. It submits only four policy validations, three context
-discoveries and the 50 supported simulation cases, plus required pagination.
+fixture's explicit region. It submits four full-policy validations, three full-composition context
+discoveries and 35 action-projected simulations, plus required pagination. The
+15 static inventory checks make no simulator call; four unsupported cases remain
+inconclusive.
 There are no STS, account/credential-discovery, write or deployment calls. No CallerArn,
 ResourceOwner or resource-policy simulation is injected or inferred.
 
@@ -176,7 +258,8 @@ manual API results retain review status 2. This is not production readiness.
 
 ## Results and safe replay
 
-`results.json` and `summary.md` contain sanitized findings, decisions, actionable
+`results.json` and `summary.md` separate AWS simulations from `static_checks`,
+record request mode/proof and contain sanitized findings, decisions, actionable
 authorization mismatches, API names and fixture/hash identities. Full private
 responses and request files exist only in the private manual output directory;
 **do not upload raw responses, request files or session metadata to GitHub**.
@@ -184,7 +267,8 @@ Redaction removes ARN/account/identity/token-like strings from shareable details
 Review sanitized reports before sharing; generic redaction is not a guarantee
 against every possible confidential value in an external error message.
 
-Reprocess the recorded private capture offline without any AWS CLI invocation:
+Reprocess a recorded private capture offline without any AWS CLI invocation
+(legacy captures keep their original conservative classification):
 
 ```sh
 python3 scripts/aws-policy-validation/policy_validation.py parse \
@@ -203,7 +287,9 @@ attestations of a real session and never prove live deployment authorization.
 python3 -B -m unittest discover -s scripts/aws-policy-validation/tests -v
 ```
 
-The 70 tests cover actual mock-plan export, inventories, quotas, attachment
+The 110 tests preserve the prior 70 cases and add 40 action-projection,
+missing-context, semantic-mutation and capture-identity regressions. They cover
+actual mock-plan export, inventories, quotas, attachment
 identity, tampering, expected/unexpected decisions, complete multi-resource
 semantics, missing context, unsupported responses, all finding severities,
 pagination, permission errors, interruption, redaction, CI/live-mode guards and

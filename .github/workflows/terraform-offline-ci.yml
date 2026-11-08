@@ -287,7 +287,7 @@ jobs:
 
           suite = unittest.defaultTestLoader.discover("scripts/aws-policy-validation/tests")
           result = unittest.TextTestRunner(verbosity=2).run(suite)
-          if not result.wasSuccessful() or result.skipped or result.expectedFailures or result.testsRun != 70:
+          if not result.wasSuccessful() or result.skipped or result.expectedFailures or result.testsRun != 110:
             raise SystemExit("Toolkit offline self-tests failed, changed the reviewed count or skipped.")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             output.write(f"passed={result.testsRun}\n")

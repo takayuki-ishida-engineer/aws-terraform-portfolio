@@ -29,19 +29,22 @@ def fixture_plans():
     "arn": f"arn:aws:sso:::permissionSet/ssoins-0000000000000000/ps-{index:016d}"}
     for index, (name, identity) in enumerate((("access_admin", "Portfolio-Access-Admin"),
       ("developer", "Portfolio-Developer"), ("operator", "Portfolio-Operator")), 1)}
-  regional = {"StringEquals": {"aws:PrincipalAccount": [account, "000000000001"], "aws:RequestedRegion": region}}
-  secret = f"arn:aws:secretsmanager:{region}:{account}:secret:*"
-  creation = {"StringEquals": {"aws:PrincipalAccount": account, "aws:RequestedRegion": region, "aws:RequestTag/Project": project}}
-  policies = {
-    "access_admin": document(["sso:ListAccountAssignments"], [instance, profiles["developer"]["arn"],
-      f"arn:aws:sso:::account/{account}"], {"StringEquals": {"aws:PrincipalAccount": admin}}),
-    "developer": document(["ec2:DescribeVpcs"], ["*"], regional),
-    "operator": document(["ec2:DescribeVpcs"], ["*"], regional),
-  }
-  managed = document(["secretsmanager:CreateSecret"], [secret], creation)
-  managed["Statement"].append({"Sid": "OtherRenderedMockActions", "Effect": "Allow",
-    "Action": sorted(toolkit.SM_ACTIONS - {"secretsmanager:CreateSecret"}), "Resource": [secret],
-    "Condition": {"StringEquals": {"aws:PrincipalAccount": account, "aws:RequestedRegion": region, "aws:ResourceTag/Project": project}}})
+  # Derive fixture documents from the approved Terraform-rendered baseline.
+  # Do not substitute a tiny hand-authored policy whose absent real actions
+  # would make the new action-inventory checks meaningless.
+  baseline_file = Path(__file__).resolve().parents[3] / "infra/modules/iam_access/tests/fixtures/phase_3_3_policies.json"
+  approved = json.loads(baseline_file.read_text(encoding="utf-8"))["policies"]
+  policies = copy.deepcopy(approved)
+  policies["developer"]["Statement"] = [copy.deepcopy(statement)
+    for statement in approved["developer"]["Statement"]
+    if all(action.startswith("ec2:") for action in statement["Action"])]
+  managed = {key: copy.deepcopy(value) for key, value in approved["developer"].items() if key != "Statement"}
+  managed["Statement"] = [copy.deepcopy(statement)
+    for statement in approved["developer"]["Statement"]
+    if all(action.startswith("secretsmanager:") for action in statement["Action"])]
+  for statement in managed["Statement"]:
+    statement["Resource"] = [arn for arn in statement["Resource"] if arn.split(":", 5)[4] == account]
+    statement["Condition"]["StringEquals"]["aws:PrincipalAccount"] = account
 
   def resource(kind, name, after):
     return {"type": kind, "name": name, "mode": "managed", "change": {"actions": ["create"], "after": after}}
@@ -324,7 +327,7 @@ class TransportAndCliTests(ToolkitFixture):
         return {"findings": []}
       if api == "iam:GetContextKeysForCustomPolicy":
         return {"ContextKeyNames": ["aws:PrincipalAccount", "secretsmanager:AddReplicaRegions"]}
-      matches = [case for case in supported if [case["action"]] == request["ActionNames"] and case["resources"] == request["ResourceArns"] and case["context"] == request["ContextEntries"] and toolkit.policy_inputs(case["profile"], policies) == request["PolicyInputList"]]
+      matches = [case for case in supported if toolkit.simulation_plan(case, policies)["request"] == request]
       self.assertTrue(matches)
       decision = "allowed" if matches[0]["expected"] == "allowed" else "implicitDeny"
       result = {"EvalActionName": request["ActionNames"][0], "EvalDecision": decision, "MissingContextValues": []}
