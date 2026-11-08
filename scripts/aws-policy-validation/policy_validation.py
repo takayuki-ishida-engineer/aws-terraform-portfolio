@@ -7,6 +7,7 @@ in Codex Cloud and GitHub Actions and is limited to three read-only validation A
 
 import argparse
 import collections
+import copy
 import hashlib
 import json
 import os
@@ -17,9 +18,11 @@ import sys
 
 sys.dont_write_bytecode = True
 from policy_cases import build_cases
+from simulation_projection import METHOD, content_sha256, project_policies, verify_projection
 
 
 FORMAT_VERSION = 1
+CAPTURE_VERSION = 2
 POLICY_IDS = {"access_admin", "developer_inline", "operator", "developer_secrets_manager"}
 PROFILE_POLICIES = {
   "developer": ["developer_inline", "developer_secrets_manager"],
@@ -468,21 +471,51 @@ def policy_inputs(profile, policies):
   return [compact(policies[identifier]) for identifier in PROFILE_POLICIES[profile]]
 
 
+def simulation_plan(case, policies):
+  """Project exact-action statements only; never evaluate resources/conditions."""
+  if not case.get("supported", True):
+    return {"kind": "unsupported", "request": None, "evidence": None}
+  sources = {identifier: policies[identifier] for identifier in PROFILE_POLICIES[case["profile"]]}
+  projected = project_policies(sources, case["action"])
+  proof = verify_projection(sources, case["action"], projected)
+  request = None
+  if projected:
+    request = {"PolicyInputList": [compact(document) for document in projected.values()],
+        "ActionNames": [case["action"]], "ResourceArns": copy.deepcopy(case["resources"]),
+        "ContextEntries": copy.deepcopy(case["context"]), "MaxItems": 100}
+  evidence = {"case_id": case["id"], "profile": case["profile"], **proof,
+      "request_sha256": content_sha256(request) if request is not None else None}
+  return {"kind": "aws_simulation" if request is not None else "static_action_inventory",
+      "request": request, "evidence": evidence}
+
+
+def static_inventory_result(case, plan):
+  """An absent grant is a static property, never an AWS-simulated deny."""
+  require(plan["kind"] == "static_action_inventory", "Not a static absence proof.")
+  matched = case["expected"] == "deny"
+  return {"status": "passed" if matched else "failed", "decision": "not_granted_by_reviewed_policy_set",
+      "expected": case["expected"], "reason": "no_matching_action" if matched else "expected_allow_without_action",
+      "evidence_type": "static_action_inventory", "aws_simulated": False, "projection": plan["evidence"]}
+
+
 def execute_bundle(manifest, policies, cases, transport):
   """Transport injection supports offline tests; CLI main is the live-mode gate."""
-  capture = {"format_version": FORMAT_VERSION, "bundle_sha256": bundle_identity(manifest), "complete": False, "calls": []}
+  capture = {"format_version": CAPTURE_VERSION, "simulation_mode": METHOD,
+      "bundle_sha256": bundle_identity(manifest), "complete": False, "calls": []}
   requests = []
   for identifier in sorted(policies):
     requests.append(("access-analyzer:ValidatePolicy", identifier,
-        {"policyDocument": compact(policies[identifier]), "policyType": "IDENTITY_POLICY", "locale": "EN", "maxResults": 100}))
+        {"policyDocument": compact(policies[identifier]), "policyType": "IDENTITY_POLICY", "locale": "EN", "maxResults": 100}, None))
   for profile in sorted(PROFILE_POLICIES):
-    requests.append(("iam:GetContextKeysForCustomPolicy", profile, {"PolicyInputList": policy_inputs(profile, policies)}))
+    requests.append(("iam:GetContextKeysForCustomPolicy", profile, {"PolicyInputList": policy_inputs(profile, policies)}, None))
   for case in cases:
-    if case.get("supported", True):
-      requests.append(("iam:SimulateCustomPolicy", case["id"], {"PolicyInputList": policy_inputs(case["profile"], policies),
-          "ActionNames": [case["action"]], "ResourceArns": case["resources"], "ContextEntries": case["context"], "MaxItems": 100}))
-  for api, subject, request in requests:
+    plan = simulation_plan(case, policies)
+    if plan["kind"] == "aws_simulation":
+      requests.append(("iam:SimulateCustomPolicy", case["id"], plan["request"], plan["evidence"]))
+  for api, subject, request, evidence in requests:
     record = {"api": api, "subject": subject}
+    if evidence is not None:
+      record["evidence"] = evidence
     try:
       record["pages"] = collect_pages(transport, api, request)
     except (ValueError, CliFailure) as error:
@@ -495,8 +528,12 @@ def execute_bundle(manifest, policies, cases, transport):
 
 
 def parse_capture(manifest, policies, cases, capture):
-  require(capture.get("format_version") == FORMAT_VERSION and capture.get("bundle_sha256") == bundle_identity(manifest),
+  require(capture.get("format_version") in {FORMAT_VERSION, CAPTURE_VERSION}
+      and capture.get("bundle_sha256") == bundle_identity(manifest),
       "Results do not match this exact policy fixture/version.")
+  projected_capture = capture["format_version"] == CAPTURE_VERSION
+  if projected_capture:
+    require(capture.get("simulation_mode") == METHOD, "Unrecognized simulation projection mode.")
   require(isinstance(capture.get("calls"), list) and isinstance(capture.get("complete"), bool), "Malformed result capture.")
   calls = {}
   for record in capture["calls"]:
@@ -507,13 +544,17 @@ def parse_capture(manifest, policies, cases, capture):
   report = {"format_version": FORMAT_VERSION, "mode": "aws_response_analysis", "fixture_version": manifest["fixture_version"],
       "bundle_sha256": bundle_identity(manifest), "policy_identities": {key: entry["sha256"] for key, entry in manifest["policies"].items()},
       "apis": sorted({record["api"] for record in capture["calls"]}), "reviewed_api_allowlist": list(API_COMMANDS),
-      "validations": {}, "contexts": {}, "simulations": {}, "limitations": LIMITATIONS,
+      "validations": {}, "contexts": {}, "simulations": {}, "static_checks": {},
+      "simulation_mode": METHOD if projected_capture else "legacy_full_policy_set",
+      "limitations": LIMITATIONS,
       "findings_requiring_changes": []}
 
-  def result(api, subject, parser):
+  def result(api, subject, parser, evidence=None):
     record = calls.pop((api, subject), None)
     if record is None:
       return {"status": "inconclusive", "reason": "result_missing"}
+    if evidence is not None and record.get("evidence") != evidence:
+      return {"status": "inconclusive", "reason": "request_projection_mismatch"}
     if "error" in record:
       return {"status": "inconclusive", "reason": "api_or_response_error", "details": redact(record["error"].get("message", "API error"))}
     try:
@@ -535,18 +576,33 @@ def parse_capture(manifest, policies, cases, capture):
           "note": "Discovery only; Null/IfExists keys can intentionally be absent."}
     report["contexts"][profile] = result("iam:GetContextKeysForCustomPolicy", profile, contexts)
   for case in cases:
-    if not case.get("supported", True):
-      report["simulations"][case["id"]] = simulation_result(case, [])
+    plan = simulation_plan(case, policies) if projected_capture else None
+    if plan is not None and plan["kind"] == "static_action_inventory":
+      evaluation = static_inventory_result(case, plan)
+      report["static_checks"][case["id"]] = evaluation
     else:
-      report["simulations"][case["id"]] = result("iam:SimulateCustomPolicy", case["id"], lambda pages: simulation_result(case, pages))
-    evaluation = report["simulations"][case["id"]]
+      if not case.get("supported", True):
+        evaluation = simulation_result(case, [])
+        evaluation["evidence_type"] = "unsupported_by_design"
+      else:
+        evidence = plan["evidence"] if plan is not None else None
+        evaluation = result("iam:SimulateCustomPolicy", case["id"],
+            lambda pages: simulation_result(case, pages), evidence)
+        evaluation["evidence_type"] = "aws_simulation" if evaluation.get("reason") not in {
+            "result_missing", "request_projection_mismatch", "api_or_response_error", "malformed_or_unsupported_response"
+          } else "unverified_response"
+        evaluation["request_mode"] = report["simulation_mode"]
+      report["simulations"][case["id"]] = evaluation
     if evaluation["status"] == "failed":
-      report["findings_requiring_changes"].append({"type": "AUTHORIZATION_MISMATCH",
+      finding_type = "STATIC_ACTION_INVENTORY_MISMATCH" if evaluation.get("evidence_type") == "static_action_inventory" else "AUTHORIZATION_MISMATCH"
+      report["findings_requiring_changes"].append({"type": finding_type,
           "policy": case["profile"], "case": case["id"], "issue_code": evaluation["reason"],
           "details": f"Case {case['id']} expected {case['expected']} but received {evaluation['decision']}."})
   require(not calls, "Capture contains unreviewed or unsupported extra API subjects.")
-  statuses = [value["status"] for group in ("validations", "contexts", "simulations") for value in report[group].values()]
+  statuses = [value["status"] for group in ("validations", "contexts", "simulations", "static_checks") for value in report[group].values()]
   report["status"] = "failed" if "failed" in statuses else "review_required" if not capture["complete"] or any(status != "passed" for status in statuses) else "passed"
+  report["simulation_counts"] = dict(collections.Counter(value["status"] for value in report["simulations"].values()))
+  report["static_check_counts"] = dict(collections.Counter(value["status"] for value in report["static_checks"].values()))
   report["capture_complete"] = capture["complete"]
   report["counts"] = dict(collections.Counter(statuses))
   report["aws_validation_executed_by_this_parse"] = False
@@ -559,12 +615,22 @@ def markdown_report(report):
       f"Bundle SHA-256: `{report['bundle_sha256']}`", "", "Only sanitized metadata is shown; keep raw responses private.", ""]
   if report["mode"] == "offline":
     lines.extend(["AWS API calls: **0**. Authenticated validation has not been run.", "",
-        f"Reviewed simulation cases: {report['simulation_case_count']}", ""])
+        f"Reviewed cases: {report['simulation_case_count']}", ""])
+    counts = report["simulation_plan_counts"]
+    lines.extend([f"Projected AWS simulations: {counts.get('aws_simulation', 0)} (not executed).",
+        f"Static action-inventory checks: {counts.get('static_action_inventory', 0)} (not AWS-simulated Deny).",
+        f"Unsupported protections: {counts.get('unsupported', 0)} (inconclusive).", ""])
+    for subject, value in report["static_checks"].items():
+      if value["status"] == "failed":
+        lines.append(f"- STATIC_ACTION_INVENTORY_MISMATCH / {subject}: {value['reason']}")
   else:
-    lines.extend(["| Check | Subject | Status |", "| --- | --- | --- |"])
-    for group in ("validations", "contexts", "simulations"):
+    lines.extend([f"Simulation request mode: `{report['simulation_mode']}`.",
+        "Static action-inventory checks are separate; they are not AWS-simulated Deny decisions.", "",
+        "| Check | Subject | Status | Evidence |", "| --- | --- | --- | --- |"])
+    for group in ("validations", "contexts", "simulations", "static_checks"):
       for subject, value in report[group].items():
-        lines.append(f"| {group} | {subject} | {value['status']} |")
+        evidence = value.get("evidence_type", "aws_api_response")
+        lines.append(f"| {group} | {subject} | {value['status']} | {evidence} |")
     lines.extend(["", "## Findings requiring review", ""])
     findings = report["findings_requiring_changes"]
     for finding in findings:
@@ -575,8 +641,14 @@ def markdown_report(report):
   return "\n".join(lines)
 
 
-def offline_report(manifest, cases):
-  return {"format_version": FORMAT_VERSION, "mode": "offline", "status": "offline_ready", "aws_api_calls": 0,
+def offline_report(manifest, cases, policies):
+  plans = {case["id"]: simulation_plan(case, policies) for case in cases}
+  static = {case["id"]: static_inventory_result(case, plans[case["id"]]) for case in cases
+      if plans[case["id"]]["kind"] == "static_action_inventory"}
+  return {"format_version": FORMAT_VERSION, "mode": "offline",
+      "status": "failed" if any(value["status"] == "failed" for value in static.values()) else "offline_ready",
+      "aws_api_calls": 0, "projection_method": METHOD, "static_checks": static,
+      "simulation_plan_counts": dict(collections.Counter(plan["kind"] for plan in plans.values())),
       "fixture_version": manifest["fixture_version"], "bundle_sha256": bundle_identity(manifest),
       "policy_sizes": {key: {name: value for name, value in entry.items() if name not in {"file", "sha256"}}
         for key, entry in manifest["policies"].items()}, "simulation_case_count": len(cases),
@@ -614,8 +686,9 @@ def main(argv=None):
     return 0
   manifest, policies, cases = load_bundle(args.bundle)
   if args.command == "offline-check":
-    print(json.dumps(offline_report(manifest, cases), indent=2))
-    return 0
+    report = offline_report(manifest, cases, policies)
+    print(json.dumps(report, indent=2))
+    return 1 if report["status"] == "failed" else 0
   if args.command == "run" and args.execute_aws:
     live_execution_allowed()
   directory = private_directory(args.output_dir)
@@ -627,7 +700,7 @@ def main(argv=None):
     report = parse_capture(manifest, policies, cases, capture)
     report["aws_validation_executed_by_this_parse"] = True
   else:
-    report = offline_report(manifest, cases)
+    report = offline_report(manifest, cases, policies)
   private_write(directory / "results.json", report)
   private_write(directory / "summary.md", markdown_report(report))
   print(json.dumps({"status": report["status"], "mode": report["mode"], "output": str(directory)}, indent=2))
