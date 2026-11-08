@@ -1,4 +1,5 @@
 # aws-terraform-portfolio
+See the [development bootstrap decision plan](docs/dev-bootstrap-decision-plan.md) for proposed account, state and artifact decisions.
 
 See the [offline MVP acceptance audit](docs/offline-mvp-acceptance.md) and
 [future live-validation readiness gates](docs/dev-live-validation-readiness.md).

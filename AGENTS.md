@@ -117,25 +117,24 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: Phase 3-10 offline MVP acceptance and readiness
+## Current phase only: Phase 3-11 development bootstrap decision plan
 
-Use docs/offline-mvp-acceptance from latest verified main. Perform an evidence-based
-offline acceptance audit and document future live-validation approval gates only.
-Change only docs/offline-mvp-acceptance.md, docs/dev-live-validation-readiness.md,
-minimal links in repository/root READMEs, and this current-phase section.
-Preserve every permanent rule above, including execution efficiency.
+Use docs/dev-bootstrap-decision-plan from latest verified main. Produce a proposed
+account/state/artifact bootstrap architecture decision plan, with conditional
+recommendations and independent approval dependencies; all seven gates stay OPEN.
 
-- Inspect source and existing successful CI evidence; classify offline acceptance
-  separately from unverified live prerequisites. Document actual defects as blockers;
-  do not silently fix implementation or invent evidence, approvals or identities.
-- Preserve Terraform, IAM, providers/backends/locks, tests, CI and module documents.
-  Do not rerun full local regressions for this documentation-only task.
-- Never request/use AWS credentials, authenticated APIs/plans, apply or destroy.
-  No provisioning, uploads, secret values, runtime code, remote state, Master Policy
-  PDF recreation, live validation or next phase is authorized.
-- Verify documentation consistency, links/counts, permanent-rule preservation,
-  changed-file scope, credential patterns and git diff --check.
-- Commit, push and open a PR; report URL, HEAD and actual local verification.
-  Confirm CI triggering only if immediately observable; never wait or repeatedly
-  poll for completion. Independent review verifies completed CI separately.
-  Do not merge automatically or delete the feature branch.
+- Change only docs/dev-bootstrap-decision-plan.md, one concise link in README.md
+  and docs/dev-live-validation-readiness.md, and this current-phase section.
+  Preserve permanent rules exactly and historical acceptance/CI evidence.
+- Inspect existing source contracts and tracked application/build inventory once;
+  distinguish source facts, missing external evidence, recommendations and approval.
+- No Terraform, IAM, provider/backend/lock, test, CI, runtime code or artifact changes.
+  Never request/use AWS credentials, authenticated APIs/plans, apply/destroy,
+  imports/state manipulation, account creation, uploads, secret initialization,
+  permission grants or live validation. No Master Policy PDF updates or next phase.
+- Validate document links, decision ordering/register, scope, credential patterns,
+  permanent-rule preservation and git diff --check. Do not rerun full local suites;
+  unchanged GitHub Actions retains complete regression responsibility.
+- Commit, push and open a PR; report URL, exact HEAD, recommendations, unresolved
+  approvals and local checks. Stop without waiting or repeatedly polling CI.
+  Do not merge or delete the feature branch. Await independent review.
