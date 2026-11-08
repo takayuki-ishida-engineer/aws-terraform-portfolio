@@ -12,8 +12,9 @@ retains its Phase 2 foundation. The reusable
 [`VPC`](infra/modules/vpc/README.md),
 [`IAM access`](infra/modules/iam_access/README.md),
 [`account IAM policies`](infra/modules/iam_account_policies/README.md),
-[`Secrets Manager`](infra/modules/secrets_manager/README.md) and
-[`Lambda`](infra/modules/lambda/README.md) modules have native
+[`Secrets Manager`](infra/modules/secrets_manager/README.md),
+[`Lambda`](infra/modules/lambda/README.md) and
+[`CloudWatch Logs`](infra/modules/cloudwatch_logs/README.md) modules have native
 mock tests.
 Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
 without account assignments. Its hardening completes the offline VPC authorization
@@ -32,6 +33,9 @@ no IAM, logging, artifact or network dependencies. Defaults are x86_64, 128 MB,
 reserved concurrency override. Publishing is disabled; logging uses Text format
 and tracing is PassThrough. The module supports reviewed Node.js 22, Python 3.13
 and Java 21 runtimes without assuming a language by default.
+Phase 3-5 adds one independent STANDARD log group with 30-day finite retention,
+service deletion protection enabled, optional existing KMS key reference and
+caller-owned tags. It adds no IAM, streams, monitoring or Lambda integration.
 **No service root calls these modules yet.**
 No AWS credentials were used in Codex Cloud or CI, and no
 AWS infrastructure was deployed or tested against a live account.
@@ -69,6 +73,14 @@ and production directories remain placeholders.
 │   └── iam-access-operations.md
 ├── infra/
 │   ├── modules/
+│   │   ├── cloudwatch_logs/
+│   │   │   ├── README.md
+│   │   │   ├── main.tf
+│   │   │   ├── outputs.tf
+│   │   │   ├── tests/
+│   │   │   │   └── cloudwatch_logs.tftest.hcl
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
 │   │   ├── iam_account_policies/
 │   │   │   ├── README.md
 │   │   │   ├── main.tf
@@ -283,7 +295,7 @@ GitHub-hosted Ubuntu 24.04 executes it independently of Codex Cloud. Obsolete
 runs for the same PR/ref are cancelled; the job has a 20-minute timeout.
 
 It installs **Terraform 1.17.0** with the CLI wrapper disabled. The unchanged dev
-root lock selects **AWS Provider 6.72.0**; transient copies seed all five child-module
+root lock selects **AWS Provider 6.72.0**; transient copies seed all six child-module
 locks so their broader constraints do not select a newer provider. Those child
 locks, provider files and captured test output are never committed or uploaded.
 
@@ -296,13 +308,14 @@ locks, provider files and captured test output are never committed or uploaded.
 | Account IAM policy module | 24 mock-plan tests pass; actual plan contains exactly one IAM policy |
 | IAM module `init` / `validate` / native tests | 39 mock-plan tests pass; exactly three Permission Sets, three inline policies and one Developer reference |
 | Lambda module `init` / `validate` / native tests | 70 mock-plan tests pass; 13 positive plans contain one Lambda only and 57 rejected-input plans contain no resources; default artifact/role/logging/compute settings are inspected |
+| CloudWatch Logs module `init` / `validate` / native tests | 51 mock-plan tests pass; 18 positive plans contain one log group and 33 rejected-input plans contain no resources; lifecycle, finite retention and defaults are inspected |
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
 | Checker negative self-tests | 24 cases pass, including all prior 17 |
 | Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
 | Validation toolkit | 153 offline self-tests pass without skips; actual export/manifest/cases, independent guardrail proofs and default no-AWS run succeed |
 
 Every command failure fails the job. Bash pipefail preserves the VPC test exit
-status; IAM, Secrets Manager, account-policy and Lambda original Terraform exit statuses and
+status; IAM, Secrets Manager, account-policy, Lambda and CloudWatch Logs original Terraform exit statuses and
 structured summaries are checked, alongside exact managed-resource inventories. Exact initial test counts guard against omitted/skipped coverage; an
 intentional future coverage change requires reviewing these expectations too.
 Malformed or unavailable official JSON fails validation without a stale fallback.
@@ -348,6 +361,14 @@ Only non-secret configuration and Secrets Manager names/ARNs belong in its
 environment map. Setting a log-group reference does not prove its existence;
 external provisioning and restricted role permissions must prevent accidental
 service-created groups. No Lambda integration or service-root change is included.
+
+The [CloudWatch Logs module](infra/modules/cloudwatch_logs/README.md) owns storage
+and lifecycle only. Its service deletion protection must be explicitly disabled
+and applied through an authorized external workflow before later teardown;
+`skip_destroy` remains false. Output ARNs come directly from the provider and are
+separate from future log-stream IAM resource scopes. External KMS suitability,
+key policies and access to historical encrypted logs require review. No existing
+Lambda implementation, IAM policy or service root is changed by this phase.
 
 Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
 provider registry/release endpoints, and the current public documents at
