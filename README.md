@@ -25,7 +25,7 @@ into a workload-account-owned managed policy with a fixed Identity Center
 reference. An executable toolkit prepares optional user-run AWS validation;
 Codex Cloud and CI perform only offline checks.
 **No service root calls these modules yet.**
-No AWS credentials were used and no
+No AWS credentials were used in Codex Cloud or CI, and no
 AWS infrastructure was deployed or tested against a live account.
 The offline CI workflow below independently repeats validation on GitHub-hosted
 runners; it never deploys infrastructure.
@@ -246,7 +246,7 @@ covers precreation, attachment/re-provisioning, inline removal, rollback and dri
 The [AWS policy-validation toolkit](scripts/aws-policy-validation/README.md)
 exports four actual policies from successful native mock plans, hashes them in a
 manifest, generates 54 clearly synthetic cases and defaults to zero AWS CLI/API
-calls. Its 70 deterministic offline tests cover findings, decisions, pagination,
+calls. Its 110 deterministic offline tests cover findings, decisions, pagination,
 missing/unsupported/incomplete responses, private output and the no-call default.
 Only a later user-run `run --execute-aws` in an authorized existing CloudShell/
 local session enables three read-only official validation APIs; execution is
@@ -254,7 +254,7 @@ refused in Codex Cloud and GitHub Actions. No new identity, access key, analyzer
 STS discovery or AWS resource is needed or created by the toolkit.
 
 Design/code readiness and offline evidence are separate from **unperformed AWS
-API validation and live verification**. Policy simulation cannot establish a real
+revalidation of the revised tool and live verification**. Policy simulation cannot establish a real
 session, recipient governance, main-route-table exclusion, attribute-value
 controls, assignment propagation or effective KMS/SCP/resource-policy access.
 Security warnings require human review and incomplete results stay inconclusive.
@@ -282,7 +282,7 @@ locks, provider files and captured test output are never committed or uploaded.
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
 | Checker negative self-tests | 24 cases pass, including all prior 17 |
 | Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
-| Validation toolkit | 70 offline self-tests pass without skips; actual export/manifest/cases and default no-AWS run succeed |
+| Validation toolkit | 110 offline self-tests pass without skips; actual export/manifest/cases and default no-AWS run succeed |
 
 Every command failure fails the job. Bash pipefail preserves the VPC test exit
 status; IAM, Secrets Manager and account-policy original Terraform exit statuses and
@@ -304,6 +304,14 @@ step logs and job summary, or the PR's **Checks** tab. A first successful run
 must actually be observed on GitHub before this CI phase is considered complete;
 local execution or YAML inspection alone does not establish GitHub CI success.
 The PR records the observed run URL/status rather than asserting success early.
+
+Phase 3-3.6 scopes simulator requests to independently checked exact-action
+statements while preserving every matching Allow/Deny, resource and condition.
+The current 54 cases separate 35 projected AWS requests, 15 static absent-action
+checks and four unsupported protections. New captures bind request/source hashes;
+legacy captures keep strict missing-context classification. The owner's prior
+29 inconclusive results are not claimed resolved without a human AWS rerun.
+See the [toolkit explanation](scripts/aws-policy-validation/README.md#missing-context-classification-correction-phase-3-36).
 
 Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
 provider registry/release endpoints, and the current public documents at
