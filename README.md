@@ -246,16 +246,16 @@ covers precreation, attachment/re-provisioning, inline removal, rollback and dri
 The [AWS policy-validation toolkit](scripts/aws-policy-validation/README.md)
 exports four actual policies from successful native mock plans, hashes them in a
 manifest, generates 54 clearly synthetic cases and defaults to zero AWS CLI/API
-calls. Its 110 deterministic offline tests cover findings, decisions, pagination,
+calls. Its 153 deterministic offline tests cover findings, decisions, pagination,
 missing/unsupported/incomplete responses, private output and the no-call default.
-Only a later user-run `run --execute-aws` in an authorized existing CloudShell/
+Only an explicit user-run `run --execute-aws` in an authorized existing CloudShell/
 local session enables three read-only official validation APIs; execution is
 refused in Codex Cloud and GitHub Actions. No new identity, access key, analyzer,
 STS discovery or AWS resource is needed or created by the toolkit.
 
-Design/code readiness and offline evidence are separate from **unperformed AWS
-revalidation of the revised tool and live verification**. Policy simulation cannot establish a real
-session, recipient governance, main-route-table exclusion, attribute-value
+Design/code readiness and offline evidence are separate from **owner-reported AWS
+simulation and unperformed live verification**. Policy simulation cannot establish
+a real session, recipient governance, main-route-table exclusion, attribute-value
 controls, assignment propagation or effective KMS/SCP/resource-policy access.
 Security warnings require human review and incomplete results stay inconclusive.
 
@@ -282,7 +282,7 @@ locks, provider files and captured test output are never committed or uploaded.
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
 | Checker negative self-tests | 24 cases pass, including all prior 17 |
 | Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
-| Validation toolkit | 110 offline self-tests pass without skips; actual export/manifest/cases and default no-AWS run succeed |
+| Validation toolkit | 153 offline self-tests pass without skips; actual export/manifest/cases, independent guardrail proofs and default no-AWS run succeed |
 
 Every command failure fails the job. Bash pipefail preserves the VPC test exit
 status; IAM, Secrets Manager and account-policy original Terraform exit statuses and
@@ -309,9 +309,20 @@ Phase 3-3.6 scopes simulator requests to independently checked exact-action
 statements while preserving every matching Allow/Deny, resource and condition.
 The current 54 cases separate 35 projected AWS requests, 15 static absent-action
 checks and four unsupported protections. New captures bind request/source hashes;
-legacy captures keep strict missing-context classification. The owner's prior
-29 inconclusive results are not claimed resolved without a human AWS rerun.
+legacy captures keep strict missing-context classification. The owner subsequently
+reported 33 passing AWS simulations and two missing-context inconclusive cases,
+15 passing static inventory checks and four unsupported protections; no actionable
+findings were reported and overall status remains `review_required`.
 See the [toolkit explanation](scripts/aws-policy-validation/README.md#missing-context-classification-correction-phase-3-36).
+
+Phase 3-3.7 adds independent static guardrail proofs for existing VPC Project-tag
+changes and Secrets Manager replica/overwrite restrictions, derived from both
+actual Terraform-generated Developer policy documents. Separate source hashes,
+statement/condition evidence, positive scenarios and semantic mutation witnesses
+are included in offline reports and CI. These proofs neither upgrade the two
+AWS cases nor change the 54-case inventory. They do not establish deployed-role
+authorization or production readiness. See the
+[guardrail limitations](scripts/aws-policy-validation/README.md#independent-guardrail-verification-phase-3-37).
 
 Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
 provider registry/release endpoints, and the current public documents at

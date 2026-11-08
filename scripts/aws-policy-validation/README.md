@@ -16,6 +16,8 @@ effective authorization, deployment and production readiness remain unverified.
   runner, pagination handling, response parser and sanitized reports.
 - `simulation_projection.py`: conservative exact-action projection and independent
   structural equivalence verification for each request.
+- `guardrail_verification.py`: independent, deliberately limited static proofs
+  and semantic negative mutations for protected VPC tags and secret creation.
 - `policy_cases.py`: deterministic reviewed cases generated from the exported
   synthetic scope, never duplicated standalone policy JSON.
 - `tests/`: deterministic stdlib tests using synthetic documents and mocked
@@ -188,10 +190,88 @@ silently become evidence of a new projected request. New-format records with
 missing or mismatched request proof are unverified, and extra simulator records
 for static-only cases are rejected rather than ignored.
 
-**The reported 29 inconclusive cases are not claimed resolved.** The owner must
-rerun the revised tool in their separately authorized session. Even a projected
-request can remain inconclusive for a same-action alternative or intentionally
-absent key. The four inherent limitations and live authorization gaps remain.
+That correction did not itself resolve the reported 29 inconclusive cases. The
+owner subsequently reported a new run; its aggregate results are recorded below.
+Even a projected request can remain inconclusive for a same-action alternative or
+intentionally absent key. The four inherent limitations and live authorization
+gaps remain.
+
+## Independent guardrail verification (Phase 3-3.7)
+
+The owner reported the following latest authenticated CloudShell results. Codex
+has not executed or independently reproduced these AWS calls, and no raw capture,
+account identifier or session data is committed.
+
+| Evidence category | Owner-reported result |
+| --- | --- |
+| ValidatePolicy / GetContextKeys | Four passed / three passed |
+| AWS Simulator, supported cases | 33 passed, two missing-context inconclusive |
+| Existing static action inventory | 15 passed; separate from AWS simulation |
+| Intentionally unsupported protections | Four inconclusive |
+| Findings requiring changes / overall | Zero / `review_required` |
+
+The two AWS cases are `developer-vpc-project-tag-change` and
+`developer-secret-replica-overwrite`. **Their AWS classifications remain
+inconclusive.** The new independent proof is additional static evidence; it never
+edits a capture, suppresses MissingContextValues or upgrades a simulator result.
+Actual deployed-role authorization and production readiness remain unverified.
+
+`offline-check`, the default offline `run`, and response `parse` now include a
+separate `guardrail_proofs` section. Its input is the unchanged successful native
+mock-plan export: both Developer inline and account-owned Secrets Manager
+documents, not a handwritten replacement policy. The oracle imports neither the
+projection helper nor the AWS response parser. It considers every potentially
+matching Allow and Deny for the two exact actions; unsupported selectors,
+operators or ambiguous structure make the proof inconclusive and cause a nonzero
+offline validation result. Semantic regressions fail validation.
+
+The proof is intentionally limited to these properties and condition operators:
+
+| Property | Independent check |
+| --- | --- |
+| Existing-resource Project tag | A direct `ec2:CreateTags` request lacks `ec2:CreateAction`. Every applicable creation-only statement must reject that absence; `EditNonAuthorizationTags` excludes Project keys case-insensitively and requires nonempty TagKeys. Test `Project`, `project`, `pRoJeCt` and mixed tag sets. |
+| Legitimate tags | An ordinary tag edit on a matching project resource and supported resource-creation tagging with correct CreateAction/Project context remain eligible within the reviewed set. |
+| Replica absence | `Null` true for AddReplicaRegions requires its absence/null semantics. A nonempty replica list is rejected independently of overwrite. |
+| Overwrite prevention | `BoolIfExists` false accepts absent or false overwrite context and rejects true, independently of replica absence. Both unsafe inputs are also tested together. |
+| Scope restrictions | Resource, caller account, requested region and project conditions remain meaningful; isolated negative contexts and guard mutations test these boundaries. |
+
+For each guard-removal/weakening mutation, the oracle supplies a synthetic witness
+whose other relevant conditions match. In particular, removing a creation-action
+guard must expose direct adoption of another project's resource with a matching
+requested Project tag; replica tests keep overwrite false, and overwrite tests
+keep replica context absent. A detected mutation must expose the unsafe static
+authorization change, rather than merely differ from a fixed checksum. Finite
+scenarios supplement conservative inspection of every relevant statement; they
+do not justify ignoring an additional possible grant.
+
+JSON evidence identifies source policy names, canonical JSON SHA-256 hashes and
+the export manifest's raw-file SHA-256 hashes (these hash different encodings),
+applicable statement IDs/effects, relevant conditions, synthetic contexts,
+expected/actual decisions, and negative mutation results. Markdown shows a
+separate source/statement/scenario/mutation summary. Outputs retain the existing
+private-directory rules; no reports or artifacts are uploaded by CI.
+
+The current two-account mock export produces six per-statement structural checks,
+181 synthetic scenarios and 36 mutation witnesses. Every witness must change a
+baseline non-Allow into an Allow after only its targeted unsafe mutation. These
+counts are independent of the unchanged 54 AWS/inventory/unsupported cases.
+The creation-only path tests missing or incorrect CreateAction as well as caller,
+requested-region and resource-scope safeguards for all four resource types.
+
+These are policy-set proofs for explicitly modeled synthetic contexts, **not AWS
+Simulator successes, deployed-session authorization or a general IAM evaluator**.
+Real request context, resource state, other policies, SCPs, boundaries, KMS,
+Identity Center propagation and dependent API authorizations remain outside the
+proof. The 54 cases, 35 simulation candidates, 15 inventory checks and four
+unsupported protections are unchanged. No context is inserted into an AWS
+request and intentional Null/IfExists absence remains absent.
+
+Official semantics used by the oracle:
+
+- [IAM condition operators, Null and IfExists](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html)
+- [Single/multivalued context and set operators](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html)
+- [EC2 tagging during creation and CreateAction](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/supported-iam-actions-tagging.html)
+- [Secrets Manager authorization reference and condition-key types](https://docs.aws.amazon.com/service-authorization/latest/reference/list_secretsmanager.html)
 
 ## Later manual owner execution in CloudShell
 
@@ -258,8 +338,8 @@ manual API results retain review status 2. This is not production readiness.
 
 ## Results and safe replay
 
-`results.json` and `summary.md` separate AWS simulations from `static_checks`,
-record request mode/proof and contain sanitized findings, decisions, actionable
+`results.json` and `summary.md` separate AWS simulations, `static_checks` and
+`guardrail_proofs`, record request mode/proof and contain sanitized findings, decisions, actionable
 authorization mismatches, API names and fixture/hash identities. Full private
 responses and request files exist only in the private manual output directory;
 **do not upload raw responses, request files or session metadata to GitHub**.
@@ -287,8 +367,9 @@ attestations of a real session and never prove live deployment authorization.
 python3 -B -m unittest discover -s scripts/aws-policy-validation/tests -v
 ```
 
-The 110 tests preserve the prior 70 cases and add 40 action-projection,
-missing-context, semantic-mutation and capture-identity regressions. They cover
+The 153 tests preserve all prior 110 (the original 70 plus 40 action-projection
+regressions) and add 35 independent guardrail tests plus eight report/CLI
+integration tests. They cover
 actual mock-plan export, inventories, quotas, attachment
 identity, tampering, expected/unexpected decisions, complete multi-resource
 semantics, missing context, unsupported responses, all finding severities,
