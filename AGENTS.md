@@ -77,6 +77,46 @@ future implementation.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 
+### Codex execution efficiency and verification
+
+- Justify local verification by actual change impact. Test new or modified
+  components, directly affected existing components, and relevant security,
+  negative and mutation cases. Run appropriate formatting, initialization,
+  validation and static checks for affected files and modules.
+- Skip unrelated, previously verified local regressions when GitHub Actions runs
+  the complete suite. Do not repeat successful tests without relevant changes or
+  new failure evidence. Inspect detailed logs when investigating failures; avoid
+  repeatedly analyzing large successful logs.
+- Never reduce necessary verification for IAM permissions, policies, trust or
+  authorization boundaries; resource exposure or network security; Secrets
+  Manager or KMS; provider, state, backend or account restrictions; cross-module
+  dependencies or resource ownership; destructive lifecycle behavior; or GitHub
+  Actions security controls. Run affected tests and security checks locally before
+  opening a PR. If impact is uncertain, use the broader relevant test scope.
+- Preserve every existing GitHub Actions test and security check. Never remove,
+  disable, skip, weaken or reduce CI coverage for efficiency. Codex Cloud owns
+  implementation, affected local validation, relevant security checks and PR
+  creation. GitHub Actions owns complete regression testing, including Terraform
+  mocks, Python tests, IAM references, mutations and independent guardrails.
+  Independent reviewers verify completed PR CI, implementation and security, and
+  authorize merge. Local success does not establish complete regression success.
+- After required affected local verification, commit, push and open the PR. Report
+  its URL, exact HEAD SHA, changed files, actual local checks/results and relevant
+  tests intentionally delegated to GitHub Actions. Confirm the expected workflow
+  was triggered only if immediately observable, then end the task. Do not poll CI
+  repeatedly or wait for completed/success. Never claim pending/running CI passed.
+- Investigate subsequent CI failures in a separate follow-up task using the actual
+  failed step and relevant logs. Continue on the existing open PR branch, make the
+  smallest justified correction, rerun affected local tests and relevant security
+  checks, push to the same PR and stop without waiting for CI completion. Do not
+  rerun unrelated tests or introduce speculative fixes.
+- Use the minimum tool calls and analysis needed for reliable work. Avoid repeated
+  reads of unchanged files, unnecessary full local suites, redundant successful
+  test runs, repeated CI polling, excessive diagnostic logs, repeated analysis
+  already supported by reliable current evidence, and unnecessary subagents or
+  parallel work for simple tasks. Never sacrifice correctness, security or
+  required verification to shorten execution.
+
 ## Current phase only: Phase 3-9 development serverless API integration
 
 Use `feat/dev-serverless-api-integration` from verified healthy latest `main`.
@@ -126,5 +166,7 @@ Preserve all permanent rules above.
   destroy in Codex Cloud/CI. No live deployment, real artifact or secret values,
   Organizations Management Account testing, remote state, production or next phase.
 
-Commit, push, open a new PR and confirm exact-head completed/success GitHub CI,
-then stop for independent review. Do not merge or delete the feature branch.
+Commit, push, and open a PR. Perform the required affected local verification,
+report the PR URL and HEAD SHA, confirm CI was triggered if immediately observable,
+and stop without waiting for CI completion. Independent review and completed CI
+verification occur separately. Do not merge or delete the feature branch.
