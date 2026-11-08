@@ -469,6 +469,57 @@ jobs:
             output.write(f"passed={report['native_tests']}\n")
           PY
 
+      - name: Validate S3 artifact bucket and actual security configuration
+        id: artifact_bucket
+        working-directory: infra/modules/s3_artifact_bucket
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          # Required-input failures abort before a normal passing native run.
+          # Check that boundary separately, using the initialized mock provider.
+          missing_dir=$(mktemp -d "$RUNNER_TEMP/artifact-bucket-missing.XXXXXX")
+          cp ./*.tf .terraform.lock.hcl "$missing_dir/"
+          mkdir "$missing_dir/tests"
+          printf 'mock_provider "aws" {}\nrun "missing_bucket_name" {\n  command = plan\n}\n' > "$missing_dir/tests/missing_input.tftest.hcl"
+          if TF_DATA_DIR="$PWD/.terraform" terraform -chdir="$missing_dir" test -no-color -json -verbose > "$RUNNER_TEMP/artifact-bucket-missing.jsonl"; then
+            missing_status=0
+          else
+            missing_status=$?
+          fi
+          if terraform test -no-color -json -verbose > "$RUNNER_TEMP/artifact-bucket-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 tests/check_bucket_configuration.py \
+            --test-events "$RUNNER_TEMP/artifact-bucket-tests.jsonl" \
+            --terraform-exit-code "$test_status" \
+            --self-test > "$RUNNER_TEMP/artifact-bucket-static.json"
+          python3 - "$missing_status" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          report = json.loads(pathlib.Path(os.environ["RUNNER_TEMP"], "artifact-bucket-static.json").read_text())
+          expected = {"native_tests": 37, "positive_plans": 7, "negative_plans": 30,
+              "semantic_mutation_count": 17, "capture_failure_injections": 18}
+          if report.get("status") != "passed" or report.get("evidence_type") != "static_actual_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
+            raise SystemExit("S3 artifact-bucket verification contract/counts changed; review required.")
+          missing = [json.loads(line) for line in pathlib.Path(os.environ["RUNNER_TEMP"], "artifact-bucket-missing.jsonl").read_text().splitlines()]
+          required_error = any(event.get("type") == "diagnostic" and event.get("diagnostic", {}).get("summary") == "No value for required variable" and "bucket_name" in event.get("diagnostic", {}).get("detail", "") for event in missing)
+          if int(sys.argv[1]) == 0 or not required_error or any(event.get("type") == "test_plan" for event in missing):
+            raise SystemExit("Missing bucket_name must fail before any mock resource plan.")
+          print("Actual S3 artifact-bucket verification:", {key: report[key] for key in expected})
+          print("Missing required bucket_name independently rejected before resource planning.")
+          print("Mock/static evidence only; no actual bucket, artifact or AWS authorization verified.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"passed={report['native_tests']}\n")
+          PY
+
       - name: Test and export the offline AWS validation toolkit
         id: toolkit
         run: |
@@ -519,6 +570,8 @@ jobs:
           LOGS_PASSED: ${{ steps.cloudwatch_logs.outputs.passed }}
           EXECUTION_RESULT: ${{ steps.execution_role.outcome }}
           EXECUTION_PASSED: ${{ steps.execution_role.outputs.passed }}
+          ARTIFACT_RESULT: ${{ steps.artifact_bucket.outcome }}
+          ARTIFACT_PASSED: ${{ steps.artifact_bucket.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
           SELF_TEST_RESULT: ${{ steps.self_tests.outcome }}
         run: |
@@ -537,6 +590,7 @@ jobs:
             ("Lambda init/validate/mock inventory/tests", "LAMBDA_RESULT", os.environ.get("LAMBDA_PASSED", "")),
             ("CloudWatch Logs init/validate/mock inventory/tests", "LOGS_RESULT", os.environ.get("LOGS_PASSED", "")),
             ("Lambda execution role init/validate/policy matrix/mutations", "EXECUTION_RESULT", os.environ.get("EXECUTION_PASSED", "")),
+            ("S3 artifact bucket init/validate/configuration/policy/mutations", "ARTIFACT_RESULT", os.environ.get("ARTIFACT_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
             ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
