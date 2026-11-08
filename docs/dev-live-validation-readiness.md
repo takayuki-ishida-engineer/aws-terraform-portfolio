@@ -1,4 +1,5 @@
 # Development live-validation readiness
+See the [bootstrap decision plan](dev-bootstrap-decision-plan.md) for conditional Gate 1–3 recommendations; all gates remain OPEN.
 
 This is a planning and approval artifact, not an executable deployment procedure.
 The [offline acceptance audit](offline-mvp-acceptance.md) accepts source/mock/static
