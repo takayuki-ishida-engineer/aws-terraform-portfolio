@@ -13,8 +13,9 @@ retains its Phase 2 foundation. The reusable
 [`IAM access`](infra/modules/iam_access/README.md),
 [`account IAM policies`](infra/modules/iam_account_policies/README.md),
 [`Secrets Manager`](infra/modules/secrets_manager/README.md),
-[`Lambda`](infra/modules/lambda/README.md) and
-[`CloudWatch Logs`](infra/modules/cloudwatch_logs/README.md) modules have native
+[`Lambda`](infra/modules/lambda/README.md),
+[`CloudWatch Logs`](infra/modules/cloudwatch_logs/README.md) and
+[`Lambda execution role`](infra/modules/lambda_execution_role/README.md) modules have native
 mock tests.
 Phase 3-2 defines three human-access Permission Sets and reviewed inline policies,
 without account assignments. Its hardening completes the offline VPC authorization
@@ -36,6 +37,10 @@ and Java 21 runtimes without assuming a language by default.
 Phase 3-5 adds one independent STANDARD log group with 30-day finite retention,
 service deletion protection enabled, optional existing KMS key reference and
 caller-owned tags. It adds no IAM, streams, monitoring or Lambda integration.
+Phase 3-6 adds an independent workload execution role and one scoped inline
+policy. It trusts only Lambda, writes streams under one exact existing log group,
+and optionally reads one exact secret with separately constrained CMK decrypt.
+It expands no human permissions and provides no VPC ENI or deployment grants.
 **No service root calls these modules yet.**
 No AWS credentials were used in Codex Cloud or CI, and no
 AWS infrastructure was deployed or tested against a live account.
@@ -110,6 +115,16 @@ and production directories remain placeholders.
 │   │   │   ├── outputs.tf
 │   │   │   ├── tests/
 │   │   │   │   └── lambda.tftest.hcl
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
+│   │   ├── lambda_execution_role/
+│   │   │   ├── README.md
+│   │   │   ├── main.tf
+│   │   │   ├── outputs.tf
+│   │   │   ├── policies.tf
+│   │   │   ├── tests/
+│   │   │   │   ├── check_execution_policy.py
+│   │   │   │   └── lambda_execution_role.tftest.hcl
 │   │   │   ├── variables.tf
 │   │   │   └── versions.tf
 │   │   ├── secrets_manager/
@@ -295,7 +310,7 @@ GitHub-hosted Ubuntu 24.04 executes it independently of Codex Cloud. Obsolete
 runs for the same PR/ref are cancelled; the job has a 20-minute timeout.
 
 It installs **Terraform 1.17.0** with the CLI wrapper disabled. The unchanged dev
-root lock selects **AWS Provider 6.72.0**; transient copies seed all six child-module
+root lock selects **AWS Provider 6.72.0**; transient copies seed all seven child-module
 locks so their broader constraints do not select a newer provider. Those child
 locks, provider files and captured test output are never committed or uploaded.
 
@@ -309,6 +324,7 @@ locks, provider files and captured test output are never committed or uploaded.
 | IAM module `init` / `validate` / native tests | 39 mock-plan tests pass; exactly three Permission Sets, three inline policies and one Developer reference |
 | Lambda module `init` / `validate` / native tests | 70 mock-plan tests pass; 13 positive plans contain one Lambda only and 57 rejected-input plans contain no resources; default artifact/role/logging/compute settings are inspected |
 | CloudWatch Logs module `init` / `validate` / native tests | 51 mock-plan tests pass; 18 positive plans contain one log group and 33 rejected-input plans contain no resources; lifecycle, finite retention and defaults are inspected |
+| Lambda execution role `init` / `validate` / native tests | 64 mock-plan tests pass; 15 complete role/inline-policy plans, 13 empty input rejections and 36 safe role-only partial plans; actual trust/policy/SAR, 675 static matrix cases, 14 semantic mutations, 44 capture and five reference faults checked |
 | Official authorization-reference check | Existing stdlib checker validates actual policies from the successful IAM JSONL stream against current public EC2/SSO/Secrets Manager JSON |
 | Checker negative self-tests | 24 cases pass, including all prior 17 |
 | Authorization equivalence | Approved actual-policy baseline compared with the new union; 12 unsafe mutations rejected |
@@ -369,6 +385,15 @@ and applied through an authorized external workflow before later teardown;
 separate from future log-stream IAM resource scopes. External KMS suitability,
 key policies and access to historical encrypted logs require review. No existing
 Lambda implementation, IAM policy or service root is changed by this phase.
+
+The [Lambda execution-role module](infra/modules/lambda_execution_role/README.md)
+owns one workload role and one narrow inline policy, with independent checks of
+actual rendered JSON against official Logs/Secrets Manager/KMS references and a
+static authorization matrix. Account/region/partition consistency does not select
+the authenticated provider account; future roots must restrict providers and
+order inline-policy readiness before Lambda deployment/invocation. This role is
+initially non-VPC. It creates no workload resources or root integration and does
+not change human Identity Center policies or claim deployed authorization.
 
 Dependencies include GitHub/action downloads, HashiCorp's Terraform release and
 provider registry/release endpoints, and the current public documents at
