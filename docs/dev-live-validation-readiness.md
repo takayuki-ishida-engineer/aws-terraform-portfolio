@@ -15,6 +15,106 @@ execution environment outside Codex Cloud. Never request/use AWS credentials,
 run authenticated account APIs/plans, apply or destroy in Codex Cloud. No account,
 principal, budget, artifact or operational success is assumed here.
 
+## Architecture v2 alignment — approved policy, execution OPEN
+
+Master Policy v10 (2026-11-08) and its security/cost clarifications define the
+[approved design](architecture-v2.md) and [verification contract](portfolio-verification-policy.md).
+The historical CI above and 17-resource HTTP API MVP remain offline-only evidence,
+not REST/NLB/Istio/mTLS tests or a complete future Live inventory. Existing gate
+material below is retained and extended; all G01–G07 gates remain OPEN. Approval
+of the limited Live policy does not approve any specific account, certificate,
+plan, resource, execution estimate or scenario. No Live AWS operations occur here.
+
+### G01–G05 extensions: trust, identity, ownership and secrets
+
+- Keep dedicated non-management account/Region/identity checks, single-writer
+  state and exclusive ownership, import/recovery and approved artifact bootstrap.
+  Preserve root-owned providers/backends, DEV local state and separately reviewed
+  STG/PROD remote state. User dummy.zip is a candidate only; verify digest/version/
+  provenance/ownership before any approved bootstrap. Never reuse customer-project
+  ZIP code/private information; no application/build implementation is added here.
+- Distinguish human/deploy/upload/execution/API-client and Kubernetes ServiceAccount
+  identities. Review IAM/OIDC/PassRole, RBAC/NetworkPolicy and egress. Terraform owns
+  internal NLB/listeners/target groups/network/VPC Link; Kubernetes-side control owns
+  Gateway Pod registration. TargetGroupBinding, Pod IP mode, health checks, controller
+  rights and compatibility remain OPEN; no double ownership of a load balancer.
+- Browser HTTPS and Cognito AWS-managed login domain use environment User Pools/
+  Google federation, Authorization Code + PKCE S256 and OIDC. No browser client
+  certificates or Cognito custom domain; *.cloudfront.net viewer domain is allowed.
+- Origin mTLS needs a Regional REST custom domain and versioned S3 truststore in
+  ca-central-1, with suitable clientAuth certificate in ACM us-east-1 for CloudFront.
+  Prefer a free subdomain only after DNS control/renewal/validation/terms review;
+  no FQDN/provider chosen or purchased, Route 53 not mandatory for every record.
+  Incompatibility requires revised approval, not weakened TLS.
+- Review client/server certificate issuance, EKU, truststore ownership, versioning,
+  rotation/expiry and private-key handling. API stage ACM backend client certificate
+  is preferred only after actual provider/integration support is verified; ordinary
+  ACM public certificates must not be assumed suitable. No PKI is implemented.
+- Actual Google/DB/telemetry secrets, keys and certificate private material stay out
+  of Terraform inputs/data/plans/state/outputs and Git/CI artifacts. Metadata only
+  remains Terraform-owned; external approved processes own values and rotation.
+  Istio CA is initial candidate; roots/intermediates, short-lived SPIFFE certificates,
+  ServiceAccount boundaries and revocation-equivalent handling remain review gates.
+
+### Inbound mTLS identity / revocation feasibility — OPEN
+
+[API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-mutual-tls.html)
+validates supported client certificate properties, chain and validity but **does not
+automatically check revocation**. A trusted CA may issue other valid certificates;
+CA trust is not an allowlist for the expected CloudFront origin client certificate.
+Review minimum trusted CA/issuance scope, expected-client identity, unauthorized
+certificate denials, compromise response, rotation, expiration monitoring and
+revocation-equivalent controls. Transport handshake validation, certificate identity
+authorization, revocation and Cognito user authorization remain distinct.
+
+Any additional certificate authorization must have an owner, failure behavior and
+verification evidence compatible with Cognito User Pool Authorizer/OAuth scopes.
+Do not assume a Lambda Authorizer can coexist alongside Cognito on the same REST
+method. No revocation/identity mechanism is selected; feasibility, operational
+responsibility and security boundaries remain OPEN in the relevant implementation PR.
+
+### Approved DEV Live limits and cost feasibility — G07 OPEN
+
+**Total actual cumulative DEV Live spending must remain within JPY 10,000 across
+the approved validation period. All testing and verified complete teardown must
+finish within 72 hours from approved Live start.** Prefer shorter runs. Old monthly
+budget examples are not limits or sizing approvals. No operation is authorized here.
+
+CloudFront Origin mTLS supports **Business, Premium and Pay-as-you-go**, not Free.
+Before implementation or Live, verify the applicable plan/feature and current
+fixed/usage charges, certificate lifecycle, all other services, Region/runtime,
+tax/FX, retained charges, contingency and teardown implications. No plan is selected
+or purchased. The 72-hour window is not a cost guarantee. If the validated estimate
+cannot meet the cap including contingency/cleanup, do not authorize that scenario;
+keep it OPEN or Offline-only. AWS Budgets/alerts are not real-time enforcement or
+guaranteed cutoff. Assign monitoring, manual stop authority, inventory and timeline;
+stop early enough to avoid exceeding the limit.
+
+Prioritize feasible creation/inventory, positive/negative Istio STRICT mTLS and
+REST VPC Link V2 → internal NLB TCP:443 → Istio Gateway backend certificate auth.
+Delivery/rollback/events run only in remaining approved affordable scope. Do not
+mandate a full simultaneous CloudFront/Cognito/RDS/delivery stack when infeasible.
+All unexecuted cases stay OPEN or Offline-only, never passed; selected scenarios
+must retain their security checks. All seven gates still require actual evidence.
+
+Complete teardown requires actual deletion/removal verification of **all resources
+created for the exercise**, including externally created/service-managed dependencies.
+Inventory applicable EKS control planes/nodes, ENIs/EBS, NLB, NAT/EIPs/endpoints,
+RDS/backups/snapshots, S3 versions, ECR images, logs, secrets, API/custom domains,
+ACM, WAF, KMS, AMIs and related dependencies. Check deletion protection, delayed
+deletion/recovery, retained data and external resources before approval. Avoid
+new CMKs or other unavoidable delays incompatible with 72 hours. The unchanged
+historical secret module's 30-day recovery blocks complete deletion within this
+window if created for Live; resolve the applicable scenario/lifecycle first, not
+by silently weakening protection or assuming terraform destroy is sufficient.
+
+Start teardown early; independently reconcile actual AWS inventory, state and
+external records before the deadline. Stopping EC2 or a successful destroy alone
+is insufficient. Preserve approved redacted audit evidence outside AWS first;
+never delete pre-existing shared resources. No exercise resources should remain
+producing ongoing charges after cleanup; delayed historical usage billing and FX
+can still produce later invoices, so no literal zero-subsequent-billing promise.
+
 ## Gate 1 — Dedicated workload account
 
 Independently establish a dedicated non-management workload account, ownership,
@@ -85,12 +185,12 @@ for required inputs and existing dependency ordering.
 
 ## Gate 4 — Deployment IAM
 
-Review the exact API actions/resources/conditions needed for creation, reads,
+For the historical 17-resource MVP, review the exact API actions/resources/conditions needed for creation, reads,
 updates and any separately approved deletion of the 17 resources: S3 bucket
 security/versioning/policy, secret metadata, two log groups, IAM role and inline
 policy, Lambda, HTTP API/integration/route/stage and Lambda resource permission.
 Include provider refresh/tagging needs and service-specific authorization checks;
-this list is a permission-category assessment, not a sufficient deployable policy.
+this list is a historical permission-category assessment, not a complete v2 inventory or sufficient deployable policy. Extend separately for REST/NLB/Istio, certificates, EKS, scaling and Scheduler/controller/watchdog roles.
 
 Review scoped iam:PassRole for only the intended Lambda execution role and service,
 artifact/version-read authorization for the deployment path, and distinct external
@@ -127,32 +227,53 @@ are added here.
 
 ## Gate 6 — API and logging
 
-Define a future authorized test protocol with expected outcomes and redacted audit
-evidence, not assumed results:
+Historical HTTP API operational evidence remains absent: earlier ARN/scope/log
+contracts are not proof of live invocation or delivery. Future v2 authorization
+uses Cognito access tokens/method scopes; SigV4 remains appropriate for managed
+AWS APIs/identities, not a replacement for the approved user model.
 
-- Verify scoped client execute-api:Invoke and correct SigV4 service/Region signing.
-  Confirm successful intended requests and rejection of unsigned, unauthorized,
-  wrong-scope and otherwise invalid requests. AWS_IAM does not make the endpoint private.
-- Verify actual HTTP API → Lambda invocation, payload 2.0 compatibility, handler
-  behavior and the deployment artifact's compatibility. Offline tests execute no app.
-- Inspect the deployed Lambda resource policy for the exact function, API and
-  /$default/$default invocation scope, including no unexpected preexisting grants.
-- Establish Lambda application log delivery using the actual protected group and
-  stream-scoped role permissions. Establish API access-log delivery independently
-  to its separate group with metadata-only fields and no sensitive payload/header logs.
-- Review regional/service logging delivery requirements and the deployment
-  principal's configuration rights, relevant CloudWatch Logs resource policies or
-  service-linked-role requirements where applicable. A destination ARN alone is
-  insufficient; verify the actual effective configuration and delivery evidence.
-- Verify configured 30-day retention and deletion protection for both groups.
-  Any destructive behavior check requires its own approval, safe resources and
-  restoration plan; do not disable protections merely to complete a checklist.
+Before any scoped Live protocol, require expected/actual outcomes and redacted
+request/certificate/workload correlation for applicable boundaries:
 
-Record actual status, redacted request/log correlation and resource scope only in
-an authorized evidence store. No API, log delivery, propagation or deletion test
-has been performed by this audit.
+- Standard browser HTTPS; CloudFront origin mTLS; Regional custom domain and WAF;
+  default execute-api bypass prevention, stage mappings/deployment and DNS/SNI.
+- Chain/validity plus expected client identity; missing/invalid/untrusted/expired/
+  unauthorized certificates, compromise/rotation/revocation-equivalent handling and
+  Cognito coexistence evidence. No claim of automatic API revocation checking.
+- API backend client certificate, Gateway server CA/hostname/SNI verification,
+  NLB TCP passthrough and private target/health/controller boundaries. Reject wrong
+  termination, insecureSkipVerification, unrestricted trust or plaintext fallback.
+- Istio STRICT/SPIFFE/AuthorizationPolicy: positive traffic and denials for absent
+  cert, wrong CA/SAN/identity/principal, plaintext and expiry; restrictive RBAC,
+  NetworkPolicy and short-lived certificate lifecycle with reviewed failure handling.
+- Valid scoped access tokens, missing/invalid/expired/wrong-scope and wrong-owner/
+  cross-tenant denial; access tokens rather than ID-token substitution.
+- Actual application and API log delivery, separate destinations, safe metadata,
+  delivery permissions/service configuration, retention/protection and redaction.
+  Mock destinations do not prove delivery. Review PostgreSQL CA/hostname TLS and
+  approved DB auth if DB is in the approved scenario; no custom certificate mTLS
+  imposed on standard RDS/browser/managed APIs/local same-Pod/control-plane links.
+
+For relevant delivery scenarios, verify immutable digest/version, private CodeBuild
+access, release health, actual rollback identity and EventBridge notification
+success/failure with independent delivery-failure handling. Infrastructure, app and
+DB recovery are distinct. Unexecuted or unaffordable cases remain OPEN/Offline-only.
+
+The approved administration EC2 contract is America/Toronto weekday
+START cron(0 8 ? * MON-FRI *) and STOP cron(0 19 ? * MON-FRI *), weekends stopped,
+no holiday calendar, timezone-aware DST. Scheduler → SQS Command Queue → Controller
+Lambda → EC2, with separate Watchdog, CloudWatch detection and SNS notification.
+Review Scheduler failure/missing heartbeat, stale commands/retries/DLQ, Controller
+errors/timeouts/idempotency, EC2 API/state/SSM readiness mismatch, unexpected running,
+Watchdog and notification failures, including non-execution of either START/STOP.
+Thresholds, redrive counts and permissions remain OPEN. Packer/Ansible provenance
+and SSM-only/no-public-SSH/RDP access require review. This schedule does not replace
+72-hour full teardown or stop EKS/NLB/NAT/RDS billing. No Live results are recorded.
 
 ## Gate 7 — Cost and teardown
+
+The historical lifecycle considerations below do not authorize retention of
+exercise-created AWS resources past the absolute Live teardown deadline.
 
 Review S3 storage/requests and retained versions, Secrets Manager, log ingestion
 and retention, API Gateway and Lambda charges, plus any separately approved
@@ -160,7 +281,9 @@ services. No precise prices or charges are asserted without verified current
 pricing and usage assumptions. Throttling 10/20 is not a hard budget cap; finite
 retention does not cap ingestion and object versions can accumulate.
 
-Assign cost ownership, approve a budget and billing-alert delivery and escalation,
+Within the approved JPY 10,000 cumulative cap and 72-hour complete-teardown
+limit, assign cost ownership and approve the scenario estimate, billing-alert
+delivery and escalation,
 and define a stop condition before live operations. Keep a verified resource and
 state inventory. Approve rollback and controlled teardown ordering, coordinating
 client access, API entry points/invoke permission, Lambda, IAM and retained data.
@@ -181,12 +304,12 @@ future process. None of these role descriptions represents an approval.
 
 | Gate | Required decision | Current evidence | Status | Approval owner |
 | --- | --- | --- | --- | --- |
-| 1 — Account | Dedicated non-management account, ownership, Region and effective identity boundaries | Fixed root guard and synthetic tests only; no verified live account | OPEN | Workload account owner and security approver — unassigned |
-| 2 — State | Custodian, storage/backups, concurrency, imports, recovery and exclusive ownership | Local backend/source contract; no operational state evidence | OPEN | State/operations owner — unassigned |
-| 3 — Artifact | Select bootstrap approach, state reconciliation, integrity/upload identity, exact key/version and recovery | Required immutable reference; no approved ZIP/bucket/publication evidence | OPEN | Artifact owner and infrastructure reviewer — unassigned |
-| 4 — IAM | Approve least-privilege deployment actions, scoped PassRole and artifact rights | Offline execution-role/API scopes; no deployment policy or effective authorization | OPEN | IAM/security approver — unassigned |
-| 5 — Secrets/KMS | External initialization, AWSCURRENT/runtime retrieval and any separately proposed CMK design | Metadata-only root; secret reads off; no initialized value or runtime verification | OPEN | Secret/application owner and security approver — unassigned |
-| 6 — API/logging | Approve SigV4, real invoke/deny tests, exact scope and separate delivery/retention checks | Mock/static contracts only; no live operational results | OPEN | Application/operations and security reviewers — unassigned |
-| 7 — Cost/teardown | Budget, alerts, ownership, rollback, deletion/data handling, revocation and evidence retention | Documented module lifecycle settings; no budget or operational approval | OPEN | Cost owner and operations approver — unassigned |
+| G01 — Account | Dedicated non-management account, ownership, Region and effective identity boundaries | Fixed root guard and synthetic tests only; no verified live account | OPEN | Workload account owner and security approver — unassigned |
+| G02 — State | Custodian, storage/backups, concurrency, imports, recovery and exclusive ownership | Local backend/source contract; no operational state evidence | OPEN | State/operations owner — unassigned |
+| G03 — Artifact | Select bootstrap approach, state reconciliation, integrity/upload identity, exact key/version and recovery | Required immutable reference; no approved ZIP/bucket/publication evidence | OPEN | Artifact owner and infrastructure reviewer — unassigned |
+| G04 — IAM | Approve least-privilege deployment/upload/workload roles, restricted trust, PassRole and effective resource permissions | Offline execution-role/API scopes; no deployment policy or effective authorization | OPEN | IAM/security approver — unassigned |
+| G05 — Secrets/KMS | External values/runtime retrieval/rotation, encryption ownership and certificate/key handling; no incompatible deletion delays | Metadata-only root; secret reads off; no initialized value or runtime verification | OPEN | Secret/application owner and security approver — unassigned |
+| G06 — API/logging | Approve scoped REST/origin/backend mTLS, Istio and Cognito positive/negative protocols, identity/revocation feasibility, log correlation/redaction | Mock/static contracts only; no live operational results | OPEN | Application/operations and security reviewers — unassigned |
+| G07 — Cost/teardown | JPY 10,000 cumulative cap, 72-hour deadline, feasible plan/cert costs, complete inventory/cleanup/recovery and independent removal verification | Approved policy limits only; no validated scenario estimate, selected pricing plan or operational approval | OPEN | Cost owner and operations approver — unassigned |
 
 **No live AWS operations are authorized by this documentation.**
