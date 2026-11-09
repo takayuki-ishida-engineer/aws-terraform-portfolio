@@ -59,6 +59,47 @@ def address(kind, name, key=None):
     return kind + "." + name + ("[" + json.dumps(key) + "]" if key is not None else "")
 
 
+def verify_endpoint_policy(text, account_id):
+    """Check AWS gateway semantics independently of fixture/plan equality.
+
+    Gateway Principal must be '*'. ArnEquals also supports wildcard patterns in
+    AWS, so literal same-account role ARN validation is essential. Conditions on
+    role ARNs match the role identity, not an STS assumed-role session ARN.
+    """
+    policy = parse(text)
+    require(isinstance(policy, dict) and set(policy) == {"Version", "Statement"}
+        and policy["Version"] == "2012-10-17", "endpoint_policy_document")
+    statements = policy["Statement"]
+    require(isinstance(statements, list) and statements, "endpoint_statement_array")
+
+    def strings(value):
+        values = [value] if isinstance(value, str) else value
+        require(isinstance(values, list) and values and all(isinstance(v, str) and v for v in values), "endpoint_nonempty_strings")
+        return values
+
+    role_pattern = r"arn:aws:iam::" + re.escape(account_id) + r":role/([A-Za-z0-9_+=,.@-]+/)*[A-Za-z0-9_+=,.@-]{1,64}"
+    bucket_pattern = r"arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/[^*?]*\*?)?"
+    bucket_actions = {"s3:ListBucket", "s3:GetBucketLocation"}
+    object_actions = {"s3:GetObject", "s3:GetObjectVersion"}
+    for statement in statements:
+        require(isinstance(statement, dict)
+            and {"Effect", "Principal", "Action", "Resource", "Condition"} <= set(statement)
+            and set(statement) <= {"Sid", "Effect", "Principal", "Action", "Resource", "Condition"}
+            and statement["Effect"] == "Allow" and statement["Principal"] == "*", "endpoint_gateway_principal")
+        condition = statement["Condition"]
+        require(isinstance(condition, dict) and set(condition) == {"ArnEquals"}
+            and isinstance(condition["ArnEquals"], dict)
+            and set(condition["ArnEquals"]) == {"aws:PrincipalArn"}, "endpoint_role_condition")
+        roles = strings(condition["ArnEquals"]["aws:PrincipalArn"])
+        require(all(re.fullmatch(role_pattern, role) for role in roles), "endpoint_literal_same_account_roles")
+        actions, resources = strings(statement["Action"]), strings(statement["Resource"])
+        require(set(actions) <= bucket_actions | object_actions, "endpoint_read_only_actions")
+        require(all(re.fullmatch(bucket_pattern, resource) for resource in resources), "endpoint_scoped_resources")
+        require(all(("/" not in resource) if action in bucket_actions else ("/" in resource)
+            for action in actions for resource in resources), "endpoint_action_resource_scope")
+    return policy
+
+
 def inventory(inputs):
     per_az = inputs.get("private_routing", {}).get("mode", "legacy_shared") == "per_az"
     result = {"aws_vpc.this", "aws_route_table.private"}
@@ -175,7 +216,9 @@ def verify_plan(plan, inputs, scope):
         same(addr, "vpc_id", vpc);same(addr, "vpc_endpoint_type", "Gateway")
         same(addr, "service_name", "com.amazonaws.ca-central-1.s3")
         require(set(read(addr, "route_table_ids")) == {selected[az] for az in endpoint["private_route_table_azs"]}, "endpoint_tables")
-        require(parse(read(addr, "policy")) == parse(endpoint["policy_json"]), "endpoint_reviewed_policy")
+        actual_policy = verify_endpoint_policy(read(addr, "policy"), inputs["expected_scope"]["account_id"])
+        reviewed_policy = verify_endpoint_policy(endpoint["policy_json"], inputs["expected_scope"]["account_id"])
+        require(actual_policy == reviewed_policy, "endpoint_reviewed_policy")
         for field in ("subnet_ids", "security_group_ids"):
             require(not read(addr, field), "gateway_interface_associations")
     # Check fixed name precedence and root tag ownership on every taggable resource.
@@ -329,6 +372,83 @@ def rejected(operation, name):
     raise ValueError("unsafe_mutation_not_detected:"+name)
 
 
+def policy_structure_mutations(plan, inputs, scope):
+    """Poison BOTH captured policy and reviewed input identically.
+
+    Matching values cannot establish AWS validity. Policy semantics and strict
+    JSON parsing must reject each witness on an otherwise real captured plan.
+    """
+    actual = next(row for row in plan["resource_changes"] if row["type"] == "aws_vpc_endpoint")
+    approved = parse(actual["change"]["after"]["policy"])
+    role = "arn:aws:iam::" + inputs["expected_scope"]["account_id"] + ":role/test-network-reader"
+    foreign = "arn:aws:iam::111111111111:role/test-network-reader"
+    variants = []
+    for name, principal in [("legacy_principal_object", {"AWS": role}), ("missing_principal", None)]:
+        policy = copy.deepcopy(approved)
+        if principal is None:
+            policy["Statement"][0].pop("Principal")
+        else:
+            policy["Statement"][0]["Principal"] = principal
+        variants.append((name, policy))
+    for name, condition in [
+        ("empty_condition", {}), ("null_condition", None),
+        ("empty_arn_equals", {"ArnEquals": {}}),
+        ("empty_role_string", {"ArnEquals": {"aws:PrincipalArn": ""}}),
+        ("empty_role_list", {"ArnEquals": {"aws:PrincipalArn": []}}),
+        ("null_role", {"ArnEquals": {"aws:PrincipalArn": None}}),
+        ("foreign_role", {"ArnEquals": {"aws:PrincipalArn": foreign}}),
+        ("mixed_accounts", {"ArnEquals": {"aws:PrincipalArn": [role, foreign]}}),
+        ("wildcard_role", {"ArnEquals": {"aws:PrincipalArn": role + "*"}}),
+        ("question_role", {"ArnEquals": {"aws:PrincipalArn": role + "?"}}),
+        ("arnlike", {"ArnLike": {"aws:PrincipalArn": role}}),
+        ("ifexists", {"ArnEqualsIfExists": {"aws:PrincipalArn": role}}),
+        ("negated", {"ArnNotEquals": {"aws:PrincipalArn": role}}),
+        ("set_operator", {"ForAllValues:ArnEquals": {"aws:PrincipalArn": role}}),
+        ("unsupported_key", {"ArnEquals": {"aws:PrincipalAccount": "000000000000"}}),
+        ("extra_key", {"ArnEquals": {"aws:PrincipalArn": role, "aws:PrincipalAccount": "000000000000"}}),
+        ("extra_operator", {"ArnEquals": {"aws:PrincipalArn": role}, "Bool": {"aws:SecureTransport": "true"}}),
+        ("session_arn", {"ArnEquals": {"aws:PrincipalArn": "arn:aws:sts::000000000000:assumed-role/test-network-reader/session"}}),
+        ("user_arn", {"ArnEquals": {"aws:PrincipalArn": "arn:aws:iam::000000000000:user/test-reader"}}),
+    ]:
+        policy = copy.deepcopy(approved)
+        policy["Statement"][0]["Condition"] = condition
+        variants.append((name, policy))
+    for name, field, value in [
+        ("administrative_action", "Action", ["s3:*"]),
+        ("write_action", "Action", ["s3:PutObject"]),
+        ("world_resource", "Resource", ["*"]),
+        ("wildcard_bucket", "Resource", ["arn:aws:s3:::*/*"]),
+        ("wrong_resource_scope", "Resource", ["arn:aws:s3:::test-network-artifacts"]),
+        ("not_action", "NotAction", ["s3:DeleteObject"]),
+    ]:
+        policy = copy.deepcopy(approved)
+        policy["Statement"][0][field] = value
+        variants.append((name, policy))
+    policy = copy.deepcopy(approved)
+    policy["Statement"][0].pop("Condition")
+    variants.append(("unconditioned_wildcard", policy))
+    policy = copy.deepcopy(approved)
+    policy["Statement"].append(copy.deepcopy(policy["Statement"][0]))
+    policy["Statement"][1].pop("Condition")
+    variants.append(("second_unconditioned_statement", policy))
+    variants.extend([
+        ("empty_statements", {"Version": "2012-10-17", "Statement": []}),
+        ("statement_object", {"Version": "2012-10-17", "Statement": approved["Statement"][0]}),
+    ])
+    payloads = [(name, json.dumps(policy)) for name, policy in variants]
+    payloads.extend([("malformed_policy", "{broken"),
+        ("duplicate_policy_key", '{"Version":"2012-10-17","Version":"2012-10-17","Statement":[]}')])
+    witnesses = []
+    for name, text in payloads:
+        poisoned_plan, poisoned_input = copy.deepcopy(plan), copy.deepcopy(inputs)
+        row = next(row for row in poisoned_plan["resource_changes"] if row["type"] == "aws_vpc_endpoint")
+        row["change"]["after"]["policy"] = text
+        poisoned_input["gateway_endpoints"]["s3"]["policy_json"] = text
+        require(row["change"]["after"]["policy"] == poisoned_input["gateway_endpoints"]["s3"]["policy_json"], "matched_invalid_policy_witness")
+        witnesses.append(rejected(lambda: verify_plan(poisoned_plan, poisoned_input, scope), "matched_invalid_policy:" + name))
+    return len(witnesses)
+
+
 def self_test(events, scope, plans):
     positives,_,_=definitions(scope)
     key=next(k for k in positives if k[1] in {"multi_az_nat","dev_network_s3"})
@@ -420,7 +540,8 @@ def self_test(events, scope, plans):
     for path,old,new in replacements:
         require(old in sources[path],'mutation_source_witness');modified=sources.copy();modified[path]=modified[path].replace(old,new,1)
         source_mutations.append(rejected(lambda modified=modified:source_contract(modified),path))
-    return {'semantic_mutations':len(semantic),'capture_failure_injections':len(faults),'source_dependency_mutations':len(source_mutations)}
+    return {'semantic_mutations':len(semantic),'capture_failure_injections':len(faults),'source_dependency_mutations':len(source_mutations),
+        'policy_structure_mutations':policy_structure_mutations(endpoint_plan, endpoint_inputs, scope)}
 
 
 def read_events(stream):

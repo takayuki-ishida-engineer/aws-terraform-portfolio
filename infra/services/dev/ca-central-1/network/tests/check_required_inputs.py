@@ -61,10 +61,30 @@ def main():
             policy = parse(unsafe_policy["gateway_endpoints"]["s3"]["policy_json"])
             policy["Statement"][0]["Action"] = ["s3:*"]
             unsafe_policy["gateway_endpoints"]["s3"]["policy_json"] = json.dumps(policy)
+            unconditioned = copy.deepcopy(cases["root_positive"]["dev_network_s3"])
+            legacy_principal = copy.deepcopy(unconditioned)
+            foreign_role = copy.deepcopy(unconditioned)
+            ifexists = copy.deepcopy(unconditioned)
+            policy = parse(unconditioned["gateway_endpoints"]["s3"]["policy_json"])
+            policy["Statement"][0].pop("Condition")
+            unconditioned["gateway_endpoints"]["s3"]["policy_json"] = json.dumps(policy)
+            policy = parse(legacy_principal["gateway_endpoints"]["s3"]["policy_json"])
+            policy["Statement"][0]["Principal"] = {"AWS": "arn:aws:iam::000000000000:role/test-network-reader"}
+            legacy_principal["gateway_endpoints"]["s3"]["policy_json"] = json.dumps(policy)
+            policy = parse(foreign_role["gateway_endpoints"]["s3"]["policy_json"])
+            policy["Statement"][0]["Condition"]["ArnEquals"]["aws:PrincipalArn"] = "arn:aws:iam::111111111111:role/test-network-reader"
+            foreign_role["gateway_endpoints"]["s3"]["policy_json"] = json.dumps(policy)
+            policy = parse(ifexists["gateway_endpoints"]["s3"]["policy_json"])
+            policy["Statement"][0]["Condition"] = {"ArnEqualsIfExists": policy["Statement"][0]["Condition"]["ArnEquals"]}
+            ifexists["gateway_endpoints"]["s3"]["policy_json"] = json.dumps(policy)
             for name, supplied, summary, reason in [
                 ("child_wrong_nat_public_az", wrong_public, "Resource precondition failed", "same-AZ public subnet"),
                 ("child_wrong_region", wrong_region, "Resource precondition failed", "AZ must match"),
-                ("child_unsafe_endpoint_policy", unsafe_policy, "Invalid value for variable", "Endpoint policy must be"),
+                ("child_unsafe_endpoint_policy", unsafe_policy, "Invalid value for variable", "Endpoint policy must use"),
+                ("child_unconditioned_wildcard", unconditioned, "Invalid value for variable", "Endpoint policy must use"),
+                ("child_legacy_principal_object", legacy_principal, "Invalid value for variable", "Endpoint policy must use"),
+                ("child_foreign_role_condition", foreign_role, "Resource precondition failed", "explicit expected account"),
+                ("child_ifexists_role_condition", ifexists, "Invalid value for variable", "Endpoint policy must use"),
             ]:
                 folder = Path(temporary) / name
                 folder.mkdir()

@@ -146,16 +146,18 @@ variable "gateway_endpoints" {
       length(jsondecode(endpoint.policy_json).Statement) > 0 &&
       alltrue([for statement in jsondecode(endpoint.policy_json).Statement :
         statement.Effect == "Allow" &&
-        length(setsubtract(toset(keys(statement)), toset(["Sid", "Effect", "Principal", "Action", "Resource"]))) == 0 &&
-        toset(keys(statement.Principal)) == toset(["AWS"]) &&
-        length(try(tolist(statement.Principal.AWS), [statement.Principal.AWS])) > 0 &&
-        alltrue([for principal in try(tolist(statement.Principal.AWS), [statement.Principal.AWS]) : can(regex("^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9_+=,.@/-]+$", principal))]) &&
+        length(setsubtract(toset(keys(statement)), toset(["Sid", "Effect", "Principal", "Action", "Resource", "Condition"]))) == 0 &&
+        statement.Principal == "*" &&
+        toset(keys(statement.Condition)) == toset(["ArnEquals"]) &&
+        toset(keys(statement.Condition.ArnEquals)) == toset(["aws:PrincipalArn"]) &&
+        length(try(tolist(statement.Condition.ArnEquals["aws:PrincipalArn"]), [statement.Condition.ArnEquals["aws:PrincipalArn"]])) > 0 &&
+        alltrue([for principal in try(tolist(statement.Condition.ArnEquals["aws:PrincipalArn"]), [statement.Condition.ArnEquals["aws:PrincipalArn"]]) : can(regex("^arn:aws:iam::[0-9]{12}:role/([A-Za-z0-9_+=,.@-]+/)*[A-Za-z0-9_+=,.@-]{1,64}$", principal))]) &&
         length(try(tolist(statement.Action), [statement.Action])) > 0 &&
         alltrue([for action in try(tolist(statement.Action), [statement.Action]) : contains(["s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket", "s3:GetBucketLocation"], action)]) &&
         length(try(tolist(statement.Resource), [statement.Resource])) > 0 &&
         alltrue([for resource in try(tolist(statement.Resource), [statement.Resource]) : can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/[^*?]*\\*?)?$", resource))]) &&
         alltrue([for action in try(tolist(statement.Action), [statement.Action]) : alltrue([for resource in try(tolist(statement.Resource), [statement.Resource]) : contains(["s3:ListBucket", "s3:GetBucketLocation"], action) ? !strcontains(resource, "/") : strcontains(resource, "/")])])
     ]), false)])
-    error_message = "Endpoint policy must be explicit 2012-10-17 Allow statements with exact AWS role principals, scoped bucket/object ARNs and supported read-only actions; no wildcards in actions/principals/bucket names, unsupported keys or mixed bucket/object scopes."
+    error_message = "Endpoint policy must use 2012-10-17 Allow statements, Principal=*, mandatory ArnEquals aws:PrincipalArn literal IAM role conditions, scoped bucket/object ARNs and supported read-only actions; no missing/empty role condition, role/action/bucket wildcard, unsupported operator/key or mixed bucket/object scope."
   }
 }

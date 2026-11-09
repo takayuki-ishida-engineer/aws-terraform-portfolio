@@ -43,6 +43,18 @@ credentials or secret values in that file. Local tfvars remain ignored; do not
 force-add environment configuration. Synthetic complete fixtures in
 [tests](tests/network.tftest.hcl) are mock-only, not approved deployment allocation.
 
+The optional S3 Gateway policy requires `Principal="*"` with mandatory
+`Condition.ArnEquals["aws:PrincipalArn"]` selecting literal approved IAM role ARNs
+in the expected account (one string or a nonempty list). The child rejects an
+unconditioned wildcard, Principal.AWS objects, empty conditions/roles, foreign or
+wildcard roles, unsupported operators/keys and malformed policies. Read-only action,
+bucket/object scope and action/resource checks remain enforced. See the
+[full child contract](../../../../modules/vpc/README.md#v2-extension-contract--candidate-pending-independent-review)
+and [official gateway requirements](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-access.html).
+ArnEquals itself supports wildcards in AWS; the module bans them in role values.
+Role sessions match their IAM role ARN, not the STS session ARN. This endpoint
+filter does not replace identity/bucket policies or prove effective authorization.
+
 ## Routing and actual resource inventory
 
 Every private subnet selects its actual AZ table. Multiple keys in an AZ share
@@ -105,20 +117,22 @@ commit them or use a shared state writer.
 
 After init with the committed readonly lock, run fmt/validate and the native suite:
 10 passes (four complete positive integration plans, six intentional input
-rejections), plus seven independently failed missing-required-input processes and three
-Root-to-child security-input rejection processes (NAT AZ, Region, endpoint policy).
+rejections), plus seven independently failed missing-required-input processes and seven
+Root-to-child security-input rejection processes (NAT AZ/Region, broad S3 actions,
+unconditioned wildcard, old Principal object, foreign role and IfExists condition).
 The shared [actual-plan checker](../../../../modules/vpc/tests/check_network_configuration.py)
 verifies complete resources, bindings, policy, outputs and fixed security settings;
 34 semantic mutations, 22 capture faults and eight source/reference/account/backend mutations
-must be detected. The fourth positive case substitutes distinct computed IDs to
+must be detected. Independent policy-structure validation also detects 33 cases
+where plan and fixture contain the same invalid policy. The fourth positive case substitutes distinct computed IDs to
 verify real resource/output references. Required-input failures and partial rejected plans are not
 successful network topologies. Test identity/CIDR/IP fixtures are synthetic.
 
 GitHub Actions initializes this root plus the existing root and eight children:
 ten configurations sharing one locked AWS binary. Full existing Terraform/Python/
-IAM/guardrail regressions remain mandatory; aggregate native expectation is 541
-(491 baseline - 16 old VPC + 56 VPC + 10 network). The existing 153 Python toolkit
-tests are unchanged; mutations and the ten rejected-input processes are separate.
+IAM/guardrail regressions remain mandatory; aggregate native expectation is 560
+(491 baseline - 16 old VPC + 75 VPC + 10 network). The existing 153 Python toolkit
+tests are unchanged; mutations and the fourteen rejected-input processes are separate.
 Counts describe the reviewed test contract; completed exact-HEAD CI is reviewed
 independently and is not claimed here.
 

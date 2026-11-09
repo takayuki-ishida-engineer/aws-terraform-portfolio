@@ -126,7 +126,7 @@ run "dev_network_s3" {
     vpc_cidr           = "10.40.0.0/16"
     private_subnets    = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
     public_subnets     = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
-    gateway_endpoints  = { "s3" : { "private_route_table_azs" : ["ca-central-1a"], "policy_json" : "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"]}]}" } }
+    gateway_endpoints  = { "s3" : { "private_route_table_azs" : ["ca-central-1a"], "policy_json" : "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}" } }
     aws_account_id     = "000000000000"
     active_workload_az = "ca-central-1a"
     nat                = { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } }
@@ -234,7 +234,7 @@ run "dev_network_alternate_computed_ids" {
     vpc_cidr           = "10.40.0.0/16"
     private_subnets    = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
     public_subnets     = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
-    gateway_endpoints  = { "s3" : { "private_route_table_azs" : ["ca-central-1a"], "policy_json" : "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"]}]}" } }
+    gateway_endpoints  = { "s3" : { "private_route_table_azs" : ["ca-central-1a"], "policy_json" : "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}" } }
     aws_account_id     = "000000000000"
     active_workload_az = "ca-central-1a"
     nat                = { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } }

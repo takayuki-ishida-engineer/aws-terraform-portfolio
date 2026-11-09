@@ -143,16 +143,56 @@ route-table state. There are no interface endpoint bundles, endpoint SGs, SG/NAC
 or Kubernetes NetworkPolicy rules. Routing alone does not enforce isolation.
 Omitted inline routes also do not audit arbitrary out-of-band route drift.
 
-S3 policy accepts only Version 2012-10-17 and a nonempty Statement array of Allow
-entries, exact same-account IAM role principals, supported read actions and
-specific bucket/object ARNs (object prefixes may end in *). Bucket actions
-ListBucket/GetBucketLocation must use bucket ARNs; GetObject/GetObjectVersion
-must use object ARNs. No administrative/write/action/principal/bucket wildcard,
-NotAction, NotResource or unreviewed policy key/Condition is accepted. The initial
-contract intentionally excludes policies needing other shapes; extend with review,
-not by broadening defaults. The endpoint is a boundary, not an IAM permission
-grant. Service availability, actual bucket/principal ownership and effective
-policy evaluation require external evidence. No secret plaintext is consumed.
+S3 Gateway Endpoint policy follows the [AWS gateway Principal contract](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-access.html)
+and [S3 gateway guidance](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html).
+Every Allow statement requires `Principal = "*"` **and** exactly
+`Condition.ArnEquals["aws:PrincipalArn"]`, containing one literal IAM role ARN or a
+nonempty list of explicitly approved role ARNs. Every role must match
+`expected_scope.account_id`; a list allows any of those approved roles, not every
+role in the account. An unconditioned wildcard and the old `Principal.AWS` role
+object are rejected. Missing/null/empty conditions or role values, cross-account
+roles, STS session/user ARNs, extra operators/keys, ArnLike, negation, IfExists and
+set operators are outside the supported contract. AWS supports additional forms;
+this reviewed module deliberately accepts only this restrictive shape.
+
+[AWS ARN operators](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html)
+permit * and ? even with ArnEquals, so the literal role ARN pattern explicitly
+rejects both and policy-variable expressions. The
+[aws:PrincipalArn context](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html)
+contains the IAM role ARN for role requests, not its STS assumed-role session ARN.
+Unsigned requests lack that key and cannot satisfy this positive ArnEquals
+condition. Role ARN conditions identify names/paths rather than pinning an IAM
+principal's unique ID: role deletion/recreation and trust/lifecycle ownership
+still require review.
+
+Version 2012-10-17, a nonempty Statement array, supported read actions and scoped
+bucket/object ARNs remain mandatory. ListBucket/GetBucketLocation use bucket ARNs;
+GetObject/GetObjectVersion use object ARNs, optionally with a trailing prefix *.
+No administrative/write/action/bucket wildcard, NotAction, NotResource or extra
+policy/statement key is accepted. Never remove Condition to satisfy the mandatory
+wildcard Principal. The endpoint policy does not override or replace IAM identity
+or S3 bucket/resource policies; actual role/bucket ownership, service availability,
+KMS requirements and effective authorization require external evidence. No secret
+plaintext is consumed or live policy acceptance claimed.
+
+Synthetic policy fragment (not an approved deployment identity/allocation):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": "*",
+    "Action": ["s3:GetObject"],
+    "Resource": ["arn:aws:s3:::example-bucket/approved/*"],
+    "Condition": {
+      "ArnEquals": {
+        "aws:PrincipalArn": "arn:aws:iam::000000000000:role/test-network-reader"
+      }
+    }
+  }]
+}
+```
 
 | Added output | Inferred Terraform shape / meaning |
 | --- | --- |
@@ -178,8 +218,8 @@ actual mixed update/destroy ordering externally; no atomic rollback is promised.
 ## Offline verification and operational limits
 
 `tests/vpc.tftest.hcl` keeps all original 16 cases unchanged. `extension.tftest.hcl`
-adds 40 cases: 11 positive configurations and 29 intended rejections. Together:
-56 native passes, 14 complete positive plans and 42 rejected partial plans.
+adds 59 cases: 12 positive configurations and 47 intended rejections. Together:
+75 native passes, 15 complete positive plans and 60 rejected partial plans.
 `tests/check_network_configuration.py` checks actual generated resource identities,
 exact inventories, known critical route/subnet/NAT/endpoint bindings, output
 contracts, policy fields and private IP/DNS defaults. Repeated provider schemas
@@ -188,7 +228,10 @@ Unknown provider-derived EC2 instance/ENI metadata is not a configured NAT targe
 configured alternate targets and unknown critical IDs/route targets are rejected.
 
 The checker rejects 36 actual-plan semantic mutations, 22 capture faults and eight
-source reference/dependency/account/backend mutations. Rejected-input plans must have their
+source reference/dependency/account/backend mutations. An independent Python policy
+validator also rejects 33 matched-invalid-policy mutations per scope: both the
+actual plan and input are deliberately poisoned identically, so equality cannot
+mask an AWS-invalid or overbroad policy. Rejected-input plans must have their
 specific failure diagnostics and exact reviewed partial-resource/output shapes;
 they are never counted as complete networks. Source guards supplement actual
 plan evidence. All original Terraform/Python/IAM/guardrail checks remain required

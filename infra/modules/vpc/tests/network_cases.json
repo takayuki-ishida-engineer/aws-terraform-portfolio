@@ -99,7 +99,7 @@
           "private_route_table_azs": [
             "ca-central-1a"
           ],
-          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"]}]}"
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
         }
       },
       "aws_account_id": "000000000000",
@@ -141,7 +141,7 @@
           "private_route_table_azs": [
             "ca-central-1a"
           ],
-          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"]}]}"
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
         }
       },
       "aws_account_id": "000000000000",
@@ -369,7 +369,7 @@
           "private_route_table_azs": [
             "ca-central-1a"
           ],
-          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"]}]}"
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
         }
       }
     },
@@ -411,7 +411,7 @@
             "ca-central-1b",
             "ca-central-1a"
           ],
-          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"]}]}"
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
         }
       }
     },
@@ -582,7 +582,55 @@
           "private_route_table_azs": [
             "ca-central-1a"
           ],
-          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::test-network-artifacts/approved/*\"},{\"Sid\":\"ReadBucketMetadata\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":[\"arn:aws:iam::000000000000:role/test-network-reader\"]},\"Action\":[\"s3:ListBucket\",\"s3:GetBucketLocation\"],\"Resource\":\"arn:aws:s3:::test-network-artifacts\"}]}"
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::test-network-artifacts/approved/*\",\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}},{\"Sid\":\"ReadBucketMetadata\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:ListBucket\",\"s3:GetBucketLocation\"],\"Resource\":\"arn:aws:s3:::test-network-artifacts\",\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":[\"arn:aws:iam::000000000000:role/test-network-reader\"]}}}]}"
+        }
+      }
+    },
+    "s3_multiple_approved_roles": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a"
+          }
+        }
+      },
+      "gateway_endpoints": {
+        "s3": {
+          "private_route_table_azs": [
+            "ca-central-1a"
+          ],
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":[\"arn:aws:iam::000000000000:role/test-network-reader\",\"arn:aws:iam::000000000000:role/team/test-second-reader\"]}}}]}"
         }
       }
     }
@@ -616,7 +664,25 @@
     "endpoint_malformed_json": "var.gateway_endpoints",
     "wrong_actual_account": "aws_vpc.this",
     "wrong_actual_region": "aws_vpc.this",
-    "endpoint_statement_not_array": "var.gateway_endpoints"
+    "endpoint_statement_not_array": "var.gateway_endpoints",
+    "endpoint_empty_condition": "var.gateway_endpoints",
+    "endpoint_empty_arn_equals": "var.gateway_endpoints",
+    "endpoint_empty_role_string": "var.gateway_endpoints",
+    "endpoint_empty_role_list": "var.gateway_endpoints",
+    "endpoint_null_condition": "var.gateway_endpoints",
+    "endpoint_wildcard_role": "var.gateway_endpoints",
+    "endpoint_question_role": "var.gateway_endpoints",
+    "endpoint_mixed_account_roles": "aws_vpc.this",
+    "endpoint_arnlike_operator": "var.gateway_endpoints",
+    "endpoint_ifexists_operator": "var.gateway_endpoints",
+    "endpoint_negated_operator": "var.gateway_endpoints",
+    "endpoint_set_operator": "var.gateway_endpoints",
+    "endpoint_wrong_condition_key": "var.gateway_endpoints",
+    "endpoint_extra_condition_key": "var.gateway_endpoints",
+    "endpoint_extra_condition_operator": "var.gateway_endpoints",
+    "endpoint_sts_session_role": "var.gateway_endpoints",
+    "endpoint_iam_user_condition": "var.gateway_endpoints",
+    "endpoint_legacy_principal_object": "var.gateway_endpoints"
   },
   "original_positive": {
     "private_only": {
@@ -927,6 +993,96 @@
       "routing_mode"
     ],
     "endpoint_statement_not_array": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_condition": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_arn_equals": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_role_string": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_role_list": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_null_condition": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_wildcard_role": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_question_role": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_mixed_account_roles": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_arnlike_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_ifexists_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_negated_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_set_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_wrong_condition_key": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_extra_condition_key": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_extra_condition_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_sts_session_role": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_iam_user_condition": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_legacy_principal_object": [
       "interface_version",
       "nat_eips_by_az",
       "routing_mode"

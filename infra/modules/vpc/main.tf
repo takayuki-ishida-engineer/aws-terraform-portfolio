@@ -46,10 +46,10 @@ resource "aws_vpc" "this" {
     precondition {
       condition = alltrue([for endpoint in var.gateway_endpoints : try(alltrue([
         for statement in jsondecode(endpoint.policy_json).Statement : alltrue([
-          for principal in try(tolist(statement.Principal.AWS), [statement.Principal.AWS]) : split(":", principal)[4] == var.expected_scope.account_id
+          for principal in try(tolist(statement.Condition.ArnEquals["aws:PrincipalArn"]), [statement.Condition.ArnEquals["aws:PrincipalArn"]]) : split(":", principal)[4] == var.expected_scope.account_id
         ])
       ]), false)])
-      error_message = "Endpoint principals must belong to the explicit expected account; cross-account policy needs separate review."
+      error_message = "Endpoint principal ARN conditions must belong to the explicit expected account; cross-account policy needs separate review."
     }
     postcondition {
       condition     = !local.per_az || try(startswith(self.arn, "arn:${var.expected_scope.partition}:ec2:${var.expected_scope.region}:${var.expected_scope.account_id}:vpc/") && endswith(self.arn, "/${self.id}"), false)
