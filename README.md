@@ -8,8 +8,8 @@ claimed by this repository.
 
 ## What is implemented
 
-The current **post-R2 offline serverless API** has **eight reusable Terraform
-modules**, **four DEV root module instances**, **17 managed resource definitions**
+The **post-R2 offline serverless API snapshot** has **eight reusable Terraform
+modules repository-wide at that revision**, **four DEV root module instances**, **17 managed resource definitions**
 and **eight root outputs**. The root composes artifact_bucket (6), secret_metadata
 (1), lambda_workload (4) and http_api (6): Lambda owns its execution IAM/application
 logs, and HTTP API owns its separate access log. The workload still uses versioned
@@ -29,6 +29,18 @@ tests for nine modules and seven root instances. Its original
 [acceptance evidence](docs/offline-mvp-acceptance.md) remains unchanged. R1 later
 established 438/153; see the [milestones and R4 handoff](docs/repository-structure-strategy.md#r3-stabilization-and-r4-handoff).
 No historical result is relabeled as current execution or Live connectivity.
+
+The approved post-V2 main `da1af5c4eed15f5c9145799409d53c1db7508c94` passed
+[CI 42688811654](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42688811654)
+(560 native / 153 Python, 10 configurations). V2 added opt-in VPC routing/NAT/S3
+endpoint support and a separate DEV Network Root. V3 adds the candidate
+[private EKS module](infra/modules/eks_platform/README.md) and
+[DEV Platform Root](infra/services/dev/ca-central-1/platform/README.md), using a
+typed minimal network reference; no whole-state access or runtime integration.
+The candidate library has nine children and three DEV roots. Local V3 child/Root
+native evidence is 52/29; complete PR regression remains independently required
+(expected 641 native / 153 Python, 12 configurations). No AWS resource is deployed.
+The historical HTTP API contract and acceptance records above remain unchanged.
 
 ## Target architecture — defined, not deployed
 
@@ -74,8 +86,10 @@ no measured SLA/RTO/RPO or disaster recovery guarantee; replica counts alone do 
 Current operating policy is Master Policy v11 (2026-11-09), per user approval.
 The external PDF is unavailable here; the [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status) preserves historical v10 provenance without claiming full v11 review.
 
-The REST/NLB/Istio/mTLS, Cognito, EKS/database and delivery
-architecture is an approved design target with implementation details OPEN; it has not replaced the tested HTTP API MVP. No suitable
+The REST/NLB/Istio/mTLS, Cognito, database and delivery architecture remains a
+design target. The V3 EKS foundation candidate has no deployed Cluster or runtime
+workloads; actual capacity, private access and AWS-managed Cluster SG residual
+permissions require external review. It has not replaced the tested HTTP API MVP. No suitable
 Lambda runtime application/build artifact is currently provided. Account/state
 ownership, artifact bootstrap, secret-safe federation, certificate identity/revocation
 feasibility compatible with Cognito, provider support and deployment permissions

@@ -20,7 +20,7 @@ The [verification policy](portfolio-verification-policy.md),
 [technical history](../infra/README.md) retain their existing authority/evidence.
 Mocks never establish actual AWS reachability, ownership, permission or availability.
 
-## V1 transition after accepted R4
+## Historical V1 transition after accepted R4
 
 The user independently accepted R0–R4 at main
 `899f944c3887fa739dfb39f43617321a696c727b`, with matching successful
@@ -32,9 +32,38 @@ VPC module. Its singular-output compatibility exception V1-C01 and the detailed
 D01–D05/D07–D08/D11–D12 approvals remain OPEN; this is documentation, not V2 or
 AWS/state/Live authorization. Earlier R3/R4 handoff statements are historical.
 
-## A. Current implementation inventory
+## V2 source baseline and V3 ownership update
 
-Current post-R2 source: main df5ef4b2e03bd55109b0490b1e63d1d4199b663b,
+The approved V3 starting main is `da1af5c4eed15f5c9145799409d53c1db7508c94`,
+with successful [post-V2 push CI 42688811654](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42688811654)
+(560 native / 153 Python, 10 configurations). The historical inventory and OPEN
+register below retain their recorded design provenance; they are not claims that
+V2 NAT/per-AZ routing/endpoints or its Network Root are still unimplemented.
+The [VPC README](../infra/modules/vpc/README.md) and
+[Network Root contract](../infra/services/dev/ca-central-1/network/README.md) describe
+that source; no AWS deployment or real state migration is inferred.
+
+V3 adds one [eks_platform child](../infra/modules/eks_platform/README.md) and
+[DEV Platform Root](../infra/services/dev/ca-central-1/platform/README.md). Platform
+owns Cluster/MNG/LT, dedicated IAM/OIDC, custom SGs/rules, access/logs and three
+managed add-ons; Network retains all VPC/subnet/route/NAT/endpoint ownership.
+No cross-root state reader/writer is added. Only an explicit versioned minimal
+V2 output subset is accepted, with actual provenance, distribution, custody and
+live resource reconciliation still OPEN. Child/Root local native evidence is
+52/29; full PR CI is independently required (expected 641/153, 12 configurations).
+
+Multi-AZ Cluster coverage is separate from DEV's one worker AZ. All operational
+versions, subnet selections, capacity and identities require supplied reviewed
+values. AWS-managed control-plane SG residual permissions, private connectivity,
+namespace Edit/Pod Security and real IAM/KMS effects remain deployment review
+items. Future runtime/ingress/delivery and STG/PROD roots are not implemented.
+No G01–G07, state/backend/account, Live budget/teardown or Secrets recovery gate
+is closed by these source additions. Earlier roadmap entries are historical,
+not authorization to repeat completed V2 work or begin a later phase.
+
+## A. Historical post-R2 implementation inventory
+
+Post-R2 snapshot source: main df5ef4b2e03bd55109b0490b1e63d1d4199b663b,
 [successful CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148).
 Earlier nine-module/seven-instance/384-native descriptions apply only to the
 historical snapshots above and the unchanged pre-R1 acceptance record.
@@ -59,13 +88,11 @@ creating separate child resource wrappers. All files share scope; references and
 narrow depends_on determine order, not file placement. Root owns provider/backend,
 account restrictions, environment overrides and lifecycle selection.
 
-This grouping decision is APPROVED; actual NAT/per-AZ/endpoint behavior and moves
-are not implemented. Preserve current private-only defaults, stable keys and the
-singular private-route-table output until an explicitly reviewed compatible
-extension/migration resolves it. Current route=[] and shared associations prohibit
-simply attaching a competing route/association owner. Compatible gateway endpoint
-service routes also require a reviewed routing contract. The grouping choice does
-not resolve that technical design or authorize changing current assertions.
+This grouping decision is APPROVED. At this historical design snapshot, NAT/
+per-AZ/endpoint behavior was absent. V2 now implements the opt-in contract documented
+in its README while preserving legacy addresses/defaults and 16 original tests.
+Do not mix competing route/association owners or infer live migration success;
+refer to the current VPC contract rather than applying this snapshot as code.
 
 Network roots own the coherent module's state. EKS platform roots consume approved
 outputs and own cluster-specific controls; private_ingress owns Terraform internal

@@ -23,7 +23,7 @@ R0 changed documentation only and left all nine modules and the seven-instance/
 historical completed post-R2 baseline are distinguished below. The following V1
 transition updates current status without rewriting those historical records.
 
-## V1 transition — accepted R4, proposed VPC contract
+## Historical V1 transition — accepted R4, proposed VPC contract
 
 The user independently accepted R0–R4 at post-R3 main
 `899f944c3887fa739dfb39f43617321a696c727b`, with matching successful
@@ -36,6 +36,26 @@ and records the singular-output compatibility exception V1-C01 as OPEN.
 V1 requires independent design approval before V2; no root, backend, AWS allocation
 or Live decision is made. R3/R4 readiness wording below is retained historical
 handoff evidence, not a claim that the accepted R4 baseline is still pending.
+
+## V2 baseline and V3 candidate transition
+
+Approved main `da1af5c4eed15f5c9145799409d53c1db7508c94` passed
+[post-V2 CI 42688811654](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42688811654)
+with 560 native / 153 Python and 10 initialized configurations. V2 extended the
+coherent VPC child and added the separate DEV Network Root. V3 adds a coherent
+[eks_platform](../infra/modules/eks_platform/README.md) and separate
+[DEV Platform Root](../infra/services/dev/ca-central-1/platform/README.md), bringing
+the candidate library to nine children and three DEV roots without changing the
+historical serverless-api four-call/17-resource/eight-output/five-move contract.
+Platform does not own network state or runtime/ingress; a minimal typed V2
+reference is an input, not an implemented output-publication mechanism.
+
+V3 local evidence: 52 child / 29 Root native cases plus actual-plan/security/input/
+mutation checks; complete PR CI remains independently required, with expected
+641 native / 153 Python and 12 initialized configurations. No actual account,
+state, connectivity/capacity, AWS-managed SG residual permissions, deployment or
+Live approval follows. The following R0–R4 inventory/migration/evidence sections
+are historical snapshots and are not repository-wide V3 counts.
 
 ## R3 stabilization and R4 handoff
 
@@ -414,13 +434,13 @@ R0 created no module directories.
 
 | Intended child module | Intended responsibility | Current / future distinction |
 | --- | --- | --- |
-| vpc | VPC, keyed subnets, IGW/NAT/EIP, routing and compatible endpoints | Existing base retained; new features only after R4 |
+| vpc | VPC, keyed subnets, IGW/NAT/EIP, routing and compatible endpoints | V2 implements opt-in NAT/per-AZ/S3 endpoint; legacy defaults/addresses retained |
 | lambda_workload | Function, dedicated execution role/policy and dedicated Lambda log resources | Implemented R1 source consolidation; no application feature changes |
 | api_gateway_http | Historical HTTP API and dedicated API access logging | Six existing API/permission/log resources now owned together by R2 |
 | api_gateway_rest | Regional REST methods, Cognito authorizer references, VPC Link V2, custom-domain mTLS, Regional WAF and logs | Future, subject to compatibility/security review |
 | cognito_auth | User Pool, App Client, non-secret federation and AWS-managed login domain | Future; no plaintext Google secrets in Terraform |
 | cloudfront_edge | Distribution/origin, edge WAF and approved origin-mTLS references | Future; PKI, pricing and global scope still reviewed separately |
-| eks_platform | EKS cluster/managed nodes and cluster-specific IAM/security/access | Future; no workload/controller double ownership |
+| eks_platform | EKS cluster/managed nodes and cluster-specific IAM/security/access | V3 candidate private EC2 Cluster/MNG/IAM/SG/access/add-ons; no workload/controller ownership |
 | private_ingress | Internal NLB, TCP:443 listener, target groups and ingress security | Future; Kubernetes target registration remains separate |
 | rds_postgres | DEV Single-AZ RDS PostgreSQL | Future |
 | aurora_postgres | STG/PROD Provisioned PostgreSQL writer/reader across AZs | Future |

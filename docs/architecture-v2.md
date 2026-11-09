@@ -18,11 +18,11 @@ requires clarification before its implementation.
 AWS Terraform is the primary portfolio; CloudFormation and Azure Terraform are
 separate, smaller supporting portfolios, not implementations claimed here.
 
-Current post-R2 source at main `df5ef4b2e03bd55109b0490b1e63d1d4199b663b` has eight
+Historical post-R2 HTTP API source at main `df5ef4b2e03bd55109b0490b1e63d1d4199b663b` has eight
 reusable modules, four DEV instances, 17 resource definitions, eight root outputs
 and five source-level moved declarations. Lambda workload owns four resources;
 HTTP API owns six including its access log. Generic logging remains independently
-tested without a DEV consumer; VPC is not called and Lambda remains outside a VPC.
+tested without a DEV consumer; that application root does not call VPC and Lambda remains outside a VPC.
 [Post-R2 CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148) passed 491 native/153 Python tests.
 
 The nine-module/seven-instance layout and 384/153 acceptance describe the pre-R1
@@ -32,7 +32,36 @@ historical MVP, preserved in [technical history](../infra/README.md) and the
 [baseline CI 42546954252](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42546954252).
 Neither historical nor current HTTP API evidence proves REST/NLB/Istio/mTLS,
 deployed AWS behavior or actual state migration. The target below remains
-unimplemented; R3 stabilizes documentation and does not accept or execute R4.
+a deployment target; the R3/R4 chronology below is historical, not V3 evidence.
+
+## V2 baseline and V3 platform candidate
+
+The approved V3 entry is post-V2 main
+`da1af5c4eed15f5c9145799409d53c1db7508c94`, matching successful
+[push CI 42688811654](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42688811654)
+(560 native / 153 Python, 10 initialized configurations). The coherent VPC module
+and separate [DEV Network Root](../infra/services/dev/ca-central-1/network/README.md)
+now implement opt-in per-AZ routes, zonal NAT/EIP and reviewed optional S3 Gateway
+Endpoint; legacy private-only defaults and the HTTP API MVP remain independent.
+
+V3 adds the candidate [eks_platform child](../infra/modules/eks_platform/README.md)
+and [DEV Platform Root](../infra/services/dev/ca-central-1/platform/README.md):
+private-only IPv4 API, multi-AZ control-plane subnets, one explicitly selected
+DEV worker AZ, EC2 Managed Nodes, separate Cluster/Node/CNI roles, explicit access
+entries and three managed add-ons. The typed minimal network reference validates
+scope/relationships but does not prove AWS existence or publish/read whole state.
+Publication/integrity/consumer access and actual state ownership remain OPEN.
+
+Local V3 evidence is 52 child / 29 Root native passes plus independent actual-plan,
+IAM/SG/access, negative and mutation checks documented in those READMEs. Complete
+PR CI is required independently; expected coverage is 641 native / 153 Python and
+12 initialized configurations, not a claim that V3 CI already passed. There are now
+nine children and three DEV roots; serverless-api still has its original four
+calls/17 resources/eight outputs/five moves. No runtime mesh, ingress, application,
+autoscaler, STG/PROD platform or AWS deployment is implemented. Actual AWS-managed
+Cluster SG residual rules, namespace Edit/Pod identity boundaries, connectivity,
+versions/capacity/cost and safe teardown require external review. G01–G07, Live
+limits and the Secrets Manager recovery blocker remain OPEN.
 
 ## Approved target topology
 

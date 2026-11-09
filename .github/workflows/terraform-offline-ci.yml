@@ -17,7 +17,7 @@ jobs:
   offline-validation:
     name: Credential-free Terraform validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -127,12 +127,13 @@ jobs:
 
           if checkpoint == "after_modules":
               expected = {"infra/services/dev/ca-central-1/serverless-api",
-                      "infra/services/dev/ca-central-1/network"} | {
+                      "infra/services/dev/ca-central-1/network",
+                      "infra/services/dev/ca-central-1/platform"} | {
                   "infra/modules/" + name for name in (
                       "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda_workload",
-                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http")}
+                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform")}
               if {row["module"] for row in initialized} != expected or references != len(expected) or len(identities) != 1:
-                  raise SystemExit("Expected ten initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+                  raise SystemExit("Expected twelve initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
           if checkpoint == "job_completion":
               snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
@@ -302,6 +303,92 @@ jobs:
           print("Actual network verification:", report)
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"passed={report['native_tests']}\n")
+          PY
+
+      - name: Verify EKS root actual plans and security contracts
+        id: platform
+        working-directory: infra/services/dev/ca-central-1/platform
+        run: |
+          set -euo pipefail
+          umask 077
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          git diff --exit-code -- .terraform.lock.hcl
+          python3 tests/check_required_inputs.py --terraform terraform > "$RUNNER_TEMP/platform-required.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "platform-required.json").read_text())
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("required_input_rejections") != 12 or report.get("network_field_rejections") != 11:
+              raise SystemExit("EKS platform required-input/network reference rejection evidence failed.")
+          print("Actual rejected platform inputs:", report)
+          PY
+          checker="$GITHUB_WORKSPACE/infra/modules/eks_platform/tests/check_platform_configuration.py"
+          if terraform test -no-color -json -verbose | python3 "$checker" --compact > "$RUNNER_TEMP/platform-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 "$checker" --scope root \
+            --test-events "$RUNNER_TEMP/platform-tests.jsonl" \
+            --terraform-exit-code "$test_status" --self-test > "$RUNNER_TEMP/platform-verification.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "platform-verification.json").read_text())
+          expected = {'native_tests': 29, 'positive_plans': 5, 'negative_cases': 24, 'semantic_mutations': 73, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("evidence_type") != "actual_mock_plan_verification" or any(report.get(k) != v for k, v in expected.items()):
+              raise SystemExit("EKS root actual-plan/security/count contract failed; independent review required.")
+          print("Actual EKS root verification:", report)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"passed={report['native_tests']}\n")
+          PY
+
+      - name: Verify EKS child actual plans and security contracts
+        id: eks_platform
+        working-directory: infra/modules/eks_platform
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/platform/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          checker="$GITHUB_WORKSPACE/infra/modules/eks_platform/tests/check_platform_configuration.py"
+          if terraform test -no-color -json -verbose | python3 "$checker" --compact > "$RUNNER_TEMP/eks_platform-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 "$checker" --scope child \
+            --test-events "$RUNNER_TEMP/eks_platform-tests.jsonl" \
+            --terraform-exit-code "$test_status" --self-test > "$RUNNER_TEMP/eks_platform-verification.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "eks_platform-verification.json").read_text())
+          expected = {'native_tests': 52, 'positive_plans': 7, 'negative_cases': 45, 'semantic_mutations': 73, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("evidence_type") != "actual_mock_plan_verification" or any(report.get(k) != v for k, v in expected.items()):
+              raise SystemExit("EKS child actual-plan/security/count contract failed; independent review required.")
+          print("Actual EKS child verification:", report)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"passed={report['native_tests']}\n")
+          PY
+          python3 tests/check_native_source_mutations.py --terraform terraform > "$RUNNER_TEMP/eks-source-mutations.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "eks-source-mutations.json").read_text())
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("native_source_mutations") != 10:
+              raise SystemExit("Actual unsafe EKS Terraform source mutation evidence failed.")
+          print("Actual unsafe Terraform source re-plans rejected:", report)
           PY
 
       - name: Validate VPC legacy and extension actual mock plans
@@ -819,6 +906,10 @@ jobs:
           DEV_RESULT: ${{ steps.dev.outcome }}
           ROOT_RESULT: ${{ steps.root_integration.outcome }}
           ROOT_PASSED: ${{ steps.root_integration.outputs.passed }}
+          PLATFORM_RESULT: ${{ steps.platform.outcome }}
+          PLATFORM_PASSED: ${{ steps.platform.outputs.passed }}
+          EKS_RESULT: ${{ steps.eks_platform.outcome }}
+          EKS_PASSED: ${{ steps.eks_platform.outputs.passed }}
           NETWORK_RESULT: ${{ steps.network.outcome }}
           NETWORK_PASSED: ${{ steps.network.outputs.passed }}
           VPC_RESULT: ${{ steps.vpc.outcome }}
@@ -852,6 +943,8 @@ jobs:
             ("Dev root init/validate, readonly lock", "DEV_RESULT", ""),
             ("Dev serverless API root integration/plans/mutations", "ROOT_RESULT", os.environ.get("ROOT_PASSED", "")),
             ("DEV network init/validate/required-inputs/plans/mutations", "NETWORK_RESULT", os.environ.get("NETWORK_PASSED", "")),
+            ("DEV platform root/private EKS/required network inputs/security", "PLATFORM_RESULT", os.environ.get("PLATFORM_PASSED", "")),
+            ("EKS child/IAM/SG/access/addons/plans/source mutations", "EKS_RESULT", os.environ.get("EKS_PASSED", "")),
             ("VPC init/validate/legacy and routing/endpoint plans/mutations", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
             ("Secrets Manager init/validate/mock inventory/tests", "SECRETS_RESULT", os.environ.get("SECRETS_PASSED", "")),
             ("Account IAM policy init/validate/inventory/mock tests", "ACCOUNT_RESULT", os.environ.get("ACCOUNT_PASSED", "")),
