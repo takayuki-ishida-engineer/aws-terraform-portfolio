@@ -10,12 +10,12 @@ output "api_id" {
 
 output "lambda_function_name" {
   description = "Actual configured workload Lambda function name."
-  value       = module.lambda_function.function_name
+  value       = module.lambda_workload.function_name
 }
 
 output "lambda_function_arn" {
   description = "Actual provider-returned workload Lambda function ARN."
-  value       = module.lambda_function.function_arn
+  value       = module.lambda_workload.function_arn
 }
 
 output "artifact_bucket_name" {
@@ -30,7 +30,7 @@ output "secret_metadata_arn" {
 
 output "lambda_log_group_name" {
   description = "Actual Lambda application Log Group name."
-  value       = module.lambda_logs.log_group_name
+  value       = module.lambda_workload.log_group_name
 }
 
 output "api_access_log_group_name" {

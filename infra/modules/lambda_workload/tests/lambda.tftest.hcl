@@ -1,7 +1,35 @@
 mock_provider "aws" {}
 
-# Computed references are deterministic synthetic fixtures; no AWS account,
-# deployment archive or API call is used. Publishing stays disabled.
+# Actual four-resource module, deterministic provider-computed identities only.
+# Source case mapping lives in coverage.json; no AWS identity or artifact is real.
+variables {
+  function_name     = "portfolio-test-lambda"
+  role_name         = "portfolio-test-lambda-execution"
+  partition         = "aws"
+  account_id        = "000000000000"
+  region            = "ca-central-1"
+  log_group_name    = "/portfolio/test/lambda"
+  s3_bucket         = "portfolio-test-artifacts"
+  s3_key            = "lambda/test/function.zip"
+  s3_object_version = "synthetic-version-001"
+  runtime           = "python3.13"
+  handler           = "app.handler"
+}
+
+override_resource {
+  target          = aws_iam_role.this
+  override_during = plan
+  values = {
+    arn = "arn:aws:iam::000000000000:role/portfolio-test-lambda-execution"
+  }
+}
+override_resource {
+  target          = aws_cloudwatch_log_group.this
+  override_during = plan
+  values = {
+    arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/test/lambda"
+  }
+}
 override_resource {
   target          = aws_lambda_function.this
   override_during = plan
@@ -12,25 +40,14 @@ override_resource {
   }
 }
 
-variables {
-  function_name      = "portfolio-test-lambda"
-  execution_role_arn = "arn:aws:iam::000000000000:role/portfolio/test-lambda-execution"
-  s3_bucket          = "portfolio-test-artifacts"
-  s3_key             = "lambda/test/function.zip"
-  s3_object_version  = "synthetic-version-001"
-  runtime            = "python3.13"
-  handler            = "app.handler"
-  log_group_name     = "/portfolio/test/lambda"
-}
-
-run "default_function_configuration" {
+run "lambda_default_function_configuration" {
   command = plan
 
   assert {
     condition = (
       aws_lambda_function.this.function_name == var.function_name &&
       aws_lambda_function.this.description == null &&
-      aws_lambda_function.this.role == var.execution_role_arn &&
+      aws_lambda_function.this.role == aws_iam_role.this.arn &&
       aws_lambda_function.this.runtime == "python3.13" &&
       aws_lambda_function.this.handler == "app.handler" &&
       aws_lambda_function.this.architectures == tolist(["x86_64"]) &&
@@ -67,7 +84,8 @@ run "default_function_configuration" {
   }
 }
 
-run "resource_attribute_outputs" {
+
+run "lambda_resource_attribute_outputs" {
   command = plan
   assert {
     condition = (
@@ -87,7 +105,8 @@ run "resource_attribute_outputs" {
   }
 }
 
-run "node_runtime_and_compute_overrides" {
+
+run "lambda_node_runtime_and_compute_overrides" {
   command = plan
   variables {
     runtime                = "nodejs22.x"
@@ -111,7 +130,8 @@ run "node_runtime_and_compute_overrides" {
   }
 }
 
-run "java_runtime_on_arm64" {
+
+run "lambda_java_runtime_on_arm64" {
   command = plan
   variables {
     runtime      = "java21"
@@ -131,7 +151,8 @@ run "java_runtime_on_arm64" {
   }
 }
 
-run "maximum_compute_boundaries" {
+
+run "lambda_maximum_compute_boundaries" {
   command = plan
   variables {
     memory_size            = 10240
@@ -148,8 +169,18 @@ run "maximum_compute_boundaries" {
   }
 }
 
-run "minimum_timeout_and_name_description_boundaries" {
+
+run "lambda_minimum_timeout_and_name_description_boundaries" {
   command = plan
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:ca-central-1:000000000000:function:${join("", [for i in range(64) : "x"])}"
+      invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:${join("", [for i in range(64) : "x"])}/invocations"
+      version    = "$LATEST"
+    }
+  }
   variables {
     function_name = join("", [for i in range(64) : "x"])
     description   = join("", [for i in range(256) : "x"])
@@ -165,7 +196,8 @@ run "minimum_timeout_and_name_description_boundaries" {
   }
 }
 
-run "existing_versioned_layers_and_concurrency" {
+
+run "lambda_existing_versioned_layers_and_concurrency" {
   command = plan
   variables {
     layers = [
@@ -183,7 +215,8 @@ run "existing_versioned_layers_and_concurrency" {
   }
 }
 
-run "maximum_layer_count_and_zero_concurrency" {
+
+run "lambda_maximum_layer_count_and_zero_concurrency" {
   command = plan
   variables {
     layers                         = [for i in range(5) : "arn:aws:lambda:ca-central-1:000000000000:layer:portfolio-test-layer-${i}:1"]
@@ -198,7 +231,8 @@ run "maximum_layer_count_and_zero_concurrency" {
   }
 }
 
-run "existing_vpc_references" {
+
+run "lambda_existing_vpc_references" {
   command = plan
   variables {
     subnet_ids         = ["subnet-00000000000000001", "subnet-00000000000000002"]
@@ -217,7 +251,8 @@ run "existing_vpc_references" {
   }
 }
 
-run "maximum_vpc_reference_counts" {
+
+run "lambda_maximum_vpc_reference_counts" {
   command = plan
   variables {
     subnet_ids         = [for i in range(16) : format("subnet-%017x", i)]
@@ -232,7 +267,8 @@ run "maximum_vpc_reference_counts" {
   }
 }
 
-run "nonsecret_configuration_and_secret_reference" {
+
+run "lambda_nonsecret_configuration_and_secret_reference" {
   command = plan
   variables {
     environment_variables = {
@@ -246,7 +282,8 @@ run "nonsecret_configuration_and_secret_reference" {
   }
 }
 
-run "environment_byte_boundary" {
+
+run "lambda_environment_byte_boundary" {
   command = plan
   variables { environment_variables = { APP_MODE = format("%4088s", "x") } }
   assert {
@@ -255,7 +292,8 @@ run "environment_byte_boundary" {
   }
 }
 
-run "caller_owned_tags" {
+
+run "lambda_caller_owned_tags" {
   command = plan
   variables {
     tags = { Name = "test-function", Project = "test-portfolio", Environment = "test" }
@@ -268,301 +306,433 @@ run "caller_owned_tags" {
 
 # Every invalid case names the variable whose own validation must reject it.
 
-run "empty_function_name" {
+
+run "lambda_empty_function_name" {
   command = plan
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:ca-central-1:000000000000:function:"
+      invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:/invocations"
+      version    = "$LATEST"
+    }
+  }
   variables { function_name = "" }
   expect_failures = [var.function_name]
 }
 
-run "invalid_function_name" {
+
+run "lambda_invalid_function_name" {
   command = plan
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:ca-central-1:000000000000:function:not a function"
+      invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:not a function/invocations"
+      version    = "$LATEST"
+    }
+  }
   variables { function_name = "not a function" }
   expect_failures = [var.function_name]
 }
 
-run "overlong_function_name" {
+
+run "lambda_overlong_function_name" {
   command = plan
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:ca-central-1:000000000000:function:${join("", [for i in range(65) : "x"])}"
+      invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:${join("", [for i in range(65) : "x"])}/invocations"
+      version    = "$LATEST"
+    }
+  }
   variables { function_name = join("", [for i in range(65) : "x"]) }
   expect_failures = [var.function_name]
 }
 
-run "null_function_name" {
+
+run "lambda_null_function_name" {
   command = plan
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:ca-central-1:000000000000:function:invalid"
+      invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:invalid/invocations"
+      version    = "$LATEST"
+    }
+  }
   variables { function_name = null }
   expect_failures = [var.function_name]
 }
 
-run "overlong_description" {
+
+run "lambda_overlong_description" {
   command = plan
   variables { description = join("", [for i in range(257) : "x"]) }
   expect_failures = [var.description]
 }
 
-run "sts_session_is_not_execution_role" {
+
+run "lambda_sts_session_is_not_execution_role" {
   command = plan
-  variables { execution_role_arn = "arn:aws:sts::000000000000:assumed-role/example/session" }
-  expect_failures = [var.execution_role_arn]
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:sts::000000000000:assumed-role/example/session"
+    }
+  }
+  expect_failures = [aws_iam_role.this]
 }
 
-run "wildcard_execution_role_rejected" {
+
+run "lambda_wildcard_execution_role_rejected" {
   command = plan
-  variables { execution_role_arn = "arn:aws:iam::000000000000:role/*" }
-  expect_failures = [var.execution_role_arn]
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::000000000000:role/*"
+    }
+  }
+  expect_failures = [aws_iam_role.this]
 }
 
-run "malformed_execution_role_account" {
+
+run "lambda_malformed_execution_role_account" {
   command = plan
-  variables { execution_role_arn = "arn:aws:iam::not-an-account:role/example" }
-  expect_failures = [var.execution_role_arn]
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::not-an-account:role/example"
+    }
+  }
+  expect_failures = [aws_iam_role.this]
 }
 
-run "bucket_arn_is_not_bucket_name" {
+
+run "lambda_bucket_arn_is_not_bucket_name" {
   command = plan
   variables { s3_bucket = "arn:aws:s3:::portfolio-test-artifacts" }
   expect_failures = [var.s3_bucket]
 }
 
-run "uppercase_bucket_rejected" {
+
+run "lambda_uppercase_bucket_rejected" {
   command = plan
   variables { s3_bucket = "Portfolio-Test-Artifacts" }
   expect_failures = [var.s3_bucket]
 }
 
-run "empty_artifact_key" {
+
+run "lambda_empty_artifact_key" {
   command = plan
   variables { s3_key = "" }
   expect_failures = [var.s3_key]
 }
 
-run "empty_artifact_version" {
+
+run "lambda_empty_artifact_version" {
   command = plan
   variables { s3_object_version = "" }
   expect_failures = [var.s3_object_version]
 }
 
-run "blank_artifact_version" {
+
+run "lambda_blank_artifact_version" {
   command = plan
   variables { s3_object_version = "   " }
   expect_failures = [var.s3_object_version]
 }
 
-run "unversioned_null_artifact_rejected" {
+
+run "lambda_unversioned_null_artifact_rejected" {
   command = plan
   variables { s3_object_version = "null" }
   expect_failures = [var.s3_object_version]
 }
 
-run "missing_artifact_version" {
+
+run "lambda_missing_artifact_version" {
   command = plan
   variables { s3_object_version = null }
   expect_failures = [var.s3_object_version]
 }
 
-run "unsupported_runtime" {
+
+run "lambda_unsupported_runtime" {
   command = plan
   variables { runtime = "nodejs99.x" }
   expect_failures = [var.runtime]
 }
 
-run "missing_runtime" {
+
+run "lambda_missing_runtime" {
   command = plan
   variables { runtime = null }
   expect_failures = [var.runtime]
 }
 
-run "empty_handler" {
+
+run "lambda_empty_handler" {
   command = plan
   variables { handler = "" }
   expect_failures = [var.handler]
 }
 
-run "malformed_handler" {
+
+run "lambda_malformed_handler" {
   command = plan
   variables { handler = "not a valid handler" }
   expect_failures = [var.handler]
 }
 
-run "incompatible_python_handler" {
+
+run "lambda_incompatible_python_handler" {
   command = plan
   variables { handler = "org.example.Handler::handleRequest" }
   expect_failures = [var.handler]
 }
 
-run "unsupported_architecture" {
+
+run "lambda_unsupported_architecture" {
   command = plan
   variables { architecture = "sparc" }
   expect_failures = [var.architecture]
 }
 
-run "memory_below_minimum" {
+
+run "lambda_memory_below_minimum" {
   command = plan
   variables { memory_size = 127 }
   expect_failures = [var.memory_size]
 }
 
-run "memory_above_maximum" {
+
+run "lambda_memory_above_maximum" {
   command = plan
   variables { memory_size = 10241 }
   expect_failures = [var.memory_size]
 }
 
-run "fractional_memory" {
+
+run "lambda_fractional_memory" {
   command = plan
   variables { memory_size = 128.5 }
   expect_failures = [var.memory_size]
 }
 
-run "timeout_below_minimum" {
+
+run "lambda_timeout_below_minimum" {
   command = plan
   variables { timeout = 0 }
   expect_failures = [var.timeout]
 }
 
-run "timeout_above_maximum" {
+
+run "lambda_timeout_above_maximum" {
   command = plan
   variables { timeout = 901 }
   expect_failures = [var.timeout]
 }
 
-run "fractional_timeout" {
+
+run "lambda_fractional_timeout" {
   command = plan
   variables { timeout = 1.5 }
   expect_failures = [var.timeout]
 }
 
-run "ephemeral_storage_below_minimum" {
+
+run "lambda_ephemeral_storage_below_minimum" {
   command = plan
   variables { ephemeral_storage_size = 511 }
   expect_failures = [var.ephemeral_storage_size]
 }
 
-run "ephemeral_storage_above_maximum" {
+
+run "lambda_ephemeral_storage_above_maximum" {
   command = plan
   variables { ephemeral_storage_size = 10241 }
   expect_failures = [var.ephemeral_storage_size]
 }
 
-run "fractional_ephemeral_storage" {
+
+run "lambda_fractional_ephemeral_storage" {
   command = plan
   variables { ephemeral_storage_size = 512.5 }
   expect_failures = [var.ephemeral_storage_size]
 }
 
-run "invalid_environment_key" {
+
+run "lambda_invalid_environment_key" {
   command = plan
   variables { environment_variables = { "1INVALID" = "test" } }
   expect_failures = [var.environment_variables]
 }
 
-run "reserved_environment_key" {
+
+run "lambda_reserved_environment_key" {
   command = plan
   variables { environment_variables = { AWS_REGION = "ca-central-1" } }
   expect_failures = [var.environment_variables]
 }
 
-run "null_environment_value" {
+
+run "lambda_null_environment_value" {
   command = plan
   variables { environment_variables = { APP_MODE = null } }
   expect_failures = [var.environment_variables]
 }
 
-run "oversized_environment" {
+
+run "lambda_oversized_environment" {
   command = plan
   variables { environment_variables = { APP_MODE = format("%4096s", "x") } }
   expect_failures = [var.environment_variables]
 }
 
-run "utf8_environment_byte_limit" {
+
+run "lambda_utf8_environment_byte_limit" {
   command = plan
   variables { environment_variables = { APP_MODE = join("", [for i in range(1024) : "ééé"]) } }
   expect_failures = [var.environment_variables]
 }
 
-run "unversioned_layer_arn" {
+
+run "lambda_unversioned_layer_arn" {
   command = plan
   variables { layers = ["arn:aws:lambda:ca-central-1:000000000000:layer:portfolio-test-common"] }
   expect_failures = [var.layers]
 }
 
-run "duplicate_layers" {
+
+run "lambda_duplicate_layers" {
   command = plan
   variables { layers = ["arn:aws:lambda:ca-central-1:000000000000:layer:portfolio-test-common:1", "arn:aws:lambda:ca-central-1:000000000000:layer:portfolio-test-common:1"] }
   expect_failures = [var.layers]
 }
 
-run "too_many_layers" {
+
+run "lambda_too_many_layers" {
   command = plan
   variables { layers = [for i in range(6) : "arn:aws:lambda:ca-central-1:000000000000:layer:portfolio-test-layer-${i}:1"] }
   expect_failures = [var.layers]
 }
 
-run "cross_partition_layer_rejected" {
+
+run "lambda_cross_partition_layer_rejected" {
   command = plan
   variables { layers = ["arn:aws-cn:lambda:cn-north-1:000000000000:layer:portfolio-test-common:1"] }
   expect_failures = [var.layers]
 }
 
-run "negative_reserved_concurrency" {
+
+run "lambda_negative_reserved_concurrency" {
   command = plan
   variables { reserved_concurrent_executions = -1 }
   expect_failures = [var.reserved_concurrent_executions]
 }
 
-run "fractional_reserved_concurrency" {
+
+run "lambda_fractional_reserved_concurrency" {
   command = plan
   variables { reserved_concurrent_executions = 1.5 }
   expect_failures = [var.reserved_concurrent_executions]
 }
 
-run "reserved_concurrency_integer_limit" {
+
+run "lambda_reserved_concurrency_integer_limit" {
   command = plan
   variables { reserved_concurrent_executions = 2147483648 }
   expect_failures = [var.reserved_concurrent_executions]
 }
 
-run "empty_log_group_name" {
+
+run "lambda_empty_log_group_name" {
   command = plan
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:"
+    }
+  }
   variables { log_group_name = "" }
   expect_failures = [var.log_group_name]
 }
 
-run "invalid_log_group_name" {
+
+run "lambda_invalid_log_group_name" {
   command = plan
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:not a log group"
+    }
+  }
   variables { log_group_name = "not a log group" }
   expect_failures = [var.log_group_name]
 }
 
-run "reserved_log_group_prefix" {
+
+run "lambda_reserved_log_group_prefix" {
   command = plan
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:aws/lambda/portfolio-test-lambda"
+    }
+  }
   variables { log_group_name = "aws/lambda/portfolio-test-lambda" }
   expect_failures = [var.log_group_name]
 }
 
-run "overlong_log_group_name" {
+
+run "lambda_overlong_log_group_name" {
   command = plan
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:${join("", [for i in range(513) : "x"])}"
+    }
+  }
   variables { log_group_name = join("", [for i in range(513) : "x"]) }
   expect_failures = [var.log_group_name]
 }
 
-run "reserved_tag_prefix" {
+
+run "lambda_reserved_tag_prefix" {
   command = plan
   variables { tags = { "aws:reserved" = "test" } }
   expect_failures = [var.tags]
 }
 
-run "null_tag_value" {
+
+run "lambda_null_tag_value" {
   command = plan
   variables { tags = { Environment = null } }
   expect_failures = [var.tags]
 }
 
-run "too_many_tags" {
+
+run "lambda_too_many_tags" {
   command = plan
   variables { tags = { for i in range(51) : "key-${i}" => "test" } }
   expect_failures = [var.tags]
 }
 
-run "subnets_without_security_groups" {
+
+run "lambda_subnets_without_security_groups" {
   command = plan
   variables {
     subnet_ids = ["subnet-00000000000000001"]
@@ -570,7 +740,8 @@ run "subnets_without_security_groups" {
   expect_failures = [var.security_group_ids]
 }
 
-run "security_groups_without_subnets" {
+
+run "lambda_security_groups_without_subnets" {
   command = plan
   variables {
     security_group_ids = ["sg-00000000000000001"]
@@ -578,7 +749,8 @@ run "security_groups_without_subnets" {
   expect_failures = [var.security_group_ids]
 }
 
-run "invalid_subnet_id" {
+
+run "lambda_invalid_subnet_id" {
   command = plan
   variables {
     subnet_ids         = ["invalid-subnet"]
@@ -587,7 +759,8 @@ run "invalid_subnet_id" {
   expect_failures = [var.subnet_ids]
 }
 
-run "invalid_security_group_id" {
+
+run "lambda_invalid_security_group_id" {
   command = plan
   variables {
     subnet_ids         = ["subnet-00000000000000001"]
@@ -596,7 +769,8 @@ run "invalid_security_group_id" {
   expect_failures = [var.security_group_ids]
 }
 
-run "duplicate_subnets" {
+
+run "lambda_duplicate_subnets" {
   command = plan
   variables {
     subnet_ids         = ["subnet-00000000000000001", "subnet-00000000000000001"]
@@ -605,7 +779,8 @@ run "duplicate_subnets" {
   expect_failures = [var.subnet_ids]
 }
 
-run "duplicate_security_groups" {
+
+run "lambda_duplicate_security_groups" {
   command = plan
   variables {
     subnet_ids         = ["subnet-00000000000000001"]
@@ -614,7 +789,8 @@ run "duplicate_security_groups" {
   expect_failures = [var.security_group_ids]
 }
 
-run "too_many_subnets" {
+
+run "lambda_too_many_subnets" {
   command = plan
   variables {
     subnet_ids         = [for i in range(17) : format("subnet-%017x", i)]
@@ -623,7 +799,8 @@ run "too_many_subnets" {
   expect_failures = [var.subnet_ids]
 }
 
-run "too_many_security_groups" {
+
+run "lambda_too_many_security_groups" {
   command = plan
   variables {
     subnet_ids         = ["subnet-00000000000000001"]

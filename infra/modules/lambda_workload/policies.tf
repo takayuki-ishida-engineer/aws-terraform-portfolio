@@ -32,7 +32,7 @@ locals {
         Sid      = "WriteExistingLogStreams"
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-        Resource = ["${var.log_group_arn == null ? "" : var.log_group_arn}:log-stream:*"]
+        Resource = ["${aws_cloudwatch_log_group.this.arn == null ? "" : aws_cloudwatch_log_group.this.arn}:log-stream:*"]
       }],
       var.enable_secret_read ? [{
         Sid      = "ReadAuthorizedSecret"

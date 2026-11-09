@@ -1,6 +1,21 @@
 mock_provider "aws" {}
 
-# Synthetic computed identity only. No role, session, secret value or key is used.
+# Actual four-resource module, deterministic provider-computed identities only.
+# Source case mapping lives in coverage.json; no AWS identity or artifact is real.
+variables {
+  function_name     = "portfolio-test-lambda"
+  role_name         = "portfolio-test-lambda-execution"
+  partition         = "aws"
+  account_id        = "000000000000"
+  region            = "ca-central-1"
+  log_group_name    = "/portfolio/test/application"
+  s3_bucket         = "portfolio-test-artifacts"
+  s3_key            = "lambda/test/function.zip"
+  s3_object_version = "synthetic-version-001"
+  runtime           = "python3.13"
+  handler           = "app.handler"
+}
+
 override_resource {
   target          = aws_iam_role.this
   override_during = plan
@@ -8,16 +23,24 @@ override_resource {
     arn = "arn:aws:iam::000000000000:role/portfolio-test-lambda-execution"
   }
 }
-
-variables {
-  role_name     = "portfolio-test-lambda-execution"
-  partition     = "aws"
-  account_id    = "000000000000"
-  region        = "ca-central-1"
-  log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/test/application"
+override_resource {
+  target          = aws_cloudwatch_log_group.this
+  override_during = plan
+  values = {
+    arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/test/application"
+  }
+}
+override_resource {
+  target          = aws_lambda_function.this
+  override_during = plan
+  values = {
+    arn        = "arn:aws:lambda:ca-central-1:000000000000:function:portfolio-test-lambda"
+    invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:portfolio-test-lambda/invocations"
+    version    = "$LATEST"
+  }
 }
 
-run "default_logging_only_role" {
+run "role_default_logging_only_role" {
   command = plan
 
   assert {
@@ -38,7 +61,7 @@ run "default_logging_only_role" {
       length(jsondecode(aws_iam_role_policy.this.policy).Statement) == 1 &&
       jsondecode(aws_iam_role_policy.this.policy).Statement[0].Effect == "Allow" &&
       toset(jsondecode(aws_iam_role_policy.this.policy).Statement[0].Action) == toset(["logs:CreateLogStream", "logs:PutLogEvents"]) &&
-      jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${var.log_group_arn}:log-stream:*"] &&
+      jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${aws_cloudwatch_log_group.this.arn}:log-stream:*"] &&
       !can(jsondecode(aws_iam_role_policy.this.policy).Statement[0].Condition) &&
       !output.secret_read_enabled
     )
@@ -46,7 +69,8 @@ run "default_logging_only_role" {
   }
 }
 
-run "exact_lambda_service_trust" {
+
+run "role_exact_lambda_service_trust" {
   command = plan
   assert {
     condition = (
@@ -64,7 +88,8 @@ run "exact_lambda_service_trust" {
   }
 }
 
-run "scoped_log_stream_writes" {
+
+run "role_scoped_log_stream_writes" {
   command = plan
   assert {
     condition = alltrue([for statement in jsondecode(aws_iam_role_policy.this.policy).Statement :
@@ -77,7 +102,8 @@ run "scoped_log_stream_writes" {
   }
 }
 
-run "resource_attribute_outputs" {
+
+run "role_resource_attribute_outputs" {
   command = plan
   assert {
     condition = (
@@ -85,14 +111,14 @@ run "resource_attribute_outputs" {
       output.execution_role_arn == "arn:aws:iam::000000000000:role/portfolio-test-lambda-execution" &&
       output.execution_role_name == aws_iam_role.this.name &&
       output.inline_policy_name == aws_iam_role_policy.this.name &&
-      output.log_group_arn == var.log_group_arn &&
+      output.log_group_arn == aws_cloudwatch_log_group.this.arn &&
       output.secret_read_enabled == var.enable_secret_read &&
       output.permission_scope == {
         partition          = var.partition
         account_id         = var.account_id
         region             = var.region
         role_name          = var.role_name
-        log_group_arn      = var.log_group_arn
+        log_group_arn      = aws_cloudwatch_log_group.this.arn
         enable_secret_read = var.enable_secret_read
         secret_arn         = var.secret_arn
         secret_kms_key_arn = var.secret_kms_key_arn
@@ -102,7 +128,8 @@ run "resource_attribute_outputs" {
   }
 }
 
-run "enabled_secret_without_customer_key" {
+
+run "role_enabled_secret_without_customer_key" {
   command = plan
   variables {
     enable_secret_read = true
@@ -122,7 +149,8 @@ run "enabled_secret_without_customer_key" {
   }
 }
 
-run "enabled_secret_with_customer_key" {
+
+run "role_enabled_secret_with_customer_key" {
   command = plan
   variables {
     enable_secret_read = true
@@ -148,7 +176,8 @@ run "enabled_secret_with_customer_key" {
   }
 }
 
-run "existing_multi_region_customer_key" {
+
+run "role_existing_multi_region_customer_key" {
   command = plan
   variables {
     enable_secret_read = true
@@ -164,13 +193,9 @@ run "existing_multi_region_customer_key" {
   }
 }
 
-run "alternate_account_and_region" {
+
+run "role_alternate_account_and_region" {
   command = plan
-  variables {
-    account_id    = "000000000001"
-    region        = "us-east-2"
-    log_group_arn = "arn:aws:logs:us-east-2:000000000001:log-group:/portfolio/alternate/application"
-  }
   override_resource {
     target          = aws_iam_role.this
     override_during = plan
@@ -178,9 +203,31 @@ run "alternate_account_and_region" {
       arn = "arn:aws:iam::000000000001:role/portfolio-test-lambda-execution"
     }
   }
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:us-east-2:000000000001:log-group:/portfolio/alternate/application"
+    }
+  }
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:us-east-2:000000000001:function:portfolio-test-lambda"
+      invoke_arn = "arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:000000000001:function:portfolio-test-lambda/invocations"
+      version    = "$LATEST"
+    }
+  }
+  variables {
+    account_id     = "000000000001"
+    region         = "us-east-2"
+    log_group_name = "/portfolio/alternate/application"
+  }
+
   assert {
     condition = (
-      jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${var.log_group_arn}:log-stream:*"] &&
+      jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${aws_cloudwatch_log_group.this.arn}:log-stream:*"] &&
       output.execution_role_arn == aws_iam_role.this.arn &&
       output.permission_scope.account_id == var.account_id &&
       output.permission_scope.region == var.region
@@ -189,16 +236,9 @@ run "alternate_account_and_region" {
   }
 }
 
-run "govcloud_scope_with_customer_key" {
+
+run "role_govcloud_scope_with_customer_key" {
   command = plan
-  variables {
-    partition          = "aws-us-gov"
-    region             = "us-gov-west-1"
-    log_group_arn      = "arn:aws-us-gov:logs:us-gov-west-1:000000000000:log-group:/portfolio/test/application"
-    enable_secret_read = true
-    secret_arn         = "arn:aws-us-gov:secretsmanager:us-gov-west-1:000000000000:secret:portfolio/test/runtime-ABC123"
-    secret_kms_key_arn = "arn:aws-us-gov:kms:us-gov-west-1:000000000000:key/00000000-0000-0000-0000-000000000000"
-  }
   override_resource {
     target          = aws_iam_role.this
     override_during = plan
@@ -206,10 +246,35 @@ run "govcloud_scope_with_customer_key" {
       arn = "arn:aws-us-gov:iam::000000000000:role/portfolio-test-lambda-execution"
     }
   }
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws-us-gov:logs:us-gov-west-1:000000000000:log-group:/portfolio/test/application"
+    }
+  }
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws-us-gov:lambda:us-gov-west-1:000000000000:function:portfolio-test-lambda"
+      invoke_arn = "arn:aws-us-gov:apigateway:us-gov-west-1:lambda:path/2015-03-31/functions/arn:aws-us-gov:lambda:us-gov-west-1:000000000000:function:portfolio-test-lambda/invocations"
+      version    = "$LATEST"
+    }
+  }
+  variables {
+    partition          = "aws-us-gov"
+    region             = "us-gov-west-1"
+    log_group_name     = "/portfolio/test/application"
+    enable_secret_read = true
+    secret_arn         = "arn:aws-us-gov:secretsmanager:us-gov-west-1:000000000000:secret:portfolio/test/runtime-ABC123"
+    secret_kms_key_arn = "arn:aws-us-gov:kms:us-gov-west-1:000000000000:key/00000000-0000-0000-0000-000000000000"
+  }
+
   assert {
     condition = (
       jsondecode(aws_iam_role.this.assume_role_policy).Statement[0].Principal.Service == "lambda.amazonaws.com" &&
-      jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${var.log_group_arn}:log-stream:*"] &&
+      jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${aws_cloudwatch_log_group.this.arn}:log-stream:*"] &&
       one([for s in jsondecode(aws_iam_role_policy.this.policy).Statement : s if s.Sid == "ReadAuthorizedSecret"]).Resource == [var.secret_arn] &&
       one([for s in jsondecode(aws_iam_role_policy.this.policy).Statement : s if s.Sid == "DecryptAuthorizedSecret"]).Condition.StringEquals["kms:ViaService"] == "secretsmanager.us-gov-west-1.amazonaws.com" &&
       output.permission_scope.partition == "aws-us-gov"
@@ -218,9 +283,9 @@ run "govcloud_scope_with_customer_key" {
   }
 }
 
-run "valid_role_name_characters" {
+
+run "role_valid_role_name_characters" {
   command = plan
-  variables { role_name = "portfolio_Example+=,.@-role" }
   override_resource {
     target          = aws_iam_role.this
     override_during = plan
@@ -228,15 +293,17 @@ run "valid_role_name_characters" {
       arn = "arn:aws:iam::000000000000:role/portfolio_Example+=,.@-role"
     }
   }
+  variables { role_name = "portfolio_Example+=,.@-role" }
+
   assert {
     condition     = aws_iam_role.this.name == var.role_name && output.permission_scope.role_name == var.role_name
     error_message = "Supported IAM role-name characters must pass through exactly."
   }
 }
 
-run "maximum_role_name_length" {
+
+run "role_maximum_role_name_length" {
   command = plan
-  variables { role_name = join("", [for i in range(64) : "r"]) }
   override_resource {
     target          = aws_iam_role.this
     override_during = plan
@@ -244,43 +311,63 @@ run "maximum_role_name_length" {
       arn = "arn:aws:iam::000000000000:role/${join("", [for i in range(64) : "r"])}"
     }
   }
+  variables { role_name = join("", [for i in range(64) : "r"]) }
+
   assert {
     condition     = length(aws_iam_role.this.name) == 64 && output.execution_role_name == aws_iam_role.this.name
     error_message = "The supported 64-character role-name boundary must remain usable."
   }
 }
 
-run "lambda_log_group_reference" {
+
+run "role_lambda_log_group_reference" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/aws/lambda/portfolio-api-handler" }
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/aws/lambda/portfolio-api-handler"
+    }
+  }
+  variables { log_group_name = "/aws/lambda/portfolio-api-handler" }
   assert {
-    condition     = jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${var.log_group_arn}:log-stream:*"]
+    condition     = jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${aws_cloudwatch_log_group.this.arn}:log-stream:*"]
     error_message = "A bare ARN from the existing logging module must be scoped to its streams rather than used as a group-wide wildcard."
   }
 }
 
-run "maximum_log_group_name_length" {
+
+run "role_maximum_log_group_name_length" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:${join("", [for i in range(512) : "l"])}" }
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:${join("", [for i in range(512) : "l"])}"
+    }
+  }
+  variables { log_group_name = join("", [for i in range(512) : "l"]) }
   assert {
-    condition     = jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${var.log_group_arn}:log-stream:*"] && length(aws_iam_role_policy.this.policy) <= 10240
+    condition     = jsondecode(aws_iam_role_policy.this.policy).Statement[0].Resource == ["${aws_cloudwatch_log_group.this.arn}:log-stream:*"] && length(aws_iam_role_policy.this.policy) <= 10240
     error_message = "An exact 512-character group name must remain scoped and within the inline-policy size budget."
   }
 }
 
-run "caller_owned_unicode_tags" {
+
+run "role_caller_owned_unicode_tags" {
   command = plan
-  variables { tags = { Project = "explicit-project", Name = "caller-owned", "環境:分類" = "検証 @ team" } }
+  variables { role_tags = { Project = "explicit-project", Name = "caller-owned", "環境:分類" = "検証 @ team" } }
   assert {
-    condition     = length(aws_iam_role.this.tags) == length(var.tags) && alltrue([for key, value in var.tags : aws_iam_role.this.tags[key] == value])
+    condition     = length(aws_iam_role.this.tags) == length(var.role_tags) && alltrue([for key, value in var.role_tags : aws_iam_role.this.tags[key] == value])
     error_message = "The role must preserve caller-owned non-secret tags without inventing or replacing Project metadata."
   }
 }
 
-run "maximum_tag_count_and_lengths" {
+
+run "role_maximum_tag_count_and_lengths" {
   command = plan
   variables {
-    tags = merge(
+    role_tags = merge(
       { for i in range(49) : "Tag${i}" => "test" },
       { (join("", [for i in range(128) : "k"])) = join("", [for i in range(256) : "v"]) }
     )
@@ -291,175 +378,331 @@ run "maximum_tag_count_and_lengths" {
   }
 }
 
-run "empty_role_name" {
+
+run "role_empty_role_name" {
   command = plan
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::000000000000:role/"
+    }
+  }
   variables { role_name = "" }
   expect_failures = [var.role_name]
 }
 
-run "role_name_with_path" {
+
+run "role_role_name_with_path" {
   command = plan
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::000000000000:role/portfolio/role"
+    }
+  }
   variables { role_name = "portfolio/role" }
   expect_failures = [var.role_name]
 }
 
-run "role_name_with_wildcard" {
+
+run "role_role_name_with_wildcard" {
   command = plan
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::000000000000:role/portfolio-*"
+    }
+  }
   variables { role_name = "portfolio-*" }
   expect_failures = [var.role_name]
 }
 
-run "overlong_role_name" {
+
+run "role_overlong_role_name" {
   command = plan
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::000000000000:role/${join("", [for i in range(65) : "r"])}"
+    }
+  }
   variables { role_name = join("", [for i in range(65) : "r"]) }
   expect_failures = [var.role_name]
 }
 
-run "null_role_name" {
+
+run "role_null_role_name" {
   command = plan
+  override_resource {
+    target          = aws_iam_role.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::000000000000:role/invalid"
+    }
+  }
   variables { role_name = null }
   expect_failures = [var.role_name]
 }
 
-run "unsupported_partition" {
+
+run "role_unsupported_partition" {
   command = plan
   variables { partition = "aws-iso" }
   expect_failures = [var.partition]
 }
 
-run "china_partition_not_supported" {
+
+run "role_china_partition_not_supported" {
   command = plan
   variables { partition = "aws-cn" }
   expect_failures = [var.partition]
 }
 
-run "null_partition" {
+
+run "role_null_partition" {
   command = plan
   variables { partition = null }
   expect_failures = [var.partition]
 }
 
-run "malformed_account_id" {
+
+run "role_malformed_account_id" {
   command = plan
   variables { account_id = "12345678901" }
   expect_failures = [var.account_id]
 }
 
-run "wildcard_account_id" {
+
+run "role_wildcard_account_id" {
   command = plan
   variables { account_id = "00000000000*" }
   expect_failures = [var.account_id]
 }
 
-run "null_account_id" {
+
+run "role_null_account_id" {
   command = plan
   variables { account_id = null }
   expect_failures = [var.account_id]
 }
 
-run "malformed_region" {
+
+run "role_malformed_region" {
   command = plan
   variables { region = "not-a-region" }
   expect_failures = [var.region]
 }
 
-run "china_region_in_aws_partition" {
+
+run "role_china_region_in_aws_partition" {
   command = plan
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:cn-north-1:000000000000:log-group:/portfolio/test/application"
+    }
+  }
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:cn-north-1:000000000000:function:portfolio-test-lambda"
+      invoke_arn = "arn:aws:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws:lambda:cn-north-1:000000000000:function:portfolio-test-lambda/invocations"
+      version    = "$LATEST"
+    }
+  }
   variables { region = "cn-north-1" }
   expect_failures = [var.region]
 }
 
-run "govcloud_region_in_aws_partition" {
+
+run "role_govcloud_region_in_aws_partition" {
   command = plan
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:us-gov-west-1:000000000000:log-group:/portfolio/test/application"
+    }
+  }
+  override_resource {
+    target          = aws_lambda_function.this
+    override_during = plan
+    values = {
+      arn        = "arn:aws:lambda:us-gov-west-1:000000000000:function:portfolio-test-lambda"
+      invoke_arn = "arn:aws:apigateway:us-gov-west-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-gov-west-1:000000000000:function:portfolio-test-lambda/invocations"
+      version    = "$LATEST"
+    }
+  }
   variables { region = "us-gov-west-1" }
   expect_failures = [var.region]
 }
 
-run "null_region" {
+
+run "role_null_region" {
   command = plan
   variables { region = null }
   expect_failures = [var.region]
 }
 
-run "wildcard_log_group_resource" {
+
+run "role_wildcard_log_group_resource" {
   command = plan
-  variables { log_group_arn = "*" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "*"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "wildcard_log_group_name" {
+
+run "role_wildcard_log_group_name" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/*" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/*"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "log_group_api_star_suffix" {
+
+run "role_log_group_api_star_suffix" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/test/application:*" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/test/application:*"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "log_stream_arn_is_not_group_arn" {
+
+run "role_log_stream_arn_is_not_group_arn" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/test/application:log-stream:stream" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/portfolio/test/application:log-stream:stream"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "missing_log_group_name" {
+
+run "role_missing_log_group_name" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "overlong_log_group_name" {
+
+run "role_overlong_log_group_name" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000000:log-group:${join("", [for i in range(513) : "l"])}" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000000:log-group:${join("", [for i in range(513) : "l"])}"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "log_group_wrong_account" {
+
+run "role_log_group_wrong_account" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:ca-central-1:000000000001:log-group:/portfolio/test/application" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ca-central-1:000000000001:log-group:/portfolio/test/application"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "log_group_wrong_region" {
+
+run "role_log_group_wrong_region" {
   command = plan
-  variables { log_group_arn = "arn:aws:logs:us-east-2:000000000000:log-group:/portfolio/test/application" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:us-east-2:000000000000:log-group:/portfolio/test/application"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "log_group_wrong_partition" {
+
+run "role_log_group_wrong_partition" {
   command = plan
-  variables { log_group_arn = "arn:aws-us-gov:logs:us-gov-west-1:000000000000:log-group:/portfolio/test/application" }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = "arn:aws-us-gov:logs:us-gov-west-1:000000000000:log-group:/portfolio/test/application"
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "null_log_group_arn" {
+
+run "role_null_log_group_arn" {
   command = plan
-  variables { log_group_arn = null }
-  expect_failures = [var.log_group_arn]
+  override_resource {
+    target          = aws_cloudwatch_log_group.this
+    override_during = plan
+    values = {
+      arn = null
+    }
+  }
+  expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "secret_input_while_disabled" {
+
+run "role_secret_input_while_disabled" {
   command = plan
   variables { secret_arn = "arn:aws:secretsmanager:ca-central-1:000000000000:secret:portfolio/test/runtime-ABC123" }
   expect_failures = [var.secret_arn]
 }
 
-run "kms_input_while_disabled" {
+
+run "role_kms_input_while_disabled" {
   command = plan
   variables { secret_kms_key_arn = "arn:aws:kms:ca-central-1:000000000000:key/00000000-0000-0000-0000-000000000000" }
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "enabled_secret_missing_arn" {
+
+run "role_enabled_secret_missing_arn" {
   command = plan
   variables { enable_secret_read = true }
   expect_failures = [var.secret_arn]
 }
 
-run "partial_secret_arn" {
+
+run "role_partial_secret_arn" {
   command = plan
   variables {
     enable_secret_read = true
@@ -468,7 +711,8 @@ run "partial_secret_arn" {
   expect_failures = [var.secret_arn]
 }
 
-run "short_generated_secret_suffix" {
+
+run "role_short_generated_secret_suffix" {
   command = plan
   variables {
     enable_secret_read = true
@@ -477,7 +721,8 @@ run "short_generated_secret_suffix" {
   expect_failures = [var.secret_arn]
 }
 
-run "wildcard_secret_arn" {
+
+run "role_wildcard_secret_arn" {
   command = plan
   variables {
     enable_secret_read = true
@@ -486,7 +731,8 @@ run "wildcard_secret_arn" {
   expect_failures = [var.secret_arn]
 }
 
-run "secret_wrong_account" {
+
+run "role_secret_wrong_account" {
   command = plan
   variables {
     enable_secret_read = true
@@ -495,7 +741,8 @@ run "secret_wrong_account" {
   expect_failures = [var.secret_arn]
 }
 
-run "secret_wrong_region" {
+
+run "role_secret_wrong_region" {
   command = plan
   variables {
     enable_secret_read = true
@@ -504,7 +751,8 @@ run "secret_wrong_region" {
   expect_failures = [var.secret_arn]
 }
 
-run "secret_wrong_partition" {
+
+run "role_secret_wrong_partition" {
   command = plan
   variables {
     enable_secret_read = true
@@ -513,7 +761,8 @@ run "secret_wrong_partition" {
   expect_failures = [var.secret_arn]
 }
 
-run "kms_alias_is_not_key_arn" {
+
+run "role_kms_alias_is_not_key_arn" {
   command = plan
   variables {
     enable_secret_read = true
@@ -523,7 +772,8 @@ run "kms_alias_is_not_key_arn" {
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "bare_kms_identifier" {
+
+run "role_bare_kms_identifier" {
   command = plan
   variables {
     enable_secret_read = true
@@ -533,7 +783,8 @@ run "bare_kms_identifier" {
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "wildcard_kms_key" {
+
+run "role_wildcard_kms_key" {
   command = plan
   variables {
     enable_secret_read = true
@@ -543,7 +794,8 @@ run "wildcard_kms_key" {
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "incomplete_kms_key_id" {
+
+run "role_incomplete_kms_key_id" {
   command = plan
   variables {
     enable_secret_read = true
@@ -553,7 +805,8 @@ run "incomplete_kms_key_id" {
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "kms_wrong_account" {
+
+run "role_kms_wrong_account" {
   command = plan
   variables {
     enable_secret_read = true
@@ -563,7 +816,8 @@ run "kms_wrong_account" {
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "kms_wrong_region" {
+
+run "role_kms_wrong_region" {
   command = plan
   variables {
     enable_secret_read = true
@@ -573,7 +827,8 @@ run "kms_wrong_region" {
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "kms_wrong_partition" {
+
+run "role_kms_wrong_partition" {
   command = plan
   variables {
     enable_secret_read = true
@@ -583,50 +838,58 @@ run "kms_wrong_partition" {
   expect_failures = [var.secret_kms_key_arn]
 }
 
-run "empty_tag_key" {
+
+run "role_empty_tag_key" {
   command = plan
-  variables { tags = { "" = "test" } }
-  expect_failures = [var.tags]
+  variables { role_tags = { "" = "test" } }
+  expect_failures = [var.role_tags]
 }
 
-run "reserved_tag_prefix" {
+
+run "role_reserved_tag_prefix" {
   command = plan
-  variables { tags = { "AWS:Reserved" = "test" } }
-  expect_failures = [var.tags]
+  variables { role_tags = { "AWS:Reserved" = "test" } }
+  expect_failures = [var.role_tags]
 }
 
-run "null_tag_value" {
+
+run "role_null_tag_value" {
   command = plan
-  variables { tags = { Owner = null } }
-  expect_failures = [var.tags]
+  variables { role_tags = { Owner = null } }
+  expect_failures = [var.role_tags]
 }
 
-run "unsupported_tag_key_character" {
+
+run "role_unsupported_tag_key_character" {
   command = plan
-  variables { tags = { "Owner?" = "test" } }
-  expect_failures = [var.tags]
+  variables { role_tags = { "Owner?" = "test" } }
+  expect_failures = [var.role_tags]
 }
 
-run "unsupported_tag_value_character" {
+
+run "role_unsupported_tag_value_character" {
   command = plan
-  variables { tags = { Owner = "test!" } }
-  expect_failures = [var.tags]
+  variables { role_tags = { Owner = "test!" } }
+  expect_failures = [var.role_tags]
 }
 
-run "overlong_tag_key" {
+
+run "role_overlong_tag_key" {
   command = plan
-  variables { tags = { (join("", [for i in range(129) : "k"])) = "test" } }
-  expect_failures = [var.tags]
+  variables { role_tags = { (join("", [for i in range(129) : "k"])) = "test" } }
+  expect_failures = [var.role_tags]
 }
 
-run "overlong_tag_value" {
+
+run "role_overlong_tag_value" {
   command = plan
-  variables { tags = { Owner = join("", [for i in range(257) : "v"]) } }
-  expect_failures = [var.tags]
+  variables { role_tags = { Owner = join("", [for i in range(257) : "v"]) } }
+  expect_failures = [var.role_tags]
 }
 
-run "too_many_tags" {
+
+run "role_too_many_tags" {
   command = plan
-  variables { tags = { for i in range(51) : "Tag${i}" => "test" } }
-  expect_failures = [var.tags]
+  variables { role_tags = { for i in range(51) : "Tag${i}" => "test" } }
+  expect_failures = [var.role_tags]
 }

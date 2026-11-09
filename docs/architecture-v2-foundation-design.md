@@ -149,6 +149,14 @@ Federation and temporary workload credentials are preferred official guidance [S
 not proof of effective permissions. Never introduce unrestricted administration,
 PassRole or speculative trust. Ownership approvals precede any identity implementation.
 
+R1 status: the approved four-resource Lambda workload consolidation is now
+implemented in source with five DEV root calls and the same 17 resources; old
+standalone Lambda/role implementations are retired after relocated local checks.
+API access logs and generic logging remain independent. Exact moves, interface
+and current local results are recorded in the
+[R1 migration record](repository-structure-strategy.md). This is not actual state
+migration, completed PR CI or permission to start R2/R4/new features.
+
 ## F. Approved migration-first sequence
 
 **R0 → R1 → R2 → R3 → R4 → new Architecture v2 features.** See the

@@ -5,7 +5,7 @@ and [live-validation approval gates](../../../../../docs/dev-live-validation-rea
 These documents authorize no live AWS operations.
 
 This root describes one `dev` / `ca-central-1` / `serverless-api` workload for
-project `aws-terraform-portfolio`. Phase 3-9 composes seven existing module
+project `aws-terraform-portfolio`. R1 composes five functional module
 instances into a 17-resource configuration. Validation uses offline mocked plans;
 no AWS infrastructure is deployed, authenticated or established as operational.
 
@@ -37,7 +37,7 @@ input validation, secure defaults and outputs. There are no AWS data sources,
 VPC/Identity Center/human-access/account-policy module instances, additional
 accounts, provider aliases or additional Regions in this workload.
 
-### Exact module and managed-resource inventory
+### Exact R1 module and managed-resource inventory
 
 All resource addresses below are relative to the stated module instance. Every
 resource is named `this`; successful complete mock plans contain exactly **17**.
@@ -46,12 +46,10 @@ resource is named `this`; successful complete mock plans contain exactly **17**.
 | --- | --- | --- | ---: |
 | `module.artifact_bucket` | `s3_artifact_bucket` | `aws_s3_bucket`, `aws_s3_bucket_versioning`, `aws_s3_bucket_public_access_block`, `aws_s3_bucket_ownership_controls`, `aws_s3_bucket_server_side_encryption_configuration`, `aws_s3_bucket_policy` | 6 |
 | `module.secret_metadata` | `secrets_manager` | `aws_secretsmanager_secret` | 1 |
-| `module.lambda_logs` | `cloudwatch_logs` | `aws_cloudwatch_log_group` | 1 |
 | `module.api_access_logs` | `cloudwatch_logs` | `aws_cloudwatch_log_group` | 1 |
-| `module.lambda_execution_role` | `lambda_execution_role` | `aws_iam_role`, `aws_iam_role_policy` | 2 |
-| `module.lambda_function` | `lambda` | `aws_lambda_function` | 1 |
+| `module.lambda_workload` | `lambda_workload` | `aws_lambda_function`, `aws_iam_role`, `aws_iam_role_policy`, `aws_cloudwatch_log_group` | 4 |
 | `module.http_api` | `api_gateway_http` | `aws_apigatewayv2_api`, `aws_apigatewayv2_integration`, `aws_apigatewayv2_route`, `aws_apigatewayv2_stage`, `aws_lambda_permission` | 5 |
-| **Total** | **Seven instances, six existing module sources** | **No objects, secret versions or extra policies** | **17** |
+| **Total** | **Five instances, five module sources** | **No objects, secret versions or extra policies** | **17** |
 
 ## Root input contract
 
@@ -94,6 +92,9 @@ does not establish ownership or availability in a real account.
 
 ## Effective configuration and sources
 
+R1 owns function, dedicated role/policy and Lambda application logs together.
+API access logs remain in the generic CloudWatch module for R2.
+
 **Root Override** means an explicit child input supplied by this root, overriding
 a child default where one exists. **Module Default** means an omitted child input
 inherits its declared default. **Module Fixed** means the child implementation
@@ -113,15 +114,15 @@ are not mislabeled as child defaults.
 | All required stable names | Names above; S3 name remains caller-supplied | Root Override |
 | Secret `project_tag` | `local.project` authorization identity | Root Override |
 | Role partition/account/Region | `aws`, `var.aws_account_id`, `local.region` | Root Override |
-| Role log group | Actual `module.lambda_logs.log_group_arn` | Root Override |
+| Role log group | Actual internally owned bare group ARN | Module Fixed |
 | Role secret read | Root flag; actual secret ARN only when enabled, otherwise null; customer-managed key reference null | Root Override |
-| Lambda role/log group | Actual execution-role ARN and Lambda Log Group name outputs | Root Override |
+| Lambda role/log group and policy binding | Actual internally owned role ARN, bare group ARN/name; function waits for inline policy | Module Fixed |
 | Lambda artifact | Actual bucket-name output, explicit input key and object version | Root Override |
 | Lambda runtime/handler | Explicit required root inputs | Root Override |
 | Lambda environment | Empty when disabled; only `SECRET_ARN` with actual secret ARN when enabled | Root Override |
 | API Lambda references | Actual Lambda function and invocation ARN outputs | Root Override |
 | API log destination | Actual separate API Log Group's bare ARN output | Root Override |
-| Both Log Groups | 30-day retention; deletion protection true; explicit CMK reference null | Module Default |
+| Both Log Groups | 30-day retention; deletion protection true; CMK null (`log_*` workload inputs versus generic API-log inputs) | Module Default |
 | Both Log Groups | `STANDARD`, `skip_destroy = false` | Module Fixed |
 | Secret lifecycle/encryption | 30-day recovery; no explicit CMK; optional description null | Module Default |
 | Secret metadata tags | Canonical `Name` and required `Project` | Module Fixed |
@@ -153,9 +154,9 @@ Actual output references carry these dependencies:
    Lambda's logging configuration. They are never reconstructed as ARN strings.
 3. The real secret ARN feeds exact-secret IAM policy and `SECRET_ARN` only when
    enabled. Secrets Manager assigns its suffix; the root never invents it.
-4. The execution-role ARN feeds Lambda. A targeted dependency on the role module
-   also waits for its inline policy before Lambda creation; it does not prove IAM
-   propagation.
+4. Internally owned log/role outputs feed the policy/function. The integrated
+   function explicitly depends on its inline policy before creation; it does not
+   prove IAM propagation.
 5. Lambda's actual function and invocation ARNs feed the HTTP API integration and
    its resource-based invoke permission.
 6. The distinct API access Log Group's bare ARN feeds stage access logging.
@@ -231,11 +232,11 @@ Before any future authorized deployment, owners must independently approve:
 | --- | --- |
 | `api_invoke_url` | `module.http_api.invoke_url` |
 | `api_id` | `module.http_api.api_id` |
-| `lambda_function_name` | `module.lambda_function.function_name` |
-| `lambda_function_arn` | `module.lambda_function.function_arn` |
+| `lambda_function_name` | `module.lambda_workload.function_name` |
+| `lambda_function_arn` | `module.lambda_workload.function_arn` |
 | `artifact_bucket_name` | `module.artifact_bucket.bucket_name` |
 | `secret_metadata_arn` | `module.secret_metadata.secret_arn` |
-| `lambda_log_group_name` | `module.lambda_logs.log_group_name` |
+| `lambda_log_group_name` | `module.lambda_workload.log_group_name` |
 | `api_access_log_group_name` | `module.api_access_logs.log_group_name` |
 
 These are references, not proof of deployment or successful requests. No secret
@@ -315,3 +316,25 @@ removal of other security configuration. Secret deletion uses the 30-day recover
 window and does not immediately erase the name or recovery obligations. Review
 artifact rollback versions, secret recovery and access to retained logs before
 changing or removing anything. This phase executes no teardown.
+
+## R1 source migration and current local evidence
+
+R1 replaces the three Lambda-related calls with lambda_workload. Exact resource
+moves are declared in moved.tf; api_access_logs remains untouched. The root still
+has 17 resources, five module calls and the same eight operational outputs. No
+actual state operation or deployed migration was performed. Resource settings and
+outputs matched four old/new actual mock-plan pairs after the explicit four-address
+mapping, apart from documented unconfigured provider-computed random metadata.
+
+Local validation: integrated native 188/188 and root native 5/5; module 45 complete
+four-resource plans and 143 intentionally rejected partial plans; root four complete
+17-resource positives and one invalid-account rejection. Root checker retains its
+35 mutations/22 capture faults and 12 independent input rejections. Historical
+384 Terraform/153 Python results remain at their old revisions; the unchanged
+245 native module cases and 153 Python/toolkit/IAM regression are delegated to
+GitHub Actions. If all suites succeed, the resulting native total is 438; this
+is not a claim that this PR's complete CI has passed.
+
+See [integrated module contract](../../../../modules/lambda_workload/README.md) and
+[completed address mapping](../../../../../docs/repository-structure-strategy.md).
+R2/R3/R4 and all new Architecture v2 features remain separately authorized work.

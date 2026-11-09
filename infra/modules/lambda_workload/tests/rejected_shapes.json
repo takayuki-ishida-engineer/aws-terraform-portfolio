@@ -1,0 +1,540 @@
+{
+  "lambda_blank_artifact_version": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_bucket_arn_is_not_bucket_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_cross_partition_layer_rejected": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_duplicate_layers": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_duplicate_security_groups": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_duplicate_subnets": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_empty_artifact_key": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_empty_artifact_version": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_empty_function_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_empty_handler": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_empty_log_group_name": [
+    "aws_iam_role"
+  ],
+  "lambda_ephemeral_storage_above_maximum": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_ephemeral_storage_below_minimum": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_fractional_ephemeral_storage": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_fractional_memory": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_fractional_reserved_concurrency": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_fractional_timeout": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_incompatible_python_handler": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_invalid_environment_key": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_invalid_function_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_invalid_log_group_name": [
+    "aws_iam_role"
+  ],
+  "lambda_invalid_security_group_id": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_invalid_subnet_id": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_malformed_execution_role_account": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "lambda_malformed_handler": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_memory_above_maximum": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_memory_below_minimum": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_missing_artifact_version": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_missing_runtime": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_negative_reserved_concurrency": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_null_environment_value": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_null_function_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_null_tag_value": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_overlong_description": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_overlong_function_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_overlong_log_group_name": [
+    "aws_iam_role"
+  ],
+  "lambda_oversized_environment": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_reserved_concurrency_integer_limit": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_reserved_environment_key": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_reserved_log_group_prefix": [
+    "aws_iam_role"
+  ],
+  "lambda_reserved_tag_prefix": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_security_groups_without_subnets": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_sts_session_is_not_execution_role": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "lambda_subnets_without_security_groups": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_timeout_above_maximum": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_timeout_below_minimum": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_too_many_layers": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_too_many_security_groups": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_too_many_subnets": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_too_many_tags": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_unsupported_architecture": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_unsupported_runtime": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_unversioned_layer_arn": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_unversioned_null_artifact_rejected": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_uppercase_bucket_rejected": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_utf8_environment_byte_limit": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role",
+    "aws_iam_role_policy"
+  ],
+  "lambda_wildcard_execution_role_rejected": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "logging_above_maximum_retention": [
+    "aws_iam_role"
+  ],
+  "logging_case_variant_reserved_tag_prefix": [
+    "aws_iam_role"
+  ],
+  "logging_china_partition_key_syntax": [
+    "aws_iam_role"
+  ],
+  "logging_empty_kms_reference": [
+    "aws_iam_role"
+  ],
+  "logging_empty_name": [
+    "aws_iam_role"
+  ],
+  "logging_empty_tag_key": [
+    "aws_iam_role"
+  ],
+  "logging_fractional_retention": [
+    "aws_iam_role"
+  ],
+  "logging_incomplete_kms_key_arn": [
+    "aws_iam_role"
+  ],
+  "logging_incomplete_multi_region_key_identifier": [
+    "aws_iam_role"
+  ],
+  "logging_indefinite_retention": [
+    "aws_iam_role"
+  ],
+  "logging_key_id_is_not_key_arn": [
+    "aws_iam_role"
+  ],
+  "logging_kms_alias_is_not_key_arn": [
+    "aws_iam_role"
+  ],
+  "logging_literal_aws_prefix": [
+    "aws_iam_role"
+  ],
+  "logging_malformed_kms_account": [
+    "aws_iam_role"
+  ],
+  "logging_name_with_space": [
+    "aws_iam_role"
+  ],
+  "logging_name_with_unsupported_character": [
+    "aws_iam_role"
+  ],
+  "logging_negative_retention": [
+    "aws_iam_role"
+  ],
+  "logging_non_hexadecimal_kms_identifier": [
+    "aws_iam_role"
+  ],
+  "logging_null_name": [
+    "aws_iam_role"
+  ],
+  "logging_null_tag_value": [
+    "aws_iam_role"
+  ],
+  "logging_overlong_kms_key_arn": [
+    "aws_iam_role"
+  ],
+  "logging_overlong_name": [
+    "aws_iam_role"
+  ],
+  "logging_overlong_tag_key": [
+    "aws_iam_role"
+  ],
+  "logging_overlong_tag_value": [
+    "aws_iam_role"
+  ],
+  "logging_owned_key_wrong_account": [
+    "aws_iam_role"
+  ],
+  "logging_owned_key_wrong_partition": [
+    "aws_iam_role"
+  ],
+  "logging_owned_key_wrong_region": [
+    "aws_iam_role"
+  ],
+  "logging_reserved_tag_prefix": [
+    "aws_iam_role"
+  ],
+  "logging_too_many_tags": [
+    "aws_iam_role"
+  ],
+  "logging_unsupported_3650_day_retention": [
+    "aws_iam_role"
+  ],
+  "logging_unsupported_366_day_retention": [
+    "aws_iam_role"
+  ],
+  "logging_unsupported_kms_partition": [
+    "aws_iam_role"
+  ],
+  "logging_unsupported_short_retention": [
+    "aws_iam_role"
+  ],
+  "logging_unsupported_tag_key_character": [
+    "aws_iam_role"
+  ],
+  "logging_unsupported_tag_value_character": [
+    "aws_iam_role"
+  ],
+  "logging_wildcard_kms_key_arn": [
+    "aws_iam_role"
+  ],
+  "logging_wrong_service_key_arn": [
+    "aws_iam_role"
+  ],
+  "role_bare_kms_identifier": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_china_partition_not_supported": [],
+  "role_china_region_in_aws_partition": [],
+  "role_empty_role_name": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_empty_tag_key": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_enabled_secret_missing_arn": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_govcloud_region_in_aws_partition": [],
+  "role_incomplete_kms_key_id": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_kms_alias_is_not_key_arn": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_kms_input_while_disabled": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_kms_wrong_account": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_kms_wrong_partition": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_kms_wrong_region": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_log_group_api_star_suffix": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_log_group_wrong_account": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_log_group_wrong_partition": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_log_group_wrong_region": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_log_stream_arn_is_not_group_arn": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_malformed_account_id": [],
+  "role_malformed_region": [],
+  "role_missing_log_group_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_null_account_id": [],
+  "role_null_log_group_arn": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_null_partition": [],
+  "role_null_region": [],
+  "role_null_role_name": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_null_tag_value": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_overlong_log_group_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_overlong_role_name": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_overlong_tag_key": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_overlong_tag_value": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_partial_secret_arn": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_reserved_tag_prefix": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_role_name_with_path": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_role_name_with_wildcard": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_secret_input_while_disabled": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_secret_wrong_account": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_secret_wrong_partition": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_secret_wrong_region": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_short_generated_secret_suffix": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_too_many_tags": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_unsupported_partition": [],
+  "role_unsupported_tag_key_character": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_unsupported_tag_value_character": [
+    "aws_cloudwatch_log_group"
+  ],
+  "role_wildcard_account_id": [],
+  "role_wildcard_kms_key": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_wildcard_log_group_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_wildcard_log_group_resource": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
+  "role_wildcard_secret_arn": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ]
+}

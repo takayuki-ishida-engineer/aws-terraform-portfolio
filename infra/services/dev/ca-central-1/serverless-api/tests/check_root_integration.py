@@ -26,10 +26,8 @@ MODULE_TYPES = {
     "artifact_bucket": {"aws_s3_bucket", "aws_s3_bucket_versioning", "aws_s3_bucket_public_access_block",
         "aws_s3_bucket_ownership_controls", "aws_s3_bucket_server_side_encryption_configuration", "aws_s3_bucket_policy"},
     "secret_metadata": {"aws_secretsmanager_secret"},
-    "lambda_logs": {"aws_cloudwatch_log_group"},
     "api_access_logs": {"aws_cloudwatch_log_group"},
-    "lambda_execution_role": {"aws_iam_role", "aws_iam_role_policy"},
-    "lambda_function": {"aws_lambda_function"},
+    "lambda_workload": {"aws_lambda_function", "aws_iam_role", "aws_iam_role_policy", "aws_cloudwatch_log_group"},
     "http_api": {"aws_apigatewayv2_api", "aws_apigatewayv2_integration", "aws_apigatewayv2_route", "aws_apigatewayv2_stage", "aws_lambda_permission"},
 }
 INVENTORY = {f"module.{module}.{kind}.this" for module, kinds in MODULE_TYPES.items() for kind in kinds}
@@ -148,39 +146,39 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
             "aws:SecureTransport": "false", "aws:PrincipalIsAWSService": "false"}}}]}, "bucket_transport_policy")
 
     logs = {}
-    for module, name in (("lambda_logs", "/aws/lambda/" + PREFIX + "-function"), ("api_access_logs", "/aws/apigateway/" + PREFIX + "-access")):
+    for module, name in (("lambda_workload", "/aws/lambda/" + PREFIX + "-function"), ("api_access_logs", "/aws/apigateway/" + PREFIX + "-access")):
         log = read(module, "aws_cloudwatch_log_group", "name", "arn", "retention_in_days", "deletion_protection_enabled", "log_group_class", "kms_key_id", "skip_destroy")
         require(log.get("name") == name and log.get("arn") == f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:{name}", "log_identity:" + module)
         require(log.get("retention_in_days") == 30 and log.get("deletion_protection_enabled") is True
             and log.get("log_group_class") == "STANDARD" and log.get("kms_key_id") is None
             and log.get("skip_destroy") is False, "log_safety:" + module)
         logs[module] = log
-    require(logs["lambda_logs"]["arn"] != logs["api_access_logs"]["arn"], "separate_log_groups")
+    require(logs["lambda_workload"]["arn"] != logs["api_access_logs"]["arn"], "separate_log_groups")
     secret = read("secret_metadata", "aws_secretsmanager_secret", "name", "arn", "kms_key_id", "recovery_window_in_days", "tags", "tags_all")
     require(secret.get("name") == PREFIX + "/application" and isinstance(secret.get("arn"), str)
         and re.fullmatch(f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:" + re.escape(secret["name"]) + r"-[A-Za-z0-9]{6}", secret["arn"]), "secret_metadata_identity")
     require(secret.get("kms_key_id") is None and secret.get("recovery_window_in_days") == 30
         and secret.get("tags", {}).get("Project") == DEFAULT_TAGS["Project"], "secret_metadata_safety")
-    role = read("lambda_execution_role", "aws_iam_role", "name", "arn", "path", "max_session_duration", "assume_role_policy")
+    role = read("lambda_workload", "aws_iam_role", "name", "arn", "path", "max_session_duration", "assume_role_policy")
     require(role.get("name") == PREFIX + "-execution" and role.get("arn") == f"arn:aws:iam::{ACCOUNT}:role/" + role["name"]
         and role.get("path") == "/" and role.get("max_session_duration") == 3600, "execution_role_identity")
     require(parse_json(role.get("assume_role_policy")) == {"Version": "2012-10-17", "Statement": [{
         "Sid": "LambdaServiceAssumeRole", "Effect": "Allow", "Action": ["sts:AssumeRole"], "Principal": {"Service": "lambda.amazonaws.com"}}]}, "lambda_only_role_trust")
-    inline = read("lambda_execution_role", "aws_iam_role_policy", "name", "role", "policy")
+    inline = read("lambda_workload", "aws_iam_role_policy", "name", "role", "policy")
     require(inline.get("name") == "LambdaWorkloadAccess" and inline.get("role") == role["name"], "workload_policy_role_binding")
     statements = [{"Sid": "WriteExistingLogStreams", "Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
-        "Resource": [logs["lambda_logs"]["arn"] + ":log-stream:*"]}]
+        "Resource": [logs["lambda_workload"]["arn"] + ":log-stream:*"]}]
     if enabled:
         statements.append({"Sid": "ReadAuthorizedSecret", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"], "Resource": [secret["arn"]]})
     require(parse_json(inline.get("policy")) == {"Version": "2012-10-17", "Statement": statements}, "exact_workload_permissions")
-    function = read("lambda_function", "aws_lambda_function", "function_name", "arn", "invoke_arn", "role", "s3_bucket", "s3_key", "s3_object_version", "runtime", "handler", "environment", "logging_config", "vpc_config", "layers", "kms_key_arn", "publish", "architectures", "memory_size", "timeout", "ephemeral_storage", "tracing_config")
+    function = read("lambda_workload", "aws_lambda_function", "function_name", "arn", "invoke_arn", "role", "s3_bucket", "s3_key", "s3_object_version", "runtime", "handler", "environment", "logging_config", "vpc_config", "layers", "kms_key_arn", "publish", "architectures", "memory_size", "timeout", "ephemeral_storage", "tracing_config")
     require(function.get("function_name") == PREFIX + "-function" and function.get("arn") == f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:" + function["function_name"], "lambda_identity")
     require(function.get("invoke_arn") == f"arn:aws:apigateway:{REGION}:lambda:path/2015-03-31/functions/" + function["arn"] + "/invocations", "lambda_invoke_identity")
     require(function.get("role") == role["arn"], "lambda_execution_role_binding")
     require(function.get("s3_bucket") == bucket["bucket"] and function.get("s3_key") == "lambda/test/function.zip"
         and function.get("s3_object_version") == "synthetic-version-001", "lambda_artifact_binding")
     require(function.get("runtime") == runtime and function.get("handler") == handler, "lambda_runtime_handler")
-    require(block(function.get("logging_config"), "lambda_logging").get("log_group") == logs["lambda_logs"]["name"]
+    require(block(function.get("logging_config"), "lambda_logging").get("log_group") == logs["lambda_workload"]["name"]
         and function["logging_config"][0].get("log_format") == "Text", "lambda_log_binding")
     expected_env = {"SECRET_ARN": secret["arn"]} if enabled else {}
     env = function.get("environment") or []
@@ -226,7 +224,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
 
     expected = {"api_invoke_url": stage["invoke_url"], "api_id": api["id"], "lambda_function_name": function["function_name"],
         "lambda_function_arn": function["arn"], "artifact_bucket_name": bucket["bucket"], "secret_metadata_arn": secret["arn"],
-        "lambda_log_group_name": logs["lambda_logs"]["name"], "api_access_log_group_name": logs["api_access_logs"]["name"]}
+        "lambda_log_group_name": logs["lambda_workload"]["name"], "api_access_log_group_name": logs["api_access_logs"]["name"]}
     outputs = plan.get("output_changes")
     require(isinstance(outputs, dict) and set(outputs) == set(expected), "output_inventory")
     for name, val in expected.items():
@@ -335,12 +333,12 @@ def semantic_mutations(plan, enabled=False):
         transform(item["change"]["after"])
         results.append(expect_rejection(lambda: verify_plan(changed, enabled), identifier))
 
-    mutate("unrelated-execution-role", "lambda_function", "aws_lambda_function", lambda v: v.update(role=f"arn:aws:iam::{ACCOUNT}:role/other"))
-    mutate("unversioned-artifact", "lambda_function", "aws_lambda_function", lambda v: v.update(s3_object_version="null"))
-    mutate("unrelated-artifact-bucket", "lambda_function", "aws_lambda_function", lambda v: v.update(s3_bucket="other-artifacts"))
-    mutate("unrelated-artifact-key", "lambda_function", "aws_lambda_function", lambda v: v.update(s3_key="other.zip"))
-    mutate("unrelated-lambda-log-group", "lambda_function", "aws_lambda_function", lambda v: v["logging_config"][0].update(log_group="/other"))
-    mutate("plaintext-environment", "lambda_function", "aws_lambda_function", lambda v: v.update(environment=[{"variables": {"PASSWORD": "synthetic-value"}}]))
+    mutate("unrelated-execution-role", "lambda_workload", "aws_lambda_function", lambda v: v.update(role=f"arn:aws:iam::{ACCOUNT}:role/other"))
+    mutate("unversioned-artifact", "lambda_workload", "aws_lambda_function", lambda v: v.update(s3_object_version="null"))
+    mutate("unrelated-artifact-bucket", "lambda_workload", "aws_lambda_function", lambda v: v.update(s3_bucket="other-artifacts"))
+    mutate("unrelated-artifact-key", "lambda_workload", "aws_lambda_function", lambda v: v.update(s3_key="other.zip"))
+    mutate("unrelated-lambda-log-group", "lambda_workload", "aws_lambda_function", lambda v: v["logging_config"][0].update(log_group="/other"))
+    mutate("plaintext-environment", "lambda_workload", "aws_lambda_function", lambda v: v.update(environment=[{"variables": {"PASSWORD": "synthetic-value"}}]))
     mutate("anonymous-route", "http_api", "aws_apigatewayv2_route", lambda v: v.update(authorization_type="NONE"))
     mutate("unrelated-integration", "http_api", "aws_apigatewayv2_integration", lambda v: v.update(integration_uri=v["integration_uri"].replace("-function", "-other")))
     mutate("broad-invoke-source", "http_api", "aws_lambda_permission", lambda v: v.update(source_arn=v["source_arn"].replace("/$default/$default", "/*/*")))
@@ -356,24 +354,24 @@ def semantic_mutations(plan, enabled=False):
         policy["Statement"].append({"Effect": "Allow", "Action": ["iam:PassRole"], "Resource": ["*"]})
         v["policy"] = json.dumps(policy)
 
-    mutate("unrestricted-pass-role", "lambda_execution_role", "aws_iam_role_policy", escalate)
+    mutate("unrestricted-pass-role", "lambda_workload", "aws_iam_role_policy", escalate)
     if enabled:
         def add_kms(v):
             policy = parse_json(v["policy"])
             policy["Statement"].append({"Effect": "Allow", "Action": ["kms:Decrypt"], "Resource": ["*"]})
             v["policy"] = json.dumps(policy)
-        mutate("enabled-secret-kms-escalation", "lambda_execution_role", "aws_iam_role_policy", add_kms)
+        mutate("enabled-secret-kms-escalation", "lambda_workload", "aws_iam_role_policy", add_kms)
         def broaden_secret(v):
             policy = parse_json(v["policy"])
             policy["Statement"][1]["Resource"] = ["*"]
             v["policy"] = json.dumps(policy)
-        mutate("wildcard-secret-resource", "lambda_execution_role", "aws_iam_role_policy", broaden_secret)
+        mutate("wildcard-secret-resource", "lambda_workload", "aws_iam_role_policy", broaden_secret)
     else:
         def add_secret(v):
             policy = parse_json(v["policy"])
             policy["Statement"].append({"Effect": "Allow", "Action": ["secretsmanager:GetSecretValue", "kms:Decrypt"], "Resource": ["*"]})
             v["policy"] = json.dumps(policy)
-        mutate("disabled-secret-kms-escalation", "lambda_execution_role", "aws_iam_role_policy", add_secret)
+        mutate("disabled-secret-kms-escalation", "lambda_workload", "aws_iam_role_policy", add_secret)
     return results
 
 

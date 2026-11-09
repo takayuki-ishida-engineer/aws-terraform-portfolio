@@ -16,17 +16,17 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from check_r1_migration import verify_structure, structure_mutations
 
-# Reviewed native coverage is pinned after the module's complete test run.
-EXPECTED_TESTS = 64
-EXPECTED_NEGATIVES = 49
-POSITIVE_RUNS = {
-  "default_logging_only_role", "exact_lambda_service_trust", "scoped_log_stream_writes",
-  "resource_attribute_outputs", "enabled_secret_without_customer_key", "enabled_secret_with_customer_key",
-  "existing_multi_region_customer_key", "alternate_account_and_region", "govcloud_scope_with_customer_key",
-  "valid_role_name_characters", "maximum_role_name_length", "lambda_log_group_reference",
-  "maximum_log_group_name_length", "caller_owned_unicode_tags", "maximum_tag_count_and_lengths",
-}
+
+# Reviewed case-by-case migration, not a replacement with a historical total.
+MANIFEST = json.loads((Path(__file__).with_name("coverage.json")).read_text())
+EXPECTED_TESTS = len(MANIFEST)
+EXPECTED_NEGATIVES = sum(case["expect_failure"] for case in MANIFEST)
+POSITIVE_RUNS = {case["new_run"] for case in MANIFEST if not case["expect_failure"]}
+EXPECTED_RUNS = {(case["new_file"], case["new_run"]) for case in MANIFEST}
+REJECTED_SHAPES = json.loads((Path(__file__).with_name("rejected_shapes.json")).read_text())
+INVENTORY = {"aws_lambda_function", "aws_iam_role", "aws_iam_role_policy", "aws_cloudwatch_log_group"}
 POLICY_NAME = "LambdaWorkloadAccess"
 LOG_ACTIONS = {"logs:CreateLogStream", "logs:PutLogEvents"}
 SECRET_ACTIONS = {"secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"}
@@ -359,11 +359,23 @@ def run_matrix(trust, policy, scope):
   return identity
 
 
-def verify_plan(plan, references):
+def verify_plan(plan, references, run=None):
   resources = plan.get("resource_changes")
-  require(isinstance(resources, list) and Counter(resource.get("type") for resource in resources) == {"aws_iam_role": 1, "aws_iam_role_policy": 1}, "resource_inventory")
+  require(isinstance(resources, list) and Counter(resource.get("type") for resource in resources) == {kind: 1 for kind in INVENTORY}, "resource_inventory")
   require(all(resource.get("name") == "this" and resource.get("address") == resource.get("type") + ".this"
       and "index" not in resource and resource.get("mode") == "managed" and resource.get("change", {}).get("actions") == ["create"] for resource in resources), "resource_lifecycle_identity")
+  required = {
+    "aws_iam_role": {"name", "arn", "path", "max_session_duration", "assume_role_policy", "tags"},
+    "aws_iam_role_policy": {"name", "role", "policy"},
+    "aws_cloudwatch_log_group": {"name", "arn", "retention_in_days", "deletion_protection_enabled", "log_group_class", "skip_destroy", "kms_key_id", "tags"},
+    "aws_lambda_function": {"function_name", "arn", "invoke_arn", "role", "s3_bucket", "s3_key", "s3_object_version", "runtime", "handler", "package_type", "publish", "memory_size", "timeout", "architectures", "ephemeral_storage", "logging_config", "tracing_config", "environment", "vpc_config", "layers", "reserved_concurrent_executions", "tags"},
+  }
+  for resource in resources:
+    change = resource["change"]
+    require(resource.get("provider_name") == "registry.terraform.io/hashicorp/aws" and change.get("before") is None
+        and isinstance(change.get("after"), dict) and isinstance(change.get("after_unknown"), dict), "resource_change_metadata")
+    for name in required[resource["type"]]:
+      require(name in change["after"] and not any_unknown(change["after_unknown"].get(name, False)), "required_resource_field:" + name)
   values = {resource["type"]: resource["change"]["after"] for resource in resources}
   outputs = plan.get("output_changes", {})
   require(isinstance(outputs, dict) and "permission_scope" in outputs, "scope_output_missing")
@@ -384,6 +396,7 @@ def verify_plan(plan, references):
       "secret_read_enabled": scope["enable_secret_read"]}.items():
     require(name in outputs and not any_unknown(outputs[name].get("after_unknown", False))
         and canonical(outputs[name].get("after")) == canonical(expected), "resource_output_binding:" + name)
+  verify_workload(values, outputs, scope, run)
   matrix = run_matrix(trust, policy, scope)
   grant_matrix = [{"action": action, "resource_type": REQUIRED_TYPES_CASEFOLD[action.casefold()],
     "resource_sha256": sha256(resource), "condition_keys": sorted(key for entries in statement.get("Condition", {}).values() for key in entries)}
@@ -393,10 +406,94 @@ def verify_plan(plan, references):
     "policy_size": len("".join(inline["policy"].split()))}
 
 
+def verify_workload(values, outputs, scope, run):
+  """Inspect the actual complete four-resource workload, not a filtered IAM plan."""
+  role, group, function = (values[kind] for kind in ("aws_iam_role", "aws_cloudwatch_log_group", "aws_lambda_function"))
+  require(group.get("arn") == scope["log_group_arn"] and group["arn"] ==
+      f"arn:{scope['partition']}:logs:{scope['region']}:{scope['account_id']}:log-group:{group.get('name')}", "owned_log_identity")
+  verify_log_configuration(group)
+  expected_retention = {"logging_minimum_finite_retention": 1, "logging_weekly_retention": 7,
+      "logging_supported_400_day_retention": 400, "logging_supported_731_day_retention": 731,
+      "logging_maximum_supported_retention": 3653}.get(run, 30)
+  require(group["retention_in_days"] == expected_retention and group["deletion_protection_enabled"] is
+      (run != "logging_explicit_disposable_development_override"), "owned_log_effective_lifecycle")
+  expected_key = None
+  if run in {"logging_existing_symmetric_key_reference", "logging_existing_multi_region_key_reference", "logging_govcloud_partition_key_syntax"}:
+    identifier = "mrk-00000000000000000000000000000000" if run == "logging_existing_multi_region_key_reference" else "00000000-0000-0000-0000-000000000000"
+    expected_key = f"arn:{scope['partition']}:kms:{scope['region']}:{scope['account_id']}:key/{identifier}"
+  require(group.get("kms_key_id") == expected_key, "owned_log_effective_key")
+  key = group.get("kms_key_id")
+  require(key is None or isinstance(key, str) and key.startswith(
+      f"arn:{scope['partition']}:kms:{scope['region']}:{scope['account_id']}:key/"), "log_key_scope")
+  require(function.get("role") == role["arn"], "function_owned_role_binding")
+  logging = function.get("logging_config")
+  require(isinstance(logging, list) and len(logging) == 1 and logging[0].get("log_group") == group["name"]
+      and logging[0].get("log_format") == "Text", "function_owned_log_binding")
+  require(function.get("arn") == f"arn:{scope['partition']}:lambda:{scope['region']}:{scope['account_id']}:function:{function.get('function_name')}"
+      and function.get("invoke_arn") == f"arn:{scope['partition']}:apigateway:{scope['region']}:lambda:path/2015-03-31/functions/{function['arn']}/invocations", "function_identity_scope")
+  require(function.get("package_type") == "Zip" and function.get("publish") is False
+      and function.get("s3_bucket") == "portfolio-test-artifacts" and function.get("s3_key") == "lambda/test/function.zip"
+      and function.get("s3_object_version") == "synthetic-version-001", "function_versioned_artifact")
+  require(not function.get("filename") and not function.get("image_uri") and function.get("kms_key_arn") is None,
+      "function_no_unreviewed_delivery")
+  require(function.get("runtime") in {"python3.13", "nodejs22.x", "java21"} and function.get("architectures") in (["x86_64"], ["arm64"])
+      and type(function.get("memory_size")) is int and 128 <= function["memory_size"] <= 10240
+      and type(function.get("timeout")) is int and 1 <= function["timeout"] <= 900
+      and function.get("tracing_config") == [{"mode": "PassThrough"}], "function_compute_tracing")
+  require(isinstance(function.get("ephemeral_storage"), list) and len(function["ephemeral_storage"]) == 1
+      and 512 <= function["ephemeral_storage"][0].get("size", 0) <= 10240, "function_storage")
+  defaults = {"memory_size": 128, "timeout": 10, "architectures": ["x86_64"], "ephemeral_storage": [{"size": 512}], "runtime": "python3.13", "handler": "app.handler"}
+  overrides = {
+    "lambda_node_runtime_and_compute_overrides": {"memory_size": 512, "timeout": 30, "ephemeral_storage": [{"size": 1024}], "runtime": "nodejs22.x", "handler": "index.handler"},
+    "lambda_java_runtime_on_arm64": {"memory_size": 1024, "architectures": ["arm64"], "runtime": "java21", "handler": "org.example.Handler::handleRequest"},
+    "lambda_maximum_compute_boundaries": {"memory_size": 10240, "timeout": 900, "ephemeral_storage": [{"size": 10240}]},
+    "lambda_minimum_timeout_and_name_description_boundaries": {"timeout": 1},
+  }
+  defaults.update(overrides.get(run, {}))
+  require(all(function.get(name) == value for name, value in defaults.items()), "function_effective_configuration")
+  expected_env = {}
+  if run == "lambda_nonsecret_configuration_and_secret_reference":
+    expected_env = {"APP_MODE": "test", "SECRET_ARN": "arn:aws:secretsmanager:ca-central-1:000000000000:secret:portfolio/test/metadata-ABC123"}
+  elif run == "lambda_environment_byte_boundary":
+    expected_env = {"APP_MODE": " " * 4087 + "x"}
+  env = function.get("environment") or []
+  require((env[0].get("variables") if len(env) == 1 else {} if not env else None) == expected_env, "function_nonsecret_environment")
+  require(function.get("reserved_concurrent_executions") == {"lambda_existing_versioned_layers_and_concurrency": 20,
+      "lambda_maximum_layer_count_and_zero_concurrency": 0}.get(run), "function_concurrency_contract")
+  require(not function.get("layers") or run in {"lambda_existing_versioned_layers_and_concurrency", "lambda_maximum_layer_count_and_zero_concurrency"}, "function_layer_contract")
+  require(not function.get("vpc_config") or run in {"lambda_existing_vpc_references", "lambda_maximum_vpc_reference_counts"}, "function_no_unreviewed_vpc")
+  # Native cases cover every optional input boundary; these check actual structure.
+  vpc = function.get("vpc_config") or []
+  require(not vpc or len(vpc) == 1 and vpc[0].get("subnet_ids") and vpc[0].get("security_group_ids"), "function_vpc_contract")
+  expected = {"function_arn": function["arn"], "function_name": function["function_name"],
+      "invoke_arn": function["invoke_arn"], "version": function["version"], "runtime": function["runtime"],
+      "architecture": function["architectures"][0], "log_group_name": group["name"],
+      "log_retention_in_days": group["retention_in_days"], "log_deletion_protection_enabled": group["deletion_protection_enabled"],
+      "log_group_class": group["log_group_class"], "log_kms_key_arn": key,
+      "vpc_configuration": {"subnet_ids": sorted(vpc[0]["subnet_ids"]) if vpc else [],
+          "security_group_ids": sorted(vpc[0]["security_group_ids"]) if vpc else []}}
+  for name, value in expected.items():
+    require(name in outputs and outputs[name].get("after_sensitive") is False
+        and not any_unknown(outputs[name].get("after_unknown", False))
+        and canonical(outputs[name].get("after")) == canonical(value), "workload_output_binding:" + name)
+  require(set(outputs) == set(expected) | {"execution_role_arn", "execution_role_name", "inline_policy_name",
+      "log_group_arn", "secret_read_enabled", "permission_scope"}, "workload_output_inventory")
+
+
+def verify_log_configuration(group):
+  require(isinstance(group, dict) and isinstance(group.get("name"), str)
+      and re.fullmatch(r"[A-Za-z0-9_./#-]{1,512}", group["name"]) and not group["name"].startswith("aws/"), "owned_log_name")
+  require(type(group.get("retention_in_days")) is int and group["retention_in_days"] in
+      {1,3,5,7,14,30,60,90,120,150,180,365,400,545,731,1096,1827,2192,2557,2922,3288,3653}
+      and type(group.get("deletion_protection_enabled")) is bool and group.get("log_group_class") == "STANDARD"
+      and group.get("skip_destroy") is False and "kms_key_id" in group, "owned_log_lifecycle")
+
+
 def compact_events(path):
   """Discard repeated provider schemas, retaining the actual security evidence."""
   for line in Path(path).open(encoding="utf-8"):
     event = parse_json(line)
+    require(isinstance(event, dict), "capture_event_shape")
     if event.get("type") == "test_plan":
       actual = event["test_plan"]
       event["test_plan"] = {"resource_changes": actual.get("resource_changes", []), "output_changes": actual.get("output_changes", {})}
@@ -412,37 +509,68 @@ def any_unknown(value):
   return value
 
 
-def verify_rejected_plan(resources):
-  """Validation can leave a role-only, unapplied partial plan in native output.
+def verify_rejected_plan(plan, run):
+  """Validate every resource in a deliberately rejected partial workload plan.
 
-  Such a plan is never a reviewed positive policy: no inline or managed grant is
-  allowed. Invalid account/reference inputs need not be readable as valid scope.
+  Invalid inputs may leave logs, a safe role, or the safe log/role/policy subset.
+  Never count these as complete positive workloads or silently discard grants.
+  Exact reviewed per-case shapes are pinned from the successful native capture.
   """
-  if not resources:
-    return "empty"
-  require(len(resources) == 1, "rejected_input_resource_changes")
-  resource = resources[0]
-  require(resource.get("type") == "aws_iam_role" and resource.get("name") == "this"
-      and resource.get("address") == "aws_iam_role.this" and "index" not in resource
-      and resource.get("mode") == "managed" and resource.get("change", {}).get("actions") == ["create"], "rejected_input_resource_changes")
-  role = resource["change"].get("after")
-  require(isinstance(role, dict) and role.get("path") == "/" and role.get("max_session_duration") == 3600, "rejected_role_configuration")
-  require(isinstance(role.get("name"), str) and re.fullmatch(r"[A-Za-z0-9_+=,.@-]{1,64}", role["name"]), "rejected_role_name")
-  require(not role.get("managed_policy_arns") and not role.get("inline_policy"), "rejected_role_grants")
-  verify_trust(json_document(role.get("assume_role_policy")))
-  tags = role.get("tags")
-  require(isinstance(tags, dict) and len(tags) <= 50 and all(isinstance(key, str) and 1 <= len(key) <= 128
-      and not key.casefold().startswith("aws:") and isinstance(value, str) and len(value) <= 256
-      for key, value in tags.items()), "rejected_role_tags")
-  return "role_only"
+  resources = plan["resource_changes"]
+  kinds = sorted(resource.get("type", "") for resource in resources)
+  require(kinds == REJECTED_SHAPES.get(run) and "aws_lambda_function" not in kinds
+      and len(set(kinds)) == len(kinds) and set(kinds) <= INVENTORY, "rejected_input_resource_changes")
+  values = {}
+  for resource in resources:
+    kind = resource["type"]
+    require(resource.get("address") == kind + ".this" and resource.get("name") == "this"
+        and "index" not in resource and resource.get("mode") == "managed"
+        and resource.get("provider_name") == "registry.terraform.io/hashicorp/aws"
+        and resource.get("change", {}).get("actions") == ["create"]
+        and resource["change"].get("before") is None
+        and isinstance(resource["change"].get("after_unknown"), dict), "rejected_input_resource_changes")
+    value = resource["change"].get("after")
+    require(isinstance(value, dict), "rejected_resource_configuration")
+    values[kind] = value
+    if kind == "aws_iam_role":
+      require(value.get("path") == "/" and value.get("max_session_duration") == 3600
+          and isinstance(value.get("name"), str) and re.fullmatch(r"[A-Za-z0-9_+=,.@-]{1,64}", value["name"]), "rejected_role_configuration")
+      require(not value.get("managed_policy_arns") and not value.get("inline_policy"), "rejected_role_grants")
+      verify_trust(json_document(value.get("assume_role_policy")))
+      tags = value.get("tags")
+      require(isinstance(tags, dict) and len(tags) <= 50 and all(isinstance(key, str) and 1 <= len(key) <= 128
+          and not key.casefold().startswith("aws:") and isinstance(item, str) and len(item) <= 256
+          for key, item in tags.items()), "rejected_role_tags")
+    if kind == "aws_cloudwatch_log_group":
+      verify_log_configuration(value)
+  if "aws_iam_role_policy" in values:
+    require(set(values) == {"aws_cloudwatch_log_group", "aws_iam_role", "aws_iam_role_policy"}, "rejected_grant_dependencies")
+    output = plan.get("output_changes", {}).get("permission_scope", {})
+    require(not any_unknown(output.get("after_unknown", False)), "rejected_scope_unknown")
+    scope = validate_scope(output.get("after"))
+    group, role, inline = (values[kind] for kind in ("aws_cloudwatch_log_group", "aws_iam_role", "aws_iam_role_policy"))
+    require(scope["log_group_arn"] == group["arn"] and scope["role_name"] == role["name"]
+        and inline.get("role") == role["name"] and inline.get("name") == POLICY_NAME, "rejected_grant_binding")
+    require(role.get("arn") == f"arn:{scope['partition']}:iam::{scope['account_id']}:role/{scope['role_name']}"
+        and group.get("arn") == f"arn:{scope['partition']}:logs:{scope['region']}:{scope['account_id']}:log-group:{group['name']}", "rejected_grant_scope")
+    verify_identity(json_document(inline.get("policy")), scope)
+  return "+".join(kinds) or "empty"
 
 
 def verify_capture(events, references, terraform_exit_code=0):
   require(terraform_exit_code == 0, "terraform_process_failure")
   passed, errors, seen_plans, terminal, summaries = set(), set(), set(), set(), []
   plans, negative, negative_shapes = {}, set(), Counter()
+  declared, files, late = [], [], []
   for event in events:
     require(isinstance(event, dict), "capture_event_shape")
+    if summaries:
+      late.append(event)
+    require(event.get("type") in {"version", "test_abstract", "test_run", "test_plan", "test_file", "diagnostic", "test_summary", "log"}, "capture_event_type")
+    if event.get("type") == "test_abstract":
+      declared.append(event.get("test_abstract"))
+    if event.get("type") == "test_file" and "status" in event.get("test_file", {}):
+      files.append((event["test_file"].get("path"), event["test_file"]["status"]))
     key = (event.get("@testfile"), event.get("@testrun"))
     if event.get("@level") == "error":
       errors.add(key)
@@ -460,9 +588,9 @@ def verify_capture(events, references, terraform_exit_code=0):
       require(isinstance(plan, dict) and isinstance(plan.get("resource_changes"), list), "capture_plan_shape")
       if key[1] in POSITIVE_RUNS:
         require(key[1] not in plans, "duplicate_positive_name")
-        plans[key[1]] = verify_plan(plan, references)
+        plans[key[1]] = verify_plan(plan, references, key[1])
       else:
-        negative_shapes[verify_rejected_plan(plan["resource_changes"])] += 1
+        negative_shapes[verify_rejected_plan(plan, key[1])] += 1
         negative.add(key)
     if event.get("type") == "test_summary":
       summaries.append(event["test_summary"])
@@ -470,13 +598,21 @@ def verify_capture(events, references, terraform_exit_code=0):
   expected = {"status": "pass", "passed": EXPECTED_TESTS, "failed": 0, "errored": 0, "skipped": 0}
   require(all(type(summaries[0].get(name)) is int for name in ("passed", "failed", "errored", "skipped"))
       and all(summaries[0].get(name) == value for name, value in expected.items()), "capture_summary_counts")
-  require(EXPECTED_TESTS > 0 and len(passed) == EXPECTED_TESTS and seen_plans == passed and terminal == passed
+  require(passed == EXPECTED_RUNS and EXPECTED_TESTS > 0 and len(passed) == EXPECTED_TESTS and seen_plans == passed and terminal == passed
       and errors <= passed, "capture_run_completeness")
   require(set(plans) == POSITIVE_RUNS and len(negative) == EXPECTED_NEGATIVES, "capture_coverage")
   require(errors == negative, "capture_validation_error_coverage")
-  require(negative_shapes == {"empty": 13, "role_only": 36}, "capture_rejected_plan_shapes")
+  require(negative_shapes == Counter("+".join(kinds) or "empty" for kinds in REJECTED_SHAPES.values()), "capture_rejected_plan_shapes")
   require(any(not plan["scope"]["enable_secret_read"] for plan in plans.values())
       and any(plan["scope"]["secret_kms_key_arn"] is not None for plan in plans.values()), "capture_optional_coverage")
+  manifest = {}
+  for case in MANIFEST:
+    manifest.setdefault(case["new_file"], set()).add(case["new_run"])
+  require(len(declared) == 1 and isinstance(declared[0], dict)
+      and {file: set(names) for file, names in declared[0].items()} == manifest
+      and sum(len(names) for names in declared[0].values()) == EXPECTED_TESTS, "capture_declared_manifest")
+  require(len(files) == len(manifest) and set(files) == {(file, "pass") for file in manifest}, "capture_file_completeness")
+  require(not late, "capture_after_summary")
   return plans
 
 
@@ -599,11 +735,11 @@ def capture_self_tests(events, references):
       reason = "plan_order_or_duplicate"
     cases.append((label, changed, 0, reason))
   changed = copy.deepcopy(events)
-  changed.append({"@level": "error", "@testfile": "outside", "@testrun": "outside"})
+  changed.append({"type": "diagnostic", "@level": "error", "@testfile": "outside", "@testrun": "outside"})
   cases.append(("unaccounted_error", changed, 0, "capture_run_completeness"))
   changed = copy.deepcopy(events)
   positive = next(event for event in changed if event.get("type") == "test_plan")
-  changed.append({"@level": "error", "@testfile": positive["@testfile"], "@testrun": positive["@testrun"]})
+  changed.append({"type": "diagnostic", "@level": "error", "@testfile": positive["@testfile"], "@testrun": positive["@testrun"]})
   cases.append(("error_in_positive_run", changed, 0, "capture_validation_error_coverage"))
   negative_error = next(event for event in events if event.get("@level") == "error")
   changed = [event for event in copy.deepcopy(events) if not (event.get("@level") == "error"
@@ -653,7 +789,7 @@ def capture_self_tests(events, references):
   add_plan_fault("malformed_policy_json", lambda plan: inline_of(plan).update(policy="{"), "policy_json_malformed")
   add_plan_fault("duplicate_policy_key", lambda plan: inline_of(plan).update(policy='{"Statement":[],' + inline_of(plan)["policy"].lstrip()[1:]), "json_duplicate_key")
   changed = copy.deepcopy(events)
-  negative = next(event for event in changed if event.get("type") == "test_plan" and len(event["test_plan"]["resource_changes"]) == 1)
+  negative = next(event for event in changed if event.get("type") == "test_plan" and event.get("@testrun") not in POSITIVE_RUNS and any(resource["type"] == "aws_iam_role" for resource in event["test_plan"]["resource_changes"]))
   change_document(negative["test_plan"], True, lambda document: document["Statement"][0].update(Principal="*"))
   cases.append(("unsafe_partial_role_trust", changed, 0, "trust_principal"))
   changed = copy.deepcopy(events)
@@ -687,6 +823,61 @@ def capture_self_tests(events, references):
     else:
       raise ValueError("self_test_accepted_ambiguous_json")
   return len(cases) + 4
+
+
+def workload_plan_mutations(events, references):
+  original = next(event["test_plan"] for event in events if event.get("type") == "test_plan"
+      and event.get("@testrun") == "lambda_default_function_configuration")
+  cases = []
+  def add(name, kind, transform):
+    plan = copy.deepcopy(original)
+    resource = next(item for item in plan["resource_changes"] if item["type"] == kind)
+    transform(resource["change"]["after"])
+    try:
+      verify_plan(plan, references, "lambda_default_function_configuration")
+    except (ValueError, KeyError, TypeError):
+      cases.append({"id": name, "detected": True, "evidence": "actual_four_resource_plan_mutation"})
+      return
+    raise ValueError("workload_mutation_accepted:" + name)
+  add("function-unrelated-role", "aws_lambda_function", lambda v: v.update(role="arn:aws:iam::000000000000:role/Other"))
+  add("function-unrelated-log", "aws_lambda_function", lambda v: v["logging_config"][0].update(log_group="/unrelated"))
+  add("log-wrong-owner-arn", "aws_cloudwatch_log_group", lambda v: v.update(arn=v["arn"].replace("000000000000", "000000000099")))
+  add("log-infinite-retention", "aws_cloudwatch_log_group", lambda v: v.update(retention_in_days=0))
+  add("log-disable-default-protection", "aws_cloudwatch_log_group", lambda v: v.update(deletion_protection_enabled=False))
+  add("log-skip-destroy", "aws_cloudwatch_log_group", lambda v: v.update(skip_destroy=True))
+  add("log-unreviewed-kms", "aws_cloudwatch_log_group", lambda v: v.update(kms_key_id="arn:aws:kms:ca-central-1:000000000000:key/00000000-0000-0000-0000-000000000000"))
+  add("artifact-unrelated-bucket", "aws_lambda_function", lambda v: v.update(s3_bucket="unrelated-artifacts"))
+  add("artifact-unrelated-key", "aws_lambda_function", lambda v: v.update(s3_key="other.zip"))
+  add("artifact-null-version", "aws_lambda_function", lambda v: v.update(s3_object_version="null"))
+  add("function-plaintext-environment", "aws_lambda_function", lambda v: v.update(environment=[{"variables": {"PASSWORD": "synthetic-negative-value"}}]))
+  add("function-unreviewed-vpc", "aws_lambda_function", lambda v: v.update(vpc_config=[{"subnet_ids": ["subnet-00000000"], "security_group_ids": ["sg-00000000"]}]))
+  add("function-publish-version", "aws_lambda_function", lambda v: v.update(publish=True))
+  add("function-unreviewed-runtime", "aws_lambda_function", lambda v: v.update(runtime="nodejs20.x"))
+  add("function-wrong-account", "aws_lambda_function", lambda v: v.update(arn=v["arn"].replace("000000000000", "000000000099")))
+  return cases
+
+
+def workload_capture_faults(events, references):
+  cases = []
+  def reject(name, mutate):
+    changed = copy.deepcopy(events)
+    mutate(changed)
+    try:
+      verify_capture(changed, references)
+    except (ValueError, KeyError, TypeError):
+      cases.append(name)
+      return
+    raise ValueError("workload_capture_fault_accepted:" + name)
+  def first_plan(e):
+    return next(x["test_plan"] for x in e if x.get("type") == "test_plan")
+  reject("missing-terminal-file", lambda e: e.remove(next(x for x in e if x.get("type") == "test_file" and "status" in x["test_file"])))
+  reject("missing-declared-manifest", lambda e: e.remove(next(x for x in e if x.get("type") == "test_abstract")))
+  reject("late-capture-record", lambda e: e.append({"type": "log"}))
+  reject("unknown-log-name", lambda e: first_plan(e)["resource_changes"][0]["change"]["after_unknown"].update(name=True))
+  reject("missing-log-kms-null", lambda e: first_plan(e)["resource_changes"][0]["change"]["after"].pop("kms_key_id"))
+  reject("missing-change-metadata", lambda e: first_plan(e)["resource_changes"][0]["change"].pop("after_unknown"))
+  reject("wrong-resource-address", lambda e: first_plan(e)["resource_changes"][0].update(address="aws_cloudwatch_log_group.other"))
+  return len(cases)
 
 
 def reference_self_tests(references, plans):
@@ -739,11 +930,15 @@ def main(argv=None):
   events = list(compact_events(args.test_events))
   plans = verify_capture(events, references, args.terraform_exit_code)
   mutations = semantic_mutations(plans, references) if args.self_test else []
+  ownership_mutations = workload_plan_mutations(events, references) if args.self_test else []
+  source_contract = verify_structure()
+  source_mutations = structure_mutations() if args.self_test else 0
   failures = capture_self_tests(events, references) if args.self_test else 0
+  extra_failures = workload_capture_faults(events, references) if args.self_test else 0
   reference_failures = reference_self_tests(references, plans) if args.self_test else 0
-  negative_shapes = Counter("empty" if not event["test_plan"]["resource_changes"] else "role_only"
+  negative_shapes = Counter("+".join(sorted(resource["type"] for resource in event["test_plan"]["resource_changes"])) or "empty"
       for event in events if event.get("type") == "test_plan" and event.get("@testrun") not in POSITIVE_RUNS)
-  report = {"status": "passed", "evidence_type": "static_actual_policy_verification", "aws_api_calls": 0,
+  report = {"status": "passed", "evidence_type": "static_actual_workload_policy_verification", "aws_api_calls": 0,
     "native_tests": EXPECTED_TESTS, "positive_plans": len(plans), "negative_plans": EXPECTED_NEGATIVES,
     "negative_plan_shapes": dict(negative_shapes),
     "matrix_cases": sum(len(plan["matrix"]) for plan in plans.values()),
@@ -752,7 +947,9 @@ def main(argv=None):
       "customer_key_configured": plan["scope"]["secret_kms_key_arn"] is not None, "grant_matrix": plan["grant_matrix"],
       "authorization_matrix": plan["matrix"]} for name, plan in plans.items()},
     "semantic_mutations": mutations, "semantic_mutation_count": len(mutations),
-    "capture_failure_injections": failures, "reference_failure_injections": reference_failures, "limitations": LIMITATIONS}
+    "capture_failure_injections": failures, "workload_capture_failure_injections": extra_failures,
+    "workload_semantic_mutations": ownership_mutations, "workload_semantic_mutation_count": len(ownership_mutations),
+    "source_contract": source_contract, "source_dependency_mutations": source_mutations, "reference_failure_injections": reference_failures, "limitations": LIMITATIONS}
   print(json.dumps(report, indent=2))
   return 0
 
