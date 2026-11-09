@@ -117,26 +117,28 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: Architecture v2 Policy Alignment documentation
+## Current phase only: Architecture v2 Foundation Design
 
-Use a fresh docs/architecture-v2-policy-alignment branch from verified latest main.
-Align approved Master Policy v10 target and supplied security/cost clarifications;
-repository source remains authoritative for implemented behavior and historical CI.
+Use docs/architecture-v2-foundation-design from latest verified main. Establish
+proposed Network/State/Identity ownership and staged implementation PR boundaries;
+Master Policy v10 remains authoritative and every unresolved approval stays OPEN.
 
-- Change only docs/architecture-v2.md, docs/portfolio-verification-policy.md,
-  docs/dev-live-validation-readiness.md, README.md and this current-phase section.
-  Preserve permanent rules exactly; do not edit infra/README.md or Master Policy PDF.
-- Document REST/NLB TCP/Istio mTLS, distinct transport/client/user authorization,
-  certificate identity/revocation and pricing feasibility, environment capacity,
-  delivery/admin scheduling and limited DEV Live policy; all seven gates stay OPEN.
-- No implementation, Terraform/IAM/provider/backend/state/lock, Kubernetes, app,
-  workflow/test, ZIP, certificate or resource changes. No credentials, authenticated
-  AWS APIs/plans/imports, state operations, apply/destroy, deployments or next phase.
-- Preserve historical HTTP API MVP/evidence and full CI; do not treat old tests as
-  new mTLS verification. Leave implementation mechanisms/sizing/PKI/DNS/IAM OPEN;
-  report concrete blockers without changing target or weakening security.
-- Perform only relevant documentation consistency/link/Mermaid/scope/secret/diff
-  checks. Do not rerun unrelated local regressions or alter GitHub Actions checks.
-- Commit, push and open exactly one PR. Report URL, exact HEAD, checks and blockers;
-  confirm triggering only if immediately observable, then stop. Do not wait/poll CI,
-  merge or delete the branch. Independent review verifies exact-head completed CI.
+- Change exactly docs/architecture-v2-foundation-design.md, a concise reference/
+  necessary foundation ownership clarification in docs/architecture-v2.md, and this
+  current-phase section. Preserve permanent rules byte-for-byte; no README edits.
+- Base inventory on VPC implementation/tests and DEV root/provider/backend source.
+  Preserve historical HTTP API MVP, tests/evidence and approved NLB/Istio target.
+- No Terraform/IAM/provider/backend/state/lock, test/workflow, Kubernetes, code, ZIP,
+  infrastructure or Master Policy PDF changes. No AWS credentials/authenticated
+  calls/plans/imports/state operations/apply/destroy/deployments or future PRs.
+- Compare extension versus scoped modules; leave CIDRs/AZ allocation, accounts,
+  remote backend, output distribution, IAM, sizing and controller settings OPEN.
+  Preserve G01–G07, JPY 10,000 cumulative Live cap and 72-hour complete teardown;
+  no Live authorization or silent lifecycle weakening is granted.
+- Validate links/code paths, consistency/decision register, exact three-file scope,
+  permanent-rule preservation, secret patterns and git diff --check. Do not rerun
+  unrelated local regressions or change full GitHub Actions security coverage.
+- Commit, push and open exactly one PR; report URL, HEAD, recommendations, approvals
+  and actual local checks. Confirm triggering only if immediately observable; stop
+  without waiting/repeatedly polling CI. Do not merge/delete branch/start another
+  phase. Independent review verifies exact-head CI separately.

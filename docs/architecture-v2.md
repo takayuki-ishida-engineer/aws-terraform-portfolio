@@ -1,5 +1,7 @@
 # Architecture v2 — Master Policy v10 alignment
 
+See the [Network / State / Identity foundation design](architecture-v2-foundation-design.md) for proposed implementation ownership and staged PR boundaries.
+
 ## Authority, evidence and status
 
 The approved Master Policy v10 (2026-11-08), as reproduced in this task and its
