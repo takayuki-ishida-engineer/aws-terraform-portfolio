@@ -1,0 +1,979 @@
+{
+  "child_positive": {
+    "private_dev": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      }
+    },
+    "namespace_access": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "namespace_access": {
+        "reader": {
+          "principal_arn": "arn:aws:iam::000000000000:role/test-reader",
+          "policy": "view",
+          "namespaces": [
+            "test-app"
+          ]
+        },
+        "deployer": {
+          "principal_arn": "arn:aws:iam::000000000000:role/test-deployer",
+          "policy": "edit",
+          "namespaces": [
+            "test-app",
+            "test-jobs"
+          ]
+        }
+      }
+    },
+    "arm_nodes": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m7g.large",
+        "ami_type": "AL2023_ARM_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      }
+    },
+    "customer_kms": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "cluster_kms_key_arn": "arn:aws:kms:ca-central-1:000000000000:key/00000000-0000-0000-0000-000000000001"
+    },
+    "future_two_az_nodes": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-b",
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      }
+    },
+    "extra_reviewed_flows": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24",
+        "10.70.21.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24",
+        "198.51.100.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "tags": {
+        "Team": "test-platform",
+        "Name": "caller-must-not-win"
+      }
+    },
+    "reviewed_teardown_setting": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "deletion_protection": false
+    }
+  },
+  "child_negative": {
+    "wrong_network_version": "var.network_reference",
+    "wrong_network_account": "var.network_reference",
+    "wrong_network_region": "var.network_reference",
+    "wrong_network_environment": "var.network_reference",
+    "wrong_network_partition": "var.network_reference",
+    "legacy_network_mode": "var.network_reference",
+    "invalid_vpc_id": "var.network_reference",
+    "empty_private_subnets": "var.network_reference",
+    "duplicate_private_subnet": "var.network_reference",
+    "public_subnet_masquerade": "var.network_reference",
+    "missing_subnet_az": "var.network_reference",
+    "wrong_subnet_region": "var.network_reference",
+    "public_table_masquerade": "var.network_reference",
+    "shared_table_in_per_az": "var.network_reference",
+    "invalid_nat_id": "var.network_reference",
+    "one_cluster_subnet": "var.cluster_subnet_keys",
+    "public_cluster_selection": "var.cluster_subnet_keys",
+    "one_cluster_az": "var.cluster_subnet_keys",
+    "public_node_selection": "var.node_group",
+    "empty_node_selection": "var.node_group",
+    "zero_minimum": "var.node_group",
+    "desired_below_minimum": "var.node_group",
+    "maximum_below_desired": "var.node_group",
+    "fractional_capacity": "var.node_group",
+    "unreviewed_ami": "var.node_group",
+    "wrong_release_version": "var.node_group",
+    "missing_instance_selection": "var.node_group",
+    "too_small_disk": "var.node_group",
+    "invalid_kubernetes_version": "var.kubernetes_version",
+    "public_service_range": "var.service_ipv4_cidr",
+    "overlapping_service_range": "var.service_ipv4_cidr",
+    "foreign_bootstrap": "var.bootstrap_admin_role_arn",
+    "wildcard_bootstrap": "var.bootstrap_admin_role_arn",
+    "session_bootstrap": "var.bootstrap_admin_role_arn",
+    "machine_role_as_admin": "var.bootstrap_admin_role_arn",
+    "service_linked_admin": "var.bootstrap_admin_role_arn",
+    "namespace_admin_policy": "var.namespace_access",
+    "namespace_wildcard": "var.namespace_access",
+    "system_namespace": "var.namespace_access",
+    "namespace_bootstrap_reuse": "var.namespace_access",
+    "unselected_addon_version": "var.addon_versions",
+    "wrong_kms_account": "var.cluster_kms_key_arn",
+    "world_api_ingress": "var.api_client_cidrs",
+    "public_api_client": "var.api_client_cidrs",
+    "world_https_egress": "var.node_https_egress_cidrs"
+  },
+  "root_positive": {
+    "private_dev": {
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a"
+    },
+    "namespace_access": {
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "namespace_access": {
+        "reader": {
+          "principal_arn": "arn:aws:iam::000000000000:role/test-reader",
+          "policy": "view",
+          "namespaces": [
+            "test-app"
+          ]
+        },
+        "deployer": {
+          "principal_arn": "arn:aws:iam::000000000000:role/test-deployer",
+          "policy": "edit",
+          "namespaces": [
+            "test-app",
+            "test-jobs"
+          ]
+        }
+      },
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a"
+    },
+    "customer_kms": {
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "cluster_kms_key_arn": "arn:aws:kms:ca-central-1:000000000000:key/00000000-0000-0000-0000-000000000001",
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a"
+    },
+    "arm_nodes": {
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m7g.large",
+        "ami_type": "AL2023_ARM_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a"
+    },
+    "alternate_computed_values": {
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "routing_mode": "per_az",
+        "vpc_id": "vpc-0123456789abcdef0",
+        "vpc_cidr": "10.70.0.0/16",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        },
+        "private_route_table_ids_by_subnet": {
+          "private-a": "rtb-00000000000000001",
+          "private-b": "rtb-00000000000000002"
+        },
+        "public_route_table_id": "rtb-00000000000000003",
+        "nat_gateway_ids_by_az": {
+          "ca-central-1a": "nat-00000000000000001"
+        }
+      },
+      "cluster_name": "test-eks",
+      "kubernetes_version": "1.34",
+      "service_ipv4_cidr": "172.20.0.0/16",
+      "cluster_subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "node_group": {
+        "name": "test-workers",
+        "subnet_keys": [
+          "private-a"
+        ],
+        "instance_type": "m6i.large",
+        "ami_type": "AL2023_x86_64_STANDARD",
+        "release_version": "1.34.0-20260101",
+        "disk_size_gib": 30,
+        "min_size": 1,
+        "desired_size": 1,
+        "max_size": 2
+      },
+      "bootstrap_admin_role_arn": "arn:aws:iam::000000000000:role/test-platform-bootstrap",
+      "api_client_cidrs": [
+        "10.70.20.0/24"
+      ],
+      "node_https_egress_cidrs": [
+        "203.0.113.0/24"
+      ],
+      "addon_versions": {
+        "vpc_cni": "v1.20.0-eksbuild.1",
+        "coredns": "v1.12.0-eksbuild.1",
+        "kube_proxy": "v1.34.0-eksbuild.1"
+      },
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a"
+    }
+  },
+  "root_negative": {
+    "wrong_network_version": "var.network_reference",
+    "wrong_network_account": "var.network_reference",
+    "wrong_network_region": "var.network_reference",
+    "wrong_network_environment": "var.network_reference",
+    "wrong_network_partition": "var.network_reference",
+    "duplicate_private_subnet": "var.network_reference",
+    "public_subnet_masquerade": "var.network_reference",
+    "public_table_masquerade": "var.network_reference",
+    "one_cluster_subnet": "var.cluster_subnet_keys",
+    "public_cluster_selection": "var.cluster_subnet_keys",
+    "public_node_selection": "var.node_group",
+    "zero_minimum": "var.node_group",
+    "fractional_capacity": "var.node_group",
+    "foreign_bootstrap": "var.bootstrap_admin_role_arn",
+    "wildcard_bootstrap": "var.bootstrap_admin_role_arn",
+    "machine_role_as_admin": "var.bootstrap_admin_role_arn",
+    "namespace_admin_policy": "var.namespace_access",
+    "namespace_wildcard": "var.namespace_access",
+    "world_api_ingress": "var.api_client_cidrs",
+    "world_https_egress": "var.node_https_egress_cidrs",
+    "dev_multiple_node_azs": "var.node_group",
+    "missing_active_nat": "var.node_group",
+    "invalid_root_account": "var.aws_account_id",
+    "invalid_active_az": "var.active_workload_az"
+  }
+}
