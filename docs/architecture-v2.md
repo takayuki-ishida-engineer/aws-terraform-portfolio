@@ -1,210 +1,240 @@
-# Architecture v2 — AWS Terraform portfolio baseline
+# Architecture v2 — Master Policy v10 alignment
 
-## Status and authority
+## Authority, evidence and status
 
-This document defines the requested **target**, not implemented infrastructure or
-execution approval. AWS Terraform is the primary portfolio. AWS CloudFormation
-and Azure Terraform are smaller, separate supporting portfolios with no claimed
-implementation here. Confirmed choices below are documentation design selections;
-they are not completed AWS configurations. Unresolved mechanisms remain OPEN.
+The approved Master Policy v10 (2026-11-08), as reproduced in this task and its
+security/cost clarifications, is authoritative for the **design target**. The
+separate PDF is not edited or required here. Repository source/CI remains the
+authority for implemented behavior. No design statement is deployment evidence.
+AWS Terraform is the primary portfolio; CloudFormation and Azure Terraform are
+separate, smaller supporting portfolios, not implementations claimed here.
 
-Current implemented baseline: nine reusable modules, seven DEV workload instances,
-17 managed resource definitions, an AWS_IAM HTTP API, S3-versioned Lambda ZIP,
-metadata-only secrets and local dev state. It has offline evidence only. Preserve
-all modules, tests and historical evidence in the [technical history](../infra/README.md)
-and [acceptance audit](offline-mvp-acceptance.md) until separate migration approval.
-Baseline main is `734ee0d0a56bbecd025b132b2b415f386bb38776`, with successful
-[post-merge CI 42532930733](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42532930733).
-No v2 live result is inferred from that CI. Portfolio completion is governed by
-the [verification policy](portfolio-verification-policy.md).
+The implemented offline MVP still has nine modules, seven DEV workload instances,
+17 resource definitions, AWS_IAM HTTP API, versioned S3 ZIP and no workload VPC
+integration. Its accepted offline evidence remains unchanged in the
+[technical history](../infra/README.md) and [acceptance audit](offline-mvp-acceptance.md).
+Main `9a17e54b5842e05633c730510a2d46eda4f1e18a` has successful
+[baseline CI 42546954252](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42546954252).
+Historical 384 Terraform/153 Python results are not REST, NLB, Istio or mTLS
+coverage. No target infrastructure is implemented by this documentation.
 
-## Target topology and responsibility
+## Approved target topology
 
 ```mermaid
 flowchart TD
-  DNS[Route 53 environment DNS] --> Edge[CloudFront + edge WAF + ACM]
-  Edge --> API[Regional REST API + Regional WAF]
-  User[User: Google federation via Cognito] --> Login[Cognito authorization code + PKCE]
-  Login -. access token and method scopes .-> API
-  API --> Fn[Lambda application]
-  API --> Link[VPC Link V2]
-  Link --> ALB[Internal ALB]
-  ALB --> EKS[EKS: EC2 Managed Node Groups]
-  EKS --> DB[RDS or Aurora PostgreSQL]
-  GHA[GitHub Actions + AWS OIDC] --> Release[Lambda code release: versions and aliases]
-  GHA --> ECR[ECR: immutable image versions and digests]
-  GHA --> Build[CodeBuild: private EKS deployment]
-  ECR --> Build
-  Build --> EKS
-  Events[Build / deploy / rollback events] --> Bus[EventBridge]
-  Bus --> Notify[Notification Lambda]
-  Notify --> Dest[Approved notification destination]
+  Browser[Browser: standard HTTPS, no user client certificate] --> Edge[CloudFront + Edge WAF]
+  Browser -. authorization code + PKCE S256 / OIDC .-> Cognito[Cognito User Pool + Google Federation]
+  Edge -->|Origin mTLS| API[Regional REST API custom domain + mTLS truststore]
+  Cognito -. access token / method OAuth scopes .-> API
+  API --- RWAF[Regional WAF]
+  API --> AppLambda[Lambda application integration]
+  API --> Link[REST VPC Link V2]
+  Link --> NLB[Internal NLB: TCP 443 passthrough]
+  NLB --> Gateway[Istio Ingress Gateway: backend mTLS verification]
+  Gateway --> Mesh[Istio mesh: STRICT mTLS / SPIFFE / AuthorizationPolicy]
+  Mesh --> EKS[EKS application workloads]
+  EKS -->|PostgreSQL TLS + approved DB authentication| DB[RDS / Aurora PostgreSQL]
 ```
 
-The diagram is a target dependency/routing view, not an assertion that REST or
-Cognito already exists. Protected methods route to either Lambda or a private
-integration, with no invented implementation of path or method mappings.
+NLB replaces the previous proposed ALB ingress. Historical ALB discussion is not
+the current approved target. No TLS terminates or authenticates a certificate at
+the TCP NLB; Gateway terminates backend TLS. The diagram states intended boundaries,
+not proven provider capability, connectivity or issuance.
 
-| Target component | Boundary and planned owner | Remaining decisions |
+## Transport, identity and authorization contracts
+
+| Boundary | Approved target | OPEN implementation/evidence obligations |
 | --- | --- | --- |
-| Route 53, CloudFront, ACM, two WAF scopes | Terraform owns DNS, distribution, certificates and security resources | Domain ownership, origin protection, environment certificates, WAF rules/costs and certificate/global-region state |
-| Regional REST API / Cognito | Terraform owns API methods/scopes, authorizer, User Pool and non-secret client configuration | Exact methods/scopes, Google provider/client provisioning without plaintext state, token/session controls |
-| Lambda application and notification functions | Terraform owns infrastructure and execution IAM; application pipelines own releases | Bootstrap artifact, version/alias ownership, destinations, failure policy and release verification |
-| VPC Link V2, internal ALB, EKS EC2 Managed Node Groups | Terraform owns network/cluster/node infrastructure; application release mechanism owns workloads | Provider support, subnet/IP sizing, endpoint/SG rules, ALB target/controller ownership and node sizing |
-| ECR | Terraform owns repository and retention/security configuration; CI owns images | Tag immutability/retention/scanning and build provenance; releases pin digests |
-| PostgreSQL | Terraform owns RDS/Aurora infrastructure | Engine/version, credentials outside state, sizes, subnet/SG rules, backup/recovery and migration ownership |
-| Fluent Bit and Datadog | Reviewed platform/add-on configuration owns telemetry; keys outside Terraform state | Collection/destination, redaction, retention, agent/controller permissions and cost; no API key configured |
-| SSM-only administration EC2 | Terraform infrastructure; Packer owns approved image build; Ansible owns reviewed OS configuration | Session IAM/logging, patch/image lifecycle and SSM connectivity; no public SSH or inbound administration |
-| GitHub Actions OIDC / CodeBuild | Future pipelines use scoped temporary AWS roles; CodeBuild has private EKS connectivity | Trust conditions, deployment rights, private endpoint/DNS/egress and release locks |
-| EventBridge / notification Lambda | Terraform owns event infrastructure; pipelines publish defined outcomes | Event schema/sources, correlation/idempotency, destination, retries/DLQ and delivery evidence |
+| Browser → CloudFront / Cognito | Standard HTTPS server authentication; ordinary users need no client certificates; Authorization Code + PKCE S256 / OIDC; environment-specific User Pools and Google federation | Exact callbacks/logout URLs, clients/scopes, claims, expiry/session/replay controls; distinguish browser PKCE from upstream Google federation |
+| Viewer and login domains | AWS-provided *.cloudfront.net viewer domain permitted; keep Cognito AWS-managed login domain, no Cognito custom domain | No purchased viewer domain required; environment-specific callbacks must match actual endpoints |
+| CloudFront → Regional REST API | Mandatory origin mTLS; ACM client certificate stored in us-east-1; publicly trusted API origin server certificate; ca-central-1 Regional custom domain with S3-versioned truststore | ClientAuth EKU/issuance, minimal trust, certificate identity/rotation, origin configuration, DNS compatibility and pricing feasibility; disable/prevent default execute-api endpoint bypass and review stage deployment behavior |
+| REST API → Istio Gateway | Approved backend client certificate; ACM-backed REST stage certificate preferred subject to provider/private-integration verification; API verifies Gateway server chain and expected server name | Suitable client-auth certificate, backend trust/SNI/hostname mapping, rotation/expiry and endpoint validation; no insecureSkipVerification, unrestricted trust or plaintext fallback |
+| VPC Link V2 → internal NLB → Gateway | Private integration; NLB TCP:443 passthrough; Gateway presents server certificate and verifies backend client certificate | Provider/link/NLB compatibility, subnet/SG rules, target mode, health checks and end-to-end TLS identity evidence |
+| Controlled workload → workload | Istio STRICT mTLS, SPIFFE identities, short-lived workload certs, AuthorizationPolicy, restrictive RBAC/NetworkPolicy and appropriate default deny | Istio CA is initial candidate only; roots/intermediates, renewal/rotation/expiry, revocation-equivalent controls, ServiceAccount rights and principal boundaries require review |
+| EKS → RDS/Aurora | PostgreSQL server TLS with CA and hostname verification; IAM DB auth or another explicitly approved scheme | Actual DB auth/credentials, trust, connections, failover/reconnection, backups/PITR and schema recovery |
+| EKS/Lambda → AWS-managed APIs | Standard validated TLS with appropriate IAM/SigV4 | Scoped workload identity/permissions and actual service access; no custom certificate mTLS imposed |
 
-No public worker/database endpoints are intended. Exact routing, security groups,
-private service endpoints, egress and dependency access must be reviewed rather
-than assumed covered by NAT or the existing independent VPC module.
+Do not impose custom client-certificate mTLS on browser users, RDS standard
+interfaces, local same-Pod communication or managed control planes. Transport
+encryption, server authentication, client authentication, user authentication and
+application authorization are separate. Encryption alone is not authenticated mTLS.
 
-## Environment contract
+### API inbound certificate identity and revocation — OPEN
 
-“Active workload AZ” means application worker/replica placement, not the number
-of configured network or AWS-managed service AZs. Managed service control-plane,
-load-balancer or storage placement can span more AZs than active application nodes.
+[API Gateway inbound mTLS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-mutual-tls.html)
+describes supported certificate/chain/validity checks, but **API Gateway does not
+automatically check certificate revocation status**. Trusting a CA does not restrict
+access to the one expected CloudFront origin client certificate: other certificates
+issued under that trust may validate. TLS handshake validation, certificate identity
+authorization, revocation handling and Cognito user authorization must stay separate.
 
-| Property | DEV target | STG target | PROD target |
-| --- | --- | --- | --- |
-| Active workload AZs | One | Two | Two |
-| Configured subnets/AZs | Additional AZ subnets for EKS control-plane connectivity, ALB and DB subnet group requirements | At least two, with service-required additional coverage | At least two, with service-required additional coverage |
-| NAT Gateways | One; no AZ-redundancy claim | Two, one per active AZ | Two, one per active AZ |
-| EKS workers | EC2 Managed Node Group, one minimal viable worker initially in active AZ | EC2 Managed Node Groups spanning two AZs | EC2 Managed Node Groups spanning two AZs |
-| Application replicas | One by default | At least two distributed across AZs | At least two distributed across AZs |
-| Database | Single-AZ RDS PostgreSQL | Aurora PostgreSQL Provisioned writer + reader in separate AZs | Aurora PostgreSQL Provisioned writer + reader in separate AZs |
-| Intended capacity | Minimal integration testing, subject to system/add-on resource needs | System, recovery, monitoring and failover test design | Production-oriented security, monitoring and resilience design |
-| Portfolio live requirement | Limited evidence only after separate external approval | No apply, authenticated plan or live tests required | No apply, authenticated plan or live tests required |
+Before implementation, review the minimum necessary CA trust/issuance boundaries,
+how the expected certificate is distinguished from other trusted-CA clients,
+unauthorized-certificate denial, compromise response, rotation, expiry monitoring
+and revocation-equivalent controls. Define any additional authorization mechanism's
+owner, evidence, failure/availability behavior and coexistence with the approved
+Cognito/scopes model. Do not assume a Lambda Authorizer alongside a Cognito User Pool Authorizer
+can run on the same REST method. Although AWS describes Lambda authorizers as a
+possible place for certificate checks, that is not approval or proof of compatibility
+with this method model. No mechanism is selected; feasibility/security/operations
+remain OPEN for its implementation PR. Short lifetimes or rotation alone must not
+be advertised as an already implemented revocation control.
 
-Service constraints checked against official documentation:
+Protected methods use Cognito User Pool Authorizers with explicit OAuth scopes and
+access tokens; ID tokens do not substitute for scoped API authorization. Backends
+independently enforce user/tenant ownership, with wrong-owner and cross-tenant
+negative cases. Regional WAF and edge WAF have separate scopes. The default
+execute-api endpoint must not bypass custom-domain mTLS; disabling/redeployment,
+custom domain mappings and direct-origin adversarial tests remain implementation
+contracts. An obscured hostname or trusted CA alone is not origin protection.
 
-- [EKS subnet requirements](https://docs.aws.amazon.com/eks/latest/userguide/network-reqs.html): cluster subnets span at least two AZs; IP capacity and supported AZs must be checked. DEV node placement can be one AZ while configured cluster subnets span multiple AZs. One worker must fit system pods, add-ons and application; instance type and headroom are OPEN, and disruption/upgrade downtime is expected rather than hidden.
-- [ALB subnet requirements](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html): standard regional ALBs require at least two different AZ subnets, with at least /27 and eight free addresses per subnet for scaling. An ALB spanning two AZs does not imply DEV application targets exist in both. Target mode, health checks, cross-zone behavior, controller integration and drain/upgrade design need review.
-- [RDS VPC requirements](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html): a DB subnet group covers at least two AZs even for a Single-AZ DB. STG/PROD Aurora writer/reader placement is distinct from Aurora's managed storage topology; it is not a two-AZ-only storage or DR guarantee. Aurora-specific subnet/storage constraints, capacity and engine availability remain an implementation review gate.
-- [REST private integrations](https://docs.aws.amazon.com/apigateway/latest/developerguide/private-integration.html): VPC links V2 support REST APIs to ALBs without an NLB. Validate chosen Terraform/provider version support, account/Region alignment, link subnet/security-group and integration mappings before implementation. Existing HTTP API tests do not verify REST behavior.
-- [CloudFront certificate requirements](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html): viewer ACM certificates require us-east-1. Workload regional certificates, edge-scope WAF configuration and DNS/global resources need explicit root-owned provider/state boundaries; do not silently put everything in ca-central-1 or introduce aliases in child modules.
+### DNS, certificates and secrets — OPEN feasibility gates
 
-These are design constraints, not provisioned network facts. STG/PROD replica
-spread needs explicit scheduling/topology and capacity controls; two replicas
-alone do not prove AZ diversity. Aurora reader placement does not prove tested
-failover or application recovery. AZ-specific NAT routing, IP growth, private
-EKS access and administration endpoint/egress needs remain design gates. No
-availability percentage, RTO/RPO, backup recovery or cross-region DR guarantee is
-claimed. Cross-region replication/DR remains outside permanent repository scope.
+API Gateway inbound mTLS requires a Regional custom domain. Prefer a suitable free
+subdomain only after DNS control, validation, renewability, terms and technical
+suitability are verified. No FQDN/provider is chosen; Route 53 need not own every
+record. No domains/certificates are purchased or created here. If free-domain or
+certificate feasibility fails, stop the relevant PR and obtain revised approval;
+do not weaken TLS. Root-owned regional/global certificate/state boundaries remain
+explicit; do not configure providers in children.
 
-## Authentication, routing and secret ownership
+[CloudFront client-certificate requirements](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/origin-certificate-management-certificate-manager.html)
+require clientAuth EKU and import into ACM us-east-1; issuance/renewal is not assumed
+automatic. [API Gateway ACM backend certificates](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-acm-client-certificates.html)
+require a suitable imported/private client-auth certificate in the API Region;
+ordinary ACM public certificates must not be assumed usable. Actual provider and
+VPC Link V2 integration support, truststore ownership and PKI are OPEN; no command
+or certificate material is supplied here.
 
-Confirmed target: CloudFront → Regional API Gateway REST API → Lambda **or**
-VPC Link V2 → internal ALB → EKS. Attach CloudFront-scoped WAF at the edge and a
-Regional WAF to the REST API stage through separately reviewed implementations.
-Use environment-specific domains/callback URLs, TLS certificates and Cognito
-client configuration; validate exact callbacks/logout URLs without broad wildcards.
+Google OAuth client secrets, DB credentials, keys and all actual secret values stay
+outside Terraform inputs/data sources/plans/state/outputs, CI logs and repository
+artifacts. Terraform manages Secrets Manager metadata only; approved external
+processes own values/rotation. Sensitive marking or loading secrets through Terraform
+does not prevent persistence. Secret-safe federation configuration and drift ownership
+remain OPEN; no secret provisioning or ephemeral/write-only workaround is implemented.
 
-Cognito User Pool federates Google through its OIDC identity flow. Application
-clients use Authorization Code with PKCE (S256); the browser/client-to-Cognito
-PKCE boundary must be distinguished from Cognito's upstream Google federation.
-Do not claim upstream provider/client registration or PKCE enforcement is complete.
-Protected REST methods configure a Cognito User Pool Authorizer and explicit
-OAuth scopes; use **access tokens**, not ID tokens, for scope-protected method
-calls. Scope names/method mapping, audience/client binding, expiry, issuer and
-replay/session behavior require review and positive/negative verification.
+## Infrastructure ownership and environment contract
 
-The backend independently enforces tenant/user resource ownership on every
-protected operation. A valid token or broad method scope does not grant access
-to another user's records. Define claims/ownership mapping and denial tests.
-Service ingress and workload identity remain separate from human administration,
-CI deployment, artifact upload and API-client permissions.
+Terraform owns VPC Link, internal NLB/listeners/target groups and network/subnet/
+security resources. Kubernetes-side control owns Gateway Pod target registration.
+TargetGroupBinding, controller permissions, Pod IP target mode, health checks and
+NLB compatibility are OPEN. No independent Terraform/controller ownership of the
+same load balancer is permitted. HPA owns replica scaling and Cluster Autoscaler
+owns managed-node scaling under bounded policies; no concurrent Karpenter ownership.
 
-**OPEN — Google OAuth secret provisioning:** registering Google federation may
-require a confidential Google client secret on the service-side provider. Store
-and rotate real values externally; never load plaintext through Terraform variables,
-data sources, provider arguments, plans or state. Marking a variable sensitive or
-reading Secrets Manager through Terraform does not solve state persistence.
-Select and review an external provisioning/rotation ownership boundary and drift
-handling for the provider's secret-bearing fields before implementation. Do not
-assume a resource reference, dynamic reference, ephemeral/write-only workaround
-or PKCE eliminates this secret. This PR implements none of those mechanisms.
+| Property | DEV | STG / PROD |
+| --- | --- | --- |
+| Active application workload AZs | One to minimize cost; updates/worker failure downtime may be accepted | Two; separate Managed Node Group capacity per active AZ |
+| Configured AZ subnets | Additional subnets wherever EKS, NLB, DB subnet groups or service constraints require them | Service-compliant subnets and IP headroom; configured AZ coverage is not workload capacity |
+| NAT / egress | One NAT; private workloads; cost-reviewed endpoint selection | One NAT per active AZ (two); stronger private exposure and egress restrictions |
+| Initial EC2-backed EKS capacity | One minimal worker only if Istiod, Gateway, sidecars, system pods, monitoring and application safely fit; increase if demonstrably insufficient | Redundant Istiod/Gateway/apps; adequate remaining-AZ capacity for defined peak after AZ loss, including CPU, memory, Pods, IPs and DB connections |
+| Scaling / placement | Carefully bounded HPA + Cluster Autoscaler | HPA + Cluster Autoscaler, topology spread, PDBs, readiness and safe update headroom |
+| Replica/node counts | One app replica initially if safe; resource sizing remains cost/capacity review | Two workers/replicas per AZ are candidates only, not fixed approved counts or resilience proof |
+| Database | Single-AZ RDS PostgreSQL, validated TLS, backup and reviewed auth | Aurora PostgreSQL Provisioned writer/reader across AZs; failover/reconnection, backup/PITR, recovery and schema migration contracts |
+| Observability | Limited CloudWatch/Fluent Bit/Datadog collection with retention/redaction/cost bounds | Strengthened monitoring/audit/retention and secret redaction |
+| State/provider | Root-owned account restriction and local DEV state | Separate env/Region/service roots; separately reviewed remote state; providers root-owned |
+| Portfolio evidence | Offline plus only feasible separately authorized limited DEV Live scenarios | Credential-free offline implementation verification only; no authenticated plan/apply or live tests required |
 
-**OPEN — direct origin access:** a Regional REST API origin can be reached
-without CloudFront. Edge WAF alone is therefore insufficient. Regional WAF and
-Cognito still apply to direct calls, but are not proof of edge-only ingress.
-Decide whether residual direct-origin access is accepted or enforce a reviewed
-origin restriction with rotation, forwarding/header behavior and bypass tests.
-DNS/custom domain, an undisclosed hostname or a proposed origin header alone is
-not a demonstrated control. Exact default-endpoint/custom-domain policy is OPEN.
-Do not advertise completed origin protection or Google federation.
+EKS cluster subnet coverage and DB subnet groups require multiple AZs even when
+DEV application/database activity is Single-AZ; NLB subnet/target design must be
+reviewed for its actual capabilities, not inherited ALB assumptions. No old ALB
+/27 or two-subnet rule is used as a target acceptance criterion. Actual subnet,
+node, controller, engine and service quotas remain OPEN. Two nodes/replicas alone
+do not prove availability, safe updates or recovery. No measured SLA/RTO/RPO,
+cross-region DR, cold standby or long-running production operations are in scope.
+Older monthly environment budget examples are neither hard limits nor sizing approvals.
 
-## Delivery, rollback and observability ownership
+## Delivery, operations and shared notifications
 
-### Lambda
+- ECR releases pin immutable image digests and reviewed source/build provenance.
+  GitHub Actions OIDC trust constrains audience/subject and repository/environment.
+  CodeBuild deploys to private EKS using scoped IAM/RBAC and reviewed DNS/network
+  connectivity; Helm/equivalent owns app releases, Terraform owns infrastructure.
+- Lambda versions/aliases and code delivery need explicit single ownership between
+  Terraform and release pipelines; the current publish=false MVP is not that flow.
+  Review artifact digest, S3 version, provenance and ownership before bootstrap.
+  User-provided dummy.zip is only a candidate, not an approved artifact. Never
+  reuse/import/copy code or private information from the legacy customer-project ZIP.
+- Verify release health and rollback to the known digest/version/alias. Database
+  schema/connection recovery, infrastructure recovery and application rollback are
+  distinct. Build/deploy/rollback successes and failures need correlated events;
+  GitHub events do not automatically become EventBridge events.
+- EventBridge routes defined events to notification Lambda; at least one destination
+  is eventually verified within approved feasible DEV scope. Handle notification
+  delivery failures independently through reviewed retry/redrive/alerting ownership.
+  Telemetry includes CloudWatch, Fluent Bit and Datadog with scoped IAM, redaction,
+  egress, retention and cost controls; no destination/key is invented here.
+- Packer/Ansible own reviewed image/configuration provenance. Administration EC2
+  is SSM-only, with no public SSH/RDP, and separately reviewed session permissions.
 
-Target Terraform owns function configuration, execution IAM and infrastructure.
-An approved minimal initial ZIP may bootstrap a future function; this is a target
-allowance, not an artifact added here or a waiver of current exact-version inputs.
-The existing root still requires an approved external versioned S3 artifact.
-GitHub Actions subsequently owns application build/code delivery and version/alias
-release management. Define a single owner for every mutable code/alias field,
-review Terraform drift/reconciliation behavior and exact provider capabilities
-before migration; do not add ignore_changes or competing release writers here.
-Versions and aliases support release/rollback; the current module has publish=false
-and no alias, so it cannot be described as already providing that delivery flow.
-Container images through ECR remain an optional separately reviewed alternative.
+### Administration EC2 schedule and failure handling
 
-### EKS
+```text
+Timezone: America/Toronto
+START: cron(0 8 ? * MON-FRI *)
+STOP:  cron(0 19 ? * MON-FRI *)
+```
 
-GitHub Actions builds/tests a container and publishes it to ECR with controlled
-immutable tags/provenance. Deployments reference an immutable **image digest**.
-CodeBuild executes authorized Helm or equivalent reviewed releases with private
-EKS connectivity; it needs scoped cluster access, deployment IAM, DNS/network
-paths and restricted build inputs. OIDC role trust must constrain repository,
-branch/environment and audience; no unrestricted trust or stored AWS access keys.
-Terraform owns infrastructure while the release mechanism owns Kubernetes app
-objects; decide controller/add-on and ALB ownership without two reconcilers.
+Weekends remain stopped, with no special holiday calendar. Timezone-aware scheduling
+handles daylight saving changes. Target flow: **EventBridge Scheduler → SQS Command
+Queue → Controller Lambda → EC2 Start/Stop**. A separate Watchdog Lambda checks
+expected versus actual state according to the local schedule.
 
-Health verification must establish readiness and relevant connectivity before a
-release is accepted. Keep a prior digest/release record and verify rollback to it;
-an attempted rollback is not successful recovery evidence. Database schema changes
-need backward/forward compatibility and a separate recovery procedure. Packer and
-Ansible changes need image/config provenance; SSM access requires approved session
-permissions and connectivity, not SSH fallback.
+Use CloudWatch detection and SNS notification for Scheduler delivery failures or
+missing heartbeat, SQS retries/DLQ accumulation/stale commands, Controller errors/
+timeouts/idempotency, EC2 API failures, failure to reach running/SSM-ready or stopped,
+unexpected running outside schedule, and Watchdog/notification failures. Detect
+both failure and non-execution of START and STOP. Thresholds, redrive counts,
+permissions and precise recovery actions are OPEN; no implementation is selected.
+This schedule is independent of the absolute DEV Live 72-hour complete-teardown
+limit. Stopping EC2 does not stop EKS, NLB, NAT, RDS or other service billing.
 
-### Notifications and telemetry
+## DEV Live feasibility and spending boundary
 
-Capture build, deployment and rollback outcomes (including failures) from both
-Lambda and EKS pipelines. Define event schemas/correlation and publish sources
-explicitly; do not assume every GitHub event appears in EventBridge automatically.
-EventBridge routes reviewed events to a notification Lambda. At least one approved
-notification destination must be configured and verified on DEV in future work.
-Credentials/destination secrets stay outside Terraform state. Define retry, error
-isolation, dead-letter handling or equivalent redrive and delivery-failure alerts;
-notification failure must not silently change or hide deployment outcome.
+The limited Live policy is approved; specific execution, accounts, certificates,
+scenarios and approvals are not. No AWS operations are authorized here. Actual
+cumulative spending across the approved DEV validation period must stay within
+**JPY 10,000**, and all testing plus independently verified complete teardown must
+finish within **72 hours from approved live start**. A shorter run is preferable.
 
-Fluent Bit and Datadog collection/agent placement, IAM, redaction, retention,
-network egress and cost controls need a reviewed design, especially with one DEV
-worker. Infrastructure recovery, application rollback and database recovery are
-three distinct procedures; notification success proves none of them.
+CloudFront Origin mTLS is supported on **Business, Premium and Pay-as-you-go**, not
+Free; plan/feature availability is a mandatory pre-implementation/Live feasibility
+gate. Review [plan feature availability](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.html),
+actual applicable fixed/usage charges, certificate issuance/renewal and all other
+service costs. No plan is selected or purchased. Estimate Region/runtime, tax,
+currency conversion, retained charges, contingency and teardown implications.
+A 72-hour window does not guarantee affordability. If a validated estimate cannot
+fit the cap, do not authorize that scenario: leave it OPEN or Offline-only.
+Budgets/alerts are not real-time enforcement or guaranteed billing cutoff; use
+monitoring, resource inventory, manual stop authority and a reviewed timeline.
 
-## Migration register and approval boundaries
+Prioritize feasible creation/resource inventory, positive/negative Istio STRICT
+mTLS, then REST VPC Link V2/NLB/Gateway backend certificate authentication. Delivery,
+rollback and notifications run only in remaining approved scope/budget. Do not
+mandate full simultaneous CloudFront/Cognito/RDS/delivery integration if infeasible.
+Unexecuted scenarios never pass. All seven readiness gates remain OPEN; see the
+[Live readiness assessment](dev-live-validation-readiness.md) and
+[verification policy](portfolio-verification-policy.md) for complete deletion criteria.
 
-| Existing offline MVP | Target / migration needed | Reuse and verification boundary | Status |
-| --- | --- | --- | --- |
-| AWS_IAM HTTP API, five API/permission resources | New REST API and Cognito method scopes, WAF and new integration mappings | Keep HTTP module/tests; new contracts and live auth/routing evidence required; do not relabel existing tests as REST tests | Proposed; implementation approval OPEN |
-| S3 ZIP key/version, publish=false, no alias | Initial approved ZIP then GitHub Actions versions/aliases delivery | Reuse artifact bucket and execution-role security contracts where compatible; approve code/alias ownership and full-plan drift behavior | Proposed; release ownership OPEN |
-| Independent VPC module, no workload VPC attachment | New multi-environment network, VPC Link V2, internal ALB and EC2 EKS | Assess reusable VPC components; no assumption existing module meets all subnet/endpoint constraints | Defined target; detailed design OPEN |
-| No workload database | New DEV RDS PostgreSQL; STG/PROD Aurora Provisioned | New modules, credentials outside state, backup/schema/recovery contracts and tests | Defined target; implementation OPEN |
-| No CloudFront/WAF/Cognito stack | New DNS/certificates/edge and regional security/auth modules | New account/global-region ownership, secret-safe federation and origin restrictions | Defined target; mechanisms OPEN |
-| Offline-only GitHub Actions | New OIDC build/release roles, ECR, private CodeBuild deployment, EventBridge notifications | Keep offline workflow/security gates intact; new separately scoped delivery work and DEV evidence | Proposed; deployment authorization OPEN |
-| DEV local state and root account guard; STG/PROD placeholders | Separate env/Region/service roots; STG/PROD remote-state design; explicit edge-region providers | Preserve root-owned providers/backends and account guards; approve each state owner/migration independently | Existing boundaries retained; new roots/backends OPEN |
-| Metadata-only secrets, log storage and least-privilege IAM modules | Reuse compatible defaults; extend only for reviewed new responsibilities | Keep current modules/history and all positive/negative/security evidence until separately approved extension/replacement | Existing implemented offline; no deletion authorized |
+## Migration register — approved target, implementation OPEN
 
-Unresolved blockers: dedicated approved account/identity/cost boundaries; state and
-artifact bootstrap decisions; application/runtime packaging; provider support for
-REST VPC Link V2; exact subnet/node/database sizing and service availability;
-Google secret-safe provisioning; origin bypass decision; release/controller
-ownership; database credentials/recovery; external telemetry and notifications.
-Use the [bootstrap decision plan](dev-bootstrap-decision-plan.md) and existing
-[live readiness gates](dev-live-validation-readiness.md); they remain OPEN.
-No live plan, apply, deployment or migration is authorized by this baseline.
+| Existing offline baseline / earlier design | Required migration | Preserve / independently verify |
+| --- | --- | --- |
+| HTTP API AWS_IAM | New REST/Cognito scopes, two mTLS boundaries, WAF and custom domain | Keep HTTP API module/tests; new trust/identity/revocation/bypass and user/tenant authorization evidence |
+| Earlier proposed ALB ingress | Internal NLB TCP:443 → Istio Gateway → STRICT mesh | New VPC Link/provider/target ownership, TLS/SNI, SPIFFE and PKI verification; no ALB substitution |
+| S3-versioned ZIP, publish=false | Reviewed bootstrap then single-owned code/version/alias release flow | Keep artifact/execution security contracts and exact version requirement until approved migration; dummy.zip not approved |
+| Independent VPC; no workload mesh/database | New environment network/EKS/mesh and RDS/Aurora | New scoped modules and offline security/capacity/recovery contracts; no historical test count implies coverage |
+| Offline-only CI | OIDC/ECR/private CodeBuild, notifications, EC2 Scheduler/SQS/Controller/Watchdog/SNS | Keep complete offline suite; separately scoped delivery/admin roles and failure evidence |
+| DEV local state, root account guard; STG/PROD placeholders | Env/Region/service state/provider boundaries and reviewed STG/PROD remote state | Exclusive resource ownership and migration; no backend change here |
+| Metadata/log/IAM modules and accepted 17-resource MVP | Reuse only compatible parts after review | Keep all history/tests; 17 is not v2's resource inventory or a cost/teardown guarantee |
+
+Implementation blockers remain OPEN: provider/integration support; PKI/issuance
+and identity/revocation feasibility compatible with Cognito; free DNS and truststore
+ownership; TargetGroupBinding/permissions; sizing; state/IAM; artifact provenance;
+monitoring thresholds; plan pricing and full deletion within 72 hours. The current
+secret module's 30-day recovery is incompatible with actual complete deletion in
+72 hours if that unchanged resource is created for Live. Do not execute the full
+historical root unchanged under the new limit; an approved feasible scenario/lifecycle
+design is needed first, without silently weakening existing guards. Avoid new CMKs
+or other unavoidable deletion delays. Prior [bootstrap proposals](dev-bootstrap-decision-plan.md)
+remain historical decision inputs, not authorization or current ingress overrides.

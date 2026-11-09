@@ -117,25 +117,26 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: Phase 3-12 architecture v2 documentation baseline
+## Current phase only: Architecture v2 Policy Alignment documentation
 
-Use docs/architecture-v2-baseline from latest verified main. Document the proposed
-AWS Terraform target and environment/evidence contract; preserve the implemented
-offline MVP and clearly distinguish all deployment/approval states.
+Use a fresh docs/architecture-v2-policy-alignment branch from verified latest main.
+Align approved Master Policy v10 target and supplied security/cost clarifications;
+repository source remains authoritative for implemented behavior and historical CI.
 
 - Change only docs/architecture-v2.md, docs/portfolio-verification-policy.md,
-  infra/README.md, repository README.md and this current-phase section.
-  Preserve every permanent rule exactly and all historical evidence.
-- Preserve detailed technical history in infra/README.md with repaired links;
-  make the root README a concise English portfolio overview.
-- No Terraform, IAM, providers/backends/locks, CI/CD, tests, Kubernetes, application
-  code, ZIPs or cloud resources may change. No Master Policy PDF edits.
-- Never request/use AWS credentials, authenticated APIs/plans, imports/state
-  operations, apply/destroy or deployments. DEV live evidence requires a later
-  separately approved external workflow; no STG/PROD live work is required.
-- Record service constraints, migration boundaries and unresolved approval gates;
-  never claim future infrastructure or unexecuted tests are deployed/passed.
-- Validate documentation links, consistency, scope, permanent-rule preservation,
-  secret patterns and git diff --check; do not rerun unrelated local regressions.
-  Commit, push and open a PR, then report URL, exact HEAD, checks and blockers.
-  Do not wait/repeatedly poll CI, merge, delete the branch or begin another phase.
+  docs/dev-live-validation-readiness.md, README.md and this current-phase section.
+  Preserve permanent rules exactly; do not edit infra/README.md or Master Policy PDF.
+- Document REST/NLB TCP/Istio mTLS, distinct transport/client/user authorization,
+  certificate identity/revocation and pricing feasibility, environment capacity,
+  delivery/admin scheduling and limited DEV Live policy; all seven gates stay OPEN.
+- No implementation, Terraform/IAM/provider/backend/state/lock, Kubernetes, app,
+  workflow/test, ZIP, certificate or resource changes. No credentials, authenticated
+  AWS APIs/plans/imports, state operations, apply/destroy, deployments or next phase.
+- Preserve historical HTTP API MVP/evidence and full CI; do not treat old tests as
+  new mTLS verification. Leave implementation mechanisms/sizing/PKI/DNS/IAM OPEN;
+  report concrete blockers without changing target or weakening security.
+- Perform only relevant documentation consistency/link/Mermaid/scope/secret/diff
+  checks. Do not rerun unrelated local regressions or alter GitHub Actions checks.
+- Commit, push and open exactly one PR. Report URL, exact HEAD, checks and blockers;
+  confirm triggering only if immediately observable, then stop. Do not wait/poll CI,
+  merge or delete the branch. Independent review verifies exact-head completed CI.

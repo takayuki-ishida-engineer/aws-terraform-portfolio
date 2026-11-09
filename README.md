@@ -23,18 +23,19 @@ limitations. No AWS deployment or live connectivity validation is claimed.
 ## Target architecture — defined, not deployed
 
 The next design combines Route 53, CloudFront, WAF and ACM with a Cognito-protected
-API Gateway REST API. Requests route to Lambda or through VPC Link V2 and an
-internal ALB to EC2-backed EKS. PostgreSQL, ECR, private deployment automation,
+API Gateway REST API. CloudFront origin mTLS protects the Regional custom domain;
+REST VPC Link V2 routes through an internal NLB (TCP:443) to Istio Gateway and
+STRICT mTLS/SPIFFE-protected EC2 EKS workloads. PostgreSQL, ECR, private deployment automation,
 observability and shared event notifications complete the target.
 
 | Environment | Target workload capacity | Target database | Completion evidence |
 | --- | --- | --- | --- |
-| DEV | One active workload AZ, one NAT, one initial minimal EKS worker and one app replica; additional service-required AZ subnets | Single-AZ RDS PostgreSQL | Offline checks plus limited live integration/delivery/rollback evidence only after separate external authorization |
-| STG | Two active workload AZs, two NATs, managed nodes and at least two replicas distributed across AZs | Aurora PostgreSQL Provisioned writer/reader across AZs | Offline verification; no deployment or authenticated plan required |
-| PROD | Two active workload AZs, two NATs, managed nodes and at least two replicas distributed across AZs | Aurora PostgreSQL Provisioned writer/reader across AZs | Offline verification; no deployment or authenticated plan required |
+| DEV | One active workload AZ, one NAT, capacity-reviewed minimal EC2 EKS worker(s) for mesh/system/app, bounded HPA + Cluster Autoscaler; extra required AZ subnets | Single-AZ RDS PostgreSQL | Offline checks; only feasible separately approved limited DEV Live scenarios |
+| STG | Two active workload AZs, per-AZ NAT/managed capacity, redundant Istiod/Gateway/apps, HPA + Cluster Autoscaler and reviewed remaining-AZ peak capacity | Aurora PostgreSQL Provisioned writer/reader across AZs | Offline verification; no deployment or authenticated plan required |
+| PROD | Two active workload AZs, per-AZ NAT/managed capacity, redundant Istiod/Gateway/apps, HPA + Cluster Autoscaler and reviewed remaining-AZ peak capacity | Aurora PostgreSQL Provisioned writer/reader across AZs | Offline verification; no deployment or authenticated plan required |
 
 Configured AZ coverage can exceed active worker/database AZs. These targets make
-no measured availability or disaster recovery guarantee.
+no measured SLA/RTO/RPO or disaster recovery guarantee; replica counts alone do not prove resilience.
 
 ## Engineering highlights
 
@@ -60,13 +61,38 @@ no measured availability or disaster recovery guarantee.
 
 ## Current limitations
 
-The REST/Cognito, EKS/database and live delivery architecture remains defined or
-awaiting design approval; it has not replaced the tested HTTP API MVP. No suitable
+The Master Policy v10 REST/NLB/Istio/mTLS, Cognito, EKS/database and delivery
+architecture is an approved design target with implementation details OPEN; it has not replaced the tested HTTP API MVP. No suitable
 Lambda runtime application/build artifact is currently provided. Account/state
-ownership, artifact bootstrap, secret-safe federation provisioning, edge-origin
-protection and deployment permissions still require decisions and verification.
+ownership, artifact bootstrap, secret-safe federation, certificate identity/revocation
+feasibility compatible with Cognito, provider support and deployment permissions
+still require decisions and verification. API Gateway does not automatically check
+client-certificate revocation; CA trust does not authorize only one client.
+CloudFront viewer *.cloudfront.net and Cognito managed login domains are allowed;
+API inbound mTLS needs a suitable Regional custom domain, with free DNS feasibility
+reviewed before implementation. No domain or certificate is selected here.
 
 No credentials, authenticated AWS operations, deployments or secret values are
 introduced here. Offline acceptance does not authorize live validation. Real
 production delivery would require operational, security, performance and recovery
 validation beyond this portfolio's completion scope.
+
+## DEV Live restrictions — all seven gates OPEN
+
+No Live operation is authorized here. Actual cumulative DEV Live spending must
+stay within **JPY 10,000**, and testing plus verified complete teardown must finish
+within **72 hours from approved Live start**. Prioritize feasible resource creation,
+Istio positive/negative mTLS and REST/NLB/Gateway backend authentication; delivery,
+rollback and notifications only within remaining approved scope/budget. Full
+simultaneous CloudFront/Cognito/RDS/delivery testing is not mandatory if infeasible.
+
+CloudFront Origin mTLS supports Business, Premium and Pay-as-you-go, not Free.
+Plan/feature, certificate lifecycle, fixed/usage costs, tax/FX and contingency/
+teardown review are mandatory; no plan is purchased or selected. A 72-hour window
+does not guarantee affordability and Budgets/alerts are not a billing cutoff.
+Unexecuted scenarios remain OPEN or Offline-only. Complete removal includes all
+exercise-created managed/external resources; stopped EC2 or successful destroy
+alone is insufficient. Historical/delayed billing can still arrive afterward.
+Administration EC2's Toronto weekday 08:00–19:00 schedule does not replace this
+deadline or stop other service charges. See the detailed readiness/verification
+documents before any separately authorized execution.
