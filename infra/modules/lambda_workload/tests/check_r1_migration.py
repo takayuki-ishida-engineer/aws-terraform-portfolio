@@ -16,6 +16,8 @@ ROOT = REPO / 'infra/services/dev/ca-central-1/serverless-api'
 MOVES = {f'module.{old}.{kind}.this': f'module.lambda_workload.{kind}.this' for old, kind in (
     ('lambda_function', 'aws_lambda_function'), ('lambda_execution_role', 'aws_iam_role'),
     ('lambda_execution_role', 'aws_iam_role_policy'), ('lambda_logs', 'aws_cloudwatch_log_group'))}
+R2_MOVES = {'module.api_access_logs.aws_cloudwatch_log_group.this': 'module.http_api.aws_cloudwatch_log_group.this'}
+ALL_MOVES = {**MOVES, **R2_MOVES}
 RESOURCES = {destination.split('.', 2)[2] for destination in MOVES.values()}
 RUNS = {'default_secret_read_disabled', 'enabled_exact_secret_read', 'node_runtime', 'java_runtime'}
 
@@ -23,6 +25,27 @@ RUNS = {'default_secret_read_disabled', 'enabled_exact_secret_read', 'node_runti
 def require(condition, reason):
     if not condition:
         raise ValueError(reason)
+
+
+def verify_moves(pairs):
+    require(len(pairs) == 5 and len(dict(pairs)) == 5, 'five_resource_moves')
+    for old, new in MOVES.items():
+        require(dict(pairs).get(old) == new, 'retained_r1_move:' + old)
+    require(dict(pairs) == ALL_MOVES, 'exact_r2_move')
+
+
+def migration_mutations():
+    pairs = list(ALL_MOVES.items())
+    cases = [[pair for pair in pairs if pair[0] != old] + [('module.unreviewed.resource.this', new)]
+             for old, new in MOVES.items()]
+    cases += [list(MOVES.items()), list(MOVES.items()) + [(next(iter(R2_MOVES)), 'module.unreviewed.aws_cloudwatch_log_group.this')]]
+    for changed in cases:
+        try:
+            verify_moves(changed)
+        except ValueError:
+            continue
+        raise ValueError('unsafe_move_set_accepted')
+    return len(cases)
 
 
 def verify_structure(module_sources=None):
@@ -42,10 +65,10 @@ def verify_structure(module_sources=None):
     require('aws_cloudwatch_log_group.this.arn' in sources['policies.tf'], 'source_policy_group_binding')
     moved = (ROOT / 'moved.tf').read_text()
     pairs = re.findall(r'moved\s*\{\s*from\s*=\s*(\S+)\s+to\s*=\s*(\S+)\s*\}', moved)
-    require(len(pairs) == 4 and dict(pairs) == MOVES, 'four_resource_moves')
+    verify_moves(pairs)
     calls = re.findall(r'^module "([^"]+)"', (ROOT / 'main.tf').read_text(), re.M)
-    require(set(calls) == {'artifact_bucket', 'secret_metadata', 'api_access_logs', 'lambda_workload', 'http_api'} and len(calls) == 5, 'root_five_modules')
-    return {'moves': MOVES, 'resources': sorted(RESOURCES), 'root_module_instances': 5,
+    require(set(calls) == {'artifact_bucket', 'secret_metadata', 'lambda_workload', 'http_api'} and len(calls) == 4, 'root_four_modules')
+    return {'moves': MOVES, 'resources': sorted(RESOURCES), 'root_module_instances': 4, 'r2_moves': R2_MOVES, 'retained_r1_move_mutations': migration_mutations(),
             'ordering_evidence': 'Source dependency contract plus actual resource bindings; no service propagation or live state verified.'}
 
 
@@ -94,10 +117,12 @@ def capture(path):
 def configured_fields(source):
     """Formatted top-level resource attributes; nested configured blocks compare whole.
 
+    Only formatted resource bodies count; same-named locals/variables do not.
     The inspected implementations format resource attributes at two spaces. This
     is used only to refuse ignoring a changed configured optional-computed field.
     """
-    return set(re.findall(r'^  ([a-zA-Z0-9_]+)\s*=', source, re.M))
+    blocks = re.findall(r'^resource "[^"]+" "[^"]+" \{\n(.*?)^\}', source, re.M | re.S)
+    return {name for block in blocks for name in re.findall(r'^  ([a-zA-Z0-9_]+)\s*=', block, re.M)}
 
 
 def compare(before, after, baseline):
@@ -114,16 +139,16 @@ def compare(before, after, baseline):
         files = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', baseline, '--', f'infra/modules/{module}'], cwd=REPO, text=True).splitlines()
         old_source = '\n'.join(subprocess.check_output(['git', 'show', baseline + ':' + name], cwd=REPO, text=True)
             for name in files if name.endswith('.tf') and '/tests/' not in name)
-        current = 'lambda_workload' if instance in {'lambda_logs', 'lambda_function', 'lambda_execution_role'} else module
+        current = 'lambda_workload' if instance in {'lambda_logs', 'lambda_function', 'lambda_execution_role'} else 'api_gateway_http' if instance == 'api_access_logs' else module
         new_source = '\n'.join(p.read_text() for p in (REPO / 'infra/modules' / current).glob('*.tf'))
         fields[instance] = configured_fields(old_source) | configured_fields(new_source)
     ignored = set()
     for run in sorted(RUNS):
-        expected = {MOVES.get(r['address'], r['address']): r for r in old[run]['resource_changes']}
+        expected = {ALL_MOVES.get(r['address'], r['address']): r for r in old[run]['resource_changes']}
         actual = {r['address']: r for r in new[run]['resource_changes']}
         require(len(expected) == len(actual) == 17 and set(actual) == set(expected), 'comparison_address_inventory')
-        unchanged = sum(r['address'] not in MOVES for r in old[run]['resource_changes'])
-        require(unchanged == 13, 'comparison_thirteen_retained')
+        unchanged = sum(r['address'] not in ALL_MOVES for r in old[run]['resource_changes'])
+        require(unchanged == 12, 'comparison_twelve_pre_r1_addresses_retained')
         for address, old_resource in expected.items():
             current = actual[address]
             require(old_resource['type'] == current['type'] and old_resource['mode'] == current['mode'] == 'managed'
@@ -143,7 +168,7 @@ def compare(before, after, baseline):
                 ignored.add(current['type'] + '.' + field)
         require(old[run]['output_changes'] == new[run]['output_changes'], 'comparison_root_output_changes')
     return {'positive_plan_pairs': len(RUNS), 'managed_resources_per_plan': 17,
-        'mapped_resources': 4, 'unchanged_addresses': 13, 'root_outputs_equal': 8,
+        'mapped_resources': 5, 'retained_r1_mappings': 4, 'additional_r2_mappings': 1, 'unchanged_addresses': 12, 'root_outputs_equal': 8,
         'unconfigured_provider_computed_metadata_differences': sorted(ignored),
         'limitations': 'Native empty-state mock create plans do not prove actual state moves, recreation avoidance or AWS propagation.'}
 

@@ -1,4 +1,20 @@
-# Current R1 integration and preserved technical history
+# Current R2 HTTP API logging ownership
+
+R2 internalizes the existing API access group in [api_gateway_http](modules/api_gateway_http/README.md).
+The DEV root has four calls and 17 resources (artifact 6, metadata 1, Lambda workload
+4, HTTP API/logging 6), with eight unchanged outputs. One new API-log move plus
+four retained R1 moves are declared. Lambda logs stay separate. All eight reusable
+modules remain, including generic CloudWatch Logs with its unchanged 51 tests and
+no DEV root consumer. Retirement requires another reviewed decision.
+
+[Migration evidence and interface details](../docs/repository-structure-strategy.md)
+distinguish actual local R2 verification from historical results and unverified
+live state migration. Provider/backend/root lock/features, IAM/secret/artifact
+behavior and nine-configuration single-provider cache remain unchanged. Full
+unaffected regression stays in GitHub Actions. No AWS/state operation, new feature,
+R3/R4 implementation or Live authorization occurs here.
+
+# Historical R1 integration and preserved technical history
 
 R1 consolidates the existing Lambda function, execution role/inline policy and
 application Log Group in [lambda_workload](modules/lambda_workload/README.md).

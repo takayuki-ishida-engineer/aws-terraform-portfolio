@@ -20,12 +20,6 @@ module "secret_metadata" {
   project_tag = local.project
 }
 
-module "api_access_logs" {
-  source = "../../../../modules/cloudwatch_logs"
-
-  name = "/aws/apigateway/${local.name_prefix}-access"
-}
-
 module "lambda_workload" {
   source = "../../../../modules/lambda_workload"
 
@@ -53,8 +47,8 @@ module "lambda_workload" {
 module "http_api" {
   source = "../../../../modules/api_gateway_http"
 
-  api_name             = "${local.name_prefix}-http"
-  lambda_function_arn  = module.lambda_workload.function_arn
-  lambda_invoke_arn    = module.lambda_workload.invoke_arn
-  access_log_group_arn = module.api_access_logs.log_group_arn
+  api_name              = "${local.name_prefix}-http"
+  lambda_function_arn   = module.lambda_workload.function_arn
+  lambda_invoke_arn     = module.lambda_workload.invoke_arn
+  access_log_group_name = "/aws/apigateway/${local.name_prefix}-access"
 }

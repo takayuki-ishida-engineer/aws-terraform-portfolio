@@ -26,9 +26,8 @@ MODULE_TYPES = {
     "artifact_bucket": {"aws_s3_bucket", "aws_s3_bucket_versioning", "aws_s3_bucket_public_access_block",
         "aws_s3_bucket_ownership_controls", "aws_s3_bucket_server_side_encryption_configuration", "aws_s3_bucket_policy"},
     "secret_metadata": {"aws_secretsmanager_secret"},
-    "api_access_logs": {"aws_cloudwatch_log_group"},
     "lambda_workload": {"aws_lambda_function", "aws_iam_role", "aws_iam_role_policy", "aws_cloudwatch_log_group"},
-    "http_api": {"aws_apigatewayv2_api", "aws_apigatewayv2_integration", "aws_apigatewayv2_route", "aws_apigatewayv2_stage", "aws_lambda_permission"},
+    "http_api": {"aws_cloudwatch_log_group", "aws_apigatewayv2_api", "aws_apigatewayv2_integration", "aws_apigatewayv2_route", "aws_apigatewayv2_stage", "aws_lambda_permission"},
 }
 INVENTORY = {f"module.{module}.{kind}.this" for module, kinds in MODULE_TYPES.items() for kind in kinds}
 LOG_FORMAT = {key: "$context." + key for key in (
@@ -146,14 +145,14 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
             "aws:SecureTransport": "false", "aws:PrincipalIsAWSService": "false"}}}]}, "bucket_transport_policy")
 
     logs = {}
-    for module, name in (("lambda_workload", "/aws/lambda/" + PREFIX + "-function"), ("api_access_logs", "/aws/apigateway/" + PREFIX + "-access")):
+    for module, name in (("lambda_workload", "/aws/lambda/" + PREFIX + "-function"), ("http_api", "/aws/apigateway/" + PREFIX + "-access")):
         log = read(module, "aws_cloudwatch_log_group", "name", "arn", "retention_in_days", "deletion_protection_enabled", "log_group_class", "kms_key_id", "skip_destroy")
         require(log.get("name") == name and log.get("arn") == f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:{name}", "log_identity:" + module)
         require(log.get("retention_in_days") == 30 and log.get("deletion_protection_enabled") is True
             and log.get("log_group_class") == "STANDARD" and log.get("kms_key_id") is None
             and log.get("skip_destroy") is False, "log_safety:" + module)
         logs[module] = log
-    require(logs["lambda_workload"]["arn"] != logs["api_access_logs"]["arn"], "separate_log_groups")
+    require(logs["lambda_workload"]["arn"] != logs["http_api"]["arn"], "separate_log_groups")
     secret = read("secret_metadata", "aws_secretsmanager_secret", "name", "arn", "kms_key_id", "recovery_window_in_days", "tags", "tags_all")
     require(secret.get("name") == PREFIX + "/application" and isinstance(secret.get("arn"), str)
         and re.fullmatch(f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:" + re.escape(secret["name"]) + r"-[A-Za-z0-9]{6}", secret["arn"]), "secret_metadata_identity")
@@ -211,7 +210,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
     stage = read("http_api", "aws_apigatewayv2_stage", "api_id", "name", "auto_deploy", "invoke_url", "access_log_settings", "default_route_settings", "route_settings", "stage_variables")
     require(stage.get("api_id") == api["id"] and stage.get("name") == "$default" and stage.get("auto_deploy") is True, "default_stage_binding")
     access = block(stage.get("access_log_settings"), "api_access_logging")
-    require(access.get("destination_arn") == logs["api_access_logs"]["arn"] and parse_json(access.get("format")) == LOG_FORMAT, "api_separate_metadata_logging")
+    require(access.get("destination_arn") == logs["http_api"]["arn"] and parse_json(access.get("format")) == LOG_FORMAT, "api_separate_metadata_logging")
     settings = block(stage.get("default_route_settings"), "api_route_settings")
     require(settings.get("throttling_rate_limit") == 10 and settings.get("throttling_burst_limit") == 20
         and settings.get("data_trace_enabled") in (None, False) and settings.get("logging_level") in (None, "OFF")
@@ -224,7 +223,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
 
     expected = {"api_invoke_url": stage["invoke_url"], "api_id": api["id"], "lambda_function_name": function["function_name"],
         "lambda_function_arn": function["arn"], "artifact_bucket_name": bucket["bucket"], "secret_metadata_arn": secret["arn"],
-        "lambda_log_group_name": logs["lambda_workload"]["name"], "api_access_log_group_name": logs["api_access_logs"]["name"]}
+        "lambda_log_group_name": logs["lambda_workload"]["name"], "api_access_log_group_name": logs["http_api"]["name"]}
     outputs = plan.get("output_changes")
     require(isinstance(outputs, dict) and set(outputs) == set(expected), "output_inventory")
     for name, val in expected.items():
@@ -401,7 +400,7 @@ def capture_faults(events):
     inject("aws-data-source", lambda e: e[first(e, "test_plan")]["test_plan"]["resource_changes"][0].update(mode="data"))
     inject("non-create-action", lambda e: e[first(e, "test_plan")]["test_plan"]["resource_changes"][0]["change"].update(actions=["delete", "create"]))
     inject("unknown-output", lambda e: e[first(e, "test_plan")]["test_plan"]["output_changes"]["api_invoke_url"].update(after_unknown=True))
-    inject("unknown-security-field", lambda e: e[first(e, "test_plan")]["test_plan"]["resource_changes"][0]["change"].update(after_unknown={"name": True}))
+    inject("unknown-security-field", lambda e: next(r for r in e[first(e, "test_plan")]["test_plan"]["resource_changes"] if r["address"] == "module.http_api.aws_cloudwatch_log_group.this")["change"]["after_unknown"].update(name=True))
     inject("missing-known-null-security-field", lambda e: next(v for v in e[first(e, "test_plan")]["test_plan"]["resource_changes"] if v["type"] == "aws_lambda_function")["change"]["after"].pop("kms_key_arn"))
     inject("missing-change-metadata", lambda e: e[first(e, "test_plan")]["test_plan"]["resource_changes"][0]["change"].pop("after_unknown"))
     for identifier, raw in (("malformed-jsonl", "{"), ("duplicate-json-key", '{"type":"test_summary","type":"test_plan"}'), ("nonfinite-json", '{"count":NaN}')):
