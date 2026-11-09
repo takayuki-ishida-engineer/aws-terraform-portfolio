@@ -117,24 +117,25 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: Phase 3-11 development bootstrap decision plan
+## Current phase only: Phase 3-12 architecture v2 documentation baseline
 
-Use docs/dev-bootstrap-decision-plan from latest verified main. Produce a proposed
-account/state/artifact bootstrap architecture decision plan, with conditional
-recommendations and independent approval dependencies; all seven gates stay OPEN.
+Use docs/architecture-v2-baseline from latest verified main. Document the proposed
+AWS Terraform target and environment/evidence contract; preserve the implemented
+offline MVP and clearly distinguish all deployment/approval states.
 
-- Change only docs/dev-bootstrap-decision-plan.md, one concise link in README.md
-  and docs/dev-live-validation-readiness.md, and this current-phase section.
-  Preserve permanent rules exactly and historical acceptance/CI evidence.
-- Inspect existing source contracts and tracked application/build inventory once;
-  distinguish source facts, missing external evidence, recommendations and approval.
-- No Terraform, IAM, provider/backend/lock, test, CI, runtime code or artifact changes.
-  Never request/use AWS credentials, authenticated APIs/plans, apply/destroy,
-  imports/state manipulation, account creation, uploads, secret initialization,
-  permission grants or live validation. No Master Policy PDF updates or next phase.
-- Validate document links, decision ordering/register, scope, credential patterns,
-  permanent-rule preservation and git diff --check. Do not rerun full local suites;
-  unchanged GitHub Actions retains complete regression responsibility.
-- Commit, push and open a PR; report URL, exact HEAD, recommendations, unresolved
-  approvals and local checks. Stop without waiting or repeatedly polling CI.
-  Do not merge or delete the feature branch. Await independent review.
+- Change only docs/architecture-v2.md, docs/portfolio-verification-policy.md,
+  infra/README.md, repository README.md and this current-phase section.
+  Preserve every permanent rule exactly and all historical evidence.
+- Preserve detailed technical history in infra/README.md with repaired links;
+  make the root README a concise English portfolio overview.
+- No Terraform, IAM, providers/backends/locks, CI/CD, tests, Kubernetes, application
+  code, ZIPs or cloud resources may change. No Master Policy PDF edits.
+- Never request/use AWS credentials, authenticated APIs/plans, imports/state
+  operations, apply/destroy or deployments. DEV live evidence requires a later
+  separately approved external workflow; no STG/PROD live work is required.
+- Record service constraints, migration boundaries and unresolved approval gates;
+  never claim future infrastructure or unexecuted tests are deployed/passed.
+- Validate documentation links, consistency, scope, permanent-rule preservation,
+  secret patterns and git diff --check; do not rerun unrelated local regressions.
+  Commit, push and open a PR, then report URL, exact HEAD, checks and blockers.
+  Do not wait/repeatedly poll CI, merge, delete the branch or begin another phase.
