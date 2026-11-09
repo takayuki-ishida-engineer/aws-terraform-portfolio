@@ -1,5 +1,7 @@
 # Architecture v2 — Master Policy v10 alignment
 
+See the [approved functional-module repository strategy](repository-structure-strategy.md): R0 → R1 → R2 → R3 → R4 migration/revalidation precedes new v2 features; coherent modules own coupled functionality rather than individual-resource wrappers.
+
 See the [Network / State / Identity foundation design](architecture-v2-foundation-design.md) for proposed implementation ownership and staged PR boundaries.
 
 ## Authority, evidence and status
@@ -166,10 +168,16 @@ Older monthly environment budget examples are neither hard limits nor sizing app
   delivery failures independently through reviewed retry/redrive/alerting ownership.
   Telemetry includes CloudWatch, Fluent Bit and Datadog with scoped IAM, redaction,
   egress, retention and cost controls; no destination/key is invented here.
-- Packer/Ansible own reviewed image/configuration provenance. Administration EC2
-  is SSM-only, with no public SSH/RDP, and separately reviewed session permissions.
+- Packer/Ansible own reviewed image/configuration provenance. The DEV RDS SSM
+  developer-access EC2 is for local workstation → Session Manager port forwarding
+  → private EC2 → private RDS PostgreSQL, not generic administration or a management
+  jump server. Intended module rds_ssm_access and initial dev/ca-central-1/db-access
+  root are future only; do not replicate into STG/PROD automatically. No broad admin
+  or public SSH/RDP; developer identity, least-privilege SSM, endpoint/NAT connectivity
+  and DB SG permissions require review. Port-forwarding session logs must not be
+  assumed to capture SQL traffic.
 
-### Administration EC2 schedule and failure handling
+### DEV RDS developer-access EC2 schedule and failure handling
 
 ```text
 Timezone: America/Toronto
@@ -226,7 +234,7 @@ Unexecuted scenarios never pass. All seven readiness gates remain OPEN; see the
 | Earlier proposed ALB ingress | Internal NLB TCP:443 → Istio Gateway → STRICT mesh | New VPC Link/provider/target ownership, TLS/SNI, SPIFFE and PKI verification; no ALB substitution |
 | S3-versioned ZIP, publish=false | Reviewed bootstrap then single-owned code/version/alias release flow | Keep artifact/execution security contracts and exact version requirement until approved migration; dummy.zip not approved |
 | Independent VPC; no workload mesh/database | New environment network/EKS/mesh and RDS/Aurora | New scoped modules and offline security/capacity/recovery contracts; no historical test count implies coverage |
-| Offline-only CI | OIDC/ECR/private CodeBuild, notifications, EC2 Scheduler/SQS/Controller/Watchdog/SNS | Keep complete offline suite; separately scoped delivery/admin roles and failure evidence |
+| Offline-only CI | OIDC/ECR/private CodeBuild, notifications, EC2 Scheduler/SQS/Controller/Watchdog/SNS | Keep complete offline suite; separately scoped delivery/developer-access roles and failure evidence |
 | DEV local state, root account guard; STG/PROD placeholders | Env/Region/service state/provider boundaries and reviewed STG/PROD remote state | Exclusive resource ownership and migration; no backend change here |
 | Metadata/log/IAM modules and accepted 17-resource MVP | Reuse only compatible parts after review | Keep all history/tests; 17 is not v2's resource inventory or a cost/teardown guarantee |
 
