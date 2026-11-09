@@ -1,4 +1,4 @@
-# Approved repository structure — R0 strategy, R1/R2 evidence and R3 handoff
+# Approved repository structure — R0 strategy, migration evidence and V1 design
 
 ## 1. Decision, status and source authority
 
@@ -20,8 +20,22 @@ references. No historical result is rewritten as post-refactor or v2 evidence.
 
 R0 changed documentation only and left all nine modules and the seven-instance/
 17-resource HTTP API MVP unchanged. Historical R1/R2 development evidence and the
-current completed post-R2 baseline are distinguished below. R4/new features remain
-future work; no external policy artifact is revised in R3.
+historical completed post-R2 baseline are distinguished below. The following V1
+transition updates current status without rewriting those historical records.
+
+## V1 transition — accepted R4, proposed VPC contract
+
+The user independently accepted R0–R4 at post-R3 main
+`899f944c3887fa739dfb39f43617321a696c727b`, with matching successful
+[push CI 42628851626](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42628851626).
+Source still has eight children, four DEV calls, 17 resources, eight root outputs
+and five moves; V1 changes none. The
+[VPC extension decision proposal](vpc-extension-decision.md) retains coherent VPC
+ownership and private-only defaults, recommends explicit per-AZ/zonal NAT opt-in,
+and records the singular-output compatibility exception V1-C01 as OPEN.
+V1 requires independent design approval before V2; no root, backend, AWS allocation
+or Live decision is made. R3/R4 readiness wording below is retained historical
+handoff evidence, not a claim that the accepted R4 baseline is still pending.
 
 ## R3 stabilization and R4 handoff
 

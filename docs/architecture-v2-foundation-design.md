@@ -20,6 +20,18 @@ The [verification policy](portfolio-verification-policy.md),
 [technical history](../infra/README.md) retain their existing authority/evidence.
 Mocks never establish actual AWS reachability, ownership, permission or availability.
 
+## V1 transition after accepted R4
+
+The user independently accepted R0–R4 at main
+`899f944c3887fa739dfb39f43617321a696c727b`, with matching successful
+[push CI 42628851626](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42628851626).
+The implementation below is unchanged from post-R2. The
+[V1 VPC extension decision proposal](vpc-extension-decision.md) now evaluates
+legacy/per-AZ routing, zonal NAT/EIP and endpoint contracts inside the existing
+VPC module. Its singular-output compatibility exception V1-C01 and the detailed
+D01–D05/D07–D08/D11–D12 approvals remain OPEN; this is documentation, not V2 or
+AWS/state/Live authorization. Earlier R3/R4 handoff statements are historical.
+
 ## A. Current implementation inventory
 
 Current post-R2 source: main df5ef4b2e03bd55109b0490b1e63d1d4199b663b,
@@ -163,8 +175,8 @@ calls and the same 17 resources/eight outputs. Five exact moved declarations
 retain historical identities in source. Generic logs/51 tests remain independently
 retained with no DEV consumer; retirement needs separate review. See the
 [migration record](repository-structure-strategy.md) for historical local evidence
-and completed R1/R2 main CI. No actual state migration, R3/R4 completion or new
-feature is claimed.
+and completed R1/R2 main CI. No actual state migration or new feature is claimed;
+accepted R4 provenance is recorded above.
 
 ## F. Approved migration-first sequence
 
@@ -172,16 +184,17 @@ feature is claimed.
 [resource/output/test migration matrices](repository-structure-strategy.md) for
 source-derived R1/R2 addresses and still-OPEN future operational decisions.
 Functional grouping
-and this order are approved. R0–R2 are merged; R3 is documentation stabilization
-only. R4 final-main verification and new feature PRs remain future authorization.
+and this order are approved. R0–R3 are merged and R4 is independently accepted
+as recorded above. V1 is design only; new feature implementation still requires
+separate approval.
 
 | Stage | Separately authorized responsibility | Required verification / acceptance |
 | --- | --- | --- |
 | R0 — historical merged design | Approved structure, nine-module inventory, seven-instance/17-resource migration plan | Exact documentation scope, source/link/consistency/secret/diff checks; no migration |
 | R1 — merged Lambda workload source | Consolidate function, dedicated role/inline policy and dedicated Lambda logs into lambda_workload; update affected root/interfaces/tests/docs/CI | Exact destination/move/output decisions first; four resources, effective configuration/security/dependencies preserved; actual-plan/policy/negative/mutation and complete independent CI; no new app feature |
 | R2 — merged HTTP API/log source | Own dedicated API access Log Group inside api_gateway_http, retaining historical AWS_IAM architecture | Six resources together with exact invoke/log/auth/retention contracts, safe address compatibility and full affected tests/CI; retain generic logs/51 tests; any retirement needs separate consumer/coverage review |
-| R3 — current documentation stabilization | Status/provenance consistency and R4 handoff only; code/security contracts unchanged | Documentation/source/link/scope/secret/diff checks and independent complete PR CI; not R4 acceptance |
-| R4 — final structural baseline | After separately reviewed, CI-passed and authorized merged migrations | Full Terraform/Python/IAM/guardrail/negative/mutation/evidence suite rerun and independently verified on exact final main; source-text checks are not enough |
+| R3 — merged documentation stabilization | Status/provenance consistency and R4 handoff only; code/security contracts unchanged | Documentation/source/link/scope/secret/diff checks and independent complete PR CI; not R4 acceptance |
+| R4 — accepted offline structural baseline | Exact post-R3 main/CI recorded above; no Live or real-state acceptance | Full Terraform/Python/IAM/guardrail/negative/mutation/evidence suite rerun and independently verified on exact final main; source-text checks are not enough |
 | New features only after accepted R4 | Focused extensions of coherent existing vpc for NAT/EIP/per-AZ routing/compatible endpoints/security; later EKS/REST/Cognito/edge/mTLS/DB/delivery/developer DB-access work | Preserve current private-only behavior and 16 VPC cases; add actual resource/dependency/ownership/negative/security mutation evidence; detailed allocation/backend/IAM/provider/cost approvals still required |
 
 R4 is additional baseline verification, not permission to defer security or full
