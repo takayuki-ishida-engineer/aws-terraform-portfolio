@@ -117,35 +117,33 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: V1 VPC extension design and compatibility decision
+## Current phase only: V2 DEV network foundation implementation
 
-Use design/vpc-v1-extension-contract from independently accepted R4 main
-`899f944c3887fa739dfb39f43617321a696c727b`, successful push CI 42628851626.
-This separately authorized V1 is documentation only; V2 requires independent V1
-approval and separate implementation authorization.
+Use feature/vpc-v2-dev-network-foundation from approved post-V1 main
+`d8261a7cb22dbce686edb0c6ae9a0328c65f0932`, successful push CI 42646548547.
+This explicit V2 authorizes the VPC child extension and DEV network root only.
+V1-C01 is a candidate requiring independent acceptance before this PR merges.
 
-- Create docs/vpc-extension-decision.md. Limit related edits to
-  docs/architecture-v2-foundation-design.md, docs/repository-structure-strategy.md
-  and this current-phase section. Preserve permanent rules byte-for-byte.
-- Ground existing inputs, outputs, addresses, routing behavior and all 16 native
-  VPC cases in actual source. Use supplied Master Policy v11 (2026-11-09) decisions
-  and official technical references; do not claim unavailable PDF review.
-- Extend the coherent VPC module in the proposed design; no default NAT/core/
-  routing/endpoint wrappers. Preserve private-only defaults and identify explicit
-  output/address compatibility exceptions, alternatives and OPEN approvals.
-- Analyze per-AZ tables, zonal NAT/EIP mappings, exclusive route/endpoint ownership,
-  scope/output publication, security, capacity, cost, teardown and actual-plan/
-  negative/mutation verification contracts. Do not present proposals as approved.
-- Do not change Terraform/interfaces/tests/workflows/locks/backends/providers,
-  acceptance evidence, artifacts or unrelated documents; create no future roots.
-  No AWS credentials, authenticated AWS/plan/state/import/apply/destroy or Live work.
-- Verify source inventories, references/links, unchanged permanent rules, exact
-  Markdown scope, secrets and git diff --check. Do not rerun unchanged Terraform/
-  Python suites. Preserve full independent GitHub Actions regression requirements.
-- Keep G01–G07 OPEN, cumulative JPY 10,000/72-hour complete-teardown limits and the
-  unresolved 30-day secret-recovery blocker. Actual account/IP/AZ/state decisions
-  remain OPEN; no publication mechanism or backend is selected.
-- Commit/push/open exactly one V1 PR against main. Report exact HEAD, files,
-  recommendations/OPEN approvals and actual checks. Observe CI triggering only if
-  immediately visible; stop without polling/waiting, merging/deleting the branch,
-  AWS/state/Live execution or V2 implementation.
+- Extend infra/modules/vpc coherently: unchanged legacy defaults/addresses and
+  byte-identical original 16 tests; opt-in per-AZ tables, zonal public NAT/EIP,
+  explicit AZ mappings, isolated mode and optional reviewed S3 gateway endpoint.
+  No standalone networking wrappers or speculative endpoint bundles.
+- Add infra/services/dev/ca-central-1/network with root-owned fixed Region/provider,
+  required account guard and non-secret deployment allocation inputs, local backend,
+  committed compatible lock, actual outputs, documentation and integration tests.
+- Add complete actual mock-plan, negative, malformed-evidence and routing/security
+  mutation verification; update affected credential-free CI and provider-cache
+  inventory/counts from actual execution. Preserve every unrelated regression.
+- Update module/root documentation and this phase section only; permanent rules
+  remain byte-identical. Do not change serverless-api, R1/R2 moves or acceptance
+  evidence. No STG/PROD root, EKS/RDS/ingress/application integration or new phase.
+- Never request/use AWS credentials or authenticated AWS/plan/state/apply/destroy/
+  import operations. G01–G07 remain OPEN; account/state/identity/allocation/pricing/
+  external-plan approval, JPY 10,000/72-hour limits and secret-recovery blocker stay.
+- Run affected fmt/init/validate/native/actual-plan/input/negative/mutation/security
+  checks; verify docs/links/secrets/scope/permanent rules and git diff --check.
+  Preserve full independent GitHub Actions Terraform/Python/IAM/guardrail regression.
+- Commit/push/open one V2 PR against main. Report exact HEAD/files/inventory,
+  interfaces, legacy results, candidate V1-C01, actual verification and CI coverage.
+  Observe CI only if immediately visible; stop after PR creation without waiting/
+  polling, merging/deleting the branch, deploying or starting another phase.
