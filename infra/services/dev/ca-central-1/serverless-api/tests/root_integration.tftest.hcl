@@ -1,7 +1,7 @@
 mock_provider "aws" {}
 
 # Only provider-computed attributes are supplied. All configured resource
-# arguments and all five child module instances still come from the actual root.
+# arguments and all four child module instances still come from the actual root.
 # These identities are synthetic; mocks neither authenticate nor deploy.
 override_resource {
   target          = module.artifact_bucket.aws_s3_bucket.this
@@ -40,7 +40,7 @@ override_resource {
 }
 
 override_resource {
-  target          = module.api_access_logs.aws_cloudwatch_log_group.this
+  target          = module.http_api.aws_cloudwatch_log_group.this
   override_during = plan
   values = {
     arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/aws/apigateway/aws-terraform-portfolio-dev-serverless-api-access"
@@ -193,16 +193,18 @@ run "default_secret_read_disabled" {
 
   assert {
     condition = (
-      module.lambda_workload.log_group_name != module.api_access_logs.log_group_name &&
-      module.lambda_workload.log_group_arn != module.api_access_logs.log_group_arn &&
+      module.http_api.access_log_group_name == "/aws/apigateway/${local.name_prefix}-access" &&
+      module.http_api.access_log_group_arn == "arn:aws:logs:${local.region}:${var.aws_account_id}:log-group:/aws/apigateway/${local.name_prefix}-access" &&
+      module.lambda_workload.log_group_name != module.http_api.access_log_group_name &&
+      module.lambda_workload.log_group_arn != module.http_api.access_log_group_arn &&
       module.lambda_workload.log_retention_in_days == 30 &&
-      module.api_access_logs.retention_in_days == 30 &&
+      module.http_api.access_log_retention_in_days == 30 &&
       module.lambda_workload.log_deletion_protection_enabled &&
-      module.api_access_logs.deletion_protection_enabled &&
+      module.http_api.access_log_deletion_protection_enabled &&
       module.lambda_workload.log_group_class == "STANDARD" &&
-      module.api_access_logs.log_group_class == "STANDARD" &&
+      module.http_api.access_log_group_class == "STANDARD" &&
       module.lambda_workload.log_kms_key_arn == null &&
-      module.api_access_logs.kms_key_arn == null &&
+      module.http_api.access_log_kms_key_arn == null &&
       module.secret_metadata.kms_configuration.requested_mode == "aws-managed" &&
       !module.secret_metadata.resource_policy_managed
     )
@@ -219,7 +221,7 @@ run "default_secret_read_disabled" {
       output.artifact_bucket_name == module.artifact_bucket.bucket_name &&
       output.secret_metadata_arn == module.secret_metadata.secret_arn &&
       output.lambda_log_group_name == module.lambda_workload.log_group_name &&
-      output.api_access_log_group_name == module.api_access_logs.log_group_name
+      output.api_access_log_group_name == module.http_api.access_log_group_name
     )
     error_message = "Every root operational output must preserve the corresponding actual child-module output, including the provider-returned stage URL."
   }

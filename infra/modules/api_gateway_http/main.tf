@@ -54,7 +54,7 @@ resource "aws_apigatewayv2_stage" "this" {
   tags        = var.tags
 
   access_log_settings {
-    destination_arn = var.access_log_group_arn
+    destination_arn = aws_cloudwatch_log_group.this.arn
     format = jsonencode({
       requestId          = "$context.requestId"
       routeKey           = "$context.routeKey"

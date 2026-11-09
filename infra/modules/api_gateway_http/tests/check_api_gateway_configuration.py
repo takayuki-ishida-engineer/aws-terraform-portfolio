@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify actual offline HTTP API plans, not a deployed Lambda IAM policy.
 
-Only the reviewed five-resource configuration and complete successful native
+Only the reviewed six-resource configuration and complete successful native
 capture are accepted. No credentials, Terraform subprocesses or AWS APIs are used.
 """
 
@@ -14,36 +14,23 @@ import sys
 import unicodedata
 from collections import Counter
 from pathlib import Path
+from check_r2_migration import verify_structure, source_mutations
 
 
 TEST_FILE = "tests/api_gateway_http.tftest.hcl"
-POSITIVE_RUNS = {
-    "default_http_api_configuration", "resource_attribute_outputs", "govcloud_reference_scope",
-    "minimum_api_name", "maximum_api_name", "caller_owned_tags", "maximum_tag_limits",
-    "effective_provider_default_tags",
-}
-NEGATIVE_RUNS = {
-    "empty_api_name", "invalid_api_name", "overlong_api_name", "null_lambda_function_arn",
-    "malformed_lambda_function_arn", "lambda_alias_arn", "lambda_version_arn", "wildcard_lambda_function_arn",
-    "unsupported_lambda_partition", "unsupported_lambda_region", "overlong_lambda_function_arn",
-    "unsupported_numeric_region_shape", "null_lambda_invoke_arn",
-    "malformed_lambda_invoke_arn", "mismatched_lambda_invoke_function", "mismatched_lambda_invoke_account",
-    "mismatched_lambda_invoke_region", "mismatched_lambda_invoke_partition", "null_access_log_group_arn",
-    "malformed_access_log_group_arn", "wildcard_access_log_group_arn", "log_stream_instead_of_group",
-    "log_group_api_suffix", "mismatched_log_account", "mismatched_log_region", "mismatched_log_partition",
-    "empty_tag_key", "reserved_tag_prefix", "null_tag_value", "overlong_tag_key", "overlong_tag_value",
-    "too_many_tags", "invalid_tag_key_character", "invalid_tag_value_character", "actual_api_wrong_account",
-    "actual_api_wrong_region", "actual_api_wrong_partition", "effective_api_tags_exceed_limit",
-    "effective_stage_tags_exceed_limit",
-}
+MANIFEST = json.loads((Path(__file__).parent / 'coverage.json').read_text())
+POSITIVE_RUNS = {case['new_run'] for case in MANIFEST if not case['negative']}
+NEGATIVE_RUNS = {case['new_run'] for case in MANIFEST if case['negative']}
+REJECTED_SHAPES = json.loads((Path(__file__).parent / 'rejected_shapes.json').read_text())
 TYPES = {"aws_apigatewayv2_api", "aws_apigatewayv2_integration", "aws_apigatewayv2_route",
-    "aws_apigatewayv2_stage", "aws_lambda_permission"}
+    "aws_apigatewayv2_stage", "aws_lambda_permission", "aws_cloudwatch_log_group"}
 LOG_FORMAT = {key: "$context." + key for key in (
     "requestId", "routeKey", "httpMethod", "status", "responseLatency", "integrationLatency", "responseLength")}
 REGION_PATTERN = r"[a-z]{2}(?:-[a-z]+){1,2}-[1-9]"
 FUNCTION_PATTERN = rf"arn:(aws|aws-us-gov):lambda:({REGION_PATTERN}):([0-9]{{12}}):function:([A-Za-z0-9_-]{{1,64}})"
 LOG_PATTERN = rf"arn:(aws|aws-us-gov):logs:({REGION_PATTERN}):([0-9]{{12}}):log-group:([A-Za-z0-9_./#-]{{1,512}})"
 KNOWN_FIELDS = {
+    "aws_cloudwatch_log_group": ("name", "arn", "retention_in_days", "deletion_protection_enabled", "log_group_class", "kms_key_id", "skip_destroy", "tags", "tags_all"),
     "aws_apigatewayv2_api": ("id", "name", "protocol_type", "disable_execute_api_endpoint", "execution_arn", "api_endpoint", "tags", "tags_all", "body", "target", "credentials_arn", "route_key", "cors_configuration"),
     "aws_apigatewayv2_integration": ("id", "api_id", "integration_type", "integration_method", "integration_uri", "payload_format_version", "credentials_arn", "connection_id", "connection_type", "request_parameters", "request_templates", "response_parameters", "tls_config"),
     "aws_apigatewayv2_route": ("api_id", "route_key", "authorization_type", "target", "authorizer_id", "authorization_scopes", "api_key_required", "request_models", "request_parameter"),
@@ -134,6 +121,7 @@ def resources_of(plan, complete):
         require(isinstance(unknown, dict) and not any(any_unknown(unknown.get(key, False))
             for key in (*KNOWN_FIELDS[kind], "region")), "required_configuration_unknown")
         require(isinstance(change.get("after"), dict), "resource_after")
+        require(all(key in change["after"] for key in KNOWN_FIELDS[kind]), "required_configuration_missing")
         resources[kind] = change["after"]
     if complete:
         require(set(resources) == TYPES, "complete_resource_inventory")
@@ -141,6 +129,19 @@ def resources_of(plan, complete):
 
 
 def verify_fixed(resources):
+    log = resources.get("aws_cloudwatch_log_group")
+    if log is not None:
+        require(isinstance(log.get("name"), str) and re.fullmatch(r"[A-Za-z0-9_./#-]{1,512}", log["name"])
+            and not log["name"].startswith("aws/"), "owned_log_name")
+        require(type(log.get("retention_in_days")) is int and log["retention_in_days"] in
+            {1,3,5,7,14,30,60,90,120,150,180,365,400,545,731,1096,1827,2192,2557,2922,3288,3653}
+            and type(log.get("deletion_protection_enabled")) is bool and log.get("log_group_class") == "STANDARD"
+            and log.get("skip_destroy") is False, "owned_log_lifecycle")
+        key = log.get("kms_key_id")
+        require(key is None or isinstance(key,str) and len(key) <= 256 and re.fullmatch(
+            r"arn:(aws|aws-us-gov|aws-cn):kms:[a-z]{2}(-[a-z0-9]+)+-[0-9]+:[0-9]{12}:key/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|mrk-[0-9a-f]{32})", key), "owned_log_key")
+        require(valid_tags(log.get("tags")) and valid_tags(log.get("tags_all")), "owned_log_tags")
+
     api = resources.get("aws_apigatewayv2_api")
     if api is not None:
         require(api.get("protocol_type") == "HTTP" and api.get("disable_execute_api_endpoint") is False, "http_api_endpoint")
@@ -178,10 +179,10 @@ def verify_fixed(resources):
 
 def verify_bindings(resources):
     api = resources.get("aws_apigatewayv2_api")
-    require(api is not None or not resources, "dependent_resources_require_api")
+    require(api is not None or set(resources) <= {"aws_cloudwatch_log_group"}, "dependent_resources_require_api")
     if api is None:
         return
-    require(all(value.get("region") == api["execution_arn"].split(":")[3] for value in resources.values()), "resource_region_binding")
+    require(all(value.get("region") == api["execution_arn"].split(":")[3] for kind, value in resources.items() if kind != "aws_cloudwatch_log_group"), "resource_region_binding")
     integration, route, stage, permission = (resources.get(key) for key in (
         "aws_apigatewayv2_integration", "aws_apigatewayv2_route", "aws_apigatewayv2_stage", "aws_lambda_permission"))
     for value in (integration, route, stage):
@@ -196,9 +197,12 @@ def verify_bindings(resources):
         if integration is not None:
             require(integration.get("integration_uri") == invocation_arn(function), "integration_function_binding")
         if stage is not None:
+            log = resources.get("aws_cloudwatch_log_group")
+            require(log is not None, "stage_owned_log_required")
             arn = one_block(stage["access_log_settings"], "mandatory_access_logging").get("destination_arn")
             match = re.fullmatch(LOG_PATTERN, arn) if isinstance(arn, str) else None
             require(match is not None and match.groups()[:3] == scope and not match[4].startswith("aws/"), "access_log_scope")
+            require(arn == log["arn"] and match[4] == log["name"], "stage_owned_log_binding")
     if route is not None:
         require(integration is not None and route.get("target") == "integrations/" + integration["id"], "route_integration_binding")
     if stage is not None:
@@ -219,12 +223,42 @@ def verify_plan(plan, complete=True):
     require(isinstance(stage.get("invoke_url"), str) and re.fullmatch(r"https://[^\s?#]+/", stage["invoke_url"]), "stage_invoke_url")
     outputs = plan.get("output_changes")
     expected = {"api_id": api["id"], "execution_arn": api["execution_arn"], "invoke_url": stage["invoke_url"]}
+    log = resources["aws_cloudwatch_log_group"]
+    expected.update({"access_log_" + output: log[attr] for output, attr in {
+        "group_name":"name", "group_arn":"arn", "retention_in_days":"retention_in_days",
+        "deletion_protection_enabled":"deletion_protection_enabled", "group_class":"log_group_class", "kms_key_arn":"kms_key_id"}.items()})
     require(isinstance(outputs, dict) and set(outputs) == set(expected), "output_inventory")
     for name, value in expected.items():
         output = outputs[name]
-        require(output.get("actions") == ["create"] and output.get("after_sensitive") is False
+        require(isinstance(output, dict) and all(key in output for key in ("actions", "before", "after", "after_sensitive", "after_unknown")) and output["before"] is None, "output_change_metadata:" + name)
+        require(output.get("actions") == (["no-op"] if value is None else ["create"]) and output.get("after_sensitive") is False
             and not any_unknown(output.get("after_unknown", False)) and output.get("after") == value, "output_binding:" + name)
     return resources
+
+
+def reviewed_log_name(name):
+    return {"logging_lambda_log_group_name":"/aws/lambda/portfolio-api-handler", "logging_workload_log_group_name":"/portfolio/dev/serverless-api",
+        "logging_maximum_name_length":"x"*512, "logging_supported_name_characters":"/portfolio/test/log_group-1.#"}.get(name, "/test/api-access")
+
+
+def verify_log_fixture(name, log, partition, region, account):
+    require(log["name"] == reviewed_log_name(name) and log["arn"] ==
+        f"arn:{partition}:logs:{region}:{account}:log-group:{log['name']}", "reviewed_owned_log_identity")
+    retention = {"logging_minimum_finite_retention":1, "logging_weekly_retention":7, "logging_supported_400_day_retention":400,
+        "logging_supported_731_day_retention":731, "logging_maximum_supported_retention":3653}.get(name,30)
+    require(log["retention_in_days"] == retention and log["deletion_protection_enabled"] is
+        (name != "logging_explicit_disposable_development_override"), "reviewed_log_lifecycle")
+    key = None
+    if name in {"logging_existing_symmetric_key_reference", "logging_existing_multi_region_key_reference", "logging_govcloud_partition_key_syntax", "logging_china_partition_key_syntax"}:
+        p, r = {"logging_govcloud_partition_key_syntax":("aws-us-gov","us-gov-west-1"),
+            "logging_china_partition_key_syntax":("aws-cn","cn-north-1")}.get(name,(partition,region))
+        identifier = "mrk-"+"1"*24+"0"*8 if name == "logging_existing_multi_region_key_reference" else "00000000-0000-0000-0000-111111111111"
+        key = f"arn:{p}:kms:{r}:111111111111:key/{identifier}"
+    require(log["kms_key_id"] == key, "reviewed_log_key")
+    tags = {}
+    if name == "logging_caller_owned_unicode_tags":tags = {"Project":"Root-Owned", "運用:部門":"本番 構成 +:@/=", "Environment":"test"}
+    if name == "logging_maximum_tag_count_and_lengths":tags = {"K"*128:"v"*256, **{f"tag-{i:02}":"" for i in range(49)}}
+    require(log["tags"] == tags, "reviewed_log_tag_inputs")
 
 
 def verify_fixture(name, resources):
@@ -236,7 +270,8 @@ def verify_fixture(name, resources):
     function = f"arn:{partition}:lambda:{region}:{account}:function:test-api-handler"
     require(resources["aws_lambda_permission"]["function_name"] == function, "reviewed_lambda_input")
     require(one_block(resources["aws_apigatewayv2_stage"]["access_log_settings"], "mandatory_access_logging")["destination_arn"]
-        == f"arn:{partition}:logs:{region}:{account}:log-group:/test/api-access", "reviewed_log_input")
+        == f"arn:{partition}:logs:{region}:{account}:log-group:{reviewed_log_name(name)}", "reviewed_log_input")
+    verify_log_fixture(name, resources["aws_cloudwatch_log_group"], partition, region, account)
     expected_tags = {}
     if name == "caller_owned_tags":
         expected_tags = {"Owner": "Root-Owned", "Purpose": "HTTP access", "Empty": ""}
@@ -261,14 +296,7 @@ def read_events(path):
 
 
 def negative_inventory(name):
-    if "lambda_invoke" in name:
-        return {"aws_apigatewayv2_api", "aws_lambda_permission"}
-    if name in {"null_access_log_group_arn", "malformed_access_log_group_arn", "wildcard_access_log_group_arn",
-        "log_stream_instead_of_group", "log_group_api_suffix", "mismatched_log_account", "mismatched_log_region", "mismatched_log_partition"}:
-        return TYPES - {"aws_apigatewayv2_stage"}
-    if name.startswith("actual_api_") or name == "effective_api_tags_exceed_limit":
-        return {"aws_apigatewayv2_api"}
-    return TYPES if name == "effective_stage_tags_exceed_limit" else set()
+    return set(REJECTED_SHAPES[name])
 
 
 def verify_capture(events, exit_code=0):
@@ -276,6 +304,7 @@ def verify_capture(events, exit_code=0):
     expected_runs = POSITIVE_RUNS | NEGATIVE_RUNS
     terminal, plans, errors, summaries = set(), {}, set(), []
     declared = None
+    files = []
     for event in events:
         require(isinstance(event, dict) and isinstance(event.get("type"), str), "capture_event_shape")
         require(not summaries, "capture_after_summary")
@@ -296,7 +325,7 @@ def verify_capture(events, exit_code=0):
             require(event.get("@testfile") == TEST_FILE and name in expected_runs, "capture_unexpected_run")
             if event.get("@level") == "error":
                 require(name in NEGATIVE_RUNS and kind == "diagnostic", "capture_unexpected_error")
-                expected_error = "Resource postcondition failed" if name.startswith(("actual_api_", "effective_api_", "effective_stage_")) else "Invalid value for variable"
+                expected_error = "Resource postcondition failed" if (name.startswith(("actual_api_", "actual_log_", "effective_api_", "effective_stage_")) or name in {"log_stream_instead_of_group", "log_group_api_suffix", "mismatched_log_account", "mismatched_log_region", "mismatched_log_partition"}) else "Invalid value for variable"
                 require(event["diagnostic"].get("summary") == expected_error, "unexpected_validation_error")
                 errors.add(name)
             if kind == "test_run":
@@ -312,6 +341,11 @@ def verify_capture(events, exit_code=0):
                     verify_fixture(name, resources)
                 else:
                     require(set(resources) == negative_inventory(name), "rejected_plan_shape")
+                    if "aws_cloudwatch_log_group" in resources:
+                        log = resources["aws_cloudwatch_log_group"]
+                        expected = "arn:aws:logs:ca-central-1:111111111111:log-group:" + log["name"]
+                        deliberately_bad = name in {"log_stream_instead_of_group", "log_group_api_suffix", "mismatched_log_account", "mismatched_log_region", "mismatched_log_partition", "actual_log_wrong_name", "actual_log_malformed_arn"}
+                        require((log["arn"] != expected) if deliberately_bad else (log["arn"] == expected), "rejected_owned_log_identity")
                     if name.startswith("actual_api_"):
                         api = resources["aws_apigatewayv2_api"]
                         require(api["execution_arn"] != "arn:aws:execute-api:ca-central-1:111111111111:" + api["id"], "rejected_api_scope_evidence")
@@ -321,12 +355,14 @@ def verify_capture(events, exit_code=0):
                 plans[name] = event["test_plan"]
         if kind == "test_file" and "status" in event["test_file"]:
             require(event["test_file"]["status"] == "pass", "capture_nonpassing_file")
+            files.append(event.get("@testfile"))
         if kind == "test_summary":
             summaries.append(event["test_summary"])
     expected = {"status": "pass", "passed": len(expected_runs), "failed": 0, "errored": 0, "skipped": 0}
     require(declared is not None and len(summaries) == 1 and isinstance(summaries[0], dict)
         and all(type(summaries[0].get(key)) is int for key in ("passed", "failed", "errored", "skipped"))
         and summaries[0] == expected, "capture_summary_counts")
+    require(files == [TEST_FILE], "capture_file_completeness")
     require(terminal == expected_runs and set(plans) == expected_runs and errors == NEGATIVE_RUNS, "capture_complete_runs")
     return plans
 
@@ -361,7 +397,7 @@ def semantic_mutations(plan):
     mutate("unrelated-function-and-integration", "reviewed_lambda_input", other_function)
     mutate("nonunique-statement-id", "permission_statement_identity", lambda r: r["aws_lambda_permission"].update(statement_id="AllowHttpApi"))
     mutate("remove-access-logs", "mandatory_access_logging", lambda r: r["aws_apigatewayv2_stage"].update(access_log_settings=[]))
-    mutate("unrelated-log-destination", "reviewed_log_input", lambda r: r["aws_apigatewayv2_stage"]["access_log_settings"][0].update(destination_arn=r["aws_apigatewayv2_stage"]["access_log_settings"][0]["destination_arn"] + "-other"))
+    mutate("unrelated-log-destination", "stage_owned_log_binding", lambda r: r["aws_apigatewayv2_stage"]["access_log_settings"][0].update(destination_arn=r["aws_apigatewayv2_stage"]["access_log_settings"][0]["destination_arn"] + "-other"))
     mutate("log-sensitive-header", "access_log_format", lambda r: r["aws_apigatewayv2_stage"]["access_log_settings"][0].update(format=json.dumps({**LOG_FORMAT, "authorization": "$request.header.Authorization"})))
     mutate("wrong-payload-version", "payload_version", lambda r: r["aws_apigatewayv2_integration"].update(payload_format_version="1.0"))
     mutate("disable-throttling", "default_throttling", lambda r: r["aws_apigatewayv2_stage"]["default_route_settings"][0].update(throttling_rate_limit=0, throttling_burst_limit=0))
@@ -374,6 +410,29 @@ def semantic_mutations(plan):
     changed = copy.deepcopy(plan)
     changed["resource_changes"].append(copy.deepcopy(next(r for r in changed["resource_changes"] if r["type"] == "aws_apigatewayv2_route")))
     results.append(expect_rejection(lambda: verify_plan(changed), "additional-route-resource", "resource_inventory"))
+    additions = [
+        ("lambda-application-log-destination", lambda p,r: r["aws_apigatewayv2_stage"]["access_log_settings"][0].update(destination_arn="arn:aws:logs:ca-central-1:111111111111:log-group:/aws/lambda/test-api-handler")),
+        ("owned-log-wrong-account", lambda p,r: r["aws_cloudwatch_log_group"].update(arn=r["aws_cloudwatch_log_group"]["arn"].replace("111111111111","222222222222"))),
+        ("owned-log-retention-weakened", lambda p,r: (r["aws_cloudwatch_log_group"].update(retention_in_days=1), p["output_changes"]["access_log_retention_in_days"].update(after=1))),
+        ("owned-log-retention-missing", lambda p,r: r["aws_cloudwatch_log_group"].pop("retention_in_days")),
+        ("owned-log-protection-disabled", lambda p,r: (r["aws_cloudwatch_log_group"].update(deletion_protection_enabled=False), p["output_changes"]["access_log_deletion_protection_enabled"].update(after=False))),
+        ("owned-log-skip-destroy", lambda p,r: r["aws_cloudwatch_log_group"].update(skip_destroy=True)),
+        ("owned-log-class", lambda p,r: r["aws_cloudwatch_log_group"].update(log_group_class="INFREQUENT_ACCESS")),
+        ("owned-log-unexpected-key", lambda p,r: r["aws_cloudwatch_log_group"].update(kms_key_id="arn:aws:kms:ca-central-1:111111111111:key/00000000-0000-0000-0000-111111111111")),
+    ]
+    for identifier, transform in additions:
+        changed = copy.deepcopy(plan)
+        resources = {r["type"]: r["change"]["after"] for r in changed["resource_changes"]}
+        transform(changed, resources)
+        results.append(expect_rejection(lambda: verify_fixture("default_http_api_configuration", verify_plan(changed)), identifier))
+    for identifier, transform in [
+        ("missing-owned-log", lambda changes: changes.remove(next(r for r in changes if r["type"] == "aws_cloudwatch_log_group"))),
+        ("duplicate-owned-log", lambda changes: changes.append(copy.deepcopy(next(r for r in changes if r["type"] == "aws_cloudwatch_log_group")))),
+        ("unexpected-iam-resource", lambda changes: changes.append({"type":"aws_iam_policy", "name":"unreviewed"})),
+    ]:
+        changed = copy.deepcopy(plan)
+        transform(changed["resource_changes"])
+        results.append(expect_rejection(lambda: verify_plan(changed), identifier))
     return results
 
 
@@ -405,6 +464,12 @@ def capture_faults(events):
     inject("contradictory-error-level", lambda e: next(v for v in e if v["type"] == "diagnostic" and v.get("@level") == "error").update({"@level": "info"}))
     for identifier, raw in (("malformed-jsonl", "{"), ("duplicate-json-key", '{"type":"test_summary","type":"test_plan"}'), ("nonfinite-json", '{"count":NaN}')):
         results.append(expect_rejection(lambda text=raw: parse_json(text), identifier))
+    inject("missing-file-terminal", lambda e: e.pop(next(i for i,v in enumerate(e) if v["type"] == "test_file" and "status" in v["test_file"])))
+    inject("duplicate-file-terminal", lambda e: e.insert(first(e,"test_summary"), copy.deepcopy(next(v for v in e if v["type"] == "test_file" and "status" in v["test_file"]))))
+    inject("unknown-owned-log-arn", lambda e: next(r for r in e[first(e,"test_plan")]["test_plan"]["resource_changes"] if r["type"] == "aws_cloudwatch_log_group")["change"]["after_unknown"].update(arn=True))
+    inject("missing-known-null-log-key", lambda e: next(r for r in e[first(e,"test_plan")]["test_plan"]["resource_changes"] if r["type"] == "aws_cloudwatch_log_group")["change"]["after"].pop("kms_key_id"))
+    inject("missing-known-null-output", lambda e: e[first(e,"test_plan")]["test_plan"]["output_changes"]["access_log_kms_key_arn"].pop("after"))
+    inject("wrong-log-output", lambda e: e[first(e,"test_plan")]["test_plan"]["output_changes"]["access_log_group_name"].update(after="/unrelated"))
     return results
 
 
@@ -419,12 +484,14 @@ def main():
         plans = verify_capture(events, args.terraform_exit_code)
         mutations = semantic_mutations(plans["default_http_api_configuration"]) if args.self_test else []
         faults = capture_faults(events) if args.self_test else []
+        structure = verify_structure()
+        source_faults = source_mutations() if args.self_test else 0
         shapes = Counter("empty" if not plan.get("resource_changes") else "+".join(sorted(r["type"] for r in plan["resource_changes"]))
             for name, plan in plans.items() if name in NEGATIVE_RUNS)
         print(json.dumps({
             "status": "passed", "evidence_type": "static_actual_plan_verification", "aws_api_calls": 0,
             "native_tests": len(POSITIVE_RUNS | NEGATIVE_RUNS), "positive_plans": len(POSITIVE_RUNS), "negative_plans": len(NEGATIVE_RUNS),
-            "negative_plan_shapes": dict(shapes), "resource_inventory": {kind: 1 for kind in sorted(TYPES)},
+            "negative_plan_shapes": dict(shapes), "source_contract": structure, "source_dependency_mutations": source_faults, "resource_inventory": {kind: 1 for kind in sorted(TYPES)},
             "semantic_mutations": mutations, "semantic_mutation_count": len(mutations),
             "capture_faults": faults, "capture_failure_injections": len(faults),
             "limitations": ["Mock/static planned permission fields are not a deployed Lambda IAM policy or real authorization, ownership, execution or log-delivery proof."],

@@ -1,0 +1,363 @@
+{
+  "empty_api_name": [
+    "aws_cloudwatch_log_group"
+  ],
+  "invalid_api_name": [
+    "aws_cloudwatch_log_group"
+  ],
+  "overlong_api_name": [
+    "aws_cloudwatch_log_group"
+  ],
+  "null_lambda_function_arn": [],
+  "malformed_lambda_function_arn": [],
+  "lambda_alias_arn": [],
+  "lambda_version_arn": [],
+  "wildcard_lambda_function_arn": [],
+  "unsupported_lambda_partition": [],
+  "unsupported_lambda_region": [],
+  "null_lambda_invoke_arn": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "malformed_lambda_invoke_arn": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "mismatched_lambda_invoke_function": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "mismatched_lambda_invoke_account": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "mismatched_lambda_invoke_region": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "mismatched_lambda_invoke_partition": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "null_access_log_group_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "malformed_access_log_group_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "wildcard_access_log_group_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "log_stream_instead_of_group": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "log_group_api_suffix": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "mismatched_log_account": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "mismatched_log_region": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "mismatched_log_partition": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "empty_tag_key": [
+    "aws_cloudwatch_log_group"
+  ],
+  "reserved_tag_prefix": [
+    "aws_cloudwatch_log_group"
+  ],
+  "null_tag_value": [
+    "aws_cloudwatch_log_group"
+  ],
+  "overlong_tag_key": [
+    "aws_cloudwatch_log_group"
+  ],
+  "overlong_tag_value": [
+    "aws_cloudwatch_log_group"
+  ],
+  "too_many_tags": [
+    "aws_cloudwatch_log_group"
+  ],
+  "invalid_tag_key_character": [
+    "aws_cloudwatch_log_group"
+  ],
+  "invalid_tag_value_character": [
+    "aws_cloudwatch_log_group"
+  ],
+  "actual_api_wrong_account": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group"
+  ],
+  "actual_api_wrong_region": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group"
+  ],
+  "actual_api_wrong_partition": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group"
+  ],
+  "effective_api_tags_exceed_limit": [
+    "aws_apigatewayv2_api",
+    "aws_cloudwatch_log_group"
+  ],
+  "effective_stage_tags_exceed_limit": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_apigatewayv2_stage",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "overlong_lambda_function_arn": [],
+  "unsupported_numeric_region_shape": [],
+  "logging_empty_name": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_null_name": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_name_with_space": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_name_with_unsupported_character": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_literal_aws_prefix": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_overlong_name": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_indefinite_retention": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_negative_retention": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_unsupported_short_retention": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_fractional_retention": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_unsupported_366_day_retention": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_unsupported_3650_day_retention": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_above_maximum_retention": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_empty_kms_reference": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_key_id_is_not_key_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_kms_alias_is_not_key_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_incomplete_kms_key_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_wildcard_kms_key_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_malformed_kms_account": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_unsupported_kms_partition": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_non_hexadecimal_kms_identifier": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_incomplete_multi_region_key_identifier": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_wrong_service_key_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_overlong_kms_key_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_empty_tag_key": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_reserved_tag_prefix": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_case_variant_reserved_tag_prefix": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_null_tag_value": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_overlong_tag_key": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_overlong_tag_value": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_too_many_tags": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_unsupported_tag_key_character": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "logging_unsupported_tag_value_character": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_lambda_permission"
+  ],
+  "actual_log_wrong_name": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ],
+  "actual_log_malformed_arn": [
+    "aws_apigatewayv2_api",
+    "aws_apigatewayv2_integration",
+    "aws_apigatewayv2_route",
+    "aws_cloudwatch_log_group",
+    "aws_lambda_permission"
+  ]
+}

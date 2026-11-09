@@ -22,7 +22,114 @@ R0 changed documentation only and left all nine modules and the seven-instance/
 R2–R4 and new-feature work is not performed by R1. The external Master Policy PDF will be revised separately after review
 and merge; it is not generated or edited here.
 
-## R1 implementation status — offline source refactor
+## R2 implementation status — dedicated HTTP API logging
+
+Approved R1 main baseline: 87f415f5290e2cab63696e1850a6c362eef97292;
+[post-merge CI 42610520450](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42610520450)
+completed successfully before this branch. Current source has four DEV module
+instances and the same 17 resources/eight outputs; HTTP API now owns six resources.
+Exactly one new address changes:
+
+| Approved R1 address | Implemented R2 address |
+| --- | --- |
+| module.api_access_logs.aws_cloudwatch_log_group.this | module.http_api.aws_cloudwatch_log_group.this |
+
+
+### Complete approved-R1 → R2 address correspondence
+
+| R1 baseline address | R2 address |
+| --- | --- |
+| module.api_access_logs.aws_cloudwatch_log_group.this | module.http_api.aws_cloudwatch_log_group.this |
+| module.artifact_bucket.aws_s3_bucket.this | module.artifact_bucket.aws_s3_bucket.this |
+| module.artifact_bucket.aws_s3_bucket_ownership_controls.this | module.artifact_bucket.aws_s3_bucket_ownership_controls.this |
+| module.artifact_bucket.aws_s3_bucket_policy.this | module.artifact_bucket.aws_s3_bucket_policy.this |
+| module.artifact_bucket.aws_s3_bucket_public_access_block.this | module.artifact_bucket.aws_s3_bucket_public_access_block.this |
+| module.artifact_bucket.aws_s3_bucket_server_side_encryption_configuration.this | module.artifact_bucket.aws_s3_bucket_server_side_encryption_configuration.this |
+| module.artifact_bucket.aws_s3_bucket_versioning.this | module.artifact_bucket.aws_s3_bucket_versioning.this |
+| module.http_api.aws_apigatewayv2_api.this | module.http_api.aws_apigatewayv2_api.this |
+| module.http_api.aws_apigatewayv2_integration.this | module.http_api.aws_apigatewayv2_integration.this |
+| module.http_api.aws_apigatewayv2_route.this | module.http_api.aws_apigatewayv2_route.this |
+| module.http_api.aws_apigatewayv2_stage.this | module.http_api.aws_apigatewayv2_stage.this |
+| module.http_api.aws_lambda_permission.this | module.http_api.aws_lambda_permission.this |
+| module.lambda_workload.aws_cloudwatch_log_group.this | module.lambda_workload.aws_cloudwatch_log_group.this |
+| module.lambda_workload.aws_iam_role.this | module.lambda_workload.aws_iam_role.this |
+| module.lambda_workload.aws_iam_role_policy.this | module.lambda_workload.aws_iam_role_policy.this |
+| module.lambda_workload.aws_lambda_function.this | module.lambda_workload.aws_lambda_function.this |
+| module.secret_metadata.aws_secretsmanager_secret.this | module.secret_metadata.aws_secretsmanager_secret.this |
+
+All sixteen other post-R1 addresses remain identical. The four R1 moves below
+remain independently required alongside this fifth declaration, with missing or
+substituted R1 mappings rejected even when a bad move set totals five. No whole-
+module move, state operation or double owner is introduced. Stage uses the actual
+owned bare ARN; its Route/Invoke Permission ordering and existing outputs retain
+readiness dependencies. Lambda application logs stay independent.
+
+Required access_log_group_name replaces the removed external ARN input.
+Optional access_log_retention_in_days=30, access_log_deletion_protection_enabled=true,
+access_log_kms_key_arn=null and separate access_log_tags={} preserve storage defaults
+and reusable overrides. Existing API/Stage tags stay separate. New access_log_*
+outputs expose actual group name/ARN/retention/protection/class/key; old three API
+and eight root outputs keep their names and meanings. See [module interface](../infra/modules/api_gateway_http/README.md).
+
+Generic cloudwatch_logs and its 51 tests remain unchanged without a DEV root
+consumer. Its retirement is separately OPEN; it is not part of R2 acceptance.
+R3 remains conditional stabilization; R4 still needs separately authorized final
+main full-suite verification before new Architecture v2 features. No Live gate is
+closed; unchanged 30-day secret recovery remains a 72-hour complete-teardown blocker.
+
+
+## R2 local verification record
+
+The actual 100 native API cases pass: 26 complete six-resource positive plans and
+74 intentional variable/postcondition rejections. Original 47 cases map one-to-one
+in [coverage.json](../infra/modules/api_gateway_http/tests/coverage.json); additional
+51 integrated storage cases and two owned-ARN identity negatives add coverage.
+Negative partial shapes are pinned per case, inspect all present resources and
+never count as deployable workloads. Generic original 51 tests stay byte-identical.
+
+API actual-plan checker passes all original 17 semantic mutation/19 capture-fault
+families plus new cases: **28 semantic mutations, 25 capture faults**, four source
+ordering/output mutations. Missing/duplicate/unexpected resources, wrong log scope,
+Stage→Lambda/unrelated log destinations, weak retention/protection, sensitive headers,
+anonymous authorization and broadened permission are rejected. New nullable key
+output requires Terraform's actual known-null/no-op representation; other API
+outputs still require create actions. Known-null fields may not disappear.
+
+Root passes **5 native cases**, four complete 17-resource plans; **35 mutations,
+22 capture faults and 12 rejected-input scenarios** remain effective. The unknown-
+security-field fault now selects the owned API log's name by exact address instead
+of assuming resource index zero has a name field. All four HTTP API mandatory
+inputs are independently rejected when absent using the established CI fixture.
+
+Retained R1 source mutations: three. R2 source mutations: four. Exact move-set
+negatives: six, including four missing R1 mappings replaced by a fifth unrelated
+move (same total count still rejected). The R1 guard preserves its historical
+pre-R1 comparison purpose and can compare that snapshot cumulatively through all
+five source moves; historical R1 evidence remains historical. The unchanged
+Lambda IAM checker was revalidated with its existing actual full-resource capture
+and genuine public SAR references against the updated source guard; its 188-case
+native suite was not unnecessarily rerun for an unchanged workload implementation.
+
+Four actual root plan pairs from approved R1 main to R2 preserve all configured
+settings, policies, lifecycle and eight outputs under the single log-address map:
+5→4 root calls, 17→17 resources, HTTP API 5→6, sixteen other addresses unchanged.
+Only unconfigured random provider-computed metadata differences are excluded after
+provider-schema/source checks. Configured resource fields and operational ARNs are
+never excluded. A same-named local is not a resource configuration attribute; the
+comparison extractor now scopes its inspection to actual resource bodies and tests
+both exclusion of local Region and inclusion of an explicitly configured Region.
+Root provider Region/account guard remain unchanged; owned ARN scope is checked.
+
+Terraform 1.17.0 backend-disabled readonly-lock init/validate/fmt and source/scope/
+secret/relative-link/diff checks are required before commit. Full unchanged
+regression stays in GitHub Actions: expected native total **491** if all suites
+succeed (previous R1 438 − old API 47 + new API 100), plus 153 Python tests and
+unchanged independent IAM/reference/guardrail checks. This is not a completed
+R2 CI claim. Nine initialized configurations and provider-cache identity/storage/
+samefile/completeness guards remain unchanged. No authenticated AWS call, state
+operation or actual deployed-state migration/authorization/delivery is verified.
+
+## Historical R1 implementation status — offline source refactor
 
 The four approved resource-level moves are now declared in
 [DEV moved.tf](../infra/services/dev/ca-central-1/serverless-api/moved.tf):
@@ -72,7 +179,7 @@ plan/apply/import/destroy operation has been performed against AWS.
 
 The following R0 design/history and R2–R4 obligations remain applicable, with this
 R1 status resolving only the four destination/output decisions. API access-log
-consolidation and generic-log removal are still R2, not R1.
+consolidation was deferred to R2 at the R1 snapshot; current R2 retains generic logging, with retirement requiring separate review.
 
 ## 2. Child modules: coherent functionality and lifecycle
 
@@ -182,7 +289,7 @@ R0 created no module directories.
 | --- | --- | --- |
 | vpc | VPC, keyed subnets, IGW/NAT/EIP, routing and compatible endpoints | Existing base retained; new features only after R4 |
 | lambda_workload | Function, dedicated execution role/policy and dedicated Lambda log resources | Implemented R1 source consolidation; no application feature changes |
-| api_gateway_http | Historical HTTP API and dedicated API access logging | Existing five API/permission resources; log ownership migrates in R2 |
+| api_gateway_http | Historical HTTP API and dedicated API access logging | Six existing API/permission/log resources now owned together by R2 |
 | api_gateway_rest | Regional REST methods, Cognito authorizer references, VPC Link V2, custom-domain mTLS, Regional WAF and logs | Future, subject to compatibility/security review |
 | cognito_auth | User Pool, App Client, non-secret federation and AWS-managed login domain | Future; no plaintext Google secrets in Terraform |
 | cloudfront_edge | Distribution/origin, edge WAF and approved origin-mTLS references | Future; PKI, pricing and global scope still reviewed separately |
@@ -229,7 +336,7 @@ a module instance; count/for_each instances in VPC vary by approved inputs.
 | Current module / source | Actual relative managed resource declarations | Current call sites | Approved disposition |
 | --- | --- | --- | --- |
 | [`api_gateway_http`](../infra/modules/api_gateway_http/README.md) | `aws_apigatewayv2_api.this`, `aws_apigatewayv2_integration.this`, `aws_apigatewayv2_route.this`, `aws_lambda_permission.this`, `aws_apigatewayv2_stage.this` | module.http_api | Retain HTTP API; add dedicated log ownership (R2) |
-| [`cloudwatch_logs`](../infra/modules/cloudwatch_logs/README.md) | `aws_cloudwatch_log_group.this` | module.lambda_logs, module.api_access_logs | Dedicated Lambda logs → lambda_workload (R1); API logs → api_gateway_http (R2); remove only after no legitimate consumers and verified coverage |
+| [`cloudwatch_logs`](../infra/modules/cloudwatch_logs/README.md) | `aws_cloudwatch_log_group.this` | module.lambda_logs, module.api_access_logs | Dedicated Lambda logs → lambda_workload (R1); API logs → api_gateway_http (R2); retain in R2; retirement requires separate review of legitimate consumers and verified coverage |
 | [`iam_access`](../infra/modules/iam_access/README.md) | `aws_ssoadmin_customer_managed_policy_attachment.developer`, `aws_ssoadmin_permission_set.access_admin`, `aws_ssoadmin_permission_set.developer`, `aws_ssoadmin_permission_set.operator`, `aws_ssoadmin_permission_set_inline_policy.access_admin`, `aws_ssoadmin_permission_set_inline_policy.developer`, `aws_ssoadmin_permission_set_inline_policy.operator` | No service-root call | Retain independent Identity Center administration |
 | [`iam_account_policies`](../infra/modules/iam_account_policies/README.md) | `aws_iam_policy.developer_secrets_manager` | No service-root call; IAM access test run account_policy_fixture uses source ../iam_account_policies | Retain workload-account policy ownership |
 | [`lambda`](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda/README.md) | `aws_lambda_function.this` | module.lambda_function | Consolidate into lambda_workload (R1) |
@@ -252,14 +359,12 @@ separate because metadata/recovery/value ownership is not the function lifecycle
 keep artifact storage separate because publication/version retention/bootstrap
 state may outlive releases/functions. Neither should merge merely to reduce count.
 
-## 7. Seventeen-resource migration matrix — R1 implemented, R2 deferred
+## 7. Seventeen-resource migration matrix — R1/R2 source implemented
 
 Each current address below exists as a configured resource at this baseline;
 plan-computed IDs do not establish actual AWS resources/state. “Unchanged” means
 an exact address-preservation requirement for retained instances, contingent on
-future implementation. R1 fixes the new instance/resource labels exactly as recorded above. Only the
-R2 API access-log destination/internal label remains OPEN. No R2 address is
-invented or migration claimed here.
+future implementation. R1 fixes the new instance/resource labels exactly as recorded above. R2 now selects the exact API-log destination above; actual state migration remains unverified.
 
 | Current full managed address | Intended module/type and future address | Move/compatibility disposition |
 | --- | --- | --- |
@@ -271,7 +376,7 @@ invented or migration claimed here.
 | `module.artifact_bucket.aws_s3_bucket_policy.this` | `module.artifact_bucket.aws_s3_bucket_policy.this` (retain) | Precise identity mapping if retained as required; no move then needed |
 | `module.secret_metadata.aws_secretsmanager_secret.this` | `module.secret_metadata.aws_secretsmanager_secret.this` (retain) | Precise identity mapping if retained as required; no move then needed |
 | `module.lambda_logs.aws_cloudwatch_log_group.this` | `module.lambda_workload.aws_cloudwatch_log_group.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
-| `module.api_access_logs.aws_cloudwatch_log_group.this` | api_gateway_http / aws_cloudwatch_log_group; exact internal label OPEN (R2), retained API instance preferred | Address changes; future moved declaration or separately approved handling required |
+| `module.api_access_logs.aws_cloudwatch_log_group.this` | `module.http_api.aws_cloudwatch_log_group.this` (R2 implemented) | Fifth resource-level move declared; no real-state operation performed |
 | `module.lambda_execution_role.aws_iam_role.this` | `module.lambda_workload.aws_iam_role.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
 | `module.lambda_execution_role.aws_iam_role_policy.this` | `module.lambda_workload.aws_iam_role_policy.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
 | `module.lambda_function.aws_lambda_function.this` | `module.lambda_workload.aws_lambda_function.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
@@ -295,8 +400,8 @@ signatures, compatibility exports and consumers before retiring an old source.
 
 | Pre-R1 module | Pre-R1 output contracts | R1 mapping / R2 obligations |
 | --- | --- | --- |
-| api_gateway_http | `api_id`, `invoke_url`, `execution_arn` | Preserve actual API/stage invoke URL/execution ARN with route/permission/stage ordering; add actual dedicated-log references for root compatibility, names OPEN. |
-| cloudwatch_logs | `log_group_name`, `log_group_arn`, `retention_in_days`, `deletion_protection_enabled`, `log_group_class`, `kms_key_arn` | R1 owned Lambda logs: log_group_name/log_group_arn/log_group_class retained; retention_in_days→log_retention_in_days, deletion_protection_enabled→log_deletion_protection_enabled, kms_key_arn→log_kms_key_arn. Generic outputs unchanged for API logs; R2 signature still OPEN. |
+| api_gateway_http | `api_id`, `invoke_url`, `execution_arn` | Preserve actual API/stage invoke URL/execution ARN with route/permission/stage ordering; R2 adds actual dedicated-log access_log_* outputs as documented above. |
+| cloudwatch_logs | `log_group_name`, `log_group_arn`, `retention_in_days`, `deletion_protection_enabled`, `log_group_class`, `kms_key_arn` | R1 owned Lambda logs: log_group_name/log_group_arn/log_group_class retained; retention_in_days→log_retention_in_days, deletion_protection_enabled→log_deletion_protection_enabled, kms_key_arn→log_kms_key_arn. Generic outputs unchanged for API logs; R2 resolved: corresponding access_log_group_name/group_arn/retention_in_days/deletion_protection_enabled/group_class/kms_key_arn outputs on http_api; generic outputs unchanged. |
 | iam_access | `access_admin_permission_set_arn`, `developer_permission_set_arn`, `operator_permission_set_arn`, `developer_customer_managed_policy_references`, `developer_inline_policy_quota`, `developer_managed_attachment_quota` | Retain current output semantics and actual references; any future contract change requires separate review, not R0 migration scope. |
 | iam_account_policies | `policy_arn`, `policy_name`, `policy_path`, `policy_json`, `policy_non_whitespace_characters`, `policy_headroom_characters` | Retain current output semantics and actual references; any future contract change requires separate review, not R0 migration scope. |
 | lambda | `function_arn`, `function_name`, `invoke_arn`, `version`, `execution_role_arn`, `runtime`, `architecture`, `vpc_configuration`, `log_group_name` | R1 resolved: all listed names/semantics are exported by lambda_workload from actual owned references; permission_scope binds actual group ARN. Log→policy→function ordering retained. |
@@ -348,13 +453,13 @@ consumers are not assumed absent merely because the repository has one root.
 ### State move and verification limitations
 
 R1 changes exactly four resource addresses and retains thirteen. The fifth address
-change (API log) remains R2-only, with its destination still OPEN.
+change (API log) is now R2-implemented at module.http_api.aws_cloudwatch_log_group.this.
 Do not assume moving directories or a module source automatically moves state.
 Merging three old modules into one may need resource-level rather than one whole-
 module move; exact legal source/destination scopes, retained declarations/chains,
 provider addresses and supported Terraform semantics require future review.
 
-R1 completed its four mappings; R2 must complete its remaining OPEN mapping and
+R1 completed four mappings and R2 completed the fifth;
 future migrations must compare actual old/new mock
 plans after applying its documented address correspondence: same resource types,
 settings, policies, outputs and dependencies, no unexplained create/delete/replace.
@@ -410,7 +515,7 @@ not rerun unrelated Terraform/Python regressions.
 | --- | --- | --- | --- |
 | R0 — current PR | Document approved grouping, existing inventory/mappings and roadmap | Four-file documentation scope; source consistency; permanent AGENTS unchanged | No implementation or state/AWS work |
 | R1 — Lambda workload consolidation | Separately authorize new lambda_workload and migrate dedicated function/role/log ownership | Resolve R1 destination labels/output signatures/moves; preserve four resources, security/effective settings and root outputs; adapt tests/CI/docs; affected local plus full independent CI | No new Lambda application, code delivery or network features |
-| R2 — HTTP API dedicated logging | Separately authorize API access-log ownership within api_gateway_http | Resolve R2 destination/moves and API/log outputs; retain six resources together, separate logs and exact auth/permission/log contract; remove generic logs only after all consumers/coverage reconciled | No REST/Cognito substitution or new ingress |
+| R2 — HTTP API dedicated logging | Separately authorize API access-log ownership within api_gateway_http | Resolve R2 destination/moves and API/log outputs; retain six resources together, separate logs and exact auth/permission/log contract; retain generic logs/51 tests; retirement separately reviewed after consumers/coverage reconciled | No REST/Cognito substitution or new ingress |
 | R3 — stabilization if required | Reconcile remaining root/output/address/documentation/evidence differences | No unresolved compatibility mapping or lost coverage, minimal justified corrections, affected local plus full CI | Not an unnecessary rewrite or deferred security fix |
 | R4 — final structural baseline | R1/R2 and applicable R3 individually reviewed, CI-passed and merged with authorization | Rerun full Terraform/Python/IAM/guardrail/negative/mutation/evidence regression on exact final main; independent review of actual complete success and post-refactor inventory/case mapping | Source-text checks are insufficient; no new features before this accepted baseline |
 | New Architecture v2 features — only after R4 | Separately authorized focused VPC extensions then later approved functional modules | Preserve private-only VPC behavior/current 16 tests; add actual NAT/EIP/per-AZ/endpoint/security contracts and affected tests/full CI; approved account/IP/backend/provider/cost details still required | No default standalone NAT/core/private-routing wrappers; later EKS/REST/Cognito/edge/mTLS/DB/delivery/DEV access tasks remain separate |

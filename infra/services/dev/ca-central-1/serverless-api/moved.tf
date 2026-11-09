@@ -19,3 +19,9 @@ moved {
   from = module.lambda_logs.aws_cloudwatch_log_group.this
   to   = module.lambda_workload.aws_cloudwatch_log_group.this
 }
+
+# R2: retain the existing API access log identity under its coherent owner.
+moved {
+  from = module.api_access_logs.aws_cloudwatch_log_group.this
+  to   = module.http_api.aws_cloudwatch_log_group.this
+}

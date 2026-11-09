@@ -1,0 +1,602 @@
+[
+  {
+    "old_run": "default_http_api_configuration",
+    "new_run": "default_http_api_configuration",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "resource_attribute_outputs",
+    "new_run": "resource_attribute_outputs",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "govcloud_reference_scope",
+    "new_run": "govcloud_reference_scope",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "minimum_api_name",
+    "new_run": "minimum_api_name",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "maximum_api_name",
+    "new_run": "maximum_api_name",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "caller_owned_tags",
+    "new_run": "caller_owned_tags",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "maximum_tag_limits",
+    "new_run": "maximum_tag_limits",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "effective_provider_default_tags",
+    "new_run": "effective_provider_default_tags",
+    "purpose": "same behavior with six owned resources",
+    "negative": false
+  },
+  {
+    "old_run": "empty_api_name",
+    "new_run": "empty_api_name",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "invalid_api_name",
+    "new_run": "invalid_api_name",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "overlong_api_name",
+    "new_run": "overlong_api_name",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "null_lambda_function_arn",
+    "new_run": "null_lambda_function_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "malformed_lambda_function_arn",
+    "new_run": "malformed_lambda_function_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "lambda_alias_arn",
+    "new_run": "lambda_alias_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "lambda_version_arn",
+    "new_run": "lambda_version_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "wildcard_lambda_function_arn",
+    "new_run": "wildcard_lambda_function_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "unsupported_lambda_partition",
+    "new_run": "unsupported_lambda_partition",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "unsupported_lambda_region",
+    "new_run": "unsupported_lambda_region",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "null_lambda_invoke_arn",
+    "new_run": "null_lambda_invoke_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "malformed_lambda_invoke_arn",
+    "new_run": "malformed_lambda_invoke_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "mismatched_lambda_invoke_function",
+    "new_run": "mismatched_lambda_invoke_function",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "mismatched_lambda_invoke_account",
+    "new_run": "mismatched_lambda_invoke_account",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "mismatched_lambda_invoke_region",
+    "new_run": "mismatched_lambda_invoke_region",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "mismatched_lambda_invoke_partition",
+    "new_run": "mismatched_lambda_invoke_partition",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "null_access_log_group_arn",
+    "new_run": "null_access_log_group_arn",
+    "purpose": "owned name validation replaces external ARN input",
+    "negative": true
+  },
+  {
+    "old_run": "malformed_access_log_group_arn",
+    "new_run": "malformed_access_log_group_arn",
+    "purpose": "owned name validation replaces external ARN input",
+    "negative": true
+  },
+  {
+    "old_run": "wildcard_access_log_group_arn",
+    "new_run": "wildcard_access_log_group_arn",
+    "purpose": "owned name validation replaces external ARN input",
+    "negative": true
+  },
+  {
+    "old_run": "log_stream_instead_of_group",
+    "new_run": "log_stream_instead_of_group",
+    "purpose": "owned provider ARN postcondition rejects old invalid reference",
+    "negative": true
+  },
+  {
+    "old_run": "log_group_api_suffix",
+    "new_run": "log_group_api_suffix",
+    "purpose": "owned provider ARN postcondition rejects old invalid reference",
+    "negative": true
+  },
+  {
+    "old_run": "mismatched_log_account",
+    "new_run": "mismatched_log_account",
+    "purpose": "owned provider ARN postcondition rejects old invalid reference",
+    "negative": true
+  },
+  {
+    "old_run": "mismatched_log_region",
+    "new_run": "mismatched_log_region",
+    "purpose": "owned provider ARN postcondition rejects old invalid reference",
+    "negative": true
+  },
+  {
+    "old_run": "mismatched_log_partition",
+    "new_run": "mismatched_log_partition",
+    "purpose": "owned provider ARN postcondition rejects old invalid reference",
+    "negative": true
+  },
+  {
+    "old_run": "empty_tag_key",
+    "new_run": "empty_tag_key",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "reserved_tag_prefix",
+    "new_run": "reserved_tag_prefix",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "null_tag_value",
+    "new_run": "null_tag_value",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "overlong_tag_key",
+    "new_run": "overlong_tag_key",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "overlong_tag_value",
+    "new_run": "overlong_tag_value",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "too_many_tags",
+    "new_run": "too_many_tags",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "invalid_tag_key_character",
+    "new_run": "invalid_tag_key_character",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "invalid_tag_value_character",
+    "new_run": "invalid_tag_value_character",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "actual_api_wrong_account",
+    "new_run": "actual_api_wrong_account",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "actual_api_wrong_region",
+    "new_run": "actual_api_wrong_region",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "actual_api_wrong_partition",
+    "new_run": "actual_api_wrong_partition",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "effective_api_tags_exceed_limit",
+    "new_run": "effective_api_tags_exceed_limit",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "effective_stage_tags_exceed_limit",
+    "new_run": "effective_stage_tags_exceed_limit",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "overlong_lambda_function_arn",
+    "new_run": "overlong_lambda_function_arn",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "unsupported_numeric_region_shape",
+    "new_run": "unsupported_numeric_region_shape",
+    "purpose": "same behavior with six owned resources",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/default_log_group_configuration",
+    "new_run": "logging_default_log_group_configuration",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/resource_attribute_outputs",
+    "new_run": "logging_resource_attribute_outputs",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/lambda_log_group_name",
+    "new_run": "logging_lambda_log_group_name",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/workload_log_group_name",
+    "new_run": "logging_workload_log_group_name",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/maximum_name_length",
+    "new_run": "logging_maximum_name_length",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/supported_name_characters",
+    "new_run": "logging_supported_name_characters",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/minimum_finite_retention",
+    "new_run": "logging_minimum_finite_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/weekly_retention",
+    "new_run": "logging_weekly_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/supported_400_day_retention",
+    "new_run": "logging_supported_400_day_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/supported_731_day_retention",
+    "new_run": "logging_supported_731_day_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/maximum_supported_retention",
+    "new_run": "logging_maximum_supported_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/explicit_disposable_development_override",
+    "new_run": "logging_explicit_disposable_development_override",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/existing_symmetric_key_reference",
+    "new_run": "logging_existing_symmetric_key_reference",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/existing_multi_region_key_reference",
+    "new_run": "logging_existing_multi_region_key_reference",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/govcloud_partition_key_syntax",
+    "new_run": "logging_govcloud_partition_key_syntax",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/china_partition_key_syntax",
+    "new_run": "logging_china_partition_key_syntax",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/caller_owned_unicode_tags",
+    "new_run": "logging_caller_owned_unicode_tags",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/maximum_tag_count_and_lengths",
+    "new_run": "logging_maximum_tag_count_and_lengths",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": false
+  },
+  {
+    "old_run": "cloudwatch_logs/empty_name",
+    "new_run": "logging_empty_name",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/null_name",
+    "new_run": "logging_null_name",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/name_with_space",
+    "new_run": "logging_name_with_space",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/name_with_unsupported_character",
+    "new_run": "logging_name_with_unsupported_character",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/literal_aws_prefix",
+    "new_run": "logging_literal_aws_prefix",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/overlong_name",
+    "new_run": "logging_overlong_name",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/indefinite_retention",
+    "new_run": "logging_indefinite_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/negative_retention",
+    "new_run": "logging_negative_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/unsupported_short_retention",
+    "new_run": "logging_unsupported_short_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/fractional_retention",
+    "new_run": "logging_fractional_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/unsupported_366_day_retention",
+    "new_run": "logging_unsupported_366_day_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/unsupported_3650_day_retention",
+    "new_run": "logging_unsupported_3650_day_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/above_maximum_retention",
+    "new_run": "logging_above_maximum_retention",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/empty_kms_reference",
+    "new_run": "logging_empty_kms_reference",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/key_id_is_not_key_arn",
+    "new_run": "logging_key_id_is_not_key_arn",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/kms_alias_is_not_key_arn",
+    "new_run": "logging_kms_alias_is_not_key_arn",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/incomplete_kms_key_arn",
+    "new_run": "logging_incomplete_kms_key_arn",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/wildcard_kms_key_arn",
+    "new_run": "logging_wildcard_kms_key_arn",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/malformed_kms_account",
+    "new_run": "logging_malformed_kms_account",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/unsupported_kms_partition",
+    "new_run": "logging_unsupported_kms_partition",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/non_hexadecimal_kms_identifier",
+    "new_run": "logging_non_hexadecimal_kms_identifier",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/incomplete_multi_region_key_identifier",
+    "new_run": "logging_incomplete_multi_region_key_identifier",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/wrong_service_key_arn",
+    "new_run": "logging_wrong_service_key_arn",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/overlong_kms_key_arn",
+    "new_run": "logging_overlong_kms_key_arn",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/empty_tag_key",
+    "new_run": "logging_empty_tag_key",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/reserved_tag_prefix",
+    "new_run": "logging_reserved_tag_prefix",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/case_variant_reserved_tag_prefix",
+    "new_run": "logging_case_variant_reserved_tag_prefix",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/null_tag_value",
+    "new_run": "logging_null_tag_value",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/overlong_tag_key",
+    "new_run": "logging_overlong_tag_key",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/overlong_tag_value",
+    "new_run": "logging_overlong_tag_value",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/too_many_tags",
+    "new_run": "logging_too_many_tags",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/unsupported_tag_key_character",
+    "new_run": "logging_unsupported_tag_key_character",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": "cloudwatch_logs/unsupported_tag_value_character",
+    "new_run": "logging_unsupported_tag_value_character",
+    "purpose": "additional integrated lifecycle/KMS/name/tag validation; generic original retained unchanged",
+    "negative": true
+  },
+  {
+    "old_run": null,
+    "new_run": "actual_log_wrong_name",
+    "purpose": "reject provider-computed owned log identity mismatch",
+    "negative": true
+  },
+  {
+    "old_run": null,
+    "new_run": "actual_log_malformed_arn",
+    "purpose": "reject provider-computed owned log identity mismatch",
+    "negative": true
+  }
+]

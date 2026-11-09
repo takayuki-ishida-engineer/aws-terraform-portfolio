@@ -5,7 +5,7 @@ and [live-validation approval gates](../../../../../docs/dev-live-validation-rea
 These documents authorize no live AWS operations.
 
 This root describes one `dev` / `ca-central-1` / `serverless-api` workload for
-project `aws-terraform-portfolio`. R1 composes five functional module
+project `aws-terraform-portfolio`. R2 composes four functional module
 instances into a 17-resource configuration. Validation uses offline mocked plans;
 no AWS infrastructure is deployed, authenticated or established as operational.
 
@@ -37,7 +37,7 @@ input validation, secure defaults and outputs. There are no AWS data sources,
 VPC/Identity Center/human-access/account-policy module instances, additional
 accounts, provider aliases or additional Regions in this workload.
 
-### Exact R1 module and managed-resource inventory
+### Exact R2 module and managed-resource inventory
 
 All resource addresses below are relative to the stated module instance. Every
 resource is named `this`; successful complete mock plans contain exactly **17**.
@@ -46,10 +46,9 @@ resource is named `this`; successful complete mock plans contain exactly **17**.
 | --- | --- | --- | ---: |
 | `module.artifact_bucket` | `s3_artifact_bucket` | `aws_s3_bucket`, `aws_s3_bucket_versioning`, `aws_s3_bucket_public_access_block`, `aws_s3_bucket_ownership_controls`, `aws_s3_bucket_server_side_encryption_configuration`, `aws_s3_bucket_policy` | 6 |
 | `module.secret_metadata` | `secrets_manager` | `aws_secretsmanager_secret` | 1 |
-| `module.api_access_logs` | `cloudwatch_logs` | `aws_cloudwatch_log_group` | 1 |
 | `module.lambda_workload` | `lambda_workload` | `aws_lambda_function`, `aws_iam_role`, `aws_iam_role_policy`, `aws_cloudwatch_log_group` | 4 |
-| `module.http_api` | `api_gateway_http` | `aws_apigatewayv2_api`, `aws_apigatewayv2_integration`, `aws_apigatewayv2_route`, `aws_apigatewayv2_stage`, `aws_lambda_permission` | 5 |
-| **Total** | **Five instances, five module sources** | **No objects, secret versions or extra policies** | **17** |
+| `module.http_api` | `api_gateway_http` | `aws_apigatewayv2_api`, `aws_apigatewayv2_integration`, `aws_apigatewayv2_route`, `aws_apigatewayv2_stage`, `aws_lambda_permission`, `aws_cloudwatch_log_group` | 6 |
+| **Total** | **Four instances, four module sources** | **No objects, secret versions or extra policies** | **17** |
 
 ## Root input contract
 
@@ -93,7 +92,7 @@ does not establish ownership or availability in a real account.
 ## Effective configuration and sources
 
 R1 owns function, dedicated role/policy and Lambda application logs together.
-API access logs remain in the generic CloudWatch module for R2.
+R2 owns API access logs directly inside http_api; generic logging remains independently tested with no DEV root consumer.
 
 **Root Override** means an explicit child input supplied by this root, overriding
 a child default where one exists. **Module Default** means an omitted child input
@@ -121,8 +120,8 @@ are not mislabeled as child defaults.
 | Lambda runtime/handler | Explicit required root inputs | Root Override |
 | Lambda environment | Empty when disabled; only `SECRET_ARN` with actual secret ARN when enabled | Root Override |
 | API Lambda references | Actual Lambda function and invocation ARN outputs | Root Override |
-| API log destination | Actual separate API Log Group's bare ARN output | Root Override |
-| Both Log Groups | 30-day retention; deletion protection true; CMK null (`log_*` workload inputs versus generic API-log inputs) | Module Default |
+| API log destination | Actual internally owned API Log Group's bare ARN | Module Fixed |
+| Both Log Groups | 30-day retention; deletion protection true; CMK null (`log_*` workload inputs versus access_log_* HTTP API inputs) | Module Default |
 | Both Log Groups | `STANDARD`, `skip_destroy = false` | Module Fixed |
 | Secret lifecycle/encryption | 30-day recovery; no explicit CMK; optional description null | Module Default |
 | Secret metadata tags | Canonical `Name` and required `Project` | Module Fixed |
@@ -237,7 +236,7 @@ Before any future authorized deployment, owners must independently approve:
 | `artifact_bucket_name` | `module.artifact_bucket.bucket_name` |
 | `secret_metadata_arn` | `module.secret_metadata.secret_arn` |
 | `lambda_log_group_name` | `module.lambda_workload.log_group_name` |
-| `api_access_log_group_name` | `module.api_access_logs.log_group_name` |
+| `api_access_log_group_name` | `module.http_api.access_log_group_name` |
 
 These are references, not proof of deployment or successful requests. No secret
 value, environment map, credential, token or fabricated artifact version is output.
@@ -317,7 +316,7 @@ window and does not immediately erase the name or recovery obligations. Review
 artifact rollback versions, secret recovery and access to retained logs before
 changing or removing anything. This phase executes no teardown.
 
-## R1 source migration and current local evidence
+## Historical R1 source migration and local evidence
 
 R1 replaces the three Lambda-related calls with lambda_workload. Exact resource
 moves are declared in moved.tf; api_access_logs remains untouched. The root still
@@ -338,3 +337,22 @@ is not a claim that this PR's complete CI has passed.
 See [integrated module contract](../../../../modules/lambda_workload/README.md) and
 [completed address mapping](../../../../../docs/repository-structure-strategy.md).
 R2/R3/R4 and all new Architecture v2 features remain separately authorized work.
+
+## R2 source migration and evidence boundaries
+
+R2 adds exactly module.api_access_logs.aws_cloudwatch_log_group.this →
+module.http_api.aws_cloudwatch_log_group.this. The four original R1 moves are
+retained byte-for-byte. Other sixteen post-R1 addresses, 17 resources and eight
+outputs stay equivalent; the HTTP API child owns six resources and root four calls.
+API access log name is Root Override; retention 30/protection true/key null and
+separate access_log_tags={} are Module Default. STANDARD/skip_destroy=false,
+actual Stage-to-owned-log ARN, exact IAM route/invoke permission and seven-field
+metadata format are Module Fixed. Root provider default tags remain unchanged.
+
+See the [R2 migration record](../../../../../docs/repository-structure-strategy.md)
+for actual local counts and comparison results. Empty-state native mocks and valid
+moved syntax do not prove live state migration, no recreation, service propagation
+or delivery. No state/import/authenticated plan or AWS operation is performed.
+Generic logging retirement is separately OPEN; R3 stabilization is conditional and
+R4 exact-main full verification remains required. Full unaffected regression and
+153 Python cases stay in GitHub Actions; no pending CI is called successful.

@@ -35,5 +35,5 @@ output "lambda_log_group_name" {
 
 output "api_access_log_group_name" {
   description = "Actual separate API Gateway access Log Group name; not proof of log delivery."
-  value       = module.api_access_logs.log_group_name
+  value       = module.http_api.access_log_group_name
 }

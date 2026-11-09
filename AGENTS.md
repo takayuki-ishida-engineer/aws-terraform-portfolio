@@ -117,33 +117,32 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: R1 Lambda workload consolidation
+## Current phase only: R2 HTTP API access logging consolidation
 
-Use refactor/lambda-workload-r1 from latest verified main. Consolidate the existing
-function, role, inline policy and dedicated Lambda logs into one lambda_workload
-child, preserving all effective security/lifecycle/input/output behavior.
+Use refactor/http-api-logs-r2 from verified main 87f415f5290e2cab63696e1850a6c362eef97292.
+Move the existing API access Log Group into api_gateway_http, preserving its actual
+identity and lifecycle; no new feature or authenticated AWS/state operation.
 
-- Authorize new lambda_workload/**, retirement of lambda/** and
-  lambda_execution_role/** only after equivalent tests/checkers pass, necessary DEV
-  root composition/outputs/moved/tests/README, relevant offline workflow changes,
-  infra/README.md, repository-structure-strategy.md, minimal foundation status and
-  this current-phase section. Preserve permanent rules byte-for-byte.
-- Declare exact four resource-level moves to module.lambda_workload with existing
-  types/this labels. Preserve thirteen other addresses, seventeen resources, five
-  root calls, eight public outputs and separate API access logging.
-- Keep generic cloudwatch_logs and all 51 tests unchanged. Retain all meaningful
-  Lambda/role coverage, actual four-resource security/SAR/mutation/fault validation,
-  root/input checks and complete CI. No count-only or filtered-plan workaround.
-- Preserve root provider/backend/versions/lock/features.auto.tfvars, unrelated
-  modules/toolkit, secret metadata/artifacts and historical AWS_IAM HTTP API.
-  No app/ZIP/VPC/REST/Cognito/EKS/new IAM feature, R2–R4 or PDF update.
-- Never request/use AWS credentials, authenticated APIs/plans/imports/state
-  operations/apply/destroy/deployments. Approach A only; no secret/customer ZIP/code.
-  Mock/move syntax checks do not prove live state migration or propagation.
-- Run affected credential-free fmt/init/validate/native/actual-plan/security/input/
-  move/ownership/old-new comparison and scope/secret/diff checks. Preserve exact
-  initialized cache topology and samefile/storage/completeness checks; full unrelated
-  regression remains GitHub Actions. No Live gate is closed or safeguard weakened.
-- Commit, push and open one PR; report HEAD, files/moves/inventory/coverage/results
-  and limitations. Confirm triggering only if immediately observable; stop without
-  waiting/polling CI, merging/deleting branch or beginning another phase.
+- Authorize api_gateway_http source/inputs/outputs/tests/README; necessary DEV root
+  composition/outputs/moved/tests/README; retained R1 migration guard adaptation;
+  directly affected offline CI and migration/verification documentation; infra/README
+  and this current-phase section only. Preserve permanent rules byte-for-byte.
+- Require module.http_api.aws_cloudwatch_log_group.this as the single R2 move.
+  Preserve all four original R1 moves independently; four root calls, seventeen
+  resources, sixteen unchanged post-R1 addresses and eight public root outputs.
+- Preserve AWS_IAM HTTP API, exact permission, seven metadata-only log fields,
+  separate Lambda logs, defaults/tags/KMS-reference validation, 30-day retention,
+  deletion protection and skip_destroy=false. No provider/backend/lock/feature changes.
+- Preserve generic cloudwatch_logs and all 51 tests unchanged, despite no DEV root
+  consumer. Its retirement needs separate approval. Preserve Lambda implementation,
+  its source-dependency tests, IAM/SAR/toolkit/independent guards and complete CI.
+- Run affected actual native-plan/negative/mutation/capture/input, ownership/move,
+  before/after comparison, fmt/init/validate and scope/secret/diff checks. Preserve
+  nine-configuration shared provider-cache identity/storage/completeness guards.
+  Full unrelated regression belongs to GitHub Actions; no invented passing evidence.
+- Approach A only; never request/use AWS credentials or authenticated API/plan/state/
+  import/apply/destroy. Mock moves do not prove live migration or replacement safety.
+  No PDF, R3/R4/new Architecture v2/Live work or weakened G01–G07/teardown/cost rules.
+- Commit/push/open one R2 PR; report exact HEAD, files, mappings/inventory, actual
+  checks and limitations. Observe CI triggering once if immediately available;
+  stop without waiting/polling, merging or deleting any working branch.

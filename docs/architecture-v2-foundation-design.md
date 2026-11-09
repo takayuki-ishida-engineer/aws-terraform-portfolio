@@ -149,13 +149,13 @@ Federation and temporary workload credentials are preferred official guidance [S
 not proof of effective permissions. Never introduce unrestricted administration,
 PassRole or speculative trust. Ownership approvals precede any identity implementation.
 
-R1 status: the approved four-resource Lambda workload consolidation is now
-implemented in source with five DEV root calls and the same 17 resources; old
-standalone Lambda/role implementations are retired after relocated local checks.
-API access logs and generic logging remain independent. Exact moves, interface
-and current local results are recorded in the
-[R1 migration record](repository-structure-strategy.md). This is not actual state
-migration, completed PR CI or permission to start R2/R4/new features.
+R1/R2 status: Lambda owns its four workload resources; HTTP API now owns its
+five API/permission resources and dedicated access Log Group. DEV has four root
+calls and the same 17 resources/eight outputs. Five exact moved declarations
+retain historical identities in source. Generic logs/51 tests remain independently
+retained with no DEV consumer; retirement needs separate review. See the
+[migration record](repository-structure-strategy.md) for local evidence and pending
+PR review. No actual state migration, R3/R4 completion or new feature is claimed.
 
 ## F. Approved migration-first sequence
 
@@ -168,7 +168,7 @@ and this order are approved; no implementation PR is opened by this design.
 | --- | --- | --- |
 | R0 — current documentation | Approved structure, nine-module inventory, seven-instance/17-resource migration plan | Exact documentation scope, source/link/consistency/secret/diff checks; no migration |
 | R1 — Lambda workload | Consolidate function, dedicated role/inline policy and dedicated Lambda logs into lambda_workload; update affected root/interfaces/tests/docs/CI | Exact destination/move/output decisions first; four resources, effective configuration/security/dependencies preserved; actual-plan/policy/negative/mutation and complete independent CI; no new app feature |
-| R2 — HTTP API logs | Own dedicated API access Log Group inside api_gateway_http, retaining historical AWS_IAM architecture | Six resources together with exact invoke/log/auth/retention contracts, safe address compatibility and full affected tests/CI; remove generic logs only after legitimate consumers and all coverage migrate |
+| R2 — HTTP API logs | Own dedicated API access Log Group inside api_gateway_http, retaining historical AWS_IAM architecture | Six resources together with exact invoke/log/auth/retention contracts, safe address compatibility and full affected tests/CI; retain generic logs/51 tests; any retirement needs separate consumer/coverage review |
 | R3 — stabilization if required | Minimal remaining interface/address/root/docs/security inventory reconciliation | No unaccounted mapping or lost tests; affected local and full CI; record if no extra stabilization is needed |
 | R4 — final structural baseline | After separately reviewed, CI-passed and authorized merged migrations | Full Terraform/Python/IAM/guardrail/negative/mutation/evidence suite rerun and independently verified on exact final main; source-text checks are not enough |
 | New features only after accepted R4 | Focused extensions of coherent existing vpc for NAT/EIP/per-AZ routing/compatible endpoints/security; later EKS/REST/Cognito/edge/mTLS/DB/delivery/developer DB-access work | Preserve current private-only behavior and 16 VPC cases; add actual resource/dependency/ownership/negative/security mutation evidence; detailed allocation/backend/IAM/provider/cost approvals still required |
