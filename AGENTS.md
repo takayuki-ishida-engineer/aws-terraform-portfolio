@@ -117,28 +117,30 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: Architecture v2 Foundation Design
+## Current phase only: R0 maintainable Terraform structure strategy
 
-Use docs/architecture-v2-foundation-design from latest verified main. Establish
-proposed Network/State/Identity ownership and staged implementation PR boundaries;
-Master Policy v10 remains authoritative and every unresolved approval stays OPEN.
+Use docs/maintainable-terraform-structure-r0 from latest verified main. Document
+user-approved functional-module ownership and migration-first R0→R1→R2→R3→R4,
+then new v2 features. R0 approves design only, not migration or implementation.
 
-- Change exactly docs/architecture-v2-foundation-design.md, a concise reference/
-  necessary foundation ownership clarification in docs/architecture-v2.md, and this
-  current-phase section. Preserve permanent rules byte-for-byte; no README edits.
-- Base inventory on VPC implementation/tests and DEV root/provider/backend source.
-  Preserve historical HTTP API MVP, tests/evidence and approved NLB/Istio target.
-- No Terraform/IAM/provider/backend/state/lock, test/workflow, Kubernetes, code, ZIP,
-  infrastructure or Master Policy PDF changes. No AWS credentials/authenticated
-  calls/plans/imports/state operations/apply/destroy/deployments or future PRs.
-- Compare extension versus scoped modules; leave CIDRs/AZ allocation, accounts,
-  remote backend, output distribution, IAM, sizing and controller settings OPEN.
-  Preserve G01–G07, JPY 10,000 cumulative Live cap and 72-hour complete teardown;
-  no Live authorization or silent lifecycle weakening is granted.
-- Validate links/code paths, consistency/decision register, exact three-file scope,
-  permanent-rule preservation, secret patterns and git diff --check. Do not rerun
-  unrelated local regressions or change full GitHub Actions security coverage.
-- Commit, push and open exactly one PR; report URL, HEAD, recommendations, approvals
-  and actual local checks. Confirm triggering only if immediately observable; stop
-  without waiting/repeatedly polling CI. Do not merge/delete branch/start another
-  phase. Independent review verifies exact-head CI separately.
+- Change exactly docs/repository-structure-strategy.md,
+  docs/architecture-v2-foundation-design.md, docs/architecture-v2.md and this
+  current-phase section. Preserve permanent rules byte-for-byte. No README/PDF edits.
+- Inventory all nine modules/call sites and seven-instance/17-resource historical
+  MVP from source; distinguish precise current addresses from OPEN future mappings.
+  Preserve security/outputs/test coverage and require final exact-main full baseline.
+- Coherent vpc owns coupled networking; lambda_workload and API log consolidation
+  precede new features. No standalone NAT/core/private-routing wrappers by default.
+  Correct DEV RDS SSM developer-access purpose; no generic administrator jump host.
+- No Terraform/module moves/renames/deletions, root/IAM/provider/backend/state/lock,
+  workflow/test/Python/fixture, Kubernetes/app/Packer/Ansible/ZIP/resource changes.
+  Never request/use AWS credentials, authenticated APIs/plans/imports/state
+  operations/apply/destroy/deployments. No R1–R4 or next-phase implementation.
+- Keep Approach A, no secret values/customer ZIP/source reuse, full CI/security and
+  G01–G07 OPEN, JPY 10,000 cumulative Live cap and 72-hour verified complete teardown.
+  Do not weaken historical 30-day secret recovery to hide its Live blocker.
+- Perform only relevant documentation/source/link/address/scope/secret/diff checks;
+  no unrelated local Terraform/Python suites. Commit, push and open one PR; report
+  URL, exact HEAD, approved versus OPEN decisions and checks. Confirm CI triggering
+  only if immediately observable; do not wait/repeatedly poll, merge/delete branch
+  or begin another phase. Independent review verifies completed exact-head CI.

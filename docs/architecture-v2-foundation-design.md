@@ -2,8 +2,10 @@
 
 This is an implementation-readiness proposal, not implementation or execution
 approval. Master Policy v10 (2026-11-08), reproduced in
-[Architecture v2](architecture-v2.md), remains authoritative. All recommendations
-and decision-register entries below are **OPEN**. No account, CIDR, AZ allocation,
+[Architecture v2](architecture-v2.md), remains authoritative. The user has now **APPROVED** maintainability-first functional module grouping
+and migration-first priority in the [R0 repository strategy](repository-structure-strategy.md).
+This supersedes the former standalone NAT/core/routing recommendation. Detailed
+AWS/state/migration decisions below remain **OPEN**. No account, CIDR, AZ allocation,
 operational resource name, backend or principal is selected. All G01–G07 Live gates
 remain OPEN. Do not create the future PRs described here during this task.
 
@@ -27,55 +29,44 @@ Mocks never establish actual AWS reachability, ownership, permission or availabi
 | [Provider](../infra/services/dev/ca-central-1/serverless-api/providers.tf), [backend](../infra/services/dev/ca-central-1/serverless-api/backend.tf), [versions](../infra/services/dev/ca-central-1/serverless-api/versions.tf) | Root AWS provider, fixed workload Region, allowed_account_ids=[var.aws_account_id], default tags; local state; Terraform ~>1.17.0 / AWS ~>6.72.0 and committed root lock | No live account verified. STG/PROD roots/backend operation are not implemented; remote-state selection remains OPEN |
 | [Offline workflow](../.github/workflows/terraform-offline-ci.yml), historical acceptance | Complete suite retains 384 Terraform native and 153 Python tests, IAM reference/equivalence/negative/mutation/independent guardrails and fail-closed evidence checks | Historical counts are neither future coverage nor a ceiling. Root 12 rejected inputs/35 mutations/22 capture faults and HTTP API 17 mutations/19 faults are separate evidence categories |
 
-## B. Network ownership and composition
+## B. Approved functional network ownership
 
-### Candidate ownership map
+The [approved repository strategy](repository-structure-strategy.md) selects one
+coherent vpc module for VPC, keyed subnets, IGW/NAT/EIP, public/private tables,
+routes/associations and compatible endpoints. Internal files such as subnets.tf,
+gateways.tf, routing.tf, endpoints.tf and security.tf improve readability without
+creating separate child resource wrappers. All files share scope; references and
+narrow depends_on determine order, not file placement. Root owns provider/backend,
+account restrictions, environment overrides and lifecycle selection.
 
-The future networking root should compose resources; child modules should own
-implementation/defaults/validation/outputs, with no providers/backends inside them.
-No shared mutable resource may have two Terraform owners or competing reconcilers.
-Candidate custom NACLs/rules belong to the network root under D05 approval;
-workload SGs belong to their consuming root, with each rule owned once. Do not
-mix inline and standalone management of the same rules or routes.
+This grouping decision is APPROVED; actual NAT/per-AZ/endpoint behavior and moves
+are not implemented. Preserve current private-only defaults, stable keys and the
+singular private-route-table output until an explicitly reviewed compatible
+extension/migration resolves it. Current route=[] and shared associations prohibit
+simply attaching a competing route/association owner. Compatible gateway endpoint
+service routes also require a reviewed routing contract. The grouping choice does
+not resolve that technical design or authorize changing current assertions.
 
-| Resource / interface | Proposed sole owner | Dependency / exclusion |
-| --- | --- | --- |
-| VPC, keyed subnet identities, optional IGW and public route tables/associations | Network foundation core within one environment/Region network root | Stable keys and actual references; no public IP assignment by default; no speculative toggles |
-| NAT Gateways and their EIPs | Small public-NAT module in that same root | Approved public subnet/IGW path and AZ mapping; owns no subnet associations or route tables; no security group can attach to a NAT gateway [S2] |
-| Private per-AZ route tables, routes and subnet associations | Private-routing owner in network root | Consume actual subnet/NAT references; only this owner changes private associations/routes; no inline/standalone route conflict |
-| Interface/gateway VPC endpoints and endpoint policy/SG/association contracts | Scoped endpoint owner in network root, with reviewed service-specific authorization | Explicit endpoint requirements, DNS and account/Region/subnet scope. One owner per SG rule/route association; no competing endpoint route-table association mechanisms |
-| EKS cluster/node network requirements | EKS root consumes approved network outputs; cluster-specific SGs owned there | No ownership of foundation subnets/routes. Review control-plane ENIs, node/Pod addressing, private API access, capacity and connectivity before integration |
-| Internal NLB, TCP:443 listener, target groups and ingress-specific SG/network resources | Future ingress root's Terraform | Consume approved network/EKS references. No ALB target or TLS termination at NLB; Gateway performs backend mTLS |
-| Gateway Pod registration | Kubernetes-side controller, separate from Terraform target-group infrastructure | TargetGroupBinding/Pod IP/health/controller permissions and NLB compatibility OPEN; no independently controller-created duplicate load balancer |
-| Workload SGs / RBAC / NetworkPolicy | Owning EKS/application/platform boundary with explicit rule ownership | Least-privilege ingress/egress; default-deny policies where appropriate; network encryption is not identity authorization |
-| Cross-root dependency | Approved immutable network interface plus external orchestration | Consumers read references without becoming state writers; no implicit cross-root depends_on or cycle |
+Network roots own the coherent module's state. EKS platform roots consume approved
+outputs and own cluster-specific controls; private_ingress owns Terraform internal
+NLB TCP:443/listeners/target groups, while Kubernetes-side control owns Gateway Pod
+registration. Controller/TargetGroupBinding/health/cross-zone details remain OPEN.
+No ALB substitution or duplicate load-balancer ownership is allowed. Workload SGs,
+RBAC/NetworkPolicy and custom NACL responsibilities need approved flow/rule ownership,
+not duplicated reconcilers. A genuinely separate lifecycle/security/state owner can
+justify an explicit module exception, not default NAT/route/endpoint wrappers.
 
-Routing owns explicit routes; an approved gateway-endpoint association may add
-AWS-managed service-prefix routes. The endpoint/routing contract must distinguish
-those from explicit routes and avoid authoritative inline route collections that
-would remove them. This interaction requires D04 review before implementation.
-
-### Two feasible module approaches
-
-| Approach | Advantage | Migration/dependency impact | Testing consequence |
-| --- | --- | --- | --- |
-| Extend existing VPC carefully | Reuses established subnet validation and source; one internal routing owner | Preserve private-only defaults, stable keyed addresses, existing shared-table output and all current tests. Per-AZ routing is not a trivial additive switch: requires reviewed new input/output semantics and safe association/address migration for existing consumers | Keep all 16 runs; add per-AZ/NAT/endpoint actual-plan, negative and unsafe-route/ownership mutation coverage. Explicitly verify legacy calls remain identical; do not weaken old shared-table assertions |
-| Distinct modules at real ownership boundaries | Keeps historical VPC untouched; NAT, v2 core, private routing and endpoints can be independently reviewed/tested | A new core must deliberately omit private tables/associations owned by routing module. Reusing old VPC alongside another private-routing owner is not safe. Avoid duplicate helper wrappers/stacks with no resource responsibility | Each module needs precise resource inventory/output/ownership tests and later composition tests; duplicated validation must be justified and kept consistent, not a generic framework |
-
-**Recommendation (D01 OPEN):** separate NAT first, then a narrowly scoped v2 network
-core/private-routing/endpoint decomposition if reviewers accept the ownership split.
-Retain legacy VPC unchanged for its historical contract. If extension is chosen
-instead, rescope the core/routing roadmap before coding, retaining a single route
-owner and compatible legacy behavior. Do not bolt standalone NAT routes onto the
-existing route=[] table or reassign subnets owned by existing associations: inline
-route enforcement and competing association owners would conflict. No speculative
-feature flag or stack layer is proposed. Root selection is explicit composition.
+The former separate nat_gateway/network_core/private_routing path is superseded,
+not an alternative first implementation recommendation. Only after R4 may focused
+feature PRs extend existing vpc; no separate wrappers merely for AWS resource types.
 
 ## C. Proposed root and state boundaries
 
 Evaluate a dedicated network-service root at
 `infra/services/<env>/<region>/<service>/`, separate from application/EKS/ingress
-roots. The network service slug and exact root split are not assigned. This can
+roots. The strategy lists intended network/platform/api/database/delivery and edge root
+boundaries; exact operational naming, provider/state ownership and interfaces still
+need implementation review. This can
 clarify lifecycle and shared network ownership, at the cost of explicit publication,
 ordering and compatibility operations. A single larger root would make references
 simpler but couple application deletion/change to shared network lifecycle; it is
@@ -158,117 +149,52 @@ Federation and temporary workload credentials are preferred official guidance [S
 not proof of effective permissions. Never introduce unrestricted administration,
 PassRole or speculative trust. Ownership approvals precede any identity implementation.
 
-## F. Dependency and implementation sequence — proposed future PRs
+## F. Approved migration-first sequence
 
-D01–D12 below must be resolved where applicable before their implementation. Each
-PR is separately authorized, focused and independently reviewed. Proposed new
-module names are code-scope candidates, not operational AWS resource names. No
-backend, IAM or infrastructure is created by this design. All listed Terraform
-work is **credential-free offline only**; none authorizes Live operations.
+**R0 → R1 → R2 → R3 → R4 → new Architecture v2 features.** See the
+[resource/output/test migration matrices](repository-structure-strategy.md) for
+source-derived addresses and future OPEN destination decisions. Functional grouping
+and this order are approved; no implementation PR is opened by this design.
 
-1. **F1 — smallest useful Terraform PR: standalone public NAT/EIP module.**
-   Proposed scope: `infra/modules/nat_gateway/` implementation/README/native and
-   focused actual-plan/mutation tests, plus only its necessary offline CI step.
-   Own exactly an EIP and public NAT Gateway per caller-selected stable map key;
-   own no VPC/subnet/IGW/routes/associations/SG/root. Required approved public-subnet
-   references and explicit AZ/scope metadata; outputs actual keyed NAT/EIP IDs.
-   Root eventually selects one DEV or two STG/PROD instances, not an env-aware
-   feature flag. No resource is deployed or existing VPC called. Depends on D01,
-   D03–D04/D08/D11 schema/cost decisions, not EKS or backend implementation.
-   Tests: one/two configured NAT pairs, stable keys and actual references; malformed/
-   missing/duplicate input rejection; public NAT/EIP scope and mapping mutations;
-   exact inventory/no routes/no data sources/no secret/provider configuration.
-   Mock tests cannot prove a supplied subnet's real VPC/AZ/public/IGW path; root
-   composition and later authorized evidence must establish that. CI preserves
-   all existing suites and adds the affected module checks only, including reviewed
-   extension of locked shared-cache/storage topology assertions for the new
-   initialized configuration; never remove those checks. Report actual new test
-   counts rather than inventing them. Full regression
-   remains GitHub's responsibility. No IAM/PassRole grant belongs in this module.
-2. **F2 — core network ownership, after D01 choice.**
-   If separate modules are approved: proposed `infra/modules/network_core/` owns
-   VPC, keyed subnets, optional approved IGW/public tables/associations, explicitly
-   no private tables/associations. Inputs approved CIDR/AZ/subnet/key/tag maps;
-   outputs actual VPC/subnet/IGW/public-route references plus scope metadata.
-   Otherwise submit a narrowly reviewed compatible extension to existing VPC,
-   with explicit association/address migration proposal before changing ownership.
-   Depends on approved D01/D03/D05/D08. Tests: private-only/public cases, CIDR/AZ/
-   overlap boundaries, stable outputs/IP/DNS defaults, public-exposure and unexpected
-   private-association mutations. Preserve old 16 tests unchanged. CI adds core
-   checks and reruns affected VPC checks only where changed; no service root yet.
-3. **F3 — private per-AZ routing composition.**
-   Proposed `infra/modules/private_routing/` owns private tables/routes/associations
-   exclusively; actual subnet/NAT/IGW readiness references from F1/F2. Inputs
-   explicit approved subnet→AZ→NAT mapping; outputs keyed actual table IDs and
-   association scope. Depends on F1/F2 and D01/D03/D04. Test DEV mapping and STG/PROD
-   AZ locality, subnet/table dependency and no IGW default for private subnets;
-   reject missing/ambiguous/cross-scope maps and detect cross-AZ STG/PROD NAT,
-   unintended public routes, duplicate ownership and inline/standalone conflicts.
-   CI adds actual composition/negative/mutation verification; no endpoint/EKS work.
-4. **F4 — reviewed endpoint and network-security boundary.**
-   Proposed scoped endpoint module under `infra/modules/` (name approved in D04)
-   and its tests; no catch-all feature flags. Inputs approved service/caller/DNS/
-   subnet/table/SG/policy references, outputs actual endpoint identities/interfaces.
-   Depends on F2/F3 and D04–D05/D08. Tests distinguish gateway/interface contracts,
-   endpoint association ownership, scoped policies/SGs/DNS and missing connectivity;
-   exposure/unrestricted-policy/duplicate-association mutations fail closed. CI
-   adds affected policy/security/reference checks; no arbitrary future IAM grants.
-5. **F5 — root/state/output interface integration.**
-   Proposed approved network roots under `infra/services/<env>/<region>/<service>/`
-   and contract tests/documentation; existing serverless-api root remains untouched
-   unless separately approved migration. Inputs approved env/account/Region/IP/AZ
-   allocation and F1–F4 interfaces; outputs versioned minimum actual network scope.
-   Depends on D02/D03/D06–D08/D11–D12, F1–F4 and approved backend design. Review DEV
-   state protection separately from STG/PROD remote-backend implementation; split
-   remote backend resources/migration into their own PR if needed, never hide them
-   here. Tests env NAT count/routing, provider guards, no credentials/shared writers,
-   stale/wrong-scope interfaces and lifecycle/ownership/dependency negatives/mutations.
-   CI adds credential-free backend-disabled root checks and preserves historical
-   root/lock tests. Backend operation, imports and state migration are not offline
-   test results and require later external approval; no backend is selected here.
-6. **F6 — identity boundary implementation, separately scoped.**
-   Proposed least-privilege deployment/workload/controller role modules and their
-   tests under `infra/modules/`, only after D06/D09 defines exact identities and
-   actions. Inputs approved principal/SA/resource scope; outputs actual role refs,
-   never keys/secrets. Can design in parallel with network, but IAM implementation
-   depends on known consumers and D08 compatibility. Positive exact trust/permission
-   plans; wrong subject/audience/account/service/PassRole-resource and escalation/
-   secret-access negatives/mutations; independent actual-policy checks. CI extends
-   IAM/reference checks proportionately, retaining every historical guardrail.
+| Stage | Separately authorized responsibility | Required verification / acceptance |
+| --- | --- | --- |
+| R0 — current documentation | Approved structure, nine-module inventory, seven-instance/17-resource migration plan | Exact documentation scope, source/link/consistency/secret/diff checks; no migration |
+| R1 — Lambda workload | Consolidate function, dedicated role/inline policy and dedicated Lambda logs into lambda_workload; update affected root/interfaces/tests/docs/CI | Exact destination/move/output decisions first; four resources, effective configuration/security/dependencies preserved; actual-plan/policy/negative/mutation and complete independent CI; no new app feature |
+| R2 — HTTP API logs | Own dedicated API access Log Group inside api_gateway_http, retaining historical AWS_IAM architecture | Six resources together with exact invoke/log/auth/retention contracts, safe address compatibility and full affected tests/CI; remove generic logs only after legitimate consumers and all coverage migrate |
+| R3 — stabilization if required | Minimal remaining interface/address/root/docs/security inventory reconciliation | No unaccounted mapping or lost tests; affected local and full CI; record if no extra stabilization is needed |
+| R4 — final structural baseline | After separately reviewed, CI-passed and authorized merged migrations | Full Terraform/Python/IAM/guardrail/negative/mutation/evidence suite rerun and independently verified on exact final main; source-text checks are not enough |
+| New features only after accepted R4 | Focused extensions of coherent existing vpc for NAT/EIP/per-AZ routing/compatible endpoints/security; later EKS/REST/Cognito/edge/mTLS/DB/delivery/developer DB-access work | Preserve current private-only behavior and 16 VPC cases; add actual resource/dependency/ownership/negative/security mutation evidence; detailed allocation/backend/IAM/provider/cost approvals still required |
 
-Only after these contracts, separately propose EKS networking and then NLB/Gateway
-integration PRs. Candidate scopes are future EKS/ingress modules/roots plus required
-controller interfaces, not this foundation implementation. Inputs are approved
-network outputs and exact identity scopes; outputs cluster/target-group references.
-D08–D12 must resolve private endpoint access, Pod addressing, TCP passthrough,
-TargetGroupBinding/controller rights and health/cross-zone ownership first. Add
-resource/dependency, IAM/RBAC, exposure/topology and wrong-owner/termination mutations;
-CI remains offline. Kubernetes deployment, PKI, CloudFront pricing, Cognito certificate
-authorization and API backend certificate implementation stay with their respective
-PRs, not a simultaneous Network/State/Identity/EKS/ingress change.
+R4 is additional baseline verification, not permission to defer security or full
+CI in R1/R2/R3. All intermediate implementation PRs need relevant local security
+checks and complete independent GitHub Actions regression. Codex still stops after
+PR creation; completed CI/merge approval is verified independently. No pending run
+or earlier branch result establishes an R4 final-main pass.
 
-## G. OPEN decision register
+## G. Approved grouping and OPEN implementation register
 
-Every row is a proposal requiring owner/reviewer approval **before the affected
-implementation**. Role labels below do not name actual assigned people or approvals.
+D01 records the now-approved grouping separately from still-OPEN technical
+subdecisions. Other rows require owner/reviewer approval before implementation.
+Role labels below do not name actual assigned people or approvals.
 
 | ID / status | Affected PR | Options / candidate | Security and operational implications | Evidence / official source needed | Required approval |
 | --- | --- | --- | --- | --- | --- |
-| D01 — OPEN | F1–F3 | Compatible VPC extension versus separate NAT/core/routing | Legacy shared-table contract and single association owner; migration/address stability | Current VPC source/tests; reviewed ownership map and no-competing-route plan | Network/state architecture reviewer |
-| D02 — OPEN | F5 | Dedicated network root versus larger root; manifest/config service/direct state outputs | Interface stability, output leakage, orchestration/lifecycle and no shared writer | [S5–S7], minimal publication schema/access/freshness and downstream change contract | State/security/consumer owners |
-| D03 — OPEN | F1–F5 | Actual subnet/AZ/IP allocation | Enabled AZs, nonoverlap, EKS control-plane/node/Pod/IP surge and service quotas; no chosen CIDRs here | [S1], account-specific authorized allocation/capacity evidence | Network/IP allocation and platform owners |
-| D04 — OPEN | F1/F3/F4 | NAT mapping and endpoint/egress service matrix | Same-AZ STG/PROD routing, explicit DEV cross-AZ trade-offs, endpoint DNS/SG/policy/cost dependencies | [S2–S4], actual caller/network flow requirements | Network/security/cost owners |
-| D05 — OPEN | F2/F4/F5 | SG rule ownership, NACL policy and NetworkPolicy roles | Stateless return paths versus stateful rules, default resources un-hardened today, avoid false isolation | [S3], reviewed flow/port/direction and controller enforcement requirements | Network/security/platform owners |
-| D06 — OPEN | F5/F6 | Workload account and deployment/operational identity custodians | No management-account workloads, no assumed account or unrestricted trust | [S8], external account ownership/SCP/session/boundary and separation evidence | Account/identity/security owners |
-| D07 — OPEN | F5 | Protected DEV local state; STG/PROD remote backend candidates | Locking/encryption/access/backups/recovery/migration; one authoritative owner/writer | [S5–S7], backend capability/security and restore/cutover design | State custodian and security/operations reviewers |
-| D08 — OPEN | F1–F6 / later EKS/ingress | Exact provider/resource compatibility and version policy | Existing pins/locks unchanged; no assumed private EKS/VPC Link/NLB/controller behavior | Pinned provider schema, relevant AWS docs and reviewed mock contract; runtime behavior separately evidenced | Module/platform reviewers |
-| D09 — OPEN | F6 / later ingress | Scoped trust, PassRole and Kubernetes controller rights | Exact principals/SA/RBAC/resource scopes; prevent controller/Terraform double ownership | [S8], effective trust/permission matrix and least-privilege resource/action references | IAM/security/platform owners |
+| D01 — APPROVED grouping / OPEN implementation | R1–R4 / post-R4 VPC | Coherent vpc ownership and migration-first priority approved; no default resource wrappers | Legacy shared-table compatibility, safe per-AZ route/endpoint semantics and address migration remain OPEN | Current VPC/tests plus approved R0 strategy; reviewed moves/ownership/plan | Grouping approved by user; implementation requires network/state reviewer approval |
+| D02 — OPEN | Post-R4 root/state integration | Dedicated network root versus larger root; manifest/config service/direct state outputs | Interface stability, output leakage, orchestration/lifecycle and no shared writer | [S5–S7], minimal publication schema/access/freshness and downstream change contract | State/security/consumer owners |
+| D03 — OPEN | Post-R4 VPC/root integration | Actual subnet/AZ/IP allocation | Enabled AZs, nonoverlap, EKS control-plane/node/Pod/IP surge and service quotas; no chosen CIDRs here | [S1], account-specific authorized allocation/capacity evidence | Network/IP allocation and platform owners |
+| D04 — OPEN | Post-R4 VPC features | NAT mapping and endpoint/egress service matrix | Same-AZ STG/PROD routing, explicit DEV cross-AZ trade-offs, endpoint DNS/SG/policy/cost dependencies | [S2–S4], actual caller/network flow requirements | Network/security/cost owners |
+| D05 — OPEN | Post-R4 VPC/root integration | SG rule ownership, NACL policy and NetworkPolicy roles | Stateless return paths versus stateful rules, default resources un-hardened today, avoid false isolation | [S3], reviewed flow/port/direction and controller enforcement requirements | Network/security/platform owners |
+| D06 — OPEN | R1–R4 / later identity roots | Workload account and deployment/operational identity custodians | No management-account workloads, no assumed account or unrestricted trust | [S8], external account ownership/SCP/session/boundary and separation evidence | Account/identity/security owners |
+| D07 — OPEN | Post-R4 root/state integration | Protected DEV local state; STG/PROD remote backend candidates | Locking/encryption/access/backups/recovery/migration; one authoritative owner/writer | [S5–S7], backend capability/security and restore/cutover design | State custodian and security/operations reviewers |
+| D08 — OPEN | Post-R4 VPC / later EKS/ingress | Exact provider/resource compatibility and version policy | Existing pins/locks unchanged; no assumed private EKS/VPC Link/NLB/controller behavior | Pinned provider schema, relevant AWS docs and reviewed mock contract; runtime behavior separately evidenced | Module/platform reviewers |
+| D09 — OPEN | R1–R4 / later ingress | Scoped trust, PassRole and Kubernetes controller rights | Exact principals/SA/RBAC/resource scopes; prevent controller/Terraform double ownership | [S8], effective trust/permission matrix and least-privilege resource/action references | IAM/security/platform owners |
 | D10 — OPEN | Later ingress | NLB/TargetGroupBinding feasibility and cross-zone/health behavior | Terraform infrastructure versus Pod registration, TCP:443 passthrough, Gateway mTLS; no ALB substitution | Current AWS NLB/VPC Link and controller documentation/provider evidence in relevant PR | Ingress/platform/security reviewers |
-| D11 — OPEN | F1–F6 / later EKS | Capacity and costs | Safe DEV mesh/system fit; surviving-AZ STG/PROD peak CPU/memory/Pods/IP/DB capacity; no fixed workers/replicas guarantee | [S1–S4], explicit peak/overhead model, endpoint/NAT/service pricing and budget assumptions | Platform/network/cost owners |
-| D12 — OPEN | F5 / any later Live | Teardown and scenario compatibility | Cumulative actual JPY 10,000, complete removal within 72 hours; all exercise-created managed/external resources tracked | [Readiness G01–G07](dev-live-validation-readiness.md), approved scope/estimate/inventory/state reconciliation and teardown evidence | Account/state/security/cost/operations approvers |
+| D11 — OPEN | Post-R4 VPC / later EKS | Capacity and costs | Safe DEV mesh/system fit; surviving-AZ STG/PROD peak CPU/memory/Pods/IP/DB capacity; no fixed workers/replicas guarantee | [S1–S4], explicit peak/overhead model, endpoint/NAT/service pricing and budget assumptions | Platform/network/cost owners |
+| D12 — OPEN | Post-R4 roots / any later Live | Teardown and scenario compatibility | Cumulative actual JPY 10,000, complete removal within 72 hours; all exercise-created managed/external resources tracked | [Readiness G01–G07](dev-live-validation-readiness.md), approved scope/estimate/inventory/state reconciliation and teardown evidence | Account/state/security/cost/operations approvers |
 
 No conflict with the approved target was established from the source/reference
-review. The shared-table composition conflict is a future ownership decision,
+review. The shared-table compatibility conflict remains a future technical decision
+within approved vpc ownership,
 not permission to weaken existing VPC assertions. The historical Secrets Manager
 30-day recovery remains a blocker for 72-hour complete deletion if created
 unchanged; do not fix it silently or authorize the full unchanged MVP for Live.
