@@ -1,7 +1,7 @@
 mock_provider "aws" {}
 
 # Only provider-computed attributes are supplied. All configured resource
-# arguments and all seven child modules still come from the actual root.
+# arguments and all five child module instances still come from the actual root.
 # These identities are synthetic; mocks neither authenticate nor deploy.
 override_resource {
   target          = module.artifact_bucket.aws_s3_bucket.this
@@ -174,9 +174,13 @@ run "default_secret_read_disabled" {
 
   assert {
     condition = (
-      module.lambda_workload.execution_role_arn == module.lambda_workload.execution_role_arn &&
-      module.lambda_workload.log_group_arn == module.lambda_workload.log_group_arn &&
-      module.lambda_workload.log_group_name == module.lambda_workload.log_group_name &&
+      module.lambda_workload.execution_role_name == "${local.name_prefix}-execution" &&
+      module.lambda_workload.execution_role_arn == "arn:aws:iam::${var.aws_account_id}:role/${local.name_prefix}-execution" &&
+      module.lambda_workload.permission_scope.role_name == module.lambda_workload.execution_role_name &&
+      module.lambda_workload.inline_policy_name == "LambdaWorkloadAccess" &&
+      module.lambda_workload.log_group_name == "/aws/lambda/${local.name_prefix}-function" &&
+      module.lambda_workload.log_group_arn == "arn:aws:logs:${local.region}:${var.aws_account_id}:log-group:/aws/lambda/${local.name_prefix}-function" &&
+      module.lambda_workload.permission_scope.log_group_arn == module.lambda_workload.log_group_arn &&
       module.lambda_workload.runtime == var.lambda_runtime &&
       module.lambda_workload.architecture == "x86_64" &&
       length(module.lambda_workload.vpc_configuration.subnet_ids) == 0 &&
@@ -184,7 +188,7 @@ run "default_secret_read_disabled" {
       module.artifact_bucket.bucket_name == var.artifact_bucket_name &&
       module.artifact_bucket.versioning_status == "Enabled"
     )
-    error_message = "Actual module outputs must bind the workload role, Lambda log group and explicit artifact bucket without VPC integration."
+    error_message = "Provider-backed role/log outputs must match the root workload identity and permission scope, with the explicit artifact bucket and no VPC integration."
   }
 
   assert {
@@ -232,7 +236,8 @@ run "enabled_exact_secret_read" {
       module.lambda_workload.secret_read_enabled &&
       module.lambda_workload.permission_scope.secret_arn == module.secret_metadata.secret_arn &&
       module.lambda_workload.permission_scope.secret_kms_key_arn == null &&
-      module.lambda_workload.execution_role_arn == module.lambda_workload.execution_role_arn &&
+      module.lambda_workload.execution_role_name == "${local.name_prefix}-execution" &&
+      module.lambda_workload.execution_role_arn == "arn:aws:iam::${var.aws_account_id}:role/${local.name_prefix}-execution" &&
       output.secret_metadata_arn == module.secret_metadata.secret_arn
     )
     error_message = "Opt-in secret reading must pass the actual full secret ARN to the existing role contract without enabling customer-managed KMS access."
