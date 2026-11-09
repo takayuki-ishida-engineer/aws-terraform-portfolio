@@ -31,7 +31,7 @@ override_resource {
 }
 
 override_resource {
-  target          = module.lambda_logs.aws_cloudwatch_log_group.this
+  target          = module.lambda_workload.aws_cloudwatch_log_group.this
   override_during = plan
   values = {
     arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/aws/lambda/aws-terraform-portfolio-dev-serverless-api-function"
@@ -49,7 +49,7 @@ override_resource {
 }
 
 override_resource {
-  target          = module.lambda_execution_role.aws_iam_role.this
+  target          = module.lambda_workload.aws_iam_role.this
   override_during = plan
   values = {
     arn = "arn:aws:iam::000000000000:role/aws-terraform-portfolio-dev-serverless-api-execution"
@@ -57,7 +57,7 @@ override_resource {
 }
 
 override_resource {
-  target          = module.lambda_function.aws_lambda_function.this
+  target          = module.lambda_workload.aws_lambda_function.this
   override_during = plan
   values = {
     arn        = "arn:aws:lambda:ca-central-1:000000000000:function:aws-terraform-portfolio-dev-serverless-api-function"
@@ -162,25 +162,25 @@ run "default_secret_read_disabled" {
   assert {
     condition = (
       !var.enable_secret_read &&
-      !module.lambda_execution_role.secret_read_enabled &&
-      module.lambda_execution_role.permission_scope.secret_arn == null &&
-      module.lambda_execution_role.permission_scope.secret_kms_key_arn == null &&
-      module.lambda_execution_role.permission_scope.partition == "aws" &&
-      module.lambda_execution_role.permission_scope.account_id == var.aws_account_id &&
-      module.lambda_execution_role.permission_scope.region == "ca-central-1"
+      !module.lambda_workload.secret_read_enabled &&
+      module.lambda_workload.permission_scope.secret_arn == null &&
+      module.lambda_workload.permission_scope.secret_kms_key_arn == null &&
+      module.lambda_workload.permission_scope.partition == "aws" &&
+      module.lambda_workload.permission_scope.account_id == var.aws_account_id &&
+      module.lambda_workload.permission_scope.region == "ca-central-1"
     )
     error_message = "The default root must select the fixed workload scope without a secret or customer-managed KMS grant."
   }
 
   assert {
     condition = (
-      module.lambda_function.execution_role_arn == module.lambda_execution_role.execution_role_arn &&
-      module.lambda_execution_role.log_group_arn == module.lambda_logs.log_group_arn &&
-      module.lambda_function.log_group_name == module.lambda_logs.log_group_name &&
-      module.lambda_function.runtime == var.lambda_runtime &&
-      module.lambda_function.architecture == "x86_64" &&
-      length(module.lambda_function.vpc_configuration.subnet_ids) == 0 &&
-      length(module.lambda_function.vpc_configuration.security_group_ids) == 0 &&
+      module.lambda_workload.execution_role_arn == module.lambda_workload.execution_role_arn &&
+      module.lambda_workload.log_group_arn == module.lambda_workload.log_group_arn &&
+      module.lambda_workload.log_group_name == module.lambda_workload.log_group_name &&
+      module.lambda_workload.runtime == var.lambda_runtime &&
+      module.lambda_workload.architecture == "x86_64" &&
+      length(module.lambda_workload.vpc_configuration.subnet_ids) == 0 &&
+      length(module.lambda_workload.vpc_configuration.security_group_ids) == 0 &&
       module.artifact_bucket.bucket_name == var.artifact_bucket_name &&
       module.artifact_bucket.versioning_status == "Enabled"
     )
@@ -189,15 +189,15 @@ run "default_secret_read_disabled" {
 
   assert {
     condition = (
-      module.lambda_logs.log_group_name != module.api_access_logs.log_group_name &&
-      module.lambda_logs.log_group_arn != module.api_access_logs.log_group_arn &&
-      module.lambda_logs.retention_in_days == 30 &&
+      module.lambda_workload.log_group_name != module.api_access_logs.log_group_name &&
+      module.lambda_workload.log_group_arn != module.api_access_logs.log_group_arn &&
+      module.lambda_workload.log_retention_in_days == 30 &&
       module.api_access_logs.retention_in_days == 30 &&
-      module.lambda_logs.deletion_protection_enabled &&
+      module.lambda_workload.log_deletion_protection_enabled &&
       module.api_access_logs.deletion_protection_enabled &&
-      module.lambda_logs.log_group_class == "STANDARD" &&
+      module.lambda_workload.log_group_class == "STANDARD" &&
       module.api_access_logs.log_group_class == "STANDARD" &&
-      module.lambda_logs.kms_key_arn == null &&
+      module.lambda_workload.log_kms_key_arn == null &&
       module.api_access_logs.kms_key_arn == null &&
       module.secret_metadata.kms_configuration.requested_mode == "aws-managed" &&
       !module.secret_metadata.resource_policy_managed
@@ -210,11 +210,11 @@ run "default_secret_read_disabled" {
       output.api_invoke_url == module.http_api.invoke_url &&
       output.api_invoke_url == "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com/" &&
       output.api_id == module.http_api.api_id &&
-      output.lambda_function_name == module.lambda_function.function_name &&
-      output.lambda_function_arn == module.lambda_function.function_arn &&
+      output.lambda_function_name == module.lambda_workload.function_name &&
+      output.lambda_function_arn == module.lambda_workload.function_arn &&
       output.artifact_bucket_name == module.artifact_bucket.bucket_name &&
       output.secret_metadata_arn == module.secret_metadata.secret_arn &&
-      output.lambda_log_group_name == module.lambda_logs.log_group_name &&
+      output.lambda_log_group_name == module.lambda_workload.log_group_name &&
       output.api_access_log_group_name == module.api_access_logs.log_group_name
     )
     error_message = "Every root operational output must preserve the corresponding actual child-module output, including the provider-returned stage URL."
@@ -229,10 +229,10 @@ run "enabled_exact_secret_read" {
 
   assert {
     condition = (
-      module.lambda_execution_role.secret_read_enabled &&
-      module.lambda_execution_role.permission_scope.secret_arn == module.secret_metadata.secret_arn &&
-      module.lambda_execution_role.permission_scope.secret_kms_key_arn == null &&
-      module.lambda_function.execution_role_arn == module.lambda_execution_role.execution_role_arn &&
+      module.lambda_workload.secret_read_enabled &&
+      module.lambda_workload.permission_scope.secret_arn == module.secret_metadata.secret_arn &&
+      module.lambda_workload.permission_scope.secret_kms_key_arn == null &&
+      module.lambda_workload.execution_role_arn == module.lambda_workload.execution_role_arn &&
       output.secret_metadata_arn == module.secret_metadata.secret_arn
     )
     error_message = "Opt-in secret reading must pass the actual full secret ARN to the existing role contract without enabling customer-managed KMS access."
@@ -246,7 +246,7 @@ run "node_runtime" {
     lambda_handler = "index.handler"
   }
   assert {
-    condition     = module.lambda_function.runtime == "nodejs22.x"
+    condition     = module.lambda_workload.runtime == "nodejs22.x"
     error_message = "The reviewed Node.js runtime must remain available with a matching explicit handler."
   }
 }
@@ -258,7 +258,7 @@ run "java_runtime" {
     lambda_handler = "com.example.Handler::handleRequest"
   }
   assert {
-    condition     = module.lambda_function.runtime == "java21"
+    condition     = module.lambda_workload.runtime == "java21"
     error_message = "The reviewed Java runtime must remain available with a matching explicit handler."
   }
 }

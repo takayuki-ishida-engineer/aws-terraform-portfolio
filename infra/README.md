@@ -1,3 +1,38 @@
+# Current R1 integration and preserved technical history
+
+R1 consolidates the existing Lambda function, execution role/inline policy and
+application Log Group in [lambda_workload](modules/lambda_workload/README.md).
+Current source has **eight child modules**, **five DEV root instances** and the
+same **17 managed resource definitions**. The generic CloudWatch module remains
+for independent 51-case verification and API access logging; R2 is not performed.
+No HTTP API, provider/backend/root-lock, secret or artifact behavior is changed.
+
+Local R1 evidence: 188 native workload cases and five root cases pass; all four
+root resource moves are explicit, other thirteen addresses/eight outputs preserved.
+The actual-plan checker retains 14 IAM mutations, 44 capture faults and five public
+reference faults, with 2,025 authorization witnesses across 45 positive workloads;
+it adds 15 workload mutations, seven capture faults and three source-ordering
+mutations. Root retains 35/22 mutation/capture checks and 12 rejected inputs.
+The old/new four positive root-plan pairs match effective settings and outputs
+under the exact address map, excluding only unconfigured computed mock metadata.
+No state operation, authenticated plan, deployment or actual migration is claimed.
+
+The unchanged 245 other module cases, 153 Python tests and IAM/toolkit/guardrail
+regression remain GitHub Actions' responsibility. Expected full native total is
+438 if every suite succeeds, not a claim of completed PR CI. CI now initializes
+nine workspace configurations (root + eight children) sharing one locked binary;
+all identity/samefile/storage/completeness checks remain. See the
+[root contract](services/dev/ca-central-1/serverless-api/README.md) and
+[migration record](../docs/repository-structure-strategy.md).
+
+## Historical snapshots (before R1)
+
+The material below preserves the previous implementation history/counts. Links to
+retired Lambda/role source resolve to the pre-R1 commit rather than missing live
+directories. Historical acceptance documents remain evidence at their recorded
+revisions; consult their original commit view for retired source links. The old
+384/153 result is not rewritten as new R1 or Architecture v2 success.
+
 > Technical history of the implemented offline MVP, preserved from repository
 > main `734ee0d0a56bbecd025b132b2b415f386bb38776`. Directory trees, command working
 > directories and inline code paths below are relative to the repository root,
@@ -27,9 +62,9 @@ now composes the reviewed workload modules in Phase 3-9. The reusable
 [`IAM access`](modules/iam_access/README.md),
 [`account IAM policies`](modules/iam_account_policies/README.md),
 [`Secrets Manager`](modules/secrets_manager/README.md),
-[`Lambda`](modules/lambda/README.md),
+[`Lambda`](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda/README.md),
 [`CloudWatch Logs`](modules/cloudwatch_logs/README.md),
-[`Lambda execution role`](modules/lambda_execution_role/README.md),
+[`Lambda execution role`](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda_execution_role/README.md),
 [`S3 artifact bucket`](modules/s3_artifact_bucket/README.md) and
 [`API Gateway HTTP API`](modules/api_gateway_http/README.md) modules have native
 mock tests.
@@ -443,7 +478,7 @@ AWS cases nor change the 54-case inventory. They do not establish deployed-role
 authorization or production readiness. See the
 [guardrail limitations](../scripts/aws-policy-validation/README.md#independent-guardrail-verification-phase-3-37).
 
-The [Lambda module](modules/lambda/README.md) documents Root Override,
+The [Lambda module](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda/README.md) documents Root Override,
 Module Default and Module Fixed settings, plus externally managed role trust,
 logging/retention, artifacts, runtime/layer compatibility and VPC connectivity.
 Only non-secret configuration and Secrets Manager names/ARNs belong in its
@@ -459,7 +494,7 @@ separate from future log-stream IAM resource scopes. External KMS suitability,
 key policies and access to historical encrypted logs require review. No existing
 Lambda implementation, IAM policy or service root is changed by this phase.
 
-The [Lambda execution-role module](modules/lambda_execution_role/README.md)
+The [Lambda execution-role module](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda_execution_role/README.md)
 owns one workload role and one narrow inline policy, with independent checks of
 actual rendered JSON against official Logs/Secrets Manager/KMS references and a
 static authorization matrix. Account/region/partition consistency does not select

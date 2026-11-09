@@ -8,6 +8,7 @@ variable "function_name" {
   }
 }
 
+
 variable "description" {
   description = "Optional visible, non-sensitive function description."
   type        = string
@@ -19,18 +20,6 @@ variable "description" {
   }
 }
 
-variable "execution_role_arn" {
-  description = "Existing Lambda execution role ARN with reviewed trust and workload permissions; this module grants nothing."
-  type        = string
-
-  validation {
-    condition = can(regex(
-      "^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/([A-Za-z0-9_+=,.@-]+/)*[A-Za-z0-9_+=,.@-]{1,64}$",
-      var.execution_role_arn
-    )) && try(length(var.execution_role_arn) <= 2048, false)
-    error_message = "execution_role_arn must be a complete IAM role ARN in a supported partition, with an explicit 12-digit account and role name; users, STS sessions and wildcard ARNs are rejected."
-  }
-}
 
 variable "s3_bucket" {
   description = "Name of an existing general-purpose S3 artifact bucket; the caller verifies versioning, access and region compatibility."
@@ -49,6 +38,7 @@ variable "s3_bucket" {
   }
 }
 
+
 variable "s3_key" {
   description = "Exact existing ZIP object's S3 key, not a URI or local filename to build/upload; non-secret and at most 1024 UTF-8 bytes."
   type        = string
@@ -65,6 +55,7 @@ variable "s3_key" {
   }
 }
 
+
 variable "s3_object_version" {
   description = "Explicit immutable version ID of the existing ZIP object; the S3 null version is forbidden."
   type        = string
@@ -75,6 +66,7 @@ variable "s3_object_version" {
   }
 }
 
+
 variable "runtime" {
   description = "Explicit reviewed managed ZIP runtime: nodejs22.x, python3.13 or java21; artifact compatibility is verified externally."
   type        = string
@@ -84,6 +76,7 @@ variable "runtime" {
     error_message = "runtime must be one of the reviewed managed ZIP runtimes: nodejs22.x, python3.13 or java21."
   }
 }
+
 
 variable "handler" {
   description = "Explicit handler compatible with the selected runtime and existing ZIP artifact; syntax validation cannot inspect code."
@@ -102,6 +95,7 @@ variable "handler" {
   }
 }
 
+
 variable "architecture" {
   description = "One instruction-set architecture; compatible code, dependencies and layers must already exist."
   type        = string
@@ -113,6 +107,7 @@ variable "architecture" {
     error_message = "architecture must be x86_64 or arm64."
   }
 }
+
 
 variable "memory_size" {
   description = "Memory allocation in MB for standard Lambda execution, not Lambda Managed Instances."
@@ -126,6 +121,7 @@ variable "memory_size" {
   }
 }
 
+
 variable "timeout" {
   description = "Maximum invocation duration in whole seconds; real downstream timeouts must be reviewed by the caller."
   type        = number
@@ -138,6 +134,7 @@ variable "timeout" {
   }
 }
 
+
 variable "ephemeral_storage_size" {
   description = "Ephemeral /tmp capacity in MB; allocations above the included 512 MB can incur additional charges."
   type        = number
@@ -149,6 +146,7 @@ variable "ephemeral_storage_size" {
     error_message = "ephemeral_storage_size must be an integer from 512 through 10240 MB."
   }
 }
+
 
 variable "environment_variables" {
   description = "Non-secret configuration only, including optional secret ARN/name references. Never pass secret values: Terraform records these inputs in plans/state."
@@ -177,6 +175,7 @@ variable "environment_variables" {
   }
 }
 
+
 variable "layers" {
   description = "Up to five distinct existing versioned Lambda layer ARNs, in application order; runtime/architecture/region and access compatibility are external prerequisites."
   type        = list(string)
@@ -193,13 +192,14 @@ variable "layers" {
   }
 
   validation {
-    condition = !can(regex("^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/", var.execution_role_arn)) || try(
-      alltrue([for arn in var.layers : split(":", arn)[1] == split(":", var.execution_role_arn)[1]]),
+    condition = !can(regex("^(aws|aws-us-gov)$", var.partition)) || try(
+      alltrue([for arn in var.layers : split(":", arn)[1] == var.partition]),
       false
     )
     error_message = "Every layer ARN must use the same AWS partition as the execution role; the caller must separately verify the Lambda region and compatibility."
   }
 }
+
 
 variable "reserved_concurrent_executions" {
   description = "Optional whole-number reserved concurrency; null leaves the unreserved account pool unchanged, while zero intentionally disables invocation."
@@ -212,6 +212,7 @@ variable "reserved_concurrent_executions" {
   }
 }
 
+
 variable "subnet_ids" {
   description = "Optional distinct existing VPC subnet IDs; provide together with security_group_ids and externally reviewed ENI permissions/network access."
   type        = list(string)
@@ -223,6 +224,7 @@ variable "subnet_ids" {
     error_message = "subnet_ids must contain at most 16 distinct valid subnet IDs using either eight or 17 lowercase hexadecimal characters."
   }
 }
+
 
 variable "security_group_ids" {
   description = "Optional distinct existing VPC security group IDs; an empty subnet list requires an empty group list, and attachment requires both."
@@ -241,8 +243,9 @@ variable "security_group_ids" {
   }
 }
 
+
 variable "log_group_name" {
-  description = "Name of an already provisioned CloudWatch Log Group; retention, access and ordering are owned outside this module."
+  description = "Stable non-secret name of the dedicated log group owned by this workload."
   type        = string
 
   validation {
@@ -250,6 +253,7 @@ variable "log_group_name" {
     error_message = "log_group_name must be 1-512 supported CloudWatch name characters and must not start with the Lambda-reserved literal prefix aws/."
   }
 }
+
 
 variable "tags" {
   description = "Optional visible, non-secret function tags, passed through without module-added keys; provider default_tags are owned by the root."
@@ -262,5 +266,195 @@ variable "tags" {
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") && try(length(value) <= 256, false)
     ])
     error_message = "tags must have at most 50 entries, 1-128-character non-reserved keys and non-null values of at most 256 characters."
+  }
+}
+
+variable "role_name" {
+  description = "Stable explicit workload execution-role name; no generated suffix or human-access role is created."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_+=,.@-]{1,64}$", var.role_name))
+    error_message = "role_name must contain 1-64 supported IAM role-name characters without paths, ARNs or wildcards."
+  }
+}
+
+
+variable "partition" {
+  description = "Explicit supported AWS partition. China and other partitions are deliberately outside this phase's reviewed Lambda trust contract."
+  type        = string
+
+  validation {
+    condition     = can(regex("^(aws|aws-us-gov)$", var.partition))
+    error_message = "partition must be aws or aws-us-gov; aws-cn and other partitions are not supported by this phase."
+  }
+}
+
+
+variable "account_id" {
+  description = "Expected workload account for all resource references; the owning root must select and restrict the provider to this account."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]{12}$", var.account_id))
+    error_message = "account_id must be an explicit 12-digit AWS account ID without wildcards."
+  }
+}
+
+
+variable "region" {
+  description = "Explicit workload region, consistent with the selected partition; existence and provider selection are verified externally."
+  type        = string
+
+  validation {
+    condition = try(length(var.region) <= 63 && can(regex("^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$", var.region)) &&
+      (!can(regex("^(aws|aws-us-gov)$", var.partition)) ||
+        (var.partition == "aws-us-gov" ? startswith(var.region, "us-gov-") :
+    !can(regex("^(cn-|us-gov-|us-iso|eu-iso)", var.region)))), false)
+    error_message = "region must be an explicit supported-shape region of at most 63 characters and use the selected partition's region family."
+  }
+}
+
+
+variable "enable_secret_read" {
+  description = "Genuine optional runtime permission for one exact secret; false grants no Secrets Manager or KMS access."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+
+variable "secret_arn" {
+  description = "Optional actual resource-generated full secret ARN with its six-character suffix; never a secret value or reconstructed partial ARN."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.enable_secret_read ? var.secret_arn != null : var.secret_arn == null
+    error_message = "secret_arn is required when enable_secret_read is true and must be null when secret reading is disabled."
+  }
+
+  validation {
+    condition     = var.secret_arn == null || can(regex(local.secret_pattern, var.secret_arn))
+    error_message = "secret_arn must be null or a complete supported-partition Secrets Manager ARN with a valid name and generated six-character suffix; partial ARNs and wildcards are rejected."
+  }
+
+  validation {
+    condition = var.secret_arn == null || !local.scope_is_valid || try(
+      split(":", var.secret_arn)[1] == var.partition &&
+      split(":", var.secret_arn)[3] == var.region &&
+      split(":", var.secret_arn)[4] == var.account_id, false
+    )
+    error_message = "secret_arn must match the configured partition, workload region and expected account."
+  }
+}
+
+
+variable "secret_kms_key_arn" {
+  description = "Optional exact existing customer-managed KMS key ARN for the authorized secret; null adds no KMS permission and does not discover the key type."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.secret_kms_key_arn == null || (var.enable_secret_read && var.secret_arn != null)
+    error_message = "secret_kms_key_arn is permitted only with enable_secret_read true and an explicit secret_arn."
+  }
+
+  validation {
+    condition = var.secret_kms_key_arn == null || try(
+      length(var.secret_kms_key_arn) <= 256 && can(regex(local.key_pattern, var.secret_kms_key_arn)), false
+    )
+    error_message = "secret_kms_key_arn must be null or a complete supported-partition KMS key ARN of at most 256 characters with a UUID or mrk identifier; aliases, partial IDs and wildcards are rejected."
+  }
+
+  validation {
+    condition = var.secret_kms_key_arn == null || !local.scope_is_valid || try(
+      split(":", var.secret_kms_key_arn)[1] == var.partition &&
+      split(":", var.secret_kms_key_arn)[3] == var.region &&
+      split(":", var.secret_kms_key_arn)[4] == var.account_id, false
+    )
+    error_message = "secret_kms_key_arn must match the configured partition, workload region and expected account."
+  }
+}
+
+
+variable "role_tags" {
+  description = "Optional visible non-secret role tags, passed through without invented Name or Project metadata; root default_tags remain root-owned."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition = length(var.role_tags) <= 50 && alltrue([for key, value in var.role_tags :
+      length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
+      can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]+$", key)) &&
+      try(length(value) <= 256 && can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*$", value)), false)
+    ])
+    error_message = "tags must have at most 50 non-secret entries; keys 1-128 and values 0-256 permitted Unicode characters, no null values or reserved aws: prefix."
+  }
+}
+
+variable "log_retention_in_days" {
+  description = "Explicit finite retention period in supported whole days; indefinite retention is not exposed by this module."
+  type        = number
+  default     = 30
+  nullable    = false
+
+  validation {
+    condition = contains([
+      1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545,
+      731, 1096, 1827, 2192, 2557, 2922, 3288, 3653
+    ], var.log_retention_in_days)
+    error_message = "log_retention_in_days must be one of 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288 or 3653; zero/indefinite retention is forbidden."
+  }
+}
+
+
+variable "log_deletion_protection_enabled" {
+  description = "Protect the log group from deletion by default; an authorized owner must first disable and apply this setting before a later destroy."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+
+variable "log_kms_key_arn" {
+  description = "Optional existing symmetric customer-managed KMS key ARN; key usability, region, permissions and historical-log access are external responsibilities."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.log_kms_key_arn == null || (
+      can(regex(
+        "^arn:(aws|aws-us-gov):kms:[a-z]{2}(-[a-z0-9]+)+-[0-9]+:[0-9]{12}:key/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|mrk-[0-9a-f]{32})$",
+        var.log_kms_key_arn
+      )) && try(length(var.log_kms_key_arn) <= 256, false)
+    )
+    error_message = "log_kms_key_arn must be null or a complete KMS key ARN up to 256 characters with an explicit supported partition, region, 12-digit account and UUID or multi-region key ID; aliases, bare IDs and wildcards are rejected."
+  }
+  validation {
+    condition = var.log_kms_key_arn == null || !local.scope_is_valid || try(
+      split(":", var.log_kms_key_arn)[1] == var.partition &&
+      split(":", var.log_kms_key_arn)[3] == var.region &&
+      split(":", var.log_kms_key_arn)[4] == var.account_id, false
+    )
+    error_message = "The dedicated workload log key must match expected partition, Region and account; generic logging syntax remains independently supported."
+  }
+}
+
+
+variable "log_tags" {
+  description = "Optional visible, non-secret tags passed through without module-owned Name or Project metadata; provider default_tags remain root-owned."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition = length(var.log_tags) <= 50 && alltrue([for key, value in var.log_tags :
+      length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
+      can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]+$", key)) &&
+      try(length(value) <= 256, false) && can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*$", value))
+    ])
+    error_message = "tags must have at most 50 entries, 1-128-character keys without the reserved aws: prefix, and non-null values up to 256 characters; only Unicode letters, separators, numbers and _ . : / = + @ - are supported."
   }
 }

@@ -6,20 +6,73 @@
 Root → Child composition, and migration-first R0 → R1 → R2 → R3 → R4 before new
 Architecture v2 features. This instruction approves the strategy, not a Terraform
 migration, resource name, AWS operation or completed Live gate. Module count is
-not an optimization target or acceptance condition. Master Policy v10 (2026-11-08)
-remains authoritative for architecture/security/environment/Live requirements.
+not an optimization target or acceptance condition. R0 recorded Master Policy v10
+(2026-11-08). R1 follows the current approved v11 (2026-11-09) instruction and
+approved Git design documents; the external policy PDF is not edited here.
 
-Current source: main `9bfb4bf9146d85744ab88fef117007851ba29346`, with matching
+Pre-R1/R0 source snapshot: main `9bfb4bf9146d85744ab88fef117007851ba29346`, with matching
 [successful CI 42585657162](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42585657162).
 The [technical history](../infra/README.md), [MVP acceptance](offline-mvp-acceptance.md),
 [Architecture v2](architecture-v2.md), [foundation design](architecture-v2-foundation-design.md)
 and [verification policy](portfolio-verification-policy.md) remain evidence/design
 references. No historical result is rewritten as post-refactor or v2 evidence.
 
-R0 changes documentation only. No directory below is created, renamed or removed;
-all nine existing modules and the seven-instance/17-resource HTTP API MVP remain
-unchanged. The external Master Policy PDF will be revised separately after review
+R0 changed documentation only and left all nine modules and the seven-instance/
+17-resource HTTP API MVP unchanged. R1 source status is recorded below; later
+R2–R4 and new-feature work is not performed by R1. The external Master Policy PDF will be revised separately after review
 and merge; it is not generated or edited here.
+
+## R1 implementation status — offline source refactor
+
+The four approved resource-level moves are now declared in
+[DEV moved.tf](../infra/services/dev/ca-central-1/serverless-api/moved.tf):
+
+| Previous address | Implemented destination address |
+| --- | --- |
+| module.lambda_function.aws_lambda_function.this | module.lambda_workload.aws_lambda_function.this |
+| module.lambda_execution_role.aws_iam_role.this | module.lambda_workload.aws_iam_role.this |
+| module.lambda_execution_role.aws_iam_role_policy.this | module.lambda_workload.aws_iam_role_policy.this |
+| module.lambda_logs.aws_cloudwatch_log_group.this | module.lambda_workload.aws_cloudwatch_log_group.this |
+
+Current [root main](../infra/services/dev/ca-central-1/serverless-api/main.tf) calls
+artifact_bucket, secret_metadata, api_access_logs, lambda_workload and http_api.
+The other thirteen full resource addresses and eight public output contracts are
+unchanged. New [module](../infra/modules/lambda_workload/README.md) owns exactly
+four resources. Old standalone lambda and lambda_execution_role source/tests are
+retired after relocated coverage passes. Current library count is eight, not a
+number-reduction acceptance target. Generic cloudwatch_logs and its original 51
+cases remain unchanged for API logs and independent broader-partition validation.
+
+Resolved interface: required function_name, role_name, partition, account_id,
+region, log_group_name and versioned artifact/runtime/handler inputs; no externally
+supplied role ARN or log ARN. Distinct function tags, role_tags and log_tags preserve
+prior default/tag behavior. Owned log key validates integrated scope (aws/GovCloud);
+generic aws-cn acceptance is independently retained. Role/log ARNs and function
+bindings are actual resource references, with inline-policy readiness explicit.
+
+The [coverage manifest](../infra/modules/lambda_workload/tests/coverage.json) maps
+all old 70 Lambda and 64 role cases one-to-one; 51 additional integrated logging
+adaptations and three new log-key scope negatives give 188 locally passing native
+cases (45 complete four-resource positives, 143 rejected partial plans). No old
+negative/mutation/reference family was deleted. Role verifier retains 14/44/5
+mutation/capture/reference families, adds 15 workload/7 capture/3 source-ordering
+checks and exercises 2,025 authorization witnesses. Root 5 native/35 mutations/22
+capture faults and 12 input rejections pass locally. Unrelated full regression is
+delegated to unchanged GitHub security suites; R1 completed CI/merge approval is
+not claimed. Expected native total if all suites succeed is 438, not historical
+384 rebranded. Exact PR-head CI is independently reviewed.
+
+Four actual old/new positive root plan pairs retain 17 resource types/settings,
+known bound identities and eight outputs after this mapping. Only random
+unconfigured provider-computed mock metadata was ignored after schema/source
+checks; no configured attribute or operational ARN was excluded. Terraform 1.17
+init/validate/native plans accept the four move declarations, but empty-state mocks
+do not prove actual state migration or absence of live recreation. No state/API/
+plan/apply/import/destroy operation has been performed against AWS.
+
+The following R0 design/history and R2–R4 obligations remain applicable, with this
+R1 status resolving only the four destination/output decisions. API access-log
+consolidation and generic-log removal are still R2, not R1.
 
 ## 2. Child modules: coherent functionality and lifecycle
 
@@ -121,13 +174,14 @@ mechanism. No duplicate Istio/AuthorizationPolicy/controller/resource owner.
 
 ## 4. Approved target functional-module inventory
 
-All rows are intended ownership, not implemented future capability. Existing names
-below remain directories today; new names are not created in R0.
+All rows are intended ownership, not implemented future capability. Names/status
+below distinguish pre-R1 source from current R1 and future work;
+R0 created no module directories.
 
 | Intended child module | Intended responsibility | Current / future distinction |
 | --- | --- | --- |
 | vpc | VPC, keyed subnets, IGW/NAT/EIP, routing and compatible endpoints | Existing base retained; new features only after R4 |
-| lambda_workload | Function, dedicated execution role/policy and dedicated Lambda log resources | New consolidation target in R1; no application feature changes |
+| lambda_workload | Function, dedicated execution role/policy and dedicated Lambda log resources | Implemented R1 source consolidation; no application feature changes |
 | api_gateway_http | Historical HTTP API and dedicated API access logging | Existing five API/permission resources; log ownership migrates in R2 |
 | api_gateway_rest | Regional REST methods, Cognito authorizer references, VPC Link V2, custom-domain mTLS, Regional WAF and logs | Future, subject to compatibility/security review |
 | cognito_auth | User Pool, App Client, non-secret federation and AWS-managed login domain | Future; no plaintext Google secrets in Terraform |
@@ -166,9 +220,9 @@ session control. Port-forwarding session logs must not be assumed to capture SQL
 traffic. Weekday STOP is not verified full DEV Live teardown. No instance/controller
 is implemented here.
 
-## 6. Existing nine modules and call sites
+## 6. Pre-R1 nine-module inventory and call sites
 
-The following inventory is derived from current .tf declarations and the DEV root,
+The following pre-R1 inventory is derived from the recorded source and DEV root,
 not directory-name assumptions. Resource addresses in this table are relative to
 a module instance; count/for_each instances in VPC vary by approved inputs.
 
@@ -178,14 +232,14 @@ a module instance; count/for_each instances in VPC vary by approved inputs.
 | [`cloudwatch_logs`](../infra/modules/cloudwatch_logs/README.md) | `aws_cloudwatch_log_group.this` | module.lambda_logs, module.api_access_logs | Dedicated Lambda logs → lambda_workload (R1); API logs → api_gateway_http (R2); remove only after no legitimate consumers and verified coverage |
 | [`iam_access`](../infra/modules/iam_access/README.md) | `aws_ssoadmin_customer_managed_policy_attachment.developer`, `aws_ssoadmin_permission_set.access_admin`, `aws_ssoadmin_permission_set.developer`, `aws_ssoadmin_permission_set.operator`, `aws_ssoadmin_permission_set_inline_policy.access_admin`, `aws_ssoadmin_permission_set_inline_policy.developer`, `aws_ssoadmin_permission_set_inline_policy.operator` | No service-root call | Retain independent Identity Center administration |
 | [`iam_account_policies`](../infra/modules/iam_account_policies/README.md) | `aws_iam_policy.developer_secrets_manager` | No service-root call; IAM access test run account_policy_fixture uses source ../iam_account_policies | Retain workload-account policy ownership |
-| [`lambda`](../infra/modules/lambda/README.md) | `aws_lambda_function.this` | module.lambda_function | Consolidate into lambda_workload (R1) |
-| [`lambda_execution_role`](../infra/modules/lambda_execution_role/README.md) | `aws_iam_role.this`, `aws_iam_role_policy.this` | module.lambda_execution_role | Consolidate into lambda_workload (R1) |
+| [`lambda`](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda/README.md) | `aws_lambda_function.this` | module.lambda_function | Consolidate into lambda_workload (R1) |
+| [`lambda_execution_role`](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda_execution_role/README.md) | `aws_iam_role.this`, `aws_iam_role_policy.this` | module.lambda_execution_role | Consolidate into lambda_workload (R1) |
 | [`s3_artifact_bucket`](../infra/modules/s3_artifact_bucket/README.md) | `aws_s3_bucket.this`, `aws_s3_bucket_versioning.this`, `aws_s3_bucket_public_access_block.this`, `aws_s3_bucket_ownership_controls.this`, `aws_s3_bucket_server_side_encryption_configuration.this`, `aws_s3_bucket_policy.this` | module.artifact_bucket | Retain independent artifact lifecycle/state ownership |
 | [`secrets_manager`](../infra/modules/secrets_manager/README.md) | `aws_secretsmanager_secret.this` | module.secret_metadata | Retain metadata-only container/external value boundary |
 | [`vpc`](../infra/modules/vpc/README.md) | `aws_vpc.this`, `aws_subnet.private (keyed/counted where declared)`, `aws_subnet.public (keyed/counted where declared)`, `aws_internet_gateway.this (keyed/counted where declared)`, `aws_route_table.private (keyed/counted where declared)`, `aws_route_table.public (keyed/counted where declared)`, `aws_route_table_association.private (keyed/counted where declared)`, `aws_route_table_association.public (keyed/counted where declared)` | No service-root call | Retain and extend after R4 |
 
-All seven production-code module calls are in
-[DEV main.tf](../infra/services/dev/ca-central-1/serverless-api/main.tf). README
+All seven pre-R1 production-code calls are in
+[baseline DEV main.tf](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/services/dev/ca-central-1/serverless-api/main.tf). README
 examples are not implemented roots; the IAM test fixture is not a human/workload
 integration. The generic logs module has two root consumers, not an assumed shared
 log group. No service root currently calls VPC or either IAM module.
@@ -198,15 +252,14 @@ separate because metadata/recovery/value ownership is not the function lifecycle
 keep artifact storage separate because publication/version retention/bootstrap
 state may outlive releases/functions. Neither should merge merely to reduce count.
 
-## 7. Concrete 17-resource migration matrix
+## 7. Seventeen-resource migration matrix — R1 implemented, R2 deferred
 
 Each current address below exists as a configured resource at this baseline;
 plan-computed IDs do not establish actual AWS resources/state. “Unchanged” means
 an exact address-preservation requirement for retained instances, contingent on
-future implementation. No new internal resource label or consolidated root instance
-name has been approved. OPEN destinations must be resolved in R1/R2 before code or
-move declarations are accepted. Target module source plus resource type is known;
-the exact destination address is not invented here.
+future implementation. R1 fixes the new instance/resource labels exactly as recorded above. Only the
+R2 API access-log destination/internal label remains OPEN. No R2 address is
+invented or migration claimed here.
 
 | Current full managed address | Intended module/type and future address | Move/compatibility disposition |
 | --- | --- | --- |
@@ -217,11 +270,11 @@ the exact destination address is not invented here.
 | `module.artifact_bucket.aws_s3_bucket_server_side_encryption_configuration.this` | `module.artifact_bucket.aws_s3_bucket_server_side_encryption_configuration.this` (retain) | Precise identity mapping if retained as required; no move then needed |
 | `module.artifact_bucket.aws_s3_bucket_policy.this` | `module.artifact_bucket.aws_s3_bucket_policy.this` (retain) | Precise identity mapping if retained as required; no move then needed |
 | `module.secret_metadata.aws_secretsmanager_secret.this` | `module.secret_metadata.aws_secretsmanager_secret.this` (retain) | Precise identity mapping if retained as required; no move then needed |
-| `module.lambda_logs.aws_cloudwatch_log_group.this` | lambda_workload / aws_cloudwatch_log_group; exact instance/internal label OPEN (R1) | Address changes; future resource-level moved declaration or separately approved handling required |
+| `module.lambda_logs.aws_cloudwatch_log_group.this` | `module.lambda_workload.aws_cloudwatch_log_group.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
 | `module.api_access_logs.aws_cloudwatch_log_group.this` | api_gateway_http / aws_cloudwatch_log_group; exact internal label OPEN (R2), retained API instance preferred | Address changes; future moved declaration or separately approved handling required |
-| `module.lambda_execution_role.aws_iam_role.this` | lambda_workload / aws_iam_role; exact instance/internal label OPEN (R1) | Address changes; future resource-level moved declaration or separately approved handling required |
-| `module.lambda_execution_role.aws_iam_role_policy.this` | lambda_workload / aws_iam_role_policy; exact instance/internal label OPEN (R1) | Address changes; future resource-level moved declaration or separately approved handling required |
-| `module.lambda_function.aws_lambda_function.this` | lambda_workload / aws_lambda_function; exact instance/internal label OPEN (R1) | Address changes; future resource-level moved declaration or separately approved handling required |
+| `module.lambda_execution_role.aws_iam_role.this` | `module.lambda_workload.aws_iam_role.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
+| `module.lambda_execution_role.aws_iam_role_policy.this` | `module.lambda_workload.aws_iam_role_policy.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
+| `module.lambda_function.aws_lambda_function.this` | `module.lambda_workload.aws_lambda_function.this` (R1 implemented) | R1 moved declaration present; no real-state operation performed |
 | `module.http_api.aws_apigatewayv2_api.this` | `module.http_api.aws_apigatewayv2_api.this` (retain) | Precise identity mapping if retained as required; no move then needed |
 | `module.http_api.aws_apigatewayv2_integration.this` | `module.http_api.aws_apigatewayv2_integration.this` (retain) | Precise identity mapping if retained as required; no move then needed |
 | `module.http_api.aws_apigatewayv2_route.this` | `module.http_api.aws_apigatewayv2_route.this` (retain) | Precise identity mapping if retained as required; no move then needed |
@@ -236,18 +289,18 @@ No implicit REST/Cognito replacement, new resource, log merge or recreate is all
 
 ### Output compatibility, dependencies and security
 
-Inventory below records every current child output, not a promise all public names
-are already defined in the future module. Resolve destination signatures, any
-compatibility exports and all consumers before retiring an old source.
+Inventory below records pre-R1 child outputs and their current R1 or future R2
+mapping. R1 signatures are resolved; future migrations must resolve destination
+signatures, compatibility exports and consumers before retiring an old source.
 
-| Current module | Current output contracts | Future compatibility / dependencies |
-| --- | --- | --- | --- |
+| Pre-R1 module | Pre-R1 output contracts | R1 mapping / R2 obligations |
+| --- | --- | --- |
 | api_gateway_http | `api_id`, `invoke_url`, `execution_arn` | Preserve actual API/stage invoke URL/execution ARN with route/permission/stage ordering; add actual dedicated-log references for root compatibility, names OPEN. |
-| cloudwatch_logs | `log_group_name`, `log_group_arn`, `retention_in_days`, `deletion_protection_enabled`, `log_group_class`, `kms_key_arn` | R1/R2: owning module exports required actual group name/bare ARN and lifecycle/security evidence; keep all retention/protection/class/KMS assertions. Exact compatibility signature OPEN. |
+| cloudwatch_logs | `log_group_name`, `log_group_arn`, `retention_in_days`, `deletion_protection_enabled`, `log_group_class`, `kms_key_arn` | R1 owned Lambda logs: log_group_name/log_group_arn/log_group_class retained; retention_in_days→log_retention_in_days, deletion_protection_enabled→log_deletion_protection_enabled, kms_key_arn→log_kms_key_arn. Generic outputs unchanged for API logs; R2 signature still OPEN. |
 | iam_access | `access_admin_permission_set_arn`, `developer_permission_set_arn`, `operator_permission_set_arn`, `developer_customer_managed_policy_references`, `developer_inline_policy_quota`, `developer_managed_attachment_quota` | Retain current output semantics and actual references; any future contract change requires separate review, not R0 migration scope. |
 | iam_account_policies | `policy_arn`, `policy_name`, `policy_path`, `policy_json`, `policy_non_whitespace_characters`, `policy_headroom_characters` | Retain current output semantics and actual references; any future contract change requires separate review, not R0 migration scope. |
-| lambda | `function_arn`, `function_name`, `invoke_arn`, `version`, `execution_role_arn`, `runtime`, `architecture`, `vpc_configuration`, `log_group_name` | R1: preserve equivalent function/role/runtime/security scope semantics in lambda_workload; exact output signature OPEN. Log→policy→function order must remain. |
-| lambda_execution_role | `execution_role_arn`, `execution_role_name`, `inline_policy_name`, `log_group_arn`, `secret_read_enabled`, `permission_scope` | R1: preserve equivalent function/role/runtime/security scope semantics in lambda_workload; exact output signature OPEN. Log→policy→function order must remain. |
+| lambda | `function_arn`, `function_name`, `invoke_arn`, `version`, `execution_role_arn`, `runtime`, `architecture`, `vpc_configuration`, `log_group_name` | R1 resolved: all listed names/semantics are exported by lambda_workload from actual owned references; permission_scope binds actual group ARN. Log→policy→function ordering retained. |
+| lambda_execution_role | `execution_role_arn`, `execution_role_name`, `inline_policy_name`, `log_group_arn`, `secret_read_enabled`, `permission_scope` | R1 resolved: all listed names/semantics are exported by lambda_workload from actual owned references; permission_scope binds actual group ARN. Log→policy→function ordering retained. |
 | s3_artifact_bucket | `bucket_name`, `bucket_arn`, `versioning_status` | Retain current output semantics and actual references; any future contract change requires separate review, not R0 migration scope. |
 | secrets_manager | `secret_arn`, `secret_name`, `secret_id`, `kms_configuration`, `resource_policy_managed` | Retain current output semantics and actual references; any future contract change requires separate review, not R0 migration scope. |
 | vpc | `vpc_id`, `vpc_cidr`, `private_subnet_ids`, `public_subnet_ids`, `private_route_table_id`, `public_route_table_id`, `internet_gateway_id` | Retain current output semantics and actual references; any future contract change requires separate review, not R0 migration scope. |
@@ -294,14 +347,15 @@ consumers are not assumed absent merely because the repository has one root.
 
 ### State move and verification limitations
 
-Five resource addresses necessarily change under intended consolidation; the other
-12 must remain stable unless a separately reviewed mapping explains otherwise.
+R1 changes exactly four resource addresses and retains thirteen. The fifth address
+change (API log) remains R2-only, with its destination still OPEN.
 Do not assume moving directories or a module source automatically moves state.
 Merging three old modules into one may need resource-level rather than one whole-
 module move; exact legal source/destination scopes, retained declarations/chains,
 provider addresses and supported Terraform semantics require future review.
 
-A future R1/R2 PR must complete each OPEN mapping and compare actual old/new mock
+R1 completed its four mappings; R2 must complete its remaining OPEN mapping and
+future migrations must compare actual old/new mock
 plans after applying its documented address correspondence: same resource types,
 settings, policies, outputs and dependencies, no unexplained create/delete/replace.
 Retain reviewed move compatibility declarations as required for prior users; removal
@@ -314,12 +368,12 @@ No such operation, authenticated plan or migration is authorized in R0/Codex Clo
 
 ## 8. Test, fixture, script and CI migration obligations
 
-The following are implementation-readiness dependencies, not files changed here:
+The following lists pre-R1 evidence locations and continuing obligations; retired source links are immutable baseline references. Current R1 counterparts live in lambda_workload/tests/, as listed in coverage.json. R2 remains future work:
 
 | Existing evidence / path | Address/interface impact and required verification |
 | --- | --- |
-| [Lambda tests](../infra/modules/lambda/tests/lambda.tftest.hcl), [role tests](../infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl), [logs tests](../infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl) | R1/R2 must relocate/retarget applicable 70/64/51 historical native cases and their assertions, overrides and fixtures; no lost optional boundaries or superficial source-text substitute |
-| [Role checker](../infra/modules/lambda_execution_role/tests/check_execution_policy.py) | Preserve exact generated trust/policy JSON, official references, permission matrix, negatives/mutations and malformed/reference-fault rejection under the new owning module/address |
+| [Lambda tests](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda/tests/lambda.tftest.hcl), [role tests](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl), [logs tests](../infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl) | R1/R2 must relocate/retarget applicable 70/64/51 historical native cases and their assertions, overrides and fixtures; no lost optional boundaries or superficial source-text substitute |
+| [Role checker](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/blob/43adc3a827a265520ff822595355a91001e7e1af/infra/modules/lambda_execution_role/tests/check_execution_policy.py) | Preserve exact generated trust/policy JSON, official references, permission matrix, negatives/mutations and malformed/reference-fault rejection under the new owning module/address |
 | [API native tests](../infra/modules/api_gateway_http/tests/api_gateway_http.tftest.hcl), [API checker](../infra/modules/api_gateway_http/tests/check_api_gateway_configuration.py) | R2 changes five-resource module inventory to include dedicated logs; update actual-plan address/count and invalid-input/partial-plan classification explicitly; retain 47 historical native cases, 17 mutations/19 capture failures and log/security checks |
 | [Root native tests](../infra/services/dev/ca-central-1/serverless-api/tests/root_integration.tftest.hcl), [root checker](../infra/services/dev/ca-central-1/serverless-api/tests/check_root_integration.py) | Seven instance/type maps, full resource paths, computed overrides, output bindings, exact role/log/env/API assertions and mutation targets require R1/R2 adaptation; preserve four complete 17-resource plans and intentional invalid-account rejection |
 | [Root input checker](../infra/services/dev/ca-central-1/serverless-api/tests/check_required_inputs.py) | Uses native fixture header and root inputs; retained 12 rejection cases must remain real failed mock processes with complete diagnostics, not silently skip after interface changes |

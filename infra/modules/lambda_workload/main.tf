@@ -1,7 +1,7 @@
 resource "aws_lambda_function" "this" {
   function_name = var.function_name
   description   = var.description
-  role          = var.execution_role_arn
+  role          = aws_iam_role.this.arn
 
   package_type      = "Zip"
   s3_bucket         = var.s3_bucket
@@ -37,7 +37,7 @@ resource "aws_lambda_function" "this" {
 
   logging_config {
     log_format = "Text"
-    log_group  = var.log_group_name
+    log_group  = aws_cloudwatch_log_group.this.name
   }
 
   tracing_config {
@@ -46,4 +46,7 @@ resource "aws_lambda_function" "this" {
 
   layers = var.layers
   tags   = var.tags
+
+  # Role ARN alone does not order the inline policy. No propagation claim.
+  depends_on = [aws_iam_role_policy.this]
 }

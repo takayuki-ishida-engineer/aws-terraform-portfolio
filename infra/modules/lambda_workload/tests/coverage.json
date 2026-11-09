@@ -1,0 +1,1506 @@
+[
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "default_function_configuration",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_default_function_configuration",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "resource_attribute_outputs",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_resource_attribute_outputs",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "node_runtime_and_compute_overrides",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_node_runtime_and_compute_overrides",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "java_runtime_on_arm64",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_java_runtime_on_arm64",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "maximum_compute_boundaries",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_maximum_compute_boundaries",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "minimum_timeout_and_name_description_boundaries",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_minimum_timeout_and_name_description_boundaries",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "existing_versioned_layers_and_concurrency",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_existing_versioned_layers_and_concurrency",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "maximum_layer_count_and_zero_concurrency",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_maximum_layer_count_and_zero_concurrency",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "existing_vpc_references",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_existing_vpc_references",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "maximum_vpc_reference_counts",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_maximum_vpc_reference_counts",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "nonsecret_configuration_and_secret_reference",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_nonsecret_configuration_and_secret_reference",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "environment_byte_boundary",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_environment_byte_boundary",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "caller_owned_tags",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_caller_owned_tags",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "empty_function_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_empty_function_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "invalid_function_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_invalid_function_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "overlong_function_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_overlong_function_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "null_function_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_null_function_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "overlong_description",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_overlong_description",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "sts_session_is_not_execution_role",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_sts_session_is_not_execution_role",
+    "expect_failure": true,
+    "replacement": "owned role postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "wildcard_execution_role_rejected",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_wildcard_execution_role_rejected",
+    "expect_failure": true,
+    "replacement": "owned role postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "malformed_execution_role_account",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_malformed_execution_role_account",
+    "expect_failure": true,
+    "replacement": "owned role postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "bucket_arn_is_not_bucket_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_bucket_arn_is_not_bucket_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "uppercase_bucket_rejected",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_uppercase_bucket_rejected",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "empty_artifact_key",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_empty_artifact_key",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "empty_artifact_version",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_empty_artifact_version",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "blank_artifact_version",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_blank_artifact_version",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "unversioned_null_artifact_rejected",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_unversioned_null_artifact_rejected",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "missing_artifact_version",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_missing_artifact_version",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "unsupported_runtime",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_unsupported_runtime",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "missing_runtime",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_missing_runtime",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "empty_handler",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_empty_handler",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "malformed_handler",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_malformed_handler",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "incompatible_python_handler",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_incompatible_python_handler",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "unsupported_architecture",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_unsupported_architecture",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "memory_below_minimum",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_memory_below_minimum",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "memory_above_maximum",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_memory_above_maximum",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "fractional_memory",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_fractional_memory",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "timeout_below_minimum",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_timeout_below_minimum",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "timeout_above_maximum",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_timeout_above_maximum",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "fractional_timeout",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_fractional_timeout",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "ephemeral_storage_below_minimum",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_ephemeral_storage_below_minimum",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "ephemeral_storage_above_maximum",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_ephemeral_storage_above_maximum",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "fractional_ephemeral_storage",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_fractional_ephemeral_storage",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "invalid_environment_key",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_invalid_environment_key",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "reserved_environment_key",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_reserved_environment_key",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "null_environment_value",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_null_environment_value",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "oversized_environment",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_oversized_environment",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "utf8_environment_byte_limit",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_utf8_environment_byte_limit",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "unversioned_layer_arn",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_unversioned_layer_arn",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "duplicate_layers",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_duplicate_layers",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "too_many_layers",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_too_many_layers",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "cross_partition_layer_rejected",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_cross_partition_layer_rejected",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "negative_reserved_concurrency",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_negative_reserved_concurrency",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "fractional_reserved_concurrency",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_fractional_reserved_concurrency",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "reserved_concurrency_integer_limit",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_reserved_concurrency_integer_limit",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "empty_log_group_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_empty_log_group_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "invalid_log_group_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_invalid_log_group_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "reserved_log_group_prefix",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_reserved_log_group_prefix",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "overlong_log_group_name",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_overlong_log_group_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "reserved_tag_prefix",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_reserved_tag_prefix",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "null_tag_value",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_null_tag_value",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "too_many_tags",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_too_many_tags",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "subnets_without_security_groups",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_subnets_without_security_groups",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "security_groups_without_subnets",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_security_groups_without_subnets",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "invalid_subnet_id",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_invalid_subnet_id",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "invalid_security_group_id",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_invalid_security_group_id",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "duplicate_subnets",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_duplicate_subnets",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "duplicate_security_groups",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_duplicate_security_groups",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "too_many_subnets",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_too_many_subnets",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda/tests/lambda.tftest.hcl",
+    "old_run": "too_many_security_groups",
+    "new_file": "tests/lambda.tftest.hcl",
+    "new_run": "lambda_too_many_security_groups",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "default_logging_only_role",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_default_logging_only_role",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "exact_lambda_service_trust",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_exact_lambda_service_trust",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "scoped_log_stream_writes",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_scoped_log_stream_writes",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "resource_attribute_outputs",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_resource_attribute_outputs",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "enabled_secret_without_customer_key",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_enabled_secret_without_customer_key",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "enabled_secret_with_customer_key",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_enabled_secret_with_customer_key",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "existing_multi_region_customer_key",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_existing_multi_region_customer_key",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "alternate_account_and_region",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_alternate_account_and_region",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "govcloud_scope_with_customer_key",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_govcloud_scope_with_customer_key",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "valid_role_name_characters",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_valid_role_name_characters",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "maximum_role_name_length",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_maximum_role_name_length",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "lambda_log_group_reference",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_lambda_log_group_reference",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "maximum_log_group_name_length",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_maximum_log_group_name_length",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "caller_owned_unicode_tags",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_caller_owned_unicode_tags",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "maximum_tag_count_and_lengths",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_maximum_tag_count_and_lengths",
+    "expect_failure": false,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "empty_role_name",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_empty_role_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "role_name_with_path",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_role_name_with_path",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "role_name_with_wildcard",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_role_name_with_wildcard",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "overlong_role_name",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_overlong_role_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "null_role_name",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_null_role_name",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "unsupported_partition",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_unsupported_partition",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "china_partition_not_supported",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_china_partition_not_supported",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "null_partition",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_null_partition",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "malformed_account_id",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_malformed_account_id",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "wildcard_account_id",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_wildcard_account_id",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "null_account_id",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_null_account_id",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "malformed_region",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_malformed_region",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "china_region_in_aws_partition",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_china_region_in_aws_partition",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "govcloud_region_in_aws_partition",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_govcloud_region_in_aws_partition",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "null_region",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_null_region",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "wildcard_log_group_resource",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_wildcard_log_group_resource",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "wildcard_log_group_name",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_wildcard_log_group_name",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "log_group_api_star_suffix",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_log_group_api_star_suffix",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "log_stream_arn_is_not_group_arn",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_log_stream_arn_is_not_group_arn",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "missing_log_group_name",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_missing_log_group_name",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "overlong_log_group_name",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_overlong_log_group_name",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "log_group_wrong_account",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_log_group_wrong_account",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "log_group_wrong_region",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_log_group_wrong_region",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "log_group_wrong_partition",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_log_group_wrong_partition",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "null_log_group_arn",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_null_log_group_arn",
+    "expect_failure": true,
+    "replacement": "owned log ARN postcondition"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "secret_input_while_disabled",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_secret_input_while_disabled",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "kms_input_while_disabled",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_kms_input_while_disabled",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "enabled_secret_missing_arn",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_enabled_secret_missing_arn",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "partial_secret_arn",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_partial_secret_arn",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "short_generated_secret_suffix",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_short_generated_secret_suffix",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "wildcard_secret_arn",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_wildcard_secret_arn",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "secret_wrong_account",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_secret_wrong_account",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "secret_wrong_region",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_secret_wrong_region",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "secret_wrong_partition",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_secret_wrong_partition",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "kms_alias_is_not_key_arn",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_kms_alias_is_not_key_arn",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "bare_kms_identifier",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_bare_kms_identifier",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "wildcard_kms_key",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_wildcard_kms_key",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "incomplete_kms_key_id",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_incomplete_kms_key_id",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "kms_wrong_account",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_kms_wrong_account",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "kms_wrong_region",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_kms_wrong_region",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "kms_wrong_partition",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_kms_wrong_partition",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "empty_tag_key",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_empty_tag_key",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "reserved_tag_prefix",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_reserved_tag_prefix",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "null_tag_value",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_null_tag_value",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "unsupported_tag_key_character",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_unsupported_tag_key_character",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "unsupported_tag_value_character",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_unsupported_tag_value_character",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "overlong_tag_key",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_overlong_tag_key",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "overlong_tag_value",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_overlong_tag_value",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/lambda_execution_role/tests/lambda_execution_role.tftest.hcl",
+    "old_run": "too_many_tags",
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_too_many_tags",
+    "expect_failure": true,
+    "replacement": "same behavior on four-resource workload"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "default_log_group_configuration",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_default_log_group_configuration",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "resource_attribute_outputs",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_resource_attribute_outputs",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "lambda_log_group_name",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_lambda_log_group_name",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "workload_log_group_name",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_workload_log_group_name",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "maximum_name_length",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_maximum_name_length",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "supported_name_characters",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_supported_name_characters",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "minimum_finite_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_minimum_finite_retention",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "weekly_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_weekly_retention",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "supported_400_day_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_supported_400_day_retention",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "supported_731_day_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_supported_731_day_retention",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "maximum_supported_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_maximum_supported_retention",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "explicit_disposable_development_override",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_explicit_disposable_development_override",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "existing_symmetric_key_reference",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_existing_symmetric_key_reference",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "existing_multi_region_key_reference",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_existing_multi_region_key_reference",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "govcloud_partition_key_syntax",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_govcloud_partition_key_syntax",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "china_partition_key_syntax",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_china_partition_key_syntax",
+    "expect_failure": true,
+    "replacement": "integrated China rejection; generic acceptance retained unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "caller_owned_unicode_tags",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_caller_owned_unicode_tags",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "maximum_tag_count_and_lengths",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_maximum_tag_count_and_lengths",
+    "expect_failure": false,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "empty_name",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_empty_name",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "null_name",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_null_name",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "name_with_space",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_name_with_space",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "name_with_unsupported_character",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_name_with_unsupported_character",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "literal_aws_prefix",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_literal_aws_prefix",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "overlong_name",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_overlong_name",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "indefinite_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_indefinite_retention",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "negative_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_negative_retention",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "unsupported_short_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_unsupported_short_retention",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "fractional_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_fractional_retention",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "unsupported_366_day_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_unsupported_366_day_retention",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "unsupported_3650_day_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_unsupported_3650_day_retention",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "above_maximum_retention",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_above_maximum_retention",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "empty_kms_reference",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_empty_kms_reference",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "key_id_is_not_key_arn",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_key_id_is_not_key_arn",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "kms_alias_is_not_key_arn",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_kms_alias_is_not_key_arn",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "incomplete_kms_key_arn",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_incomplete_kms_key_arn",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "wildcard_kms_key_arn",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_wildcard_kms_key_arn",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "malformed_kms_account",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_malformed_kms_account",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "unsupported_kms_partition",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_unsupported_kms_partition",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "non_hexadecimal_kms_identifier",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_non_hexadecimal_kms_identifier",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "incomplete_multi_region_key_identifier",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_incomplete_multi_region_key_identifier",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "wrong_service_key_arn",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_wrong_service_key_arn",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "overlong_kms_key_arn",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_overlong_kms_key_arn",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "empty_tag_key",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_empty_tag_key",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "reserved_tag_prefix",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_reserved_tag_prefix",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "case_variant_reserved_tag_prefix",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_case_variant_reserved_tag_prefix",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "null_tag_value",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_null_tag_value",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "overlong_tag_key",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_overlong_tag_key",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "overlong_tag_value",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_overlong_tag_value",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "too_many_tags",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_too_many_tags",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "unsupported_tag_key_character",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_unsupported_tag_key_character",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
+    "old_run": "unsupported_tag_value_character",
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_unsupported_tag_value_character",
+    "expect_failure": true,
+    "replacement": "additional integrated logging contract; original generic test unchanged"
+  },
+  {
+    "old_file": null,
+    "old_run": null,
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_owned_key_wrong_account",
+    "expect_failure": true,
+    "replacement": "new integrated expected-scope log-key boundary"
+  },
+  {
+    "old_file": null,
+    "old_run": null,
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_owned_key_wrong_region",
+    "expect_failure": true,
+    "replacement": "new integrated expected-scope log-key boundary"
+  },
+  {
+    "old_file": null,
+    "old_run": null,
+    "new_file": "tests/logging.tftest.hcl",
+    "new_run": "logging_owned_key_wrong_partition",
+    "expect_failure": true,
+    "replacement": "new integrated expected-scope log-key boundary"
+  }
+]
