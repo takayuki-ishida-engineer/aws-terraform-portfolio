@@ -17,9 +17,15 @@ principal, budget, artifact or operational success is assumed here.
 
 ## Architecture v2 alignment — approved policy, execution OPEN
 
-Master Policy v10 (2026-11-08) and its security/cost clarifications define the
-[approved design](architecture-v2.md) and [verification contract](portfolio-verification-policy.md).
-The historical CI above and 17-resource HTTP API MVP remain offline-only evidence,
+Current operating policy is user-approved Master Policy v11 (2026-11-09).
+Historical v10 (2026-11-08) and its approved security/cost clarifications are the
+recorded provenance of the [design](architecture-v2.md) and
+[verification contract](portfolio-verification-policy.md). The external v11 PDF is
+unavailable here and not reproduced, revised or claimed independently reviewed in
+full; no undocumented equivalence/content or Live approval is inferred.
+Current post-R2 main df5ef4b2e03bd55109b0490b1e63d1d4199b663b passed
+[CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148), 491/153.
+That current result and the historical CI above remain offline-only HTTP API evidence,
 not REST/NLB/Istio/mTLS tests or a complete future Live inventory. Existing gate
 material below is retained and extended; all G01–G07 gates remain OPEN. Approval
 of the limited Live policy does not approve any specific account, certificate,

@@ -1,4 +1,4 @@
-# Architecture v2 — Master Policy v10 alignment
+# Architecture v2 — approved target and implementation status
 
 See the [approved functional-module repository strategy](repository-structure-strategy.md): R0 → R1 → R2 → R3 → R4 migration/revalidation precedes new v2 features; coherent modules own coupled functionality rather than individual-resource wrappers.
 
@@ -6,21 +6,33 @@ See the [Network / State / Identity foundation design](architecture-v2-foundatio
 
 ## Authority, evidence and status
 
-The approved Master Policy v10 (2026-11-08), as reproduced in this task and its
-security/cost clarifications, is authoritative for the **design target**. The
-separate PDF is not edited or required here. Repository source/CI remains the
-authority for implemented behavior. No design statement is deployment evidence.
+The current approved operating policy is **Master Policy v11 (2026-11-09)**,
+as identified by the user's approval. The external v11 PDF is unavailable in this
+task; it is not reproduced, edited or claimed independently reviewed in full.
+The design below retains its recorded v10 (2026-11-08) provenance and approved
+clarifications/subsequent repository decisions. R3 infers no undocumented v11
+contents or blanket v10/v11 equivalence and changes no approved architecture.
+Repository source and exact-revision CI establish implemented behavior, not Live
+permission. Any policy detail not established by accessible approved records
+requires clarification before its implementation.
 AWS Terraform is the primary portfolio; CloudFormation and Azure Terraform are
 separate, smaller supporting portfolios, not implementations claimed here.
 
-The implemented offline MVP still has nine modules, seven DEV workload instances,
-17 resource definitions, AWS_IAM HTTP API, versioned S3 ZIP and no workload VPC
-integration. Its accepted offline evidence remains unchanged in the
-[technical history](../infra/README.md) and [acceptance audit](offline-mvp-acceptance.md).
-Main `9a17e54b5842e05633c730510a2d46eda4f1e18a` has successful
+Current post-R2 source at main `df5ef4b2e03bd55109b0490b1e63d1d4199b663b` has eight
+reusable modules, four DEV instances, 17 resource definitions, eight root outputs
+and five source-level moved declarations. Lambda workload owns four resources;
+HTTP API owns six including its access log. Generic logging remains independently
+tested without a DEV consumer; VPC is not called and Lambda remains outside a VPC.
+[Post-R2 CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148) passed 491 native/153 Python tests.
+
+The nine-module/seven-instance layout and 384/153 acceptance describe the pre-R1
+historical MVP, preserved in [technical history](../infra/README.md) and the
+[acceptance audit](offline-mvp-acceptance.md). Historical main
+`9a17e54b5842e05633c730510a2d46eda4f1e18a` passed
 [baseline CI 42546954252](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42546954252).
-Historical 384 Terraform/153 Python results are not REST, NLB, Istio or mTLS
-coverage. No target infrastructure is implemented by this documentation.
+Neither historical nor current HTTP API evidence proves REST/NLB/Istio/mTLS,
+deployed AWS behavior or actual state migration. The target below remains
+unimplemented; R3 stabilizes documentation and does not accept or execute R4.
 
 ## Approved target topology
 

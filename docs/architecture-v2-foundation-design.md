@@ -1,15 +1,18 @@
 # Architecture v2 foundation design — Network / State / Identity
 
 This is an implementation-readiness proposal, not implementation or execution
-approval. Master Policy v10 (2026-11-08), reproduced in
-[Architecture v2](architecture-v2.md), remains authoritative. The user has now **APPROVED** maintainability-first functional module grouping
+approval. Current operating policy is user-approved Master Policy v11 (2026-11-09);
+this design retains historical v10 (2026-11-08) provenance. See
+[authority/PDF limitations](architecture-v2.md#authority-evidence-and-status); no
+unavailable v11 contents or new approval is inferred. The user **APPROVED**
+maintainability-first functional module grouping
 and migration-first priority in the [R0 repository strategy](repository-structure-strategy.md).
 This supersedes the former standalone NAT/core/routing recommendation. Detailed
 AWS/state/migration decisions below remain **OPEN**. No account, CIDR, AZ allocation,
 operational resource name, backend or principal is selected. All G01–G07 Live gates
 remain OPEN. Do not create the future PRs described here during this task.
 
-Evidence baseline: main `7876bdbf6cef7f1cb171521352e69a43cc14113e` and successful
+Historical foundation-design evidence baseline: main `7876bdbf6cef7f1cb171521352e69a43cc14113e` and successful
 [post-merge offline CI 42569910881](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42569910881).
 The [verification policy](portfolio-verification-policy.md),
 [readiness gates](dev-live-validation-readiness.md),
@@ -19,15 +22,20 @@ Mocks never establish actual AWS reachability, ownership, permission or availabi
 
 ## A. Current implementation inventory
 
+Current post-R2 source: main df5ef4b2e03bd55109b0490b1e63d1d4199b663b,
+[successful CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148).
+Earlier nine-module/seven-instance/384-native descriptions apply only to the
+historical snapshots above and the unchanged pre-R1 acceptance record.
+
 | Source evidence | Implemented contract | Missing / limitation |
 | --- | --- | --- |
 | [VPC resources](../infra/modules/vpc/main.tf) | IPv4 VPC with DNS support/hostnames; keyed private/public subnets and associations; no automatic public IPv4/IPv6 assignment | No NAT/EIP, endpoints, per-AZ private routing, SG/custom ACL hardening or EKS integration |
 | Same VPC source | One shared private route table with route=[]; optional IGW and one public table/IGW default route only when public subnet map is nonempty | Private route table has no configured internet path; implicit AWS VPC-local routing is not isolation enforcement. AWS-created default SG/ACL/main table are not hardened |
 | [VPC inputs](../infra/modules/vpc/variables.tf), [outputs](../infra/modules/vpc/outputs.tf), [README](../infra/modules/vpc/README.md) | Required prefix/VPC CIDR/nonempty keyed private subnets; empty public map default; canonical IPv4/range/containment/nonoverlap and AZ syntax validation; actual VPC/subnet/table/IGW references | Syntax does not prove enabled AZs, account/Region membership, quotas or available IPs. Shared private_route_table_id is a singular compatibility contract, not per-AZ output |
 | [VPC native tests](../infra/modules/vpc/tests/vpc.tftest.hcl) | 16 historical mocked plan runs: private defaults, public/private routing/associations, stable keys, tags, outputs and input/precondition rejection | These tests do not verify NAT, endpoints, new topology or live network behavior; no new test results claimed here |
-| [DEV root](../infra/services/dev/ca-central-1/serverless-api/main.tf) | dev / ca-central-1 / serverless-api; nine reusable modules repository-wide, seven workload instances and 17 resource definitions | Root does not call VPC; Lambda remains outside a VPC. Historical HTTP API MVP stays independent from REST/NLB/Istio target |
+| [DEV root](../infra/services/dev/ca-central-1/serverless-api/main.tf) | dev / ca-central-1 / serverless-api; eight reusable modules repository-wide, four workload instances, 17 resource definitions, eight outputs and five exact resource moves; Lambda workload 4 / HTTP API 6 resources | Root does not call VPC; Lambda remains outside a VPC. Historical HTTP API MVP stays independent from REST/NLB/Istio target |
 | [Provider](../infra/services/dev/ca-central-1/serverless-api/providers.tf), [backend](../infra/services/dev/ca-central-1/serverless-api/backend.tf), [versions](../infra/services/dev/ca-central-1/serverless-api/versions.tf) | Root AWS provider, fixed workload Region, allowed_account_ids=[var.aws_account_id], default tags; local state; Terraform ~>1.17.0 / AWS ~>6.72.0 and committed root lock | No live account verified. STG/PROD roots/backend operation are not implemented; remote-state selection remains OPEN |
-| [Offline workflow](../.github/workflows/terraform-offline-ci.yml), historical acceptance | Complete suite retains 384 Terraform native and 153 Python tests, IAM reference/equivalence/negative/mutation/independent guardrails and fail-closed evidence checks | Historical counts are neither future coverage nor a ceiling. Root 12 rejected inputs/35 mutations/22 capture faults and HTTP API 17 mutations/19 faults are separate evidence categories |
+| [Offline workflow](../.github/workflows/terraform-offline-ci.yml), historical acceptance | Post-R2 main CI passes 491 Terraform native and 153 Python tests, IAM reference/equivalence/negative/mutation/independent guardrails and fail-closed evidence checks | Historical counts are neither future coverage nor a ceiling. Root 12 rejected inputs/35 mutations/22 capture faults and HTTP API 28 mutations/25 capture faults/4 source mutations are separate evidence categories |
 
 ## B. Approved functional network ownership
 
@@ -154,22 +162,25 @@ five API/permission resources and dedicated access Log Group. DEV has four root
 calls and the same 17 resources/eight outputs. Five exact moved declarations
 retain historical identities in source. Generic logs/51 tests remain independently
 retained with no DEV consumer; retirement needs separate review. See the
-[migration record](repository-structure-strategy.md) for local evidence and pending
-PR review. No actual state migration, R3/R4 completion or new feature is claimed.
+[migration record](repository-structure-strategy.md) for historical local evidence
+and completed R1/R2 main CI. No actual state migration, R3/R4 completion or new
+feature is claimed.
 
 ## F. Approved migration-first sequence
 
 **R0 → R1 → R2 → R3 → R4 → new Architecture v2 features.** See the
 [resource/output/test migration matrices](repository-structure-strategy.md) for
-source-derived addresses and future OPEN destination decisions. Functional grouping
-and this order are approved; no implementation PR is opened by this design.
+source-derived R1/R2 addresses and still-OPEN future operational decisions.
+Functional grouping
+and this order are approved. R0–R2 are merged; R3 is documentation stabilization
+only. R4 final-main verification and new feature PRs remain future authorization.
 
 | Stage | Separately authorized responsibility | Required verification / acceptance |
 | --- | --- | --- |
-| R0 — current documentation | Approved structure, nine-module inventory, seven-instance/17-resource migration plan | Exact documentation scope, source/link/consistency/secret/diff checks; no migration |
-| R1 — Lambda workload | Consolidate function, dedicated role/inline policy and dedicated Lambda logs into lambda_workload; update affected root/interfaces/tests/docs/CI | Exact destination/move/output decisions first; four resources, effective configuration/security/dependencies preserved; actual-plan/policy/negative/mutation and complete independent CI; no new app feature |
-| R2 — HTTP API logs | Own dedicated API access Log Group inside api_gateway_http, retaining historical AWS_IAM architecture | Six resources together with exact invoke/log/auth/retention contracts, safe address compatibility and full affected tests/CI; retain generic logs/51 tests; any retirement needs separate consumer/coverage review |
-| R3 — stabilization if required | Minimal remaining interface/address/root/docs/security inventory reconciliation | No unaccounted mapping or lost tests; affected local and full CI; record if no extra stabilization is needed |
+| R0 — historical merged design | Approved structure, nine-module inventory, seven-instance/17-resource migration plan | Exact documentation scope, source/link/consistency/secret/diff checks; no migration |
+| R1 — merged Lambda workload source | Consolidate function, dedicated role/inline policy and dedicated Lambda logs into lambda_workload; update affected root/interfaces/tests/docs/CI | Exact destination/move/output decisions first; four resources, effective configuration/security/dependencies preserved; actual-plan/policy/negative/mutation and complete independent CI; no new app feature |
+| R2 — merged HTTP API/log source | Own dedicated API access Log Group inside api_gateway_http, retaining historical AWS_IAM architecture | Six resources together with exact invoke/log/auth/retention contracts, safe address compatibility and full affected tests/CI; retain generic logs/51 tests; any retirement needs separate consumer/coverage review |
+| R3 — current documentation stabilization | Status/provenance consistency and R4 handoff only; code/security contracts unchanged | Documentation/source/link/scope/secret/diff checks and independent complete PR CI; not R4 acceptance |
 | R4 — final structural baseline | After separately reviewed, CI-passed and authorized merged migrations | Full Terraform/Python/IAM/guardrail/negative/mutation/evidence suite rerun and independently verified on exact final main; source-text checks are not enough |
 | New features only after accepted R4 | Focused extensions of coherent existing vpc for NAT/EIP/per-AZ routing/compatible endpoints/security; later EKS/REST/Cognito/edge/mTLS/DB/delivery/developer DB-access work | Preserve current private-only behavior and 16 VPC cases; add actual resource/dependency/ownership/negative/security mutation evidence; detailed allocation/backend/IAM/provider/cost approvals still required |
 

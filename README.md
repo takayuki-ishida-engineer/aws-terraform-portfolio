@@ -8,17 +8,27 @@ claimed by this repository.
 
 ## What is implemented
 
-The accepted **offline serverless API MVP** includes nine reusable Terraform
-modules and a development root composing seven module instances into 17 managed
-resource definitions. It connects a versioned S3 ZIP reference, metadata-only
-Secrets Manager, separate CloudWatch Log Groups, a least-privilege execution role,
-Lambda and an AWS_IAM-authorized HTTP API.
+The current **post-R2 offline serverless API** has **eight reusable Terraform
+modules**, **four DEV root module instances**, **17 managed resource definitions**
+and **eight root outputs**. The root composes artifact_bucket (6), secret_metadata
+(1), lambda_workload (4) and http_api (6): Lambda owns its execution IAM/application
+logs, and HTTP API owns its separate access log. The workload still uses versioned
+S3 ZIP references, metadata-only Secrets Manager and an AWS_IAM HTTP API; no REST
+or workload VPC migration is implied. Five exact resource-level moved
+declarations preserve R1/R2 source address correspondence; no actual state
+migration has been executed or verified. Generic cloudwatch_logs remains available
+and independently tested, with no current DEV root consumer.
 
-Recorded successful offline evidence includes **384 Terraform native mock tests**,
-**153 Python tests**, root security mutations, negative cases and independent IAM
-guardrails. These are verified historical results, not a limit on future coverage.
-See the [acceptance evidence](docs/offline-mvp-acceptance.md) for provenance and
-limitations. No AWS deployment or live connectivity validation is claimed.
+Verified main `df5ef4b2e03bd55109b0490b1e63d1d4199b663b` passed
+[post-R2 CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148) with **491 Terraform native tests / 153 Python tests**.
+This is the R3 starting baseline, not R4 acceptance or AWS deployment evidence.
+
+The **historical pre-R1 MVP acceptance** (2026-11-08, main
+`89755c30508b78527fd46fa18593d5d5b11150f1`) recorded **384 native / 153 Python**
+tests for nine modules and seven root instances. Its original
+[acceptance evidence](docs/offline-mvp-acceptance.md) remains unchanged. R1 later
+established 438/153; see the [milestones and R4 handoff](docs/repository-structure-strategy.md#r3-stabilization-and-r4-handoff).
+No historical result is relabeled as current execution or Live connectivity.
 
 ## Target architecture — defined, not deployed
 
@@ -61,7 +71,10 @@ no measured SLA/RTO/RPO or disaster recovery guarantee; replica counts alone do 
 
 ## Current limitations
 
-The Master Policy v10 REST/NLB/Istio/mTLS, Cognito, EKS/database and delivery
+Current operating policy is Master Policy v11 (2026-11-09), per user approval.
+The external PDF is unavailable here; the [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status) preserves historical v10 provenance without claiming full v11 review.
+
+The REST/NLB/Istio/mTLS, Cognito, EKS/database and delivery
 architecture is an approved design target with implementation details OPEN; it has not replaced the tested HTTP API MVP. No suitable
 Lambda runtime application/build artifact is currently provided. Account/state
 ownership, artifact bootstrap, secret-safe federation, certificate identity/revocation
