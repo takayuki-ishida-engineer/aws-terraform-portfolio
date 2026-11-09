@@ -1,0 +1,1091 @@
+{
+  "root_positive": {
+    "dev_network": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "gateway_endpoints": {},
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a",
+      "nat": {
+        "public_subnet_key_by_nat_az": {
+          "ca-central-1a": "public-a"
+        },
+        "nat_az_by_private_az": {
+          "ca-central-1a": "ca-central-1a"
+        }
+      }
+    },
+    "dev_cross_az_explicit": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "gateway_endpoints": {},
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a",
+      "nat": {
+        "public_subnet_key_by_nat_az": {
+          "ca-central-1a": "public-a"
+        },
+        "nat_az_by_private_az": {
+          "ca-central-1a": "ca-central-1a",
+          "ca-central-1b": "ca-central-1a"
+        }
+      }
+    },
+    "dev_network_s3": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "gateway_endpoints": {
+        "s3": {
+          "private_route_table_azs": [
+            "ca-central-1a"
+          ],
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
+        }
+      },
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a",
+      "nat": {
+        "public_subnet_key_by_nat_az": {
+          "ca-central-1a": "public-a"
+        },
+        "nat_az_by_private_az": {
+          "ca-central-1a": "ca-central-1a"
+        }
+      }
+    },
+    "dev_network_alternate_computed_ids": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "gateway_endpoints": {
+        "s3": {
+          "private_route_table_azs": [
+            "ca-central-1a"
+          ],
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
+        }
+      },
+      "aws_account_id": "000000000000",
+      "active_workload_az": "ca-central-1a",
+      "nat": {
+        "public_subnet_key_by_nat_az": {
+          "ca-central-1a": "public-a"
+        },
+        "nat_az_by_private_az": {
+          "ca-central-1a": "ca-central-1a"
+        }
+      }
+    }
+  },
+  "root_negative": {
+    "invalid_account": "var.aws_account_id",
+    "invalid_active_az": "var.active_workload_az",
+    "multiple_dev_nats": "var.nat",
+    "missing_active_route": "var.nat",
+    "missing_public": "var.public_subnets",
+    "invalid_root_cidr": "var.vpc_cidr"
+  },
+  "child_positive": {
+    "per_az_isolated": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": null
+      },
+      "gateway_endpoints": {}
+    },
+    "dev_one_nat": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a"
+          }
+        }
+      },
+      "gateway_endpoints": {}
+    },
+    "multi_az_nat": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a",
+            "ca-central-1b": "public-b"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a",
+            "ca-central-1b": "ca-central-1b"
+          }
+        }
+      },
+      "gateway_endpoints": {}
+    },
+    "dev_explicit_shared_nat": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a",
+            "ca-central-1b": "ca-central-1a"
+          }
+        }
+      },
+      "gateway_endpoints": {}
+    },
+    "s3_selected_table": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a"
+          }
+        }
+      },
+      "gateway_endpoints": {
+        "s3": {
+          "private_route_table_azs": [
+            "ca-central-1a"
+          ],
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
+        }
+      }
+    },
+    "s3_isolated_both_tables": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": null
+      },
+      "gateway_endpoints": {
+        "s3": {
+          "private_route_table_azs": [
+            "ca-central-1b",
+            "ca-central-1a"
+          ],
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}"
+        }
+      }
+    },
+    "same_az_multiple_subnets": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        },
+        "app-extra": {
+          "cidr_block": "10.40.3.0/24",
+          "availability_zone": "ca-central-1a"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a",
+            "ca-central-1b": "public-b"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a",
+            "ca-central-1b": "ca-central-1b"
+          }
+        }
+      },
+      "gateway_endpoints": {}
+    },
+    "legacy_public_unchanged": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": null,
+      "private_routing": {
+        "mode": "legacy_shared",
+        "nat": null
+      },
+      "gateway_endpoints": {}
+    },
+    "legacy_private_unchanged": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {},
+      "expected_scope": null,
+      "private_routing": {
+        "mode": "legacy_shared",
+        "nat": null
+      },
+      "gateway_endpoints": {}
+    },
+    "per_az_no_public": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {},
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": null
+      },
+      "gateway_endpoints": {}
+    },
+    "s3_bucket_and_object_policy": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a"
+          }
+        }
+      },
+      "gateway_endpoints": {
+        "s3": {
+          "private_route_table_azs": [
+            "ca-central-1a"
+          ],
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::test-network-artifacts/approved/*\",\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}},{\"Sid\":\"ReadBucketMetadata\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:ListBucket\",\"s3:GetBucketLocation\"],\"Resource\":\"arn:aws:s3:::test-network-artifacts\",\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":[\"arn:aws:iam::000000000000:role/test-network-reader\"]}}}]}"
+        }
+      }
+    },
+    "s3_multiple_approved_roles": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a"
+          }
+        }
+      },
+      "gateway_endpoints": {
+        "s3": {
+          "private_route_table_azs": [
+            "ca-central-1a"
+          ],
+          "policy_json": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":[\"arn:aws:iam::000000000000:role/test-network-reader\",\"arn:aws:iam::000000000000:role/team/test-second-reader\"]}}}]}"
+        }
+      }
+    }
+  },
+  "child_negative": {
+    "invalid_mode": "var.private_routing",
+    "legacy_nat_rejected": "aws_vpc.this",
+    "legacy_endpoint_rejected": "aws_vpc.this",
+    "missing_scope": "aws_vpc.this",
+    "wrong_region": "var.expected_scope",
+    "wrong_account_syntax": "var.expected_scope",
+    "wrong_subnet_region": "aws_vpc.this",
+    "missing_public_path": "aws_vpc.this",
+    "missing_public_key": "aws_vpc.this",
+    "wrong_public_az": "aws_vpc.this",
+    "duplicate_public_subnet": "aws_vpc.this",
+    "missing_nat_target": "aws_vpc.this",
+    "unknown_private_az": "aws_vpc.this",
+    "unused_nat": "aws_vpc.this",
+    "empty_nat_maps": "var.private_routing",
+    "endpoint_wrong_service": "var.gateway_endpoints",
+    "endpoint_unknown_table": "aws_vpc.this",
+    "endpoint_empty_tables": "var.gateway_endpoints",
+    "endpoint_wildcard_principal": "var.gateway_endpoints",
+    "endpoint_foreign_principal": "aws_vpc.this",
+    "endpoint_admin_actions": "var.gateway_endpoints",
+    "endpoint_write_action": "var.gateway_endpoints",
+    "endpoint_world_resource": "var.gateway_endpoints",
+    "endpoint_wrong_action_scope": "var.gateway_endpoints",
+    "endpoint_notaction": "var.gateway_endpoints",
+    "endpoint_malformed_json": "var.gateway_endpoints",
+    "wrong_actual_account": "aws_vpc.this",
+    "wrong_actual_region": "aws_vpc.this",
+    "endpoint_statement_not_array": "var.gateway_endpoints",
+    "endpoint_empty_condition": "var.gateway_endpoints",
+    "endpoint_empty_arn_equals": "var.gateway_endpoints",
+    "endpoint_empty_role_string": "var.gateway_endpoints",
+    "endpoint_empty_role_list": "var.gateway_endpoints",
+    "endpoint_null_condition": "var.gateway_endpoints",
+    "endpoint_wildcard_role": "var.gateway_endpoints",
+    "endpoint_question_role": "var.gateway_endpoints",
+    "endpoint_mixed_account_roles": "aws_vpc.this",
+    "endpoint_arnlike_operator": "var.gateway_endpoints",
+    "endpoint_ifexists_operator": "var.gateway_endpoints",
+    "endpoint_negated_operator": "var.gateway_endpoints",
+    "endpoint_set_operator": "var.gateway_endpoints",
+    "endpoint_wrong_condition_key": "var.gateway_endpoints",
+    "endpoint_extra_condition_key": "var.gateway_endpoints",
+    "endpoint_extra_condition_operator": "var.gateway_endpoints",
+    "endpoint_sts_session_role": "var.gateway_endpoints",
+    "endpoint_iam_user_condition": "var.gateway_endpoints",
+    "endpoint_legacy_principal_object": "var.gateway_endpoints"
+  },
+  "original_positive": {
+    "private_only": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        }
+      },
+      "public_subnets": {},
+      "tags": {
+        "Team": "platform",
+        "Name": "caller-name-must-not-win"
+      }
+    },
+    "public_and_private": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "web-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "web-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "tags": {
+        "Team": "platform",
+        "Name": "ignored"
+      }
+    },
+    "stable_keys_and_defaults": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "zulu": {
+          "cidr_block": "10.40.3.0/24",
+          "availability_zone": "ca-central-1b"
+        },
+        "alpha": {
+          "cidr_block": "10.40.4.0/24",
+          "availability_zone": "ca-central-1a"
+        }
+      },
+      "public_subnets": {}
+    }
+  },
+  "original_negative": {
+    "invalid_name_prefix": "var.name_prefix",
+    "invalid_vpc_cidr": "var.vpc_cidr",
+    "ipv6_vpc_rejected": "var.vpc_cidr",
+    "invalid_vpc_prefix": "var.vpc_cidr",
+    "empty_private_subnets": "var.private_subnets",
+    "invalid_private_cidr": "var.private_subnets",
+    "invalid_public_cidr": "var.public_subnets",
+    "empty_private_availability_zone": "var.private_subnets",
+    "invalid_public_availability_zone": "var.public_subnets",
+    "empty_private_key": "var.private_subnets",
+    "subnet_outside_vpc": "aws_vpc.this",
+    "subnet_broader_than_vpc": "aws_vpc.this",
+    "overlapping_private_and_public": "aws_vpc.this"
+  },
+  "partial_resources": {
+    "wrong_public_az": [
+      "aws_eip.nat[\"ca-central-1a\"]"
+    ],
+    "duplicate_public_subnet": [
+      "aws_eip.nat[\"ca-central-1a\"]",
+      "aws_eip.nat[\"ca-central-1b\"]"
+    ],
+    "missing_nat_target": [
+      "aws_eip.nat[\"ca-central-1a\"]"
+    ],
+    "unknown_private_az": [
+      "aws_eip.nat[\"ca-central-1a\"]"
+    ],
+    "unused_nat": [
+      "aws_eip.nat[\"ca-central-1a\"]",
+      "aws_eip.nat[\"ca-central-1b\"]"
+    ],
+    "invalid_root_cidr": [
+      "aws_eip.nat[\"ca-central-1a\"]"
+    ],
+    "wrong_actual_account": [
+      "aws_vpc.this"
+    ],
+    "wrong_actual_region": [
+      "aws_vpc.this"
+    ]
+  },
+  "partial_outputs": {
+    "invalid_mode": [
+      "interface_version"
+    ],
+    "legacy_nat_rejected": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "legacy_endpoint_rejected": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "missing_scope": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "wrong_region": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "wrong_account_syntax": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "wrong_subnet_region": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "missing_public_path": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "missing_public_key": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "wrong_public_az": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "duplicate_public_subnet": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "missing_nat_target": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "unknown_private_az": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "unused_nat": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "empty_nat_maps": [
+      "interface_version"
+    ],
+    "endpoint_wrong_service": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_unknown_table": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_tables": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_wildcard_principal": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_foreign_principal": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_admin_actions": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_write_action": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_world_resource": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_wrong_action_scope": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_notaction": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_malformed_json": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "invalid_name_prefix": [
+      "interface_version",
+      "routing_mode"
+    ],
+    "invalid_vpc_cidr": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "ipv6_vpc_rejected": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "invalid_vpc_prefix": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "empty_private_subnets": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "invalid_private_cidr": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "invalid_public_cidr": [
+      "interface_version",
+      "routing_mode"
+    ],
+    "empty_private_availability_zone": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "invalid_public_availability_zone": [
+      "interface_version",
+      "routing_mode"
+    ],
+    "empty_private_key": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "subnet_outside_vpc": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "subnet_broader_than_vpc": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "overlapping_private_and_public": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "invalid_account": [],
+    "invalid_active_az": [],
+    "multiple_dev_nats": [],
+    "missing_active_route": [],
+    "missing_public": [],
+    "invalid_root_cidr": [],
+    "wrong_actual_account": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "wrong_actual_region": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_statement_not_array": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_condition": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_arn_equals": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_role_string": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_empty_role_list": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_null_condition": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_wildcard_role": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_question_role": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_mixed_account_roles": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_arnlike_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_ifexists_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_negated_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_set_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_wrong_condition_key": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_extra_condition_key": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_extra_condition_operator": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_sts_session_role": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_iam_user_condition": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ],
+    "endpoint_legacy_principal_object": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
+    ]
+  }
+}

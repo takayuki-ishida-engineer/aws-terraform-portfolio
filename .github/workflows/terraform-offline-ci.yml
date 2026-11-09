@@ -126,12 +126,13 @@ jobs:
               print("Provider reference:", json.dumps(row), flush=True)
 
           if checkpoint == "after_modules":
-              expected = {"infra/services/dev/ca-central-1/serverless-api"} | {
+              expected = {"infra/services/dev/ca-central-1/serverless-api",
+                      "infra/services/dev/ca-central-1/network"} | {
                   "infra/modules/" + name for name in (
                       "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda_workload",
                       "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http")}
-              if {row["module"] for row in initialized} != expected or references != 9 or len(identities) != 1:
-                  raise SystemExit("Expected nine initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+              if {row["module"] for row in initialized} != expected or references != len(expected) or len(identities) != 1:
+                  raise SystemExit("Expected ten initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
           if checkpoint == "job_completion":
               snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
@@ -259,30 +260,82 @@ jobs:
             output.write(f"passed={report['native_tests']}\n")
           PY
 
-      - name: Validate VPC module and mock tests
+      - name: Validate DEV network root and actual routing contracts
+        id: network
+        working-directory: infra/services/dev/ca-central-1/network
+        run: |
+          set -euo pipefail
+          umask 077
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          git diff --exit-code -- .terraform.lock.hcl
+          python3 tests/check_required_inputs.py --terraform terraform > "$RUNNER_TEMP/network-required-inputs.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "network-required-inputs.json").read_text())
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("required_input_rejections") != 7 or report.get("security_input_rejections") != 7:
+              raise SystemExit("DEV network required-input rejection evidence failed.")
+          print("DEV network required-input rejections:", report)
+          PY
+          checker="$GITHUB_WORKSPACE/infra/modules/vpc/tests/check_network_configuration.py"
+          # Stream away only repeated provider schemas; preserve full resource/diagnostic evidence.
+          if terraform test -no-color -json -verbose | python3 "$checker" --compact > "$RUNNER_TEMP/network-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 "$checker" --scope root \
+            --test-events "$RUNNER_TEMP/network-tests.jsonl" \
+            --terraform-exit-code "$test_status" --self-test > "$RUNNER_TEMP/network-verification.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "network-verification.json").read_text())
+          expected = {'native_tests': 10, 'positive_plans': 4, 'negative_cases': 6, 'semantic_mutations': 34, 'capture_failure_injections': 22, 'source_dependency_mutations': 8, 'policy_structure_mutations': 33}
+          if report.get("status") != "passed" or report.get("evidence_type") != "actual_mock_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
+              raise SystemExit("Validate DEV network root and actual routing contracts evidence/count contract changed; independent review required.")
+          print("Actual network verification:", report)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"passed={report['native_tests']}\n")
+          PY
+
+      - name: Validate VPC legacy and extension actual mock plans
         id: vpc
         working-directory: infra/modules/vpc
         run: |
           set -euo pipefail
           umask 077
-          # Seed only a transient child lock; retain AWS Provider 6.72.0.
+          # Transient child lock, exact reviewed provider identity.
           cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/serverless-api/.terraform.lock.hcl" .terraform.lock.hcl
-          terraform init -backend=false -input=false -no-color
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
           terraform validate -no-color
-          terraform test -no-color | tee "$RUNNER_TEMP/vpc-tests.txt"
+          checker="$GITHUB_WORKSPACE/infra/modules/vpc/tests/check_network_configuration.py"
+          # Stream away only repeated provider schemas; preserve full resource/diagnostic evidence.
+          if terraform test -no-color -json -verbose | python3 "$checker" --compact > "$RUNNER_TEMP/vpc-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 "$checker" --scope child \
+            --test-events "$RUNNER_TEMP/vpc-tests.jsonl" \
+            --terraform-exit-code "$test_status" --self-test > "$RUNNER_TEMP/vpc-verification.json"
           python3 - <<'PY'
+          import json
           import os
-          import pathlib
-          import re
+          from pathlib import Path
 
-          lines = pathlib.Path(os.environ["RUNNER_TEMP"], "vpc-tests.txt").read_text().splitlines()
-          summaries = [line.strip() for line in lines if line.startswith(("Success!", "Failure!"))]
-          match = re.fullmatch(r"Success! (\d+) passed, (\d+) failed\.", summaries[0]) if len(summaries) == 1 else None
-          if not match or tuple(map(int, match.groups())) != (16, 0):
-            raise SystemExit("VPC tests must report exactly 16 passed, 0 failed and no skipped tests.")
-          # A skipped-test suffix would fail the full summary match above.
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-            output.write(f"passed={match[1]}\n")
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "vpc-verification.json").read_text())
+          expected = {'native_tests': 75, 'positive_plans': 15, 'negative_cases': 60, 'semantic_mutations': 36, 'capture_failure_injections': 22, 'source_dependency_mutations': 8, 'policy_structure_mutations': 33}
+          if report.get("status") != "passed" or report.get("evidence_type") != "actual_mock_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
+              raise SystemExit("Validate VPC legacy and extension actual mock plans evidence/count contract changed; independent review required.")
+          print("Actual vpc verification:", report)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"passed={report['native_tests']}\n")
           PY
 
       - name: Validate Secrets Manager module and mock inventory
@@ -766,6 +819,8 @@ jobs:
           DEV_RESULT: ${{ steps.dev.outcome }}
           ROOT_RESULT: ${{ steps.root_integration.outcome }}
           ROOT_PASSED: ${{ steps.root_integration.outputs.passed }}
+          NETWORK_RESULT: ${{ steps.network.outcome }}
+          NETWORK_PASSED: ${{ steps.network.outputs.passed }}
           VPC_RESULT: ${{ steps.vpc.outcome }}
           VPC_PASSED: ${{ steps.vpc.outputs.passed }}
           SECRETS_RESULT: ${{ steps.secrets.outcome }}
@@ -796,7 +851,8 @@ jobs:
             ("Repository formatting", "FORMAT_RESULT", ""),
             ("Dev root init/validate, readonly lock", "DEV_RESULT", ""),
             ("Dev serverless API root integration/plans/mutations", "ROOT_RESULT", os.environ.get("ROOT_PASSED", "")),
-            ("VPC init/validate/mock tests", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
+            ("DEV network init/validate/required-inputs/plans/mutations", "NETWORK_RESULT", os.environ.get("NETWORK_PASSED", "")),
+            ("VPC init/validate/legacy and routing/endpoint plans/mutations", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
             ("Secrets Manager init/validate/mock inventory/tests", "SECRETS_RESULT", os.environ.get("SECRETS_PASSED", "")),
             ("Account IAM policy init/validate/inventory/mock tests", "ACCOUNT_RESULT", os.environ.get("ACCOUNT_PASSED", "")),
             ("IAM init/validate/mock tests", "IAM_RESULT", os.environ.get("IAM_PASSED", "")),

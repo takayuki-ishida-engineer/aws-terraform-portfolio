@@ -17,6 +17,45 @@ resource "aws_vpc" "this" {
 
   lifecycle {
     precondition {
+      condition     = local.per_az || (var.private_routing.nat == null && length(var.gateway_endpoints) == 0)
+      error_message = "NAT/endpoints require explicit per_az routing; legacy_shared must remain unchanged."
+    }
+    precondition {
+      condition     = !local.per_az || var.expected_scope != null
+      error_message = "per_az requires expected_scope; root must also restrict the provider account and Region."
+    }
+    precondition {
+      condition     = !local.per_az || try(alltrue([for subnet in concat(values(var.private_subnets), values(var.public_subnets)) : can(regex("^${var.expected_scope.region}[a-z]$", subnet.availability_zone))]), false)
+      error_message = "Every opted-in subnet AZ must match the explicit expected Region; enabled zones still require external verification."
+    }
+    precondition {
+      condition = (alltrue([for az, key in local.nat_subnet_keys : try(
+        contains(local.private_azs, az) && var.public_subnets[key].availability_zone == az, false)]) &&
+      length(distinct(values(local.nat_subnet_keys))) == length(local.nat_subnet_keys))
+      error_message = "Each NAT AZ must be a private AZ with one distinct, existing same-AZ public subnet; this also requires the public IGW path."
+    }
+    precondition {
+      condition = (alltrue([for az, target in local.private_nat_azs : contains(local.private_azs, az) && contains(keys(local.nat_subnet_keys), target)]) &&
+      toset(values(local.private_nat_azs)) == toset(keys(local.nat_subnet_keys)))
+      error_message = "NAT routes must map existing private AZs to declared NAT AZs with no unused gateways or missing targets."
+    }
+    precondition {
+      condition     = alltrue([for endpoint in var.gateway_endpoints : try(length(setsubtract(endpoint.private_route_table_azs, local.private_azs)) == 0, false)])
+      error_message = "Gateway endpoints may associate only explicitly selected existing private AZ tables."
+    }
+    precondition {
+      condition = alltrue([for endpoint in var.gateway_endpoints : try(alltrue([
+        for statement in jsondecode(endpoint.policy_json).Statement : alltrue([
+          for principal in try(tolist(statement.Condition.ArnEquals["aws:PrincipalArn"]), [statement.Condition.ArnEquals["aws:PrincipalArn"]]) : split(":", principal)[4] == var.expected_scope.account_id
+        ])
+      ]), false)])
+      error_message = "Endpoint principal ARN conditions must belong to the explicit expected account; cross-account policy needs separate review."
+    }
+    postcondition {
+      condition     = !local.per_az || try(startswith(self.arn, "arn:${var.expected_scope.partition}:ec2:${var.expected_scope.region}:${var.expected_scope.account_id}:vpc/") && endswith(self.arn, "/${self.id}"), false)
+      error_message = "Actual VPC ARN/ID must match expected account, Region and partition; caller metadata is not authentication."
+    }
+    precondition {
       # Project each subnet address onto the VPC prefix and compare network bases.
       condition = !local.valid_ipv4_cidrs || try(alltrue([
         for cidr in local.subnet_cidrs :
@@ -90,7 +129,9 @@ resource "aws_route_table_association" "private" {
   for_each = var.private_subnets
 
   subnet_id      = aws_subnet.private[each.key].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = local.per_az ? aws_route_table.private_by_az[var.private_subnets[each.key].availability_zone].id : aws_route_table.private.id
+
+  depends_on = [aws_route.private_nat, aws_vpc_endpoint.gateway]
 }
 
 resource "aws_route_table_association" "public" {
