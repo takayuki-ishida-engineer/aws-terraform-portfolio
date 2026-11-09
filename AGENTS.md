@@ -117,31 +117,35 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: R3 documentation stabilization and R4 readiness
+## Current phase only: V1 VPC extension design and compatibility decision
 
-Use docs/r3-baseline-stabilization from verified post-R2 main
-`df5ef4b2e03bd55109b0490b1e63d1d4199b663b`, successful CI 42618561148 (491/153).
-R1/R2 are merged; this explicit R3 authorization replaces the former R2 task scope.
+Use design/vpc-v1-extension-contract from independently accepted R4 main
+`899f944c3887fa739dfb39f43617321a696c727b`, successful push CI 42628851626.
+This separately authorized V1 is documentation only; V2 requires independent V1
+approval and separate implementation authorization.
 
-- Authorize minimal Markdown consistency, implementation-status, historical/current
-  evidence and policy-provenance corrections in README.md, architecture-v2,
-  verification policy, foundation design, repository strategy, infra/README and
-  Live readiness; directly related objectively stale Markdown may receive minimal
-  justified corrections. Update only this phase section; preserve permanent rules.
-- Verify counts from actual source/workflow/manifests: 8 children, 4 DEV calls,
-  17 resources, 8 outputs, HTTP API 6, Lambda 4, five exact moves, CI 9 configurations.
-  Preserve historical MVP 384/153 and R1 438/153 separately from R2 main 491/153.
-- Treat v11 (2026-11-09) as current user-approved operating policy; retain historical
-  v10 provenance. No claim of complete PDF review/reproduction or invented contents.
-- Add a concise R3 remediation/audit and R4 handoff in the existing strategy.
-  R3 is not R4 acceptance; R4 must independently verify final post-R3 main and CI.
-  Retain generic logging/51 tests; retirement needs separate review.
-- Prohibit Terraform/tfvars/moved/lock/provider/backend, test/checker/JSON/workflow,
-  IAM/security controls, artifacts/app/PDF and unrelated architecture changes.
+- Create docs/vpc-extension-decision.md. Limit related edits to
+  docs/architecture-v2-foundation-design.md, docs/repository-structure-strategy.md
+  and this current-phase section. Preserve permanent rules byte-for-byte.
+- Ground existing inputs, outputs, addresses, routing behavior and all 16 native
+  VPC cases in actual source. Use supplied Master Policy v11 (2026-11-09) decisions
+  and official technical references; do not claim unavailable PDF review.
+- Extend the coherent VPC module in the proposed design; no default NAT/core/
+  routing/endpoint wrappers. Preserve private-only defaults and identify explicit
+  output/address compatibility exceptions, alternatives and OPEN approvals.
+- Analyze per-AZ tables, zonal NAT/EIP mappings, exclusive route/endpoint ownership,
+  scope/output publication, security, capacity, cost, teardown and actual-plan/
+  negative/mutation verification contracts. Do not present proposals as approved.
+- Do not change Terraform/interfaces/tests/workflows/locks/backends/providers,
+  acceptance evidence, artifacts or unrelated documents; create no future roots.
   No AWS credentials, authenticated AWS/plan/state/import/apply/destroy or Live work.
-- Use documentation-specific source/inventory/provenance/link/secret/scope/diff
-  checks; do not rerun unrelated Terraform/Python suites. Preserve all CI/security
-  and G01–G07 OPEN, JPY 10,000/72-hour limits and secret-recovery blocker.
-- Commit/push/open exactly one R3 PR; report HEAD, files, evidence, limitations and
-  R4 handoff. Observe triggering only if immediately visible; stop without waiting/
-  polling CI, merging/deleting branches or starting R4/new features.
+- Verify source inventories, references/links, unchanged permanent rules, exact
+  Markdown scope, secrets and git diff --check. Do not rerun unchanged Terraform/
+  Python suites. Preserve full independent GitHub Actions regression requirements.
+- Keep G01–G07 OPEN, cumulative JPY 10,000/72-hour complete-teardown limits and the
+  unresolved 30-day secret-recovery blocker. Actual account/IP/AZ/state decisions
+  remain OPEN; no publication mechanism or backend is selected.
+- Commit/push/open exactly one V1 PR against main. Report exact HEAD, files,
+  recommendations/OPEN approvals and actual checks. Observe CI triggering only if
+  immediately visible; stop without polling/waiting, merging/deleting the branch,
+  AWS/state/Live execution or V2 implementation.
