@@ -1,4 +1,9 @@
-# Portfolio verification policy — Master Policy v10 alignment
+# Portfolio verification policy — evidence and operating boundaries
+
+Current approved operating policy is Master Policy v11 (2026-11-09), per user
+approval; the target/security text retains recorded historical v10 provenance.
+See [policy authority and PDF limitations](architecture-v2.md#authority-evidence-and-status).
+No unavailable PDF contents or new implementation/Live approvals are inferred.
 
 ## Evidence states and completion boundary
 
@@ -12,11 +17,18 @@ implementation or Live authorization. Label each component/environment separatel
 | DEV Live tested with explicit approved evidence | Separately authorized scenario, actual outcomes and redacted evidence | Applies only to scenarios/resources/revisions actually verified |
 | OPEN / awaiting approval | Explicit unresolved decision, scenario or approval | No assumption of implementation, authorization or success |
 
-The nine-module/seven-instance/17-resource HTTP API MVP remains implemented and
-tested offline. Its [historical acceptance](offline-mvp-acceptance.md) is unchanged;
+The implemented **post-R2** HTTP API baseline is main
+`df5ef4b2e03bd55109b0490b1e63d1d4199b663b`: eight reusable modules, four DEV instances,
+17 managed resources, eight outputs and five exact resource moves. Its
+[successful CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148) records **491 native / 153 Python** tests.
+The pre-R1 nine-module/seven-instance **384/153**
+[acceptance](offline-mvp-acceptance.md) at main
+`89755c30508b78527fd46fa18593d5d5b11150f1` stays historical and unchanged;
+R1 main `87f415f5290e2cab63696e1850a6c362eef97292` records 438/153.
 17 is not a v2 Live inventory. REST/NLB/Istio/mTLS and new delivery/admin components
-are defined or OPEN. No DEV Live outcome is claimed. All seven approval gates in
-the [readiness document](dev-live-validation-readiness.md) remain OPEN.
+remain defined or OPEN. No DEV Live outcome or actual state migration is claimed.
+All G01–G07 in the [readiness document](dev-live-validation-readiness.md) stay OPEN.
+R3 documentation completion cannot replace exact post-R3 main/R4 regression review.
 
 ## All environments — applicable offline implementation gate
 
@@ -67,9 +79,12 @@ distinct contracts. Minimum trust is not a proven single-client allowlist.
 
 Keep all existing HTTP API, Terraform, Python, IAM, negative, mutation and security
 checks intact. Recorded **384 Terraform native tests / 153 Python tests** are
-historical evidence, not an upper limit or new mTLS coverage. Root 12 input
-rejections/35 mutations/22 evidence injections and HTTP API 17 mutations/19 evidence
-failures remain separate categories. New security behavior needs its own tests.
+historical pre-R1 acceptance evidence, not an upper limit or new mTLS coverage.
+The verified post-R2 491/153 result above has separate categories: root 12 input
+rejections/35 mutations/22 capture faults; API 28 mutations/25 capture faults/4
+source mutations; retained R1 source mutations 3 and exact move-set negatives 6.
+Historical HTTP API 17/19 and R1 438/153 remain tied to their earlier revisions,
+not current counts. New security behavior needs its own tests.
 Never remove/disable/skip/weaken CI checks for efficiency or migration.
 
 Codex performs affected local checks and opens the PR; GitHub Actions runs complete

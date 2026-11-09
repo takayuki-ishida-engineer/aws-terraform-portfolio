@@ -6,7 +6,9 @@ providers, backends, secret values, artifact objects or API/network resources.
 It consolidates the previous independent Lambda/execution-role/dedicated logging
 implementations for human maintainability, not new application functionality.
 Generic [CloudWatch Logs](../cloudwatch_logs/README.md) remains independently tested
-and still owns the API access log through the DEV root. R2 is not implemented.
+with no current DEV root consumer. Completed R2 places the API access log inside
+[api_gateway_http](../api_gateway_http/README.md); generic logging retirement needs
+separate review.
 
 ## Interface and effective configuration
 
@@ -130,6 +132,10 @@ with publish=false, not a new immutable release or alias. permission_scope carri
 expected scope, actual owned log ARN and exact secret/key references only.
 
 ## R1 compatibility and verification
+
+The R1 results below describe that migration snapshot. Current post-R2 root has
+five cumulative moves and four module instances; see the
+[current migration record](../../../docs/repository-structure-strategy.md).
 
 Four root resource-level moved declarations map old function/role/policy/Lambda-log
 addresses into module.lambda_workload with the same resource type and this label.

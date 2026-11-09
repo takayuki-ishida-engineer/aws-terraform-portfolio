@@ -8,19 +8,26 @@ modules remain, including generic CloudWatch Logs with its unchanged 51 tests an
 no DEV root consumer. Retirement requires another reviewed decision.
 
 [Migration evidence and interface details](../docs/repository-structure-strategy.md)
-distinguish actual local R2 verification from historical results and unverified
-live state migration. Provider/backend/root lock/features, IAM/secret/artifact
+distinguish local development evidence from historical results and unverified
+live state migration. Current main df5ef4b2e03bd55109b0490b1e63d1d4199b663b passed
+[post-R2 CI 42618561148](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42618561148):
+491 native Terraform / 153 Python tests. This is R3 entry evidence, not R4 acceptance.
+Provider/backend/root lock/features, IAM/secret/artifact
 behavior and nine-configuration single-provider cache remain unchanged. Full
 unaffected regression stays in GitHub Actions. No AWS/state operation, new feature,
 R3/R4 implementation or Live authorization occurs here.
 
 # Historical R1 integration and preserved technical history
 
+This subsection is the **R1 snapshot before R2**, at main
+`87f415f5290e2cab63696e1850a6c362eef97292` ([successful R1 CI](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42610520450), 438/153).
+Its local/then-pending-CI wording below records R1 development, not current HEAD.
+
 R1 consolidates the existing Lambda function, execution role/inline policy and
 application Log Group in [lambda_workload](modules/lambda_workload/README.md).
-Current source has **eight child modules**, **five DEV root instances** and the
+That R1 snapshot had **eight child modules**, **five DEV root instances** and the
 same **17 managed resource definitions**. The generic CloudWatch module remains
-for independent 51-case verification and API access logging; R2 is not performed.
+for independent 51-case verification and API access logging; R2 had not yet been performed in that snapshot.
 No HTTP API, provider/backend/root-lock, secret or artifact behavior is changed.
 
 Local R1 evidence: 188 native workload cases and five root cases pass; all four

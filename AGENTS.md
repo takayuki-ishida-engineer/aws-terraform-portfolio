@@ -117,32 +117,31 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: R2 HTTP API access logging consolidation
+## Current phase only: R3 documentation stabilization and R4 readiness
 
-Use refactor/http-api-logs-r2 from verified main 87f415f5290e2cab63696e1850a6c362eef97292.
-Move the existing API access Log Group into api_gateway_http, preserving its actual
-identity and lifecycle; no new feature or authenticated AWS/state operation.
+Use docs/r3-baseline-stabilization from verified post-R2 main
+`df5ef4b2e03bd55109b0490b1e63d1d4199b663b`, successful CI 42618561148 (491/153).
+R1/R2 are merged; this explicit R3 authorization replaces the former R2 task scope.
 
-- Authorize api_gateway_http source/inputs/outputs/tests/README; necessary DEV root
-  composition/outputs/moved/tests/README; retained R1 migration guard adaptation;
-  directly affected offline CI and migration/verification documentation; infra/README
-  and this current-phase section only. Preserve permanent rules byte-for-byte.
-- Require module.http_api.aws_cloudwatch_log_group.this as the single R2 move.
-  Preserve all four original R1 moves independently; four root calls, seventeen
-  resources, sixteen unchanged post-R1 addresses and eight public root outputs.
-- Preserve AWS_IAM HTTP API, exact permission, seven metadata-only log fields,
-  separate Lambda logs, defaults/tags/KMS-reference validation, 30-day retention,
-  deletion protection and skip_destroy=false. No provider/backend/lock/feature changes.
-- Preserve generic cloudwatch_logs and all 51 tests unchanged, despite no DEV root
-  consumer. Its retirement needs separate approval. Preserve Lambda implementation,
-  its source-dependency tests, IAM/SAR/toolkit/independent guards and complete CI.
-- Run affected actual native-plan/negative/mutation/capture/input, ownership/move,
-  before/after comparison, fmt/init/validate and scope/secret/diff checks. Preserve
-  nine-configuration shared provider-cache identity/storage/completeness guards.
-  Full unrelated regression belongs to GitHub Actions; no invented passing evidence.
-- Approach A only; never request/use AWS credentials or authenticated API/plan/state/
-  import/apply/destroy. Mock moves do not prove live migration or replacement safety.
-  No PDF, R3/R4/new Architecture v2/Live work or weakened G01–G07/teardown/cost rules.
-- Commit/push/open one R2 PR; report exact HEAD, files, mappings/inventory, actual
-  checks and limitations. Observe CI triggering once if immediately available;
-  stop without waiting/polling, merging or deleting any working branch.
+- Authorize minimal Markdown consistency, implementation-status, historical/current
+  evidence and policy-provenance corrections in README.md, architecture-v2,
+  verification policy, foundation design, repository strategy, infra/README and
+  Live readiness; directly related objectively stale Markdown may receive minimal
+  justified corrections. Update only this phase section; preserve permanent rules.
+- Verify counts from actual source/workflow/manifests: 8 children, 4 DEV calls,
+  17 resources, 8 outputs, HTTP API 6, Lambda 4, five exact moves, CI 9 configurations.
+  Preserve historical MVP 384/153 and R1 438/153 separately from R2 main 491/153.
+- Treat v11 (2026-11-09) as current user-approved operating policy; retain historical
+  v10 provenance. No claim of complete PDF review/reproduction or invented contents.
+- Add a concise R3 remediation/audit and R4 handoff in the existing strategy.
+  R3 is not R4 acceptance; R4 must independently verify final post-R3 main and CI.
+  Retain generic logging/51 tests; retirement needs separate review.
+- Prohibit Terraform/tfvars/moved/lock/provider/backend, test/checker/JSON/workflow,
+  IAM/security controls, artifacts/app/PDF and unrelated architecture changes.
+  No AWS credentials, authenticated AWS/plan/state/import/apply/destroy or Live work.
+- Use documentation-specific source/inventory/provenance/link/secret/scope/diff
+  checks; do not rerun unrelated Terraform/Python suites. Preserve all CI/security
+  and G01–G07 OPEN, JPY 10,000/72-hour limits and secret-recovery blocker.
+- Commit/push/open exactly one R3 PR; report HEAD, files, evidence, limitations and
+  R4 handoff. Observe triggering only if immediately visible; stop without waiting/
+  polling CI, merging/deleting branches or starting R4/new features.
