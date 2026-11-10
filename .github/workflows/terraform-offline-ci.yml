@@ -131,9 +131,9 @@ jobs:
                       "infra/services/dev/ca-central-1/platform"} | {
                   "infra/modules/" + name for name in (
                       "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda_workload",
-                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform")}
+                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress")}
               if {row["module"] for row in initialized} != expected or references != len(expected) or len(identities) != 1:
-                  raise SystemExit("Expected twelve initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+                  raise SystemExit("Expected thirteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
           if checkpoint == "job_completion":
               snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
@@ -321,7 +321,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "platform-required.json").read_text())
-          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("required_input_rejections") != 12 or report.get("network_field_rejections") != 11:
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("required_input_rejections") != 15 or report.get("network_field_rejections") != 11:
               raise SystemExit("EKS platform required-input/network reference rejection evidence failed.")
           print("Actual rejected platform inputs:", report)
           PY
@@ -340,13 +340,25 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "platform-verification.json").read_text())
-          expected = {'native_tests': 29, 'positive_plans': 5, 'negative_cases': 24, 'semantic_mutations': 73, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
+          expected = {'native_tests': 38, 'positive_plans': 6, 'negative_cases': 32, 'semantic_mutations': 73, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
           if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("evidence_type") != "actual_mock_plan_verification" or any(report.get(k) != v for k, v in expected.items()):
               raise SystemExit("EKS root actual-plan/security/count contract failed; independent review required.")
           print("Actual EKS root verification:", report)
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"passed={report['native_tests']}\n")
           PY
+
+          python3 "$GITHUB_WORKSPACE/infra/modules/private_ingress/tests/check_ingress.py" --scope root \
+            --events "$RUNNER_TEMP/platform-tests.jsonl" --exit-code "$test_status" --self-test > "$RUNNER_TEMP/ingress-root.json"
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          report=json.loads(Path(os.environ["RUNNER_TEMP"],"ingress-root.json").read_text())
+          expected={"native_tests":38,"positive_plans":6,"negative_cases":32,"semantic_mutations":45,"capture_failure_injections":21,"source_dependency_mutations":8}
+          if report.get("status")!="passed" or report.get("aws_api_calls")!=0 or any(report.get(k)!=v for k,v in expected.items()):
+              raise SystemExit("Independent platform ingress security/evidence checks failed")
+          print("Independent actual Root ingress verification:",report)
+          PYCODE
 
       - name: Verify EKS child actual plans and security contracts
         id: eks_platform
@@ -390,6 +402,39 @@ jobs:
               raise SystemExit("Actual unsafe EKS Terraform source mutation evidence failed.")
           print("Actual unsafe Terraform source re-plans rejected:", report)
           PY
+
+      - name: Verify private ingress actual plans and source mutations
+        id: private_ingress
+        working-directory: infra/modules/private_ingress
+        run: |
+          set -euo pipefail
+          umask 077
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/platform/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -lockfile=readonly -no-color
+          terraform validate -no-color
+          compact="$GITHUB_WORKSPACE/infra/modules/eks_platform/tests/check_platform_configuration.py"
+          if terraform test -json -verbose -no-color | python3 "$compact" --compact > "$RUNNER_TEMP/ingress-tests.jsonl"; then
+            test_status=0
+          else
+            test_status=$?
+          fi
+          python3 tests/check_ingress.py --scope child --events "$RUNNER_TEMP/ingress-tests.jsonl" --exit-code "$test_status" --self-test > "$RUNNER_TEMP/ingress-child.json"
+          python3 tests/check_source_mutations.py --terraform terraform > "$RUNNER_TEMP/ingress-source.json"
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          temp=Path(os.environ["RUNNER_TEMP"])
+          report=json.loads((temp/"ingress-child.json").read_text())
+          expected={"native_tests":28,"positive_plans":6,"negative_cases":22,"semantic_mutations":45,"capture_failure_injections":21,"source_dependency_mutations":8}
+          if report.get("status")!="passed" or report.get("aws_api_calls")!=0 or any(report.get(k)!=v for k,v in expected.items()):
+              raise SystemExit("Ingress child actual-plan security/evidence checks failed")
+          source=json.loads((temp/"ingress-source.json").read_text())
+          if source.get("status")!="passed" or source.get("aws_api_calls")!=0 or source.get("actual_source_mutations")!=9:
+              raise SystemExit("Actual unsafe ingress Terraform re-plans were not completely detected")
+          print("Actual ingress verification:",report,source)
+          with open(os.environ["GITHUB_OUTPUT"],"a") as output:
+              output.write(f"passed={report['native_tests']}\n")
+          PYCODE
 
       - name: Validate VPC legacy and extension actual mock plans
         id: vpc
@@ -908,6 +953,8 @@ jobs:
           ROOT_PASSED: ${{ steps.root_integration.outputs.passed }}
           PLATFORM_RESULT: ${{ steps.platform.outcome }}
           PLATFORM_PASSED: ${{ steps.platform.outputs.passed }}
+          INGRESS_RESULT: ${{ steps.private_ingress.outcome }}
+          INGRESS_PASSED: ${{ steps.private_ingress.outputs.passed }}
           EKS_RESULT: ${{ steps.eks_platform.outcome }}
           EKS_PASSED: ${{ steps.eks_platform.outputs.passed }}
           NETWORK_RESULT: ${{ steps.network.outcome }}
@@ -944,6 +991,7 @@ jobs:
             ("Dev serverless API root integration/plans/mutations", "ROOT_RESULT", os.environ.get("ROOT_PASSED", "")),
             ("DEV network init/validate/required-inputs/plans/mutations", "NETWORK_RESULT", os.environ.get("NETWORK_PASSED", "")),
             ("DEV platform root/private EKS/required network inputs/security", "PLATFORM_RESULT", os.environ.get("PLATFORM_PASSED", "")),
+            ("Private ingress/TCP/SG/ownership/plans/source mutations", "INGRESS_RESULT", os.environ.get("INGRESS_PASSED", "")),
             ("EKS child/IAM/SG/access/addons/plans/source mutations", "EKS_RESULT", os.environ.get("EKS_PASSED", "")),
             ("VPC init/validate/legacy and routing/endpoint plans/mutations", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
             ("Secrets Manager init/validate/mock inventory/tests", "SECRETS_RESULT", os.environ.get("SECRETS_PASSED", "")),

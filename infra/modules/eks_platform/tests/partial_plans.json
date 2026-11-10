@@ -1666,7 +1666,12 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients"
       ],
       "outputs": []
     },
@@ -1697,7 +1702,12 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients"
       ],
       "outputs": []
     },
@@ -1736,9 +1746,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "zero_minimum": {
       "resources": [
@@ -1775,9 +1798,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "fractional_capacity": {
       "resources": [
@@ -1814,9 +1850,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "foreign_bootstrap": {
       "resources": [
@@ -1852,9 +1901,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "wildcard_bootstrap": {
       "resources": [
@@ -1890,9 +1952,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "machine_role_as_admin": {
       "resources": [
@@ -1928,9 +2003,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "namespace_admin_policy": {
       "resources": [
@@ -1970,9 +2058,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "namespace_wildcard": {
       "resources": [
@@ -2012,9 +2113,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "world_api_ingress": {
       "resources": [
@@ -2043,7 +2157,12 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients"
       ],
       "outputs": []
     },
@@ -2082,9 +2201,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "dev_multiple_node_azs": {
       "resources": [
@@ -2121,9 +2253,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "missing_active_nat": {
       "resources": [
@@ -2160,9 +2305,22 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb.this",
+        "module.private_ingress.aws_lb_listener.https_passthrough",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "private_ingress"
+      ]
     },
     "invalid_root_account": {
       "resources": [],
@@ -2203,9 +2361,424 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
-        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
+    },
+    "ingress_public": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "platform"
+      ]
+    },
+    "ingress_unknown": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "platform"
+      ]
+    },
+    "ingress_wrong_az": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "platform"
+      ]
+    },
+    "ingress_empty": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_lb_target_group.gateway",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "platform"
+      ]
+    },
+    "ingress_zero_port": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "platform"
+      ]
+    },
+    "ingress_large_port": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "platform"
+      ]
+    },
+    "ingress_fractional_port": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_security_group.nlb",
+        "module.private_ingress.aws_security_group.vpc_link_client",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "platform"
+      ]
+    },
+    "ingress_bad_name": {
+      "resources": [
+        "module.eks_platform.aws_cloudwatch_log_group.cluster",
+        "module.eks_platform.aws_eks_access_entry.bootstrap",
+        "module.eks_platform.aws_eks_access_policy_association.bootstrap",
+        "module.eks_platform.aws_eks_addon.coredns",
+        "module.eks_platform.aws_eks_addon.kube_proxy",
+        "module.eks_platform.aws_eks_addon.vpc_cni",
+        "module.eks_platform.aws_eks_cluster.this",
+        "module.eks_platform.aws_eks_node_group.this",
+        "module.eks_platform.aws_iam_openid_connect_provider.cluster",
+        "module.eks_platform.aws_iam_role.cluster",
+        "module.eks_platform.aws_iam_role.cni",
+        "module.eks_platform.aws_iam_role.nodes",
+        "module.eks_platform.aws_iam_role_policy.cluster",
+        "module.eks_platform.aws_iam_role_policy_attachment.cni",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEC2ContainerRegistryPullOnly\"]",
+        "module.eks_platform.aws_iam_role_policy_attachment.nodes[\"AmazonEKSWorkerNodePolicy\"]",
+        "module.eks_platform.aws_launch_template.nodes",
+        "module.eks_platform.aws_security_group.cluster",
+        "module.eks_platform.aws_security_group.nodes",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.cluster_nodes[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_cluster",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_https[\"203.0.113.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_egress_rule.nodes_peer_dns[\"udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_clients[\"10.70.20.0/24\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.cluster_nodes",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"dns_udp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"https\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
+        "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]"
+      ],
+      "outputs": [
+        "platform"
+      ]
     }
   }
 }

@@ -1,0 +1,276 @@
+{
+  "positive": {
+    "private_dev": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "vpc_id": "vpc-0123456789abcdef0",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        }
+      },
+      "name": "test-ingress",
+      "subnet_keys": [
+        "private-a"
+      ],
+      "backend_target_port": 8443,
+      "eks_security_groups": {
+        "cluster": "sg-00000000000000001",
+        "nodes": "sg-00000000000000002"
+      },
+      "cross_zone_enabled": false
+    },
+    "multi_az": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "vpc_id": "vpc-0123456789abcdef0",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        }
+      },
+      "name": "test-ingress",
+      "subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "backend_target_port": 8443,
+      "eks_security_groups": {
+        "cluster": "sg-00000000000000001",
+        "nodes": "sg-00000000000000002"
+      },
+      "cross_zone_enabled": false
+    },
+    "cross_zone": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "vpc_id": "vpc-0123456789abcdef0",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        }
+      },
+      "name": "test-ingress",
+      "subnet_keys": [
+        "private-a",
+        "private-b"
+      ],
+      "backend_target_port": 8443,
+      "eks_security_groups": {
+        "cluster": "sg-00000000000000001",
+        "nodes": "sg-00000000000000002"
+      },
+      "cross_zone_enabled": true
+    },
+    "backend_443": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "vpc_id": "vpc-0123456789abcdef0",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        }
+      },
+      "name": "test-ingress",
+      "subnet_keys": [
+        "private-a"
+      ],
+      "backend_target_port": 443,
+      "eks_security_groups": {
+        "cluster": "sg-00000000000000001",
+        "nodes": "sg-00000000000000002"
+      },
+      "cross_zone_enabled": false
+    },
+    "backend_max": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "vpc_id": "vpc-0123456789abcdef0",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        }
+      },
+      "name": "test-ingress",
+      "subnet_keys": [
+        "private-a"
+      ],
+      "backend_target_port": 65535,
+      "eks_security_groups": {
+        "cluster": "sg-00000000000000001",
+        "nodes": "sg-00000000000000002"
+      },
+      "cross_zone_enabled": false
+    },
+    "alternate_computed": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "vpc_id": "vpc-0123456789abcdef0",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        }
+      },
+      "name": "test-ingress",
+      "subnet_keys": [
+        "private-a"
+      ],
+      "backend_target_port": 8443,
+      "eks_security_groups": {
+        "cluster": "sg-00000000000000001",
+        "nodes": "sg-00000000000000002"
+      },
+      "cross_zone_enabled": false
+    }
+  },
+  "negative": {
+    "wrong_version": "var.network_reference",
+    "wrong_account": "var.network_reference",
+    "wrong_region": "var.network_reference",
+    "wrong_env": "var.network_reference",
+    "wrong_partition": "var.network_reference",
+    "wrong_vpc": "var.network_reference",
+    "empty_private": "var.network_reference",
+    "duplicate_subnet": "var.network_reference",
+    "public_masquerade": "var.network_reference",
+    "missing_az": "var.network_reference",
+    "invalid_az": "var.network_reference",
+    "empty_selection": "var.subnet_keys",
+    "unknown_selection": "var.subnet_keys",
+    "public_selection": "var.subnet_keys",
+    "duplicate_az": "var.subnet_keys",
+    "zero_port": "var.backend_target_port",
+    "large_port": "var.backend_target_port",
+    "fractional_port": "var.backend_target_port",
+    "same_sg": "var.eks_security_groups",
+    "invalid_sg": "var.eks_security_groups",
+    "reserved_name": "var.name",
+    "invalid_name": "var.name"
+  }
+}

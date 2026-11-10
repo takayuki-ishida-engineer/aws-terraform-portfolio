@@ -30,7 +30,7 @@ tests for nine modules and seven root instances. Its original
 established 438/153; see the [milestones and R4 handoff](docs/repository-structure-strategy.md#r3-stabilization-and-r4-handoff).
 No historical result is relabeled as current execution or Live connectivity.
 
-The approved post-V2 main `da1af5c4eed15f5c9145799409d53c1db7508c94` passed
+Historical V3 development snapshot: the approved post-V2 main `da1af5c4eed15f5c9145799409d53c1db7508c94` passed
 [CI 42688811654](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42688811654)
 (560 native / 153 Python, 10 configurations). V2 added opt-in VPC routing/NAT/S3
 endpoint support and a separate DEV Network Root. V3 adds the candidate
@@ -41,6 +41,16 @@ The candidate library has nine children and three DEV roots. Local V3 child/Root
 native evidence is 52/29; complete PR regression remains independently required
 (expected 641 native / 153 Python, 12 configurations). No AWS resource is deployed.
 The historical HTTP API contract and acceptance records above remain unchanged.
+
+Accepted post-V3 main `6b185820c806a0c96410a145106b9f103db14d89` passed
+[CI42720431920](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42720431920)
+(641 native/153 Python,12 configurations). V4 adds the candidate
+[private ingress child](infra/modules/private_ingress/README.md) beside EKS in the
+existing Platform Root: internal NLB TCP443 passthrough, explicit IP backend port,
+dedicated client/NLB SGs and scoped rules. No targets/controller/PKI are deployed.
+There are10 children, three Roots; expected full CI678/153 and13 configurations
+await independent review. Local new Child28/updated Root38 native tests passed;
+all runtime/TLS/output-publication/Live gates remain OPEN.
 
 ## Target architecture — defined, not deployed
 

@@ -80,6 +80,41 @@ override_resource {
   values          = { "access_entry_arn" : "arn:aws:eks:ca-central-1:000000000000:access-entry/test-eks/role/test-deployer/00000000" }
 }
 
+variables {
+  ingress_name        = "test-ingress"
+  ingress_subnet_key  = "private-a"
+  gateway_target_port = 8443
+}
+override_resource {
+  target          = module.private_ingress.aws_lb.this
+  override_during = plan
+  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:loadbalancer/net/test-ingress/0123456789abcdef", "dns_name" : "test-ingress.example.elb.amazonaws.com", "zone_id" : "ZTESTZONE", "vpc_id" : "vpc-0123456789abcdef0" }
+}
+
+override_resource {
+  target          = module.private_ingress.aws_lb_target_group.gateway
+  override_during = plan
+  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:targetgroup/test-ingress-gateway/0123456789abcdef" }
+}
+
+override_resource {
+  target          = module.private_ingress.aws_lb_listener.https_passthrough
+  override_during = plan
+  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:listener/net/test-ingress/0123456789abcdef/0123456789abcdef" }
+}
+
+override_resource {
+  target          = module.private_ingress.aws_security_group.nlb
+  override_during = plan
+  values          = { "id" : "sg-00000000000000101" }
+}
+
+override_resource {
+  target          = module.private_ingress.aws_security_group.vpc_link_client
+  override_during = plan
+  values          = { "id" : "sg-00000000000000102" }
+}
+
 run "private_dev" {
   command = plan
   variables {
@@ -674,4 +709,196 @@ run "alternate_computed_values" {
     override_during = plan
     values          = { "arn" : "arn:aws:eks:ca-central-1:000000000000:nodegroup/test-eks/test-workers/00000000-0000-0000-0000-000000000002" }
   }
+}
+run "backend_443" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = "private-a"
+    gateway_target_port      = 443
+  }
+  assert {
+    condition     = module.private_ingress.private_ingress.backend_target_port == var.gateway_target_port
+    error_message = "Private TCP passthrough and reviewed backend-port contract required."
+  }
+}
+run "ingress_public" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = "public-a"
+    gateway_target_port      = 8443
+  }
+  expect_failures = [var.ingress_subnet_key]
+}
+run "ingress_unknown" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = "unknown"
+    gateway_target_port      = 8443
+  }
+  expect_failures = [var.ingress_subnet_key]
+}
+run "ingress_wrong_az" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = "private-b"
+    gateway_target_port      = 8443
+  }
+  expect_failures = [var.ingress_subnet_key]
+}
+run "ingress_empty" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = ""
+    gateway_target_port      = 8443
+  }
+  expect_failures = [var.ingress_subnet_key]
+}
+run "ingress_zero_port" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = "private-a"
+    gateway_target_port      = 0
+  }
+  expect_failures = [var.gateway_target_port]
+}
+run "ingress_large_port" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = "private-a"
+    gateway_target_port      = 65536
+  }
+  expect_failures = [var.gateway_target_port]
+}
+run "ingress_fractional_port" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "test-ingress"
+    ingress_subnet_key       = "private-a"
+    gateway_target_port      = 443.5
+  }
+  expect_failures = [var.gateway_target_port]
+}
+run "ingress_bad_name" {
+  command = plan
+  variables {
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    cluster_name             = "test-eks"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id           = "000000000000"
+    active_workload_az       = "ca-central-1a"
+    ingress_name             = "internal-test"
+    ingress_subnet_key       = "private-a"
+    gateway_target_port      = 8443
+  }
+  expect_failures = [var.ingress_name]
 }
