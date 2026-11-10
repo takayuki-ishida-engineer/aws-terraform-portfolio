@@ -37,7 +37,7 @@ V1 requires independent design approval before V2; no root, backend, AWS allocat
 or Live decision is made. R3/R4 readiness wording below is retained historical
 handoff evidence, not a claim that the accepted R4 baseline is still pending.
 
-## V2 baseline and V3 candidate transition
+## Historical V2 baseline and V3 candidate transition
 
 Approved main `da1af5c4eed15f5c9145799409d53c1db7508c94` passed
 [post-V2 CI 42688811654](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42688811654)
@@ -56,6 +56,21 @@ mutation checks; complete PR CI remains independently required, with expected
 state, connectivity/capacity, AWS-managed SG residual permissions, deployment or
 Live approval follows. The following R0–R4 inventory/migration/evidence sections
 are historical snapshots and are not repository-wide V3 counts.
+
+## V4 candidate transition
+
+Accepted V3 main `6b185820c806a0c96410a145106b9f103db14d89` passed
+[CI42720431920](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42720431920)
+with641 native/153 Python and12 configurations. V4 adds
+[private_ingress](../infra/modules/private_ingress/README.md), bringing the library
+to10 children with the same three DEV Roots. Platform now composes EKS and ingress
+in one local State; source addresses remain with original owners. Ingress owns11
+resources and its additional rules on existing custom EKS SGs; controller runtime
+only later owns target registration. Local Child28/Root38 passes imply expected
+678 native/153 Python,13 configurations for independent full CI, not prior evidence.
+No Root/backend/publication service, Kubernetes controller, TLS/mTLS or Live
+implementation/approval is inferred. Historical R0–V3 records below remain scoped
+to their recorded revisions.
 
 ## R3 stabilization and R4 handoff
 
@@ -441,7 +456,7 @@ R0 created no module directories.
 | cognito_auth | User Pool, App Client, non-secret federation and AWS-managed login domain | Future; no plaintext Google secrets in Terraform |
 | cloudfront_edge | Distribution/origin, edge WAF and approved origin-mTLS references | Future; PKI, pricing and global scope still reviewed separately |
 | eks_platform | EKS cluster/managed nodes and cluster-specific IAM/security/access | V3 candidate private EC2 Cluster/MNG/IAM/SG/access/add-ons; no workload/controller ownership |
-| private_ingress | Internal NLB, TCP:443 listener, target groups and ingress security | Future; Kubernetes target registration remains separate |
+| private_ingress | Internal NLB, TCP:443 listener, target groups and ingress security | V4 candidate NLB/TCP/IP target group and dedicated rules in existing Platform Root; Kubernetes registration remains future |
 | rds_postgres | DEV Single-AZ RDS PostgreSQL | Future |
 | aurora_postgres | STG/PROD Provisioned PostgreSQL writer/reader across AZs | Future |
 | delivery | ECR/CodeBuild/deployment infrastructure, scoped IAM and related notifications where lifecycle permits | Future; shared-resource exceptions need justification |

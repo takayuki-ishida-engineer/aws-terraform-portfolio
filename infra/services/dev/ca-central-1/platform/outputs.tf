@@ -16,3 +16,8 @@ output "platform" {
     log_group_arn              = module.eks_platform.log_group_arn
   }
 }
+
+output "private_ingress" {
+  value       = module.private_ingress.private_ingress
+  description = "Additional scoped ingress interface; platform output remains unchanged. Publication and actual runtime remain OPEN."
+}

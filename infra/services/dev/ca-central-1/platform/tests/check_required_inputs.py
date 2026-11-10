@@ -4,6 +4,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,7 +15,7 @@ sys.dont_write_bytecode=True
 sys.path.insert(0,str(ROOT.parents[3]/'modules/eks_platform/tests'))
 from check_platform_configuration import parse,require
 
-REQUIRED=['aws_account_id','active_workload_az','network_reference','cluster_name','kubernetes_version','service_ipv4_cidr','cluster_subnet_keys','node_group','bootstrap_admin_role_arn','api_client_cidrs','node_https_egress_cidrs','addon_versions']
+REQUIRED=['aws_account_id','active_workload_az','network_reference','cluster_name','kubernetes_version','service_ipv4_cidr','cluster_subnet_keys','node_group','bootstrap_admin_role_arn','api_client_cidrs','node_https_egress_cidrs','addon_versions','ingress_name','ingress_subnet_key','gateway_target_port']
 NETWORK=['interface_version','scope','vpc_id','vpc_cidr','private_subnet_ids','public_subnet_ids','subnet_azs','private_route_table_ids_by_subnet','public_route_table_id','nat_gateway_ids_by_az','routing_mode']
 
 
@@ -23,6 +24,9 @@ def main():
     try:
         values=parse((ROOT.parents[3]/'modules/eks_platform/tests/cases.json').read_text())['root_positive']['private_dev']
         header=(ROOT/'tests/platform.tftest.hcl').read_text().split('\nrun "',1)[0]
+        # Each rejection fixture supplies its own complete variable block; omit
+        # native-suite global ingress defaults so missing inputs really are missing.
+        header=re.sub(r'(?m)^variables \{[^}]*\}\n','',header)
         env={k:v for k,v in os.environ.items() if not k.startswith(('AWS_','TF_VAR_','TF_CLI_ARGS'))}
         env.update(TF_INPUT='0',TF_IN_AUTOMATION='1',AWS_EC2_METADATA_DISABLED='true',AWS_SHARED_CREDENTIALS_FILE='/dev/null',AWS_CONFIG_FILE='/dev/null')
         reports=[]

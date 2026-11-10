@@ -34,7 +34,7 @@ Neither historical nor current HTTP API evidence proves REST/NLB/Istio/mTLS,
 deployed AWS behavior or actual state migration. The target below remains
 a deployment target; the R3/R4 chronology below is historical, not V3 evidence.
 
-## V2 baseline and V3 platform candidate
+## Historical V2 baseline and V3 platform candidate
 
 The approved V3 entry is post-V2 main
 `da1af5c4eed15f5c9145799409d53c1db7508c94`, matching successful
@@ -62,6 +62,31 @@ autoscaler, STG/PROD platform or AWS deployment is implemented. Actual AWS-manag
 Cluster SG residual rules, namespace Edit/Pod identity boundaries, connectivity,
 versions/capacity/cost and safe teardown require external review. G01–G07, Live
 limits and the Secrets Manager recovery blocker remain OPEN.
+
+## V4 private ingress source candidate
+
+Accepted post-V3 main `6b185820c806a0c96410a145106b9f103db14d89` has successful
+[push CI42720431920](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42720431920)
+(641 native/153 Python, 12 configurations). V4 adds the coherent
+[private_ingress child](../infra/modules/private_ingress/README.md) directly to
+[DEV Platform](../infra/services/dev/ca-central-1/platform/README.md) in the same
+State: internal IPv4 NLB, TCP443 → required IP target port, dedicated NLB/client
+SGs and six scoped target/client/webhook rules. No existing resource changes owner.
+DEV selects one private subnet in the active worker AZ, cross-zone=false; no HA
+claim. Static source has no registered Pod targets or controller deployment.
+
+VPC Link client SG is Platform-owned for future API ENI attachment, preventing
+reverse Root dependencies. Later runtime owns restricted TargetGroupBinding and
+registration, not NLB creation, TG attributes or SG rule reconciliation. AWS-
+managed Cluster SG residual exposure, Pod SG assumptions, webhook/API/data paths,
+controller IAM/RBAC and trusted minimal output publication remain OPEN. TCP health
+is not TLS/mTLS or application authorization; Gateway TLS/client verification and
+API server-chain/hostname/SNI compatibility are future work, with no insecure fallback.
+
+V4 local native counts are Child28/Root38; expected full CI678/153 and13 initialized
+configurations requires independent exact-HEAD review, not assumed success. All
+G01–G07/cost/72-hour teardown/Secrets recovery limits persist. The V2/V3 counts
+above remain historical implementation evidence, not current V4 totals.
 
 ## Approved target topology
 

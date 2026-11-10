@@ -30,6 +30,19 @@ remain defined or OPEN. No DEV Live outcome or actual state migration is claimed
 All G01–G07 in the [readiness document](dev-live-validation-readiness.md) stay OPEN.
 R3 documentation completion cannot replace exact post-R3 main/R4 regression review.
 
+### V4 source/evidence boundary
+
+Accepted V3 main `6b185820c806a0c96410a145106b9f103db14d89` has successful
+[push CI42720431920](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42720431920)
+(641 native/153 Python). V4's [static private ingress](../infra/modules/private_ingress/README.md)
+is a candidate implementation with local Child28/Root38 native evidence and
+independent actual-plan/security/source/evidence-fault checks. Full CI expectation
+678 native/153 Python/13 configurations still needs exact-HEAD independent review.
+Internal TCP/IP ownership and paired SG rules do not prove registered targets,
+webhook/controller effectiveness, TLS/mTLS or application authorization. TGB
+RBAC/IAM, AWS-managed SG/Pod SG assumptions, actual connectivity and all G01–G07
+remain OPEN. Earlier post-R2/pre-R1 evidence above is preserved history.
+
 ## All environments — applicable offline implementation gate
 
 For new/changed implemented modules and environment configurations require:

@@ -1,12 +1,70 @@
-# DEV private EKS platform foundation — V3 candidate
+# DEV EKS and private ingress platform — V4 candidate
 
-This is an offline-verified Terraform root, not an AWS deployment. It calls exactly
-one [eks_platform child](../../../../modules/eks_platform/README.md), owns a fixed
+This is an offline-verified Terraform root, not an AWS deployment. It composes the [eks_platform child](../../../../modules/eks_platform/README.md), owns a fixed
 ca-central-1 AWS provider with allowed_account_ids, a local backend and a committed
 AWS 6.72.0 lock (Terraform ~>1.17.0 / AWS ~>6.72.0). It modifies neither the Network
 nor historical serverless API roots, their state or approved resource moves.
 
-## Required input and network interface
+
+## V4 private ingress foundation candidate
+
+V4 starts at accepted post-V3 main `6b185820c806a0c96410a145106b9f103db14d89`,
+[successful push CI42720431920](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42720431920).
+The V3-only inventory/evidence below is retained historical context. This Root now
+also calls [private_ingress](../../../../modules/private_ingress/README.md) directly,
+with no new provider, backend, lock, Root or State boundary. EKS still owns its
+37-resource basic configuration; ingress adds 11 (48 combined, 52 with two namespace
+access pairs). EKS-owned addresses and the complete platform output are unchanged.
+
+Three additional required non-secret inputs: ingress_name (reviewed valid 1–20
+character name), ingress_subnet_key (known private key in active_workload_az) and
+gateway_target_port (integer 1–65535). All prior 12 required inputs and four defaults
+remain effective. The typed Network reference is unchanged. No concrete allocation,
+account, port, subnet or identity is invented; 8443 is only a synthetic test fixture.
+The child receives actual module.eks_platform.security_group_ids.cluster/nodes,
+never the AWS-managed ID. DEV fixes cross_zone_enabled=false, selects exactly one
+private subnet and propagates deletion_protection and mandatory governance tags.
+
+Root Override: the three required ingress values, expected scope/network reference,
+actual EKS custom SGs, DEV cross-zone=false, existing deletion protection and tags.
+Module Default: protection=true/tags={}; Module Fixed: internal IPv4 TCP443 →
+reviewed TCP/IP backend port, client IP/Proxy Protocol disabled, PrivateLink SG
+filtering on, TCP traffic-port health checks, 300-second drain, webhookTCP9443.
+The child owns both new SGs and six scoped standalone rules, including three on
+existing EKS custom SGs (Node target ingress, control webhook egress, Node webhook
+ingress). EKS retains its SG resources and original rules; future controllers
+must not reconcile those Terraform-owned rules or target-group settings.
+
+The additional inferred-typed private_ingress output has interface_version/scope,
+NLB ARN/DNS/zone, listener ARN, target group ARN/name, NLB and future VPC Link client
+SG IDs, selected private subnet IDs, VPC ID, backend port and cross-zone selection.
+The API Root will attach the client SG to VPC Link V2 ENIs; it must not recreate it.
+Publication/authenticity/integrity/read access/custody remain OPEN, without whole
+State access. No API Root or distribution service is implemented.
+
+No targets exist initially. Later runtime owns scoped controller IAM/ServiceAccount,
+RBAC-restricted TargetGroupBinding and Gateway Service/Pods. Do not create another
+NLB via a LoadBalancer Service. No Terraform Pod registration, controller install,
+Kubernetes/Helm provider or workload is added. Paired webhook9443 SG rules do not
+make a webhook operational. SG-for-Pod/CNI assumptions, AWS-managed Cluster SG
+residual permissions, actual data/health/DNS/AWS API connectivity remain OPEN.
+
+TCP passthrough is not TLS/mTLS implementation. Istio must later terminate TLS and
+verify the expected API client certificate; API integration must verify server
+chain/hostname/SNI. VPC Link V2/provider compatibility, PKI/rotation/revocation,
+NetworkPolicy and mesh/application authorization remain OPEN. No TLS listener,
+certificate or insecure verification fallback exists. TCP health is not TLS or
+application authorization evidence. Single-AZ DEV is not highly available.
+
+Local V4: Root38 native (6 positives/32 rejections), Child28 (6/22); ingress checks
+per scope detect45 semantic mutations, reject21 capture faults and detect8 source
+mutations. Nine unsafe actual source re-plans are rejected. Existing EKS73/21/10
+remain, as do required-input checks (now15 Root+11 Network fields). Full CI expected
+678 native/153 Python/13 configurations; no pending CI success is claimed. Timeout
+stays30 minutes. All G01–G07/budget/72-hour inventory+teardown/Secrets recovery gates
+below remain OPEN; source/mock success does not authorize AWS, merge or V5.
+
+## Historical V3 required input and network interface
 
 Required inputs are aws_account_id, active_workload_az, network_reference,
 cluster_name, kubernetes_version, service_ipv4_cidr, cluster_subnet_keys,

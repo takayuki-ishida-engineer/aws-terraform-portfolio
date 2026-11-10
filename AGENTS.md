@@ -117,38 +117,32 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: V3 DEV EKS platform foundation implementation
+## Current phase only: V4 private ingress foundation implementation
 
-Use feature/eks-v3-dev-platform-foundation from approved post-V2 main
-`da1af5c4eed15f5c9145799409d53c1db7508c94`, successful push CI 42688811654.
-This explicit V3 authorizes one coherent eks_platform child and DEV platform root.
-Master Policy v11 requirements supplied by the user govern; the external PDF is
-unavailable and must not be represented as independently reviewed.
+Use feature/private-ingress-v4-foundation from accepted post-V3 main
+`6b185820c806a0c96410a145106b9f103db14d89`, successful push CI42720431920.
+User-supplied Master Policy v11 requirements govern; unavailable PDF is not claimed read.
 
-- Own private IPv4 EC2 EKS, one Managed Node Group, dedicated Cluster/Node/CNI IAM,
-  actual SG references/rules, explicit access entries, logs and three core add-ons.
-  Keep operational versions, capacity, identities and allocation as required inputs.
-  Do not introduce Istio/Helm/workloads, ingress/NLB, Auto Mode/Fargate or wrappers.
-- Root owns fixed ca-central-1/account-restricted provider, local backend and lock.
-  Consume a typed minimal V2 network reference; never whole state, remote-state
-  discovery or an invented publication service. Verify scope/keys/AZ relationships;
-  actual existence, output provenance and single-writer custody remain external.
-- Preserve all existing VPC/Network/serverless/IAM/security interfaces and tests,
-  R1/R2 moves, provider constraints, locks and acceptance evidence. Add affected
-  actual mock-plan, negative, IAM/access/SG/add-on/dependency, mutation, malformed
-  evidence and Root rejection checks. Derive CI counts from actual execution.
-- Update module/root READMEs and minimal related Architecture v2/status documents,
-  workflow integration and this phase section; permanent rules stay byte-identical.
-  No STG/PROD roots, application integration, customer artifacts or next phase.
-- Never request/use AWS credentials, authenticated AWS/plan/state/apply/destroy/
-  import operations. G01–G07 remain OPEN; account/identity/state/capacity/connectivity/
-  pricing/deployment approval, JPY 10,000/72-hour limits and Secrets recovery blocker
-  persist. Review AWS-managed Cluster SG residual rules and namespace Edit/Pod
-  identity boundaries before Live; do not claim mock plans establish enforcement.
-- Run affected fmt/init/validate/native/actual-plan/input/IAM/security/mutation,
-  provider-cache/lock/workflow checks and scope/docs/links/secrets/diff validation.
-  Preserve full independent CI regression; do not rerun unrelated local suites.
-- Commit/push/open one V3 PR against main. Report exact HEAD/files/inventories,
-  typed interface/private AZ behavior, actual verification and remaining blockers.
-  Observe triggering once if immediately visible; do not wait/poll CI completion,
-  merge/delete the branch, deploy or start another phase. Stop for external review.
+- Add one coherent private_ingress child and compose it directly beside EKS in the
+  existing DEV Platform Root/local State. Own internal IPv4 NLB, TCP443 listener,
+  IP TCP target group, two dedicated SGs and scoped target/client/webhook rules.
+- Preserve EKS/VPC resource ownership, original EKS rules, Root platform output,
+  network validation, providers/backend/locks, R1/R2 moves and all existing checks.
+  Additional ingress rules on EKS custom SGs have one owner in private_ingress.
+- Require actual reviewed ingress name/subnet/backend port; DEV private subnet must
+  be in active worker AZ. Bind actual custom EKS outputs. No invented allocation.
+- Runtime alone later owns controller/TGB/Pods/target registration. No attachment,
+  Kubernetes/Helm providers, second NLB writer, API Root, TLS termination/PKI,
+  publication service, new Root/state boundary, STG/PROD or next phase.
+- Add actual mock-plan/native/negative/security/source-mutation/capture checks;
+  preserve all V3/other security regressions, 153 Python tests and cache invariants.
+  Derive new CI counts from execution. Keep timeout30; do not speculate changes.
+- Update affected docs and only this phase section; permanent rules byte-identical.
+  AWS-managed SG residual permissions, Pod SG assumptions, actual connectivity,
+  output integrity/state custody, IAM/capacity/cost/teardown remain OPEN.
+- No AWS credentials/authenticated AWS/plan/State/apply/destroy/import or Live.
+  G01–G07, cumulative JPY10,000, complete72-hour teardown/dynamic inventory and
+  Secrets Manager30-day recovery blocker remain unchanged.
+- Commit/push/open one PR; report exact HEAD/files/addresses/interfaces/results and
+  remaining gates. Observe CI triggering once if visible; never wait/poll completion,
+  self-approve, merge/delete the branch, deploy or start V5. Stop for independent review.

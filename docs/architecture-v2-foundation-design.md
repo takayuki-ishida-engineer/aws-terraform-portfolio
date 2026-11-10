@@ -61,6 +61,21 @@ No G01–G07, state/backend/account, Live budget/teardown or Secrets recovery ga
 is closed by these source additions. Earlier roadmap entries are historical,
 not authorization to repeat completed V2 work or begin a later phase.
 
+## V4 ingress ownership update
+
+The accepted V3 entry is main `6b185820c806a0c96410a145106b9f103db14d89`,
+[successful CI42720431920](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42720431920).
+V4 composes [private_ingress](../infra/modules/private_ingress/README.md) beside
+EKS in the existing Platform Root/local State. Its11 static resources own internal
+NLB/TCP443/IP target group, two SGs and six dedicated client/target/webhook rules,
+including rule-only ownership on EKS custom groups. EKS retains SG resources and
+original rules; Network retains VPC resources. Actual API/Kubernetes integration,
+TGB IAM/RBAC/target registration, SG-for-Pod and managed-SG exposure, TLS/SNI,
+minimal output distribution and Live evidence remain OPEN. D10's static source
+boundary is implemented as a candidate; its runtime/feasibility gate is not closed.
+Local native Child28/Root38; full expected CI678/153,13 configurations is pending
+independent review. No new State/backend, publication mechanism or AWS work occurs.
+
 ## A. Historical post-R2 implementation inventory
 
 Post-R2 snapshot source: main df5ef4b2e03bd55109b0490b1e63d1d4199b663b,

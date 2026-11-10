@@ -148,6 +148,17 @@ def resources_of(plan, scope):
 
 
 def verify_plan(plan, v, scope):
+    ingress_count=0
+    if scope=='root':
+        # Independent ingress verification runs before projecting the unchanged EKS
+        # ownership/output contract. No additional resource is silently ignored.
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('private_ingress_check',REPO/'infra/modules/private_ingress/tests/check_ingress.py')
+        sys.dont_write_bytecode=True
+        checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
+        ingress_count=checker.verify_root_ingress(plan,v)
+        plan=dict(plan,resource_changes=[r for r in plan['resource_changes'] if not r['address'].startswith('module.private_ingress.')],
+            output_changes={k:x for k,x in plan['output_changes'].items() if k!='private_ingress'})
     validate_inputs(v,scope);resources=resources_of(plan,scope)
     def read(addr,key):
         change=resources[addr]
@@ -254,7 +265,7 @@ def verify_plan(plan, v, scope):
     for key,value in outputs.items():
         output=changes[key];require(output.get('actions')==['create'] and 'before' in output and output['before'] is None and output.get('after')==value
             and 'after_unknown' in output and not unknown(output['after_unknown']) and output.get('after_sensitive') is False,'actual_nonsecret_output:'+key)
-    return len(resources)
+    return len(resources)+ingress_count
 
 
 def source_contract(sources=None):
@@ -332,7 +343,7 @@ def verify_capture(events,scope,exit_code=0):
         addresses=[row.get('address','') for row in rows]
         require(len(addresses)==len(set(addresses)) and set(addresses)==set(partial[name]['resources']) and set(outputs)==set(partial[name]['outputs']),'reviewed_negative_partial_shape:'+name)
         for row in rows:
-            require(row.get('mode')=='managed' and row.get('provider_name')==PROVIDER and row.get('address','').startswith(prefix)
+            require(row.get('mode')=='managed' and row.get('provider_name')==PROVIDER and row.get('address','').startswith((prefix,'module.private_ingress.') if scope=='root' else prefix)
                 and row.get('change',{}).get('actions')==['create'],'partial_resource_identity')
     return dict(status='passed',aws_api_calls=0,evidence_type='actual_mock_plan_verification',native_tests=len(expected),positive_plans=len(positives),negative_cases=len(negatives),resource_counts=inventory),plans
 
