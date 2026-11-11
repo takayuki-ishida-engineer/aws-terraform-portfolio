@@ -37,6 +37,34 @@ V1 requires independent design approval before V2; no root, backend, AWS allocat
 or Live decision is made. R3/R4 readiness wording below is retained historical
 handoff evidence, not a claim that the accepted R4 baseline is still pending.
 
+## V5 private runtime source and offline evidence
+
+Accepted post-V4 main `a4f0a9b8b0a810976c7ab305001729463443b27b` passed
+[CI42757339642](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42757339642)
+with678 native/153 toolkit and13 initialized configurations. V5 extends the same
+Platform/private_ingress owner with exact EKS IRSA Role+registration-only policy
+and four scoped Istio webhook/XDS SG rules. There are still10 children/three DEV
+Roots/13 configurations; basic Platform has54 resources (EKS37+ingress17).
+Existing NLB/TG/static SG/provider/state interfaces remain owned as before.
+
+The [runtime foundation](../kubernetes/README.md) renders pinned LBC3.6.2 and Istio1.32.0 using
+verified Helm3.22.1. Its61 objects implement ClusterIP Gateway, exact guarded TGB,
+external CA/Secret references, MUTUAL TLS>=1.2 with client SPKI, STRICT mesh and
+namespace default deny. No application or authenticated deployment is performed.
+Actual local checks: Child36/Root38/EKS52 native; runtime8 Helm renders,
+122 schema objects,58 security mutations,18 invalid inputs,19 evidence faults.
+Expected full CI686 native/153 toolkit remains for independent exact-HEAD review,
+not a completed CI claim. Historical V3/V4 snapshots retain their original scope.
+
+Registration-only IAM excludes ModifyTargetGroup/Attributes and SG writes. LBC
+has no universal TGB-only switch; layered flags/RBAC/admission/IAM and clean
+existing-resource inventory are mandatory. Effective admission, CA custody,
+application sidecar CNI under restricted PSS, real AWS references/output publication,
+capacity/connectivity and future REST backend TLS/SNI compatibility remain OPEN.
+Offline schemas do not prove handshakes, IAM, controller effectiveness or Live.
+G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
+30-day recovery conflict remain unchanged. No State/AWS/Kubernetes Live authority.
+
 ## Historical V2 baseline and V3 candidate transition
 
 Approved main `da1af5c4eed15f5c9145799409d53c1db7508c94` passed
@@ -456,7 +484,7 @@ R0 created no module directories.
 | cognito_auth | User Pool, App Client, non-secret federation and AWS-managed login domain | Future; no plaintext Google secrets in Terraform |
 | cloudfront_edge | Distribution/origin, edge WAF and approved origin-mTLS references | Future; PKI, pricing and global scope still reviewed separately |
 | eks_platform | EKS cluster/managed nodes and cluster-specific IAM/security/access | V3 candidate private EC2 Cluster/MNG/IAM/SG/access/add-ons; no workload/controller ownership |
-| private_ingress | Internal NLB, TCP:443 listener, target groups and ingress security | V4 candidate NLB/TCP/IP target group and dedicated rules in existing Platform Root; Kubernetes registration remains future |
+| private_ingress | Internal NLB, TCP:443 listener, target groups and ingress security | V4 static ingress; V5 scoped controller IAM and renderable runtime/TGB source; deployment remains future |
 | rds_postgres | DEV Single-AZ RDS PostgreSQL | Future |
 | aurora_postgres | STG/PROD Provisioned PostgreSQL writer/reader across AZs | Future |
 | delivery | ECR/CodeBuild/deployment infrastructure, scoped IAM and related notifications where lifecycle permits | Future; shared-resource exceptions need justification |

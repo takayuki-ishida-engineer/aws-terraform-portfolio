@@ -10,4 +10,5 @@ module "private_ingress" {
   cross_zone_enabled  = false
   deletion_protection = var.deletion_protection
   tags                = merge(var.tags, local.required_tags)
+  controller_oidc     = { issuer = module.eks_platform.oidc_issuer, provider_arn = module.eks_platform.oidc_provider_arn }
 }

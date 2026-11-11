@@ -158,7 +158,7 @@ def verify_plan(plan, v, scope):
         checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
         ingress_count=checker.verify_root_ingress(plan,v)
         plan=dict(plan,resource_changes=[r for r in plan['resource_changes'] if not r['address'].startswith('module.private_ingress.')],
-            output_changes={k:x for k,x in plan['output_changes'].items() if k!='private_ingress'})
+            output_changes={k:x for k,x in plan['output_changes'].items() if k not in {'private_ingress','controller_identity'}})
     validate_inputs(v,scope);resources=resources_of(plan,scope)
     def read(addr,key):
         change=resources[addr]

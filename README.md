@@ -91,14 +91,41 @@ no measured SLA/RTO/RPO or disaster recovery guarantee; replica counts alone do 
 - [Live-readiness approval gates](docs/dev-live-validation-readiness.md)
 - [Account, state and artifact bootstrap decision plan](docs/dev-bootstrap-decision-plan.md)
 
+## V5 private runtime source and offline evidence
+
+Accepted post-V4 main `a4f0a9b8b0a810976c7ab305001729463443b27b` passed
+[CI42757339642](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42757339642)
+with678 native/153 toolkit and13 initialized configurations. V5 extends the same
+Platform/private_ingress owner with exact EKS IRSA Role+registration-only policy
+and four scoped Istio webhook/XDS SG rules. There are still10 children/three DEV
+Roots/13 configurations; basic Platform has54 resources (EKS37+ingress17).
+Existing NLB/TG/static SG/provider/state interfaces remain owned as before.
+
+The [runtime foundation](kubernetes/README.md) renders pinned LBC3.6.2 and Istio1.32.0 using
+verified Helm3.22.1. Its61 objects implement ClusterIP Gateway, exact guarded TGB,
+external CA/Secret references, MUTUAL TLS>=1.2 with client SPKI, STRICT mesh and
+namespace default deny. No application or authenticated deployment is performed.
+Actual local checks: Child36/Root38/EKS52 native; runtime8 Helm renders,
+122 schema objects,58 security mutations,18 invalid inputs,19 evidence faults.
+Expected full CI686 native/153 toolkit remains for independent exact-HEAD review,
+not a completed CI claim. Historical V3/V4 snapshots retain their original scope.
+
+Registration-only IAM excludes ModifyTargetGroup/Attributes and SG writes. LBC
+has no universal TGB-only switch; layered flags/RBAC/admission/IAM and clean
+existing-resource inventory are mandatory. Effective admission, CA custody,
+application sidecar CNI under restricted PSS, real AWS references/output publication,
+capacity/connectivity and future REST backend TLS/SNI compatibility remain OPEN.
+Offline schemas do not prove handshakes, IAM, controller effectiveness or Live.
+G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
+30-day recovery conflict remain unchanged. No State/AWS/Kubernetes Live authority.
+
 ## Current limitations
 
 Current operating policy is Master Policy v11 (2026-11-09), per user approval.
 The external PDF is unavailable here; the [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status) preserves historical v10 provenance without claiming full v11 review.
 
-The REST/NLB/Istio/mTLS, Cognito, database and delivery architecture remains a
-design target. The V3 EKS foundation candidate has no deployed Cluster or runtime
-workloads; actual capacity, private access and AWS-managed Cluster SG residual
+The full REST/mTLS/Cognito/database/delivery architecture is not deployed. V4/V5
+provide NLB and runtime source, not an operational Cluster or runtime workloads; actual capacity, private access and AWS-managed Cluster SG residual
 permissions require external review. It has not replaced the tested HTTP API MVP. No suitable
 Lambda runtime application/build artifact is currently provided. Account/state
 ownership, artifact bootstrap, secret-safe federation, certificate identity/revocation

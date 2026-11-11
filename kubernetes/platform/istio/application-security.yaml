@@ -1,0 +1,36 @@
+# No application workload or application route is installed.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: portfolio-app
+  labels:
+    istio.io/rev: portfolio-v1
+    istio.io/dataplane-mode: none
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portfolio-application
+  namespace: portfolio-app
+automountServiceAccountToken: false
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: strict
+  namespace: portfolio-app
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny
+  namespace: portfolio-app
+spec:
+  action: ALLOW
+  rules: []

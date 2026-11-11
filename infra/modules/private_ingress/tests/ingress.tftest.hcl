@@ -28,6 +28,13 @@ override_resource {
   override_during = plan
   values          = { "id" : "sg-00000000000000012" }
 }
+variables { controller_oidc = { "issuer" : "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER", "provider_arn" : "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER" } }
+override_resource {
+  target          = aws_iam_role.controller
+  override_during = plan
+  values          = { arn = "arn:aws:iam::000000000000:role/test-ingress-lbc" }
+}
+
 run "private_dev" {
   command = plan
   variables {
@@ -435,4 +442,127 @@ run "alternate_computed" {
     condition     = aws_lb.this.internal
     error_message = "Internal NLB required."
   }
+}
+
+run "alternate_oidc" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "https://oidc.eks.ca-central-1.amazonaws.com/id/ALTERNATEISSUER", "provider_arn" : "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/ALTERNATEISSUER" }
+  }
+  assert {
+    condition     = aws_iam_role.controller.arn == output.controller_identity.role_arn
+    error_message = "Actual IRSA role output required."
+  }
+}
+
+run "oidc_cross_account" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER", "provider_arn" : "arn:aws:iam::111111111111:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER" }
+  }
+  expect_failures = [var.controller_oidc]
+}
+
+run "oidc_wrong_region" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "https://oidc.eks.us-east-1.amazonaws.com/id/TESTISSUER", "provider_arn" : "arn:aws:iam::000000000000:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/TESTISSUER" }
+  }
+  expect_failures = [var.controller_oidc]
+}
+
+run "oidc_wrong_issuer" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "https://untrusted.example.com/id/TEST", "provider_arn" : "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER" }
+  }
+  expect_failures = [var.controller_oidc]
+}
+
+run "oidc_mismatch" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER", "provider_arn" : "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/OTHER" }
+  }
+  expect_failures = [var.controller_oidc]
+}
+
+run "oidc_empty" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "", "provider_arn" : "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER" }
+  }
+  expect_failures = [var.controller_oidc]
+}
+
+run "oidc_wildcard" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER*", "provider_arn" : "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER" }
+  }
+  expect_failures = [var.controller_oidc]
+}
+
+run "oidc_wrong_provider" {
+  command = plan
+  variables {
+    expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
+    name                = "test-ingress"
+    subnet_keys         = ["private-a"]
+    backend_target_port = 8443
+    eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
+    cross_zone_enabled  = false
+    controller_oidc     = { "issuer" : "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER", "provider_arn" : "arn:aws:iam::000000000000:role/not-oidc" }
+  }
+  expect_failures = [var.controller_oidc]
 }

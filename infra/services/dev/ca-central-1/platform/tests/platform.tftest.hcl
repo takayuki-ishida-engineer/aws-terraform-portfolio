@@ -114,6 +114,11 @@ override_resource {
   override_during = plan
   values          = { "id" : "sg-00000000000000102" }
 }
+override_resource {
+  target          = module.private_ingress.aws_iam_role.controller
+  override_during = plan
+  values          = { arn = "arn:aws:iam::000000000000:role/test-ingress-lbc" }
+}
 
 run "private_dev" {
   command = plan

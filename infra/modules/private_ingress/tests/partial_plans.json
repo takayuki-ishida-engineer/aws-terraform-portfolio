@@ -2,189 +2,299 @@
   "child": {
     "wrong_version": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "wrong_account": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "wrong_region": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "wrong_env": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "wrong_partition": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "wrong_vpc": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "empty_private": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "duplicate_subnet": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "public_masquerade": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "missing_az": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "invalid_az": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "empty_selection": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_iam_role_policy.controller",
         "aws_lb_target_group.gateway",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
         "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_targets",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "controller_identity"
+      ]
     },
     "unknown_selection": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_iam_role_policy.controller",
         "aws_lb_target_group.gateway",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
         "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_targets",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "controller_identity"
+      ]
     },
     "public_selection": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_iam_role_policy.controller",
         "aws_lb_target_group.gateway",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
         "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_targets",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "controller_identity"
+      ]
     },
     "duplicate_az": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_iam_role_policy.controller",
         "aws_lb_target_group.gateway",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
         "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_targets",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
-      "outputs": []
+      "outputs": [
+        "controller_identity"
+      ]
     },
     "zero_port": {
       "resources": [
+        "aws_iam_role.controller",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "large_port": {
       "resources": [
+        "aws_iam_role.controller",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "fractional_port": {
       "resources": [
+        "aws_iam_role.controller",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
         "aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": []
     },
     "same_sg": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_iam_role_policy.controller",
         "aws_lb_target_group.gateway",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
         "aws_vpc_security_group_ingress_rule.nlb_clients"
       ],
-      "outputs": []
+      "outputs": [
+        "controller_identity"
+      ]
     },
     "invalid_sg": {
       "resources": [
+        "aws_iam_role.controller",
+        "aws_iam_role_policy.controller",
         "aws_lb_target_group.gateway",
         "aws_security_group.nlb",
         "aws_security_group.vpc_link_client",
         "aws_vpc_security_group_egress_rule.client_nlb",
         "aws_vpc_security_group_ingress_rule.nlb_clients"
       ],
-      "outputs": []
+      "outputs": [
+        "controller_identity"
+      ]
     },
     "reserved_name": {
       "resources": [],
@@ -193,6 +303,160 @@
     "invalid_name": {
       "resources": [],
       "outputs": []
+    },
+    "oidc_cross_account": {
+      "resources": [
+        "aws_lb.this",
+        "aws_lb_listener.https_passthrough",
+        "aws_lb_target_group.gateway",
+        "aws_security_group.nlb",
+        "aws_security_group.vpc_link_client",
+        "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
+        "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_targets",
+        "aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "private_ingress"
+      ]
+    },
+    "oidc_wrong_region": {
+      "resources": [
+        "aws_lb.this",
+        "aws_lb_listener.https_passthrough",
+        "aws_lb_target_group.gateway",
+        "aws_security_group.nlb",
+        "aws_security_group.vpc_link_client",
+        "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
+        "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_targets",
+        "aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "private_ingress"
+      ]
+    },
+    "oidc_wrong_issuer": {
+      "resources": [
+        "aws_lb.this",
+        "aws_lb_listener.https_passthrough",
+        "aws_lb_target_group.gateway",
+        "aws_security_group.nlb",
+        "aws_security_group.vpc_link_client",
+        "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
+        "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_targets",
+        "aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "private_ingress"
+      ]
+    },
+    "oidc_mismatch": {
+      "resources": [
+        "aws_lb.this",
+        "aws_lb_listener.https_passthrough",
+        "aws_lb_target_group.gateway",
+        "aws_security_group.nlb",
+        "aws_security_group.vpc_link_client",
+        "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
+        "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_targets",
+        "aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "private_ingress"
+      ]
+    },
+    "oidc_empty": {
+      "resources": [
+        "aws_lb.this",
+        "aws_lb_listener.https_passthrough",
+        "aws_lb_target_group.gateway",
+        "aws_security_group.nlb",
+        "aws_security_group.vpc_link_client",
+        "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
+        "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_targets",
+        "aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "private_ingress"
+      ]
+    },
+    "oidc_wildcard": {
+      "resources": [
+        "aws_lb.this",
+        "aws_lb_listener.https_passthrough",
+        "aws_lb_target_group.gateway",
+        "aws_security_group.nlb",
+        "aws_security_group.vpc_link_client",
+        "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
+        "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_targets",
+        "aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "private_ingress"
+      ]
+    },
+    "oidc_wrong_provider": {
+      "resources": [
+        "aws_lb.this",
+        "aws_lb_listener.https_passthrough",
+        "aws_lb_target_group.gateway",
+        "aws_security_group.nlb",
+        "aws_security_group.vpc_link_client",
+        "aws_vpc_security_group_egress_rule.client_nlb",
+        "aws_vpc_security_group_egress_rule.cluster_istio_webhook",
+        "aws_vpc_security_group_egress_rule.cluster_webhook",
+        "aws_vpc_security_group_egress_rule.nlb_targets",
+        "aws_vpc_security_group_egress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nlb_clients",
+        "aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "aws_vpc_security_group_ingress_rule.nodes_istiod",
+        "aws_vpc_security_group_ingress_rule.nodes_targets",
+        "aws_vpc_security_group_ingress_rule.nodes_webhook"
+      ],
+      "outputs": [
+        "private_ingress"
+      ]
     }
   },
   "root": {
@@ -392,19 +656,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -444,19 +715,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -496,19 +774,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -547,19 +832,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -598,19 +890,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -649,19 +948,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -704,19 +1010,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -759,19 +1072,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -847,19 +1167,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -899,19 +1226,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -951,19 +1285,26 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb.this",
         "module.private_ingress.aws_lb_listener.https_passthrough",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "private_ingress"
       ]
     },
@@ -1007,13 +1348,19 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
@@ -1058,17 +1405,24 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "platform"
       ]
     },
@@ -1111,17 +1465,24 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "platform"
       ]
     },
@@ -1164,17 +1525,24 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "platform"
       ]
     },
@@ -1217,17 +1585,24 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
+        "module.private_ingress.aws_iam_role_policy.controller",
         "module.private_ingress.aws_lb_target_group.gateway",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.nlb_targets",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_targets",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
+        "controller_identity",
         "platform"
       ]
     },
@@ -1270,11 +1645,16 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
@@ -1320,11 +1700,16 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [
@@ -1370,11 +1755,16 @@
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_cluster[\"kubelet\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"tcp\"]",
         "module.eks_platform.aws_vpc_security_group_ingress_rule.nodes_dns[\"udp\"]",
+        "module.private_ingress.aws_iam_role.controller",
         "module.private_ingress.aws_security_group.nlb",
         "module.private_ingress.aws_security_group.vpc_link_client",
         "module.private_ingress.aws_vpc_security_group_egress_rule.client_nlb",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_istio_webhook",
         "module.private_ingress.aws_vpc_security_group_egress_rule.cluster_webhook",
+        "module.private_ingress.aws_vpc_security_group_egress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nlb_clients",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istio_webhook",
+        "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_istiod",
         "module.private_ingress.aws_vpc_security_group_ingress_rule.nodes_webhook"
       ],
       "outputs": [

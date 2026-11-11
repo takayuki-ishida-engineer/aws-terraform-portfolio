@@ -117,32 +117,30 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: V4 private ingress foundation implementation
+## Current phase only: V5 private Kubernetes ingress runtime foundation
 
-Use feature/private-ingress-v4-foundation from accepted post-V3 main
-`6b185820c806a0c96410a145106b9f103db14d89`, successful push CI42720431920.
-User-supplied Master Policy v11 requirements govern; unavailable PDF is not claimed read.
+Continue feature/kubernetes-ingress-v5-runtime from accepted post-V4 main
+`a4f0a9b8b0a810976c7ab305001729463443b27b`, successful push CI42757339642.
+User-supplied Master Policy v11 requirements authorize offline source implementation;
+the unavailable external PDF must not be claimed read. Preserve permanent rules.
 
-- Add one coherent private_ingress child and compose it directly beside EKS in the
-  existing DEV Platform Root/local State. Own internal IPv4 NLB, TCP443 listener,
-  IP TCP target group, two dedicated SGs and scoped target/client/webhook rules.
-- Preserve EKS/VPC resource ownership, original EKS rules, Root platform output,
-  network validation, providers/backend/locks, R1/R2 moves and all existing checks.
-  Additional ingress rules on EKS custom SGs have one owner in private_ingress.
-- Require actual reviewed ingress name/subnet/backend port; DEV private subnet must
-  be in active worker AZ. Bind actual custom EKS outputs. No invented allocation.
-- Runtime alone later owns controller/TGB/Pods/target registration. No attachment,
-  Kubernetes/Helm providers, second NLB writer, API Root, TLS termination/PKI,
-  publication service, new Root/state boundary, STG/PROD or next phase.
-- Add actual mock-plan/native/negative/security/source-mutation/capture checks;
-  preserve all V3/other security regressions, 153 Python tests and cache invariants.
-  Derive new CI counts from execution. Keep timeout30; do not speculate changes.
-- Update affected docs and only this phase section; permanent rules byte-identical.
-  AWS-managed SG residual permissions, Pod SG assumptions, actual connectivity,
-  output integrity/state custody, IAM/capacity/cost/teardown remain OPEN.
-- No AWS credentials/authenticated AWS/plan/State/apply/destroy/import or Live.
-  G01–G07, cumulative JPY10,000, complete72-hour teardown/dynamic inventory and
-  Secrets Manager30-day recovery blocker remain unchanged.
-- Commit/push/open one PR; report exact HEAD/files/addresses/interfaces/results and
-  remaining gates. Observe CI triggering once if visible; never wait/poll completion,
-  self-approve, merge/delete the branch, deploy or start V5. Stop for independent review.
+- Extend private_ingress in the existing Platform State with exact-subject IRSA,
+  owned-target registration only and scoped Istio15017/15012 rules. Preserve existing
+  SG/NLB/TG ownership, provider/backend/locks and every prior security contract.
+- Runtime owns pinned LBC/Istio sidecar configuration, Services, guarded TGB and
+  dynamic registration; no second load balancer, Terraform Pod registration,
+  Kubernetes/Helm provider, new Root/State or application release.
+- Require actual pinned Helm rendering, package/dependency integrity, schema and
+  independent IAM/RBAC/TGB/port/MUTUAL TLS/SPKI/STRICT/default-deny checks. External
+  CA/Secret references only; no real key/certificate/Secret or fake communication.
+- Layer TGB-only enforcement across IAM, controller flags, namespace/class,
+  Kubernetes RBAC and admission. Do not add SG/TG setting writes to cure runtime
+  AccessDenied; report any conflict for independent ownership review.
+- Required minimal output inputs do not prove AWS existence/publication. Preserve
+  external identity/state/capacity/connectivity/PKI/admission/teardown approvals.
+- Complete affected local verification before one commit/push/PR handoff. Preserve
+  all CI checks and30-minute timeout; observe trigger only, no CI completion polling.
+- No AWS/Kubernetes credentials/authenticated calls, State, apply/destroy/import,
+  real Helm/kubectl deployment or Live. G01–G07 remain OPEN, with cumulative
+  JPY10,000/72-hour complete removal and unresolved Secrets recovery blocker.
+- No merge, branch deletion, self-approval or V6; stop after review handoff.

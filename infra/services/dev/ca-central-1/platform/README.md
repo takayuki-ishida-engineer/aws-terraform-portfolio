@@ -1,5 +1,39 @@
 # DEV EKS and private ingress platform — V4 candidate
 
+## Current V5 runtime identity extension
+
+[private_ingress](../../../../modules/private_ingress/README.md) now owns17 resources:
+the original eleven V4 addresses, exact-subject IRSA Role+inline policy and four
+paired TCP15017/15012 SG rules. The basic Platform plan has54 resources (58 with
+two namespace access pairs), retaining the37 EKS addresses. No new Root, provider,
+backend, lock or State boundary; Network/serverless Roots remain unchanged.
+
+Root Override supplies controller_oidc from actual module.eks_platform outputs;
+Module Fixed is the kube-system/aws-load-balancer-controller subject/audience and
+registration-only policy on the actual owned TG. Existing platform and
+private_ingress outputs are unchanged. Additional controller_identity output has
+11 fields: interface_version, scope, role_arn, oidc_issuer, oidc_provider_arn,
+namespace, service_account, target_group_arn, actual cluster_name, requested
+kubernetes_version and active_workload_az. No new operational allocation is invented.
+
+The [Kubernetes runtime](../../../../../kubernetes/README.md) consumes reviewed
+minimal extracts, never whole State. It renders pinned LBC/Istio/TGB/MUTUAL TLS/
+STRICT/default-deny source without deploying. Registration is dynamic controller
+ownership; NLB/TG settings/static SGs/IAM remain Terraform-owned. Publication,
+authenticity, live identity, CA/Secrets, capacity, connectivity and effective
+admission remain OPEN. See that README for deployment/teardown ordering and
+fail-closed external dependencies.
+
+Affected local native results are Root38, ingress Child36, EKS Child52; independent
+IAM/SG/security/input/evidence/mutations pass as recorded in child/runtime READMEs.
+Expected full CI is686 native/153 toolkit/13 configurations, requiring exact-HEAD
+independent review. Historical V3/V4 sections below retain their scoped counts;
+they are not current repository-wide totals. All G01–G07/JPY10,000/72-hour removal/
+Secrets recovery restrictions are unchanged.
+
+## Historical V3/V4 implementation notes
+
+
 This is an offline-verified Terraform root, not an AWS deployment. It composes the [eks_platform child](../../../../modules/eks_platform/README.md), owns a fixed
 ca-central-1 AWS provider with allowed_account_ids, a local backend and a committed
 AWS 6.72.0 lock (Terraform ~>1.17.0 / AWS ~>6.72.0). It modifies neither the Network
@@ -42,7 +76,7 @@ The API Root will attach the client SG to VPC Link V2 ENIs; it must not recreate
 Publication/authenticity/integrity/read access/custody remain OPEN, without whole
 State access. No API Root or distribution service is implemented.
 
-No targets exist initially. Later runtime owns scoped controller IAM/ServiceAccount,
+No targets exist initially. V5 Terraform owns scoped controller IAM; separately approved deployment owns ServiceAccount,
 RBAC-restricted TargetGroupBinding and Gateway Service/Pods. Do not create another
 NLB via a LoadBalancer Service. No Terraform Pod registration, controller install,
 Kubernetes/Helm provider or workload is added. Paired webhook9443 SG rules do not

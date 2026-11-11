@@ -1,0 +1,19 @@
+{
+  "trafficextensions.extensions.istio.io": "ab2cc5a79fa50fbca1b8c47c8e0f87297342300c2c3e30c93ab7ea6dcfa060b4",
+  "wasmplugins.extensions.istio.io": "c480fc21d35c46569c1c44e24d95fa0b8b035d2d587d2df22a9f4e425e9d5843",
+  "destinationrules.networking.istio.io": "9373dcfe2ad6daadd4d5774e1fb9d2f570eeaead30407d58aa6291adc6999205",
+  "envoyfilters.networking.istio.io": "576f5274ee748d1c82eb8f132e9895801b1a47efd54bb802fcff73b1f9ef5f3e",
+  "gateways.networking.istio.io": "99532297d9b3eefece87c6a4fe712b88f69f212b13670450eb2423cf2c06942b",
+  "proxyconfigs.networking.istio.io": "b52d01a6cb50f651e2ad6b8827c03e8a38fcca1a10c17e48e4c0217fcfbbbfde",
+  "serviceentries.networking.istio.io": "99767ef4396fff603561860ec358e07dac4b5fc6993a5638dc509d9936042676",
+  "sidecars.networking.istio.io": "1e1b64edf066545dd019bdc40fe86d75d56bf190aa319ffce0a676efe483706a",
+  "virtualservices.networking.istio.io": "5233ebd63380a8c7fdaf9d2654eb0545ece52106c842d50e8f9e4365715d2e32",
+  "workloadentries.networking.istio.io": "ac7979a4598e63f9c27e13b8462ffb4a7c0ac0872dfa061e747372c65ea944e9",
+  "workloadgroups.networking.istio.io": "3358345bc5fd4e1cea1cf1c94271af5bbc71cd5f3219d6edba5e81063e6df929",
+  "authorizationpolicies.security.istio.io": "560b7b28a689f7193a57cd3cc59aaaee1882466d38a0df6de4f8d98ff4fdd992",
+  "peerauthentications.security.istio.io": "99b2fd695cdae7f804c0e6ed632f0b2ea21a1706c14181a403feeac56a7677a8",
+  "requestauthentications.security.istio.io": "ad3e7fc3aa68a1020da0a7e96061d8d84b400a4b774110e158cd7424b450322e",
+  "telemetries.telemetry.istio.io": "d6bfb1742855e00f5d759947405169f8d06ff3b2a604621fd9d4e951acc94163",
+  "ingressclassparams.elbv2.k8s.aws": "8ce31a3a904bdfff16a6f65be2d1e22e8d7c3f3f68964711ac2e9ec4bf875b38",
+  "targetgroupbindings.elbv2.k8s.aws": "53da3660aec1428c3dd0aa6e4e3d044fd191760f367602bb82541c96f4fc63a5"
+}

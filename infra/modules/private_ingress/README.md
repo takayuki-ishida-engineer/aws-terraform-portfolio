@@ -1,15 +1,48 @@
-# Private ingress foundation — V4 candidate
+# Private ingress foundation — V5 extension
 
 A coherent Terraform child owns one **internal IPv4 Network Load Balancer**, one
 TCP:443 listener, an IP-mode TCP target group and its static security configuration.
 The [DEV Platform Root](../../services/dev/ca-central-1/platform/README.md) composes
-it beside eks_platform in the same local state. It creates no targets, controller,
+it beside eks_platform in the same local state. It creates no targets or Kubernetes controller,
 Kubernetes resources, certificate or TLS termination. A newly created target group
 has **zero Gateway targets** until separately approved runtime registration.
 
 The external Master Policy v11 PDF was not available for independent reading.
 User-supplied v11 requirements and repository decisions govern; no older policy
 is substituted. All evidence is credential-free offline evidence, not deployment.
+
+## V5 IAM, connectivity and evidence
+
+Six additional resources extend the unchanged eleven V4 addresses. Root Override:
+actual EKS OIDC issuer/provider; Module Fixed: kube-system controller SA subject,
+sts audience, exact target group registration and Region condition. No default
+OIDC identity is invented. Dedicated Role ARN is exposed by controller_identity
+alongside issuer/provider, target group, scope, namespace and ServiceAccount. Root
+adds actual cluster name, requested Kubernetes version and active AZ. The original
+private_ingress output keeps all14 names and semantics; platform output is unchanged.
+
+The Role grants only sts:AssumeRoleWithWebIdentity with exact StringEquals aud/sub
+and actual Federated provider. Inline policy writes are only RegisterTargets and
+DeregisterTargets on aws_lb_target_group.gateway.arn. DescribeVpcs,
+DescribeSecurityGroups, DescribeInstances, DescribeAvailabilityZones,
+DescribeTargetGroups and DescribeTargetHealth use Resource=* because official
+service authorization lacks resource-level support, with aws:RequestedRegion.
+No ModifyTargetGroup/Attributes, SG mutation, LB creation/deletion, PassRole,
+cross-account assumption, broad IAM or secret-value permission is added. See the
+[runtime source review and controller limitation](../../../kubernetes/README.md#registration-only-iam-and-kubernetes-isolation).
+
+Paired standalone rules allow Istio webhook TCP15017 and Node-to-Istiod TCP15012,
+using actual custom SG references. They supplement existing LBC9443/DNS paths,
+not unrestricted connectivity or AWS-managed SG hardening. No Kubernetes provider,
+new Root/backend/lock or double owner is added.
+
+Current affected local results: Child36 native (7 complete positive plans,
+29 rejections); Root38 native (6/32), EKS Child52. Independent ingress validation
+per Child/Root:61 semantic,12 IAM policy mutations,21 capture faults,8 dependency
+checks. Twelve actual unsafe source re-plans were detected; Root15 required inputs
+and11 Network fields rejected. Root basic inventory54=EKS37+ingress17, or58 with
+two namespace access pairs. EKS73/21/10 checks remain. Full independent CI expected
+686 native/153 toolkit/13 configurations, not claimed passed locally.
 
 ## Inputs and effective configuration
 
@@ -20,6 +53,7 @@ is substituted. All evidence is credential-free offline evidence, not deployment
 | name | required string | Reviewed 1–20 lowercase name characters; no internal-* prefix or trailing hyphen; deterministic resource suffixes |
 | subnet_keys | required set(string) | Nonempty subset of private keys, at most one subnet per AZ; public/unknown/duplicate-AZ selections rejected |
 | backend_target_port | required number | Integer 1–65535; reviewed actual Gateway Pod port, not assumed equal to Service/listener 443 |
+| controller_oidc | required object(issuer, provider_arn strings) | Exact ca-central-1 EKS issuer/provider, matching expected_scope.account_id; actual EKS outputs from Root |
 | eks_security_groups | required object(cluster, nodes strings) | Distinct valid custom SG IDs; Root supplies actual attached EKS outputs, never managed Cluster SG |
 | cross_zone_enabled | required bool | Explicit NLB behavior; DEV fixes false; multi-AZ callers review capacity, transfer and failure behavior |
 | deletion_protection | bool, true | NLB protection; disabling is configuration, not teardown authorization |
@@ -47,7 +81,7 @@ keeps PrivateLink inbound rule evaluation on, with no implicit bypass.
 ## Exact resource addresses and rule ownership
 
 DEV prefixes each address with module.private_ingress. Every configuration creates
-exactly 11 resources; multi-AZ selection changes subnet membership, not ownership.
+exactly 17 resources; multi-AZ selection changes subnet membership, not ownership.
 
 | Child address | Exclusive owner / contract |
 | --- | --- |
@@ -62,8 +96,14 @@ exactly 11 resources; multi-AZ selection changes subnet membership, not ownershi
 | aws_vpc_security_group_ingress_rule.nodes_targets | Existing Node custom SG ← NLB SG, same backend/health port |
 | aws_vpc_security_group_egress_rule.cluster_webhook | Existing Cluster custom SG → Node custom SG TCP9443 |
 | aws_vpc_security_group_ingress_rule.nodes_webhook | Existing Node custom SG ← Cluster custom SG TCP9443 |
+| aws_iam_role.controller | Exact EKS OIDC aud/sub IRSA role, no human/EC2 assumption |
+| aws_iam_role_policy.controller | Regional read discovery and exact owned-TG registration only |
+| aws_vpc_security_group_egress_rule.cluster_istio_webhook | Custom Cluster SG → Node SG TCP15017 |
+| aws_vpc_security_group_ingress_rule.nodes_istio_webhook | Custom Node SG ← Cluster SG TCP15017 |
+| aws_vpc_security_group_egress_rule.nodes_istiod | Custom Node SG → Node SG TCP15012 |
+| aws_vpc_security_group_ingress_rule.nodes_istiod | Custom Node SG ← Node SG TCP15012 |
 
-private_ingress owns these six standalone rule resources, including rules on
+private_ingress owns these ten standalone rule resources, including rules on
 existing EKS groups. eks_platform retains both EKS SG **resources**, all original
 rules, Cluster/MNG/IAM/access/add-ons. VPC resources stay with vpc. No resource
 moves/imports, shared inline rule sets or overlapping controller writers are added.
@@ -88,11 +128,11 @@ consumer read permissions and single-writer custody remain OPEN. Never distribut
 whole Terraform State to obtain one reference.
 
 A separately approved runtime installs AWS Load Balancer Controller, its dedicated
-ServiceAccount/IAM identity and TargetGroupBinding. Use the pre-existing target
+ServiceAccount and TargetGroupBinding using the Terraform-owned IAM identity. Use the pre-existing target
 Group ARN, explicit targetType=ip and actual VPC ID with the reviewed Gateway
 Service/Pod target port. Do not use a LoadBalancer Service that creates another
 NLB; review controller default mutating-webhook behavior. Do not add Terraform
-aws_lb_target_group_attachment or placeholder Pod IPs. No runtime YAML is supplied.
+aws_lb_target_group_attachment or placeholder Pod IPs. The [V5 runtime bundle](../../../kubernetes/README.md) supplies pinned renderable source; no deployment is claimed.
 
 **TargetGroupBinding is an authorization boundary**: untrusted namespace users
 must not create/update arbitrary bindings. Later runtime approval must constrain
@@ -122,7 +162,7 @@ NLB forwards TCP bytes. Future Istio Gateway owns backend TLS termination and
 verification of the expected API Gateway client certificate. Future REST integration
 must verify server chain/hostname and review TLS/SNI/VPC Link V2/provider behavior.
 No insecureSkipVerification, plaintext fallback, PKI issuance, client certificate,
-rotation/revocation, mesh STRICT mTLS or AuthorizationPolicy is implemented.
+rotation/revocation, mesh STRICT mTLS or AuthorizationPolicy is implemented by this Terraform child; the V5 runtime supplies fail-closed declarations.
 TCP health checks succeed before or without these security controls; do not treat
 a healthy TCP target as proof of application or certificate authorization.
 
@@ -139,7 +179,7 @@ provider is added. Terraform ~>1.17.0 and AWS ~>6.72.0 remain pinned at the Root
 child compatible bounds follow the existing module convention. Root lock is
 unchanged; child lock is transient and seeded from it during initialization.
 
-Local native cases: Child 28 (six positive plans, 22 intentional input rejections);
+Historical V4 local native cases: Child 28 (six positive plans, 22 intentional input rejections);
 Platform Root 38 (six positive plans, 32 intentional rejections), retaining all
 29 V3 runs/assertions and adding nine. Independent ingress checks run per scope:
 45 semantic mutations, 21 missing/duplicate/failed/malformed evidence faults,

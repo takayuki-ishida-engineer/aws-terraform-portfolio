@@ -39,7 +39,11 @@
         "cluster": "sg-00000000000000001",
         "nodes": "sg-00000000000000002"
       },
-      "cross_zone_enabled": false
+      "cross_zone_enabled": false,
+      "controller_oidc": {
+        "issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
+        "provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER"
+      }
     },
     "multi_az": {
       "expected_scope": {
@@ -81,7 +85,11 @@
         "cluster": "sg-00000000000000001",
         "nodes": "sg-00000000000000002"
       },
-      "cross_zone_enabled": false
+      "cross_zone_enabled": false,
+      "controller_oidc": {
+        "issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
+        "provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER"
+      }
     },
     "cross_zone": {
       "expected_scope": {
@@ -123,7 +131,11 @@
         "cluster": "sg-00000000000000001",
         "nodes": "sg-00000000000000002"
       },
-      "cross_zone_enabled": true
+      "cross_zone_enabled": true,
+      "controller_oidc": {
+        "issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
+        "provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER"
+      }
     },
     "backend_443": {
       "expected_scope": {
@@ -164,7 +176,11 @@
         "cluster": "sg-00000000000000001",
         "nodes": "sg-00000000000000002"
       },
-      "cross_zone_enabled": false
+      "cross_zone_enabled": false,
+      "controller_oidc": {
+        "issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
+        "provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER"
+      }
     },
     "backend_max": {
       "expected_scope": {
@@ -205,7 +221,11 @@
         "cluster": "sg-00000000000000001",
         "nodes": "sg-00000000000000002"
       },
-      "cross_zone_enabled": false
+      "cross_zone_enabled": false,
+      "controller_oidc": {
+        "issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
+        "provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER"
+      }
     },
     "alternate_computed": {
       "expected_scope": {
@@ -246,7 +266,56 @@
         "cluster": "sg-00000000000000001",
         "nodes": "sg-00000000000000002"
       },
-      "cross_zone_enabled": false
+      "cross_zone_enabled": false,
+      "controller_oidc": {
+        "issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
+        "provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER"
+      }
+    },
+    "alternate_oidc": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "network_reference": {
+        "interface_version": 1,
+        "scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "vpc_id": "vpc-0123456789abcdef0",
+        "private_subnet_ids": {
+          "private-a": "subnet-00000000000000001",
+          "private-b": "subnet-00000000000000002"
+        },
+        "public_subnet_ids": {
+          "public-a": "subnet-00000000000000003"
+        },
+        "subnet_azs": {
+          "private": {
+            "private-a": "ca-central-1a",
+            "private-b": "ca-central-1b"
+          }
+        }
+      },
+      "name": "test-ingress",
+      "subnet_keys": [
+        "private-a"
+      ],
+      "backend_target_port": 8443,
+      "eks_security_groups": {
+        "cluster": "sg-00000000000000001",
+        "nodes": "sg-00000000000000002"
+      },
+      "cross_zone_enabled": false,
+      "controller_oidc": {
+        "issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/ALTERNATEISSUER",
+        "provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/ALTERNATEISSUER"
+      }
     }
   },
   "negative": {
@@ -271,6 +340,13 @@
     "same_sg": "var.eks_security_groups",
     "invalid_sg": "var.eks_security_groups",
     "reserved_name": "var.name",
-    "invalid_name": "var.name"
+    "invalid_name": "var.name",
+    "oidc_cross_account": "var.controller_oidc",
+    "oidc_wrong_region": "var.controller_oidc",
+    "oidc_wrong_issuer": "var.controller_oidc",
+    "oidc_mismatch": "var.controller_oidc",
+    "oidc_empty": "var.controller_oidc",
+    "oidc_wildcard": "var.controller_oidc",
+    "oidc_wrong_provider": "var.controller_oidc"
   }
 }

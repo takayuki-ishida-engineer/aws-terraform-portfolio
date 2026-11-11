@@ -354,7 +354,7 @@ jobs:
           import json, os
           from pathlib import Path
           report=json.loads(Path(os.environ["RUNNER_TEMP"],"ingress-root.json").read_text())
-          expected={"native_tests":38,"positive_plans":6,"negative_cases":32,"semantic_mutations":45,"capture_failure_injections":21,"source_dependency_mutations":8}
+          expected={"native_tests":38,"positive_plans":6,"negative_cases":32,"semantic_mutations":61,"capture_failure_injections":21,"source_dependency_mutations":8,"iam_policy_mutations":12}
           if report.get("status")!="passed" or report.get("aws_api_calls")!=0 or any(report.get(k)!=v for k,v in expected.items()):
               raise SystemExit("Independent platform ingress security/evidence checks failed")
           print("Independent actual Root ingress verification:",report)
@@ -425,11 +425,11 @@ jobs:
           from pathlib import Path
           temp=Path(os.environ["RUNNER_TEMP"])
           report=json.loads((temp/"ingress-child.json").read_text())
-          expected={"native_tests":28,"positive_plans":6,"negative_cases":22,"semantic_mutations":45,"capture_failure_injections":21,"source_dependency_mutations":8}
+          expected={"native_tests":36,"positive_plans":7,"negative_cases":29,"semantic_mutations":61,"capture_failure_injections":21,"source_dependency_mutations":8,"iam_policy_mutations":12}
           if report.get("status")!="passed" or report.get("aws_api_calls")!=0 or any(report.get(k)!=v for k,v in expected.items()):
               raise SystemExit("Ingress child actual-plan security/evidence checks failed")
           source=json.loads((temp/"ingress-source.json").read_text())
-          if source.get("status")!="passed" or source.get("aws_api_calls")!=0 or source.get("actual_source_mutations")!=9:
+          if source.get("status")!="passed" or source.get("aws_api_calls")!=0 or source.get("actual_source_mutations")!=12:
               raise SystemExit("Actual unsafe ingress Terraform re-plans were not completely detected")
           print("Actual ingress verification:",report,source)
           with open(os.environ["GITHUB_OUTPUT"],"a") as output:
@@ -910,6 +910,26 @@ jobs:
           set -euo pipefail
           python3 tests/check_r2_migration.py --self-test
 
+      - name: Verify pinned Kubernetes runtime rendering and security
+        id: kubernetes_runtime
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          KUBECONFIG: /dev/null
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 kubernetes/tools/install_helm.py --destination "$RUNNER_TEMP/v5-tools/helm"
+          python3 kubernetes/tests/check_runtime.py --helm "$RUNNER_TEMP/v5-tools/helm" --report "$RUNNER_TEMP/runtime-verification.json"
+          python3 - <<'PYRUNTIME'
+          import json, os
+          from pathlib import Path
+          report=json.loads(Path(os.environ["RUNNER_TEMP"], "runtime-verification.json").read_text())
+          expected={"actual_helm_renders":8,"positive_configurations":2,"resource_count":61,"schema_checked_objects":122,"semantic_mutations":58,"negative_cases":18,"evidence_faults":19}
+          if report.get("status")!="passed" or report.get("complete_runtime") is not True or report.get("aws_api_calls")!=0 or report.get("kubernetes_api_calls")!=0 or any(report.get(k)!=v for k,v in expected.items()):
+              raise SystemExit("Actual Helm/schema/TLS/RBAC/mutation/evidence validation failed")
+          print("Observed Kubernetes runtime checks (not Terraform native cases):", report)
+          PYRUNTIME
+
       - name: Measure shared provider storage after all modules
         run: |
           set -euo pipefail
@@ -953,6 +973,7 @@ jobs:
           ROOT_PASSED: ${{ steps.root_integration.outputs.passed }}
           PLATFORM_RESULT: ${{ steps.platform.outcome }}
           PLATFORM_PASSED: ${{ steps.platform.outputs.passed }}
+          RUNTIME_RESULT: ${{ steps.kubernetes_runtime.outcome }}
           INGRESS_RESULT: ${{ steps.private_ingress.outcome }}
           INGRESS_PASSED: ${{ steps.private_ingress.outputs.passed }}
           EKS_RESULT: ${{ steps.eks_platform.outcome }}
@@ -991,6 +1012,7 @@ jobs:
             ("Dev serverless API root integration/plans/mutations", "ROOT_RESULT", os.environ.get("ROOT_PASSED", "")),
             ("DEV network init/validate/required-inputs/plans/mutations", "NETWORK_RESULT", os.environ.get("NETWORK_PASSED", "")),
             ("DEV platform root/private EKS/required network inputs/security", "PLATFORM_RESULT", os.environ.get("PLATFORM_PASSED", "")),
+            ("Kubernetes pinned Helm/schema/TLS/RBAC/mutations", "RUNTIME_RESULT", ""),
             ("Private ingress/TCP/SG/ownership/plans/source mutations", "INGRESS_RESULT", os.environ.get("INGRESS_PASSED", "")),
             ("EKS child/IAM/SG/access/addons/plans/source mutations", "EKS_RESULT", os.environ.get("EKS_PASSED", "")),
             ("VPC init/validate/legacy and routing/endpoint plans/mutations", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),

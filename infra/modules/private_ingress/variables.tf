@@ -64,3 +64,13 @@ variable "tags" {
   default  = {}
   nullable = false
 }
+
+variable "controller_oidc" {
+  description = "Actual EKS issuer/provider; exact kube-system/aws-load-balancer-controller IRSA subject is fixed."
+  type        = object({ issuer = string, provider_arn = string })
+  nullable    = false
+  validation {
+    condition     = try(can(regex("^https://oidc[.]eks[.]${var.expected_scope.region}[.]amazonaws[.]com/id/[A-Za-z0-9]+$", var.controller_oidc.issuer)) && var.controller_oidc.provider_arn == "arn:${var.expected_scope.partition}:iam::${var.expected_scope.account_id}:oidc-provider/${replace(var.controller_oidc.issuer, "https://", "")}", false)
+    error_message = "Supply the actual same-account EKS OIDC provider ARN matching the exact Region issuer; no wildcard or unreviewed external issuer."
+  }
+}
