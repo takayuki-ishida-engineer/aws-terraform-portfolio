@@ -1,0 +1,36 @@
+# Apply only after namespace creation and the binding admission guard are reviewed.
+# RBAC cannot resourceName-restrict CREATE; the admission guard is mandatory.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portfolio-binding-writer
+  namespace: istio-ingress
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: portfolio-binding-writer
+  namespace: istio-ingress
+rules:
+  - apiGroups: [elbv2.k8s.aws]
+    resources: [targetgroupbindings]
+    verbs: [create]
+  - apiGroups: [elbv2.k8s.aws]
+    resources: [targetgroupbindings]
+    resourceNames: [portfolio-gateway]
+    verbs: [get, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: portfolio-binding-writer
+  namespace: istio-ingress
+subjects:
+  - kind: ServiceAccount
+    name: portfolio-binding-writer
+    namespace: istio-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: portfolio-binding-writer

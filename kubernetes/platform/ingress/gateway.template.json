@@ -1,0 +1,18 @@
+{
+  "apiVersion": "networking.istio.io/v1",
+  "kind": "Gateway",
+  "metadata": {"name": "portfolio-backend", "namespace": "istio-ingress"},
+  "spec": {
+    "selector": {"istio": "portfolio-gateway"},
+    "servers": [{
+      "port": {"number": 443, "name": "https-backend", "protocol": "HTTPS"},
+      "hosts": ["${backend_hostname}"],
+      "tls": {
+        "mode": "MUTUAL",
+        "credentialName": "${gateway_tls_secret}",
+        "minProtocolVersion": "TLSV1_2",
+        "verifyCertificateSpki": "${expected_client_spki}"
+      }
+    }]
+  }
+}

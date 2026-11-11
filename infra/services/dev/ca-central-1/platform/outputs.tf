@@ -21,3 +21,12 @@ output "private_ingress" {
   value       = module.private_ingress.private_ingress
   description = "Additional scoped ingress interface; platform output remains unchanged. Publication and actual runtime remain OPEN."
 }
+
+output "controller_identity" {
+  value = merge(module.private_ingress.controller_identity, {
+    cluster_name       = module.eks_platform.cluster_name
+    kubernetes_version = var.kubernetes_version
+    active_workload_az = var.active_workload_az
+  })
+  description = "Minimal scoped IRSA/runtime metadata; Kubernetes version is the requested configuration, not live service discovery. Publication/integrity remain external."
+}

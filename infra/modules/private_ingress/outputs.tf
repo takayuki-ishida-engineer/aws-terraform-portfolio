@@ -17,3 +17,18 @@ output "private_ingress" {
     cross_zone_enabled                = aws_lb.this.enable_cross_zone_load_balancing
   }
 }
+
+output "controller_identity" {
+  description = "Actual registration-only IRSA identity; no credential or proof of live authorization."
+  value = {
+    interface_version = 1
+    scope             = var.expected_scope
+    role_arn          = aws_iam_role.controller.arn
+    oidc_issuer       = var.controller_oidc.issuer
+    oidc_provider_arn = var.controller_oidc.provider_arn
+    namespace         = "kube-system"
+    service_account   = "aws-load-balancer-controller"
+    target_group_arn  = aws_lb_target_group.gateway.arn
+  }
+  depends_on = [aws_iam_role_policy.controller]
+}

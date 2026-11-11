@@ -58,3 +58,39 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_webhook" {
   to_port                      = 9443
   tags                         = merge(var.tags, { Name = "${var.name}-nodes_webhook" })
 }
+
+resource "aws_vpc_security_group_egress_rule" "cluster_istio_webhook" {
+  security_group_id            = var.eks_security_groups.cluster
+  referenced_security_group_id = var.eks_security_groups.nodes
+  ip_protocol                  = "tcp"
+  from_port                    = 15017
+  to_port                      = 15017
+  tags                         = merge(var.tags, { Name = "${var.name}-cluster_istio_webhook" })
+}
+
+resource "aws_vpc_security_group_ingress_rule" "nodes_istio_webhook" {
+  security_group_id            = var.eks_security_groups.nodes
+  referenced_security_group_id = var.eks_security_groups.cluster
+  ip_protocol                  = "tcp"
+  from_port                    = 15017
+  to_port                      = 15017
+  tags                         = merge(var.tags, { Name = "${var.name}-nodes_istio_webhook" })
+}
+
+resource "aws_vpc_security_group_egress_rule" "nodes_istiod" {
+  security_group_id            = var.eks_security_groups.nodes
+  referenced_security_group_id = var.eks_security_groups.nodes
+  ip_protocol                  = "tcp"
+  from_port                    = 15012
+  to_port                      = 15012
+  tags                         = merge(var.tags, { Name = "${var.name}-nodes_istiod" })
+}
+
+resource "aws_vpc_security_group_ingress_rule" "nodes_istiod" {
+  security_group_id            = var.eks_security_groups.nodes
+  referenced_security_group_id = var.eks_security_groups.nodes
+  ip_protocol                  = "tcp"
+  from_port                    = 15012
+  to_port                      = 15012
+  tags                         = merge(var.tags, { Name = "${var.name}-nodes_istiod" })
+}

@@ -1,0 +1,43 @@
+# Runtime renderer must supply required cluster/VPC/Region/IRSA/resources/node AZ.
+# Chart/app pin: 3.6.2/v3.6.2; verified archive digest in dependencies.lock.json.
+replicaCount: 1
+serviceAccount:
+  create: false
+  name: aws-load-balancer-controller
+image:
+  repository: public.ecr.aws/eks/aws-load-balancer-controller
+  tag: v3.6.2
+region: ca-central-1
+ingressClass: portfolio-disabled
+createIngressClassResource: false
+ingressClassParams:
+  create: false
+disableIngressClassAnnotation: true
+enableServiceMutatorWebhook: false
+enablePodReadinessGateInject: false
+enableBackendSecurityGroup: false
+enableManageBackendSecurityGroupRules: false
+enableEndpointSlices: true
+watchNamespace: istio-ingress
+enableShield: false
+enableWaf: false
+enableWafv2: false
+controllerConfig:
+  featureGates:
+    EnableServiceController: false
+    ALBGatewayAPI: false
+    NLBGatewayAPI: false
+    GlobalAcceleratorController: false
+    ALBTargetControlAgent: false
+    EnableCertificateManagement: false
+    GatewayListenerSet: false
+    EnableRGTAPI: false
+    EndpointsFailOpen: false
+securityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault

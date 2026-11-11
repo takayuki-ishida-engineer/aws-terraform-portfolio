@@ -1,0 +1,132 @@
+{
+  "helm": {
+    "version": "3.22.1",
+    "url": "https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz",
+    "sha256": "896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea",
+    "checksum_url": "https://get.helm.sh/helm-v3.22.1-linux-amd64.tar.gz.sha256sum",
+    "binary_sha256": "46aeab5e043f62d01f7c168823b392cabc1cea3807b67906296290483791be43"
+  },
+  "charts": {
+    "controller": {
+      "version": "3.6.2",
+      "app_version": "v3.6.2",
+      "repository": "https://aws.github.io/eks-charts",
+      "url": "https://aws.github.io/eks-charts/aws-load-balancer-controller-3.6.2.tgz",
+      "index_url": "https://aws.github.io/eks-charts/index.yaml",
+      "sha256": "9255bf39873b6cb31106dbe61dc87c3617bff4197783b5b94381811a13f99c3c",
+      "path": "kubernetes/vendor/aws-load-balancer-controller-3.6.2.tgz"
+    },
+    "base": {
+      "version": "1.32.0",
+      "app_version": "1.32.0",
+      "repository": "https://blob.istio.io/istio-release/charts",
+      "url": "https://blob.istio.io/istio-release/charts/base-1.32.0.tgz",
+      "index_url": "https://blob.istio.io/istio-release/charts/index.yaml",
+      "sha256": "505ce0d9b6cf5d73a9998728fdf0821510a237470567e6c332164937c6850f05",
+      "path": "kubernetes/vendor/base-1.32.0.tgz"
+    },
+    "istiod": {
+      "version": "1.32.0",
+      "app_version": "1.32.0",
+      "repository": "https://blob.istio.io/istio-release/charts",
+      "url": "https://blob.istio.io/istio-release/charts/istiod-1.32.0.tgz",
+      "index_url": "https://blob.istio.io/istio-release/charts/index.yaml",
+      "sha256": "17d275e3661e2e943a1ab630386bacab0cda76ea007978351a3a10fe9f4050d4",
+      "path": "kubernetes/vendor/istiod-1.32.0.tgz"
+    },
+    "gateway": {
+      "version": "1.32.0",
+      "app_version": "1.32.0",
+      "repository": "https://blob.istio.io/istio-release/charts",
+      "url": "https://blob.istio.io/istio-release/charts/gateway-1.32.0.tgz",
+      "index_url": "https://blob.istio.io/istio-release/charts/index.yaml",
+      "sha256": "61d1d24cd0d6f79fbd8a3367c7e0e0b873989309db673b64c13a37c3fbc5c546",
+      "path": "kubernetes/vendor/gateway-1.32.0.tgz"
+    }
+  },
+  "pyyaml": {
+    "version": "6.0.3",
+    "source": "https://github.com/yaml/pyyaml",
+    "commit": "49790e73684bebad1df05ef8d828fa12f685bffb",
+    "files": {
+      "LICENSE": "8d3928f9dc4490fd635707cb88eb26bd764102a7282954307d3e5167a577e8a4",
+      "yaml/__init__.py": "f292f184fc7aac5eeb1fcf7a884b579c99ed116048443b4e363b3ff990002687",
+      "yaml/composer.py": "e6f2e4a1475e5a54f23127c1be40e129a8d62f3bb2840b076ca077c69ae8662f",
+      "yaml/constructor.py": "90d8247da78b524c10618fd0e857f54f3d97570fe91b5c5513d024ef3faf88b0",
+      "yaml/cyaml.py": "f7e4c959fa80dafcc34fd63d1874f28d29b0ec7d9cc35c75160c7670f2e496b8",
+      "yaml/dumper.py": "48abaae2af2b8a558e6f5a1f5c120929340cbd210a39125ab69633bf7b23f632",
+      "yaml/emitter.py": "8e086d694ede170837d5b1b407b45979aff6f40762f422a65eafd08e04290a44",
+      "yaml/error.py": "2dee1322eded7fdbb3f70dfc0c151059b371244fbaa7748c647c7183d3563ec9",
+      "yaml/events.py": "bc5e7b26628fb17463393d835101832a11ba2643925d2eaafd13470b10c82234",
+      "yaml/loader.py": "5156becc8aa6905482218abf3e04869b835226db4763645fff3438fdbd5f1cdd",
+      "yaml/nodes.py": "807f42f22bc55ab7b0336ed55252dbc38cafe33221f7950f48b6190525106de9",
+      "yaml/parser.py": "2ea7a686ea575b2b776eb2077e107157a549c39c43e84ec3fbb4054bb71a5341",
+      "yaml/reader.py": "d1d9b38ab3a20c6e17a38d519ee412ecaf6b918df18c78956ac7c330d4ea08dc",
+      "yaml/representer.py": "f877221a9b8081632592d8c631c4af2f4594d941756a2af086efdf8da5757f58",
+      "yaml/resolver.py": "6b3b1f4205f1ea90b6d0a15bdff686375d8a19bf5ffe1ce919b42b65f0105438",
+      "yaml/scanner.py": "ddbdd128dcdefe76210b47858a62758aadb5313d40aa2372829856b914042c7e",
+      "yaml/serializer.py": "919dea221530432aac05cc990b7bcb6c9f1f67357882d2bd966966525cc9a533",
+      "yaml/tokens.py": "e321175fa5ff6f0761fa93f3aa86470bff8444cb60a25a01bc9818be70db0f64"
+    },
+    "upstream_files": {
+      "LICENSE": "8d3928f9dc4490fd635707cb88eb26bd764102a7282954307d3e5167a577e8a4",
+      "yaml/__init__.py": "b19dfcc333d6a75dfd73073901164507252f271b41d3b5f7d85510033a0547a7",
+      "yaml/composer.py": "fcaa37d16afa783594794a5ab94193dcb720f503c19ce3d59539c8311189f453",
+      "yaml/constructor.py": "90d8247da78b524c10618fd0e857f54f3d97570fe91b5c5513d024ef3faf88b0",
+      "yaml/cyaml.py": "e99ac01bd7c062f7557b614aff0d21997a06ed962ca185306a91bc0a20bbd87d",
+      "yaml/dumper.py": "3cb72d66563064ba7b5e679477046ebf89d8399d940670c8532f3e94a7cb17ea",
+      "yaml/emitter.py": "8e086d694ede170837d5b1b407b45979aff6f40762f422a65eafd08e04290a44",
+      "yaml/error.py": "021f73fada072546c4f63f8cf18a7181244ce4280b09cc15cc980b2d1176171a",
+      "yaml/events.py": "e74fd392c810884e2ea7e94aa3f57e9c1cbeb402319083d0c58e6a0e1282787c",
+      "yaml/loader.py": "5156becc8aa6905482218abf3e04869b835226db4763645fff3438fdbd5f1cdd",
+      "yaml/nodes.py": "80f28d8fca4a09d87677882bde021820d9cf39a3b11a12405226211919cf13ce",
+      "yaml/parser.py": "8a55a9e6fbe0a07146cef3990c8b45a068c3e83e369e1959ad9ca30306b4a09a",
+      "yaml/reader.py": "d1d9b38ab3a20c6e17a38d519ee412ecaf6b918df18c78956ac7c330d4ea08dc",
+      "yaml/representer.py": "22e58ff9c016f6c1ca1274b4802a926bcf78935060e1c813c5a0f021c6d143e6",
+      "yaml/resolver.py": "f4bf9561f9b89961f1503d558385fbae30d12bfed565de9bf76c33abb63620a6",
+      "yaml/scanner.py": "60433788b652690c17710460da5d91e0c753d3318fd85f5e1e42862a71f25906",
+      "yaml/serializer.py": "0a1b85826854d35863e31808f0668abfabdf33606e8f06bd8bb7761401e3edc0",
+      "yaml/tokens.py": "953408cd2570f0c83dc2fe39f7e4e388e41eeb05738aa69196a5f6ffcf6ba79e"
+    },
+    "normalization": "UTF-8 LF, trailing whitespace and extra terminal blank lines removed; no semantic edits"
+  },
+  "fastjsonschema": {
+    "version": "2.21.2",
+    "source": "https://github.com/horejsek/python-fastjsonschema",
+    "commit": "4f1ed6d9c0462f3522a66f49c8f3dc482300101b",
+    "files": {
+      "LICENSE": "2c967a9122d3a85b03f277dc8bf2e7a8ea2ae984431ce78f496df61c72131d47",
+      "fastjsonschema/__init__.py": "1b30b2c1695a9dd8d042c24b5da6641d8767c9d35c21317aaf6e00bf98106205",
+      "fastjsonschema/__main__.py": "e217dddb7a6bcf199073c5632f47d4b1bb2bbef03bde02761c334f80b2c57402",
+      "fastjsonschema/draft04.py": "5b000e05b50e3fceaf2cffc0cf41d974068166cc20ccde9e8efdbdb6f622dfb1",
+      "fastjsonschema/draft06.py": "7123e77e5ab276be84578a74d93fe08785455fb99555da0a0b19cdc270bf3cf0",
+      "fastjsonschema/draft07.py": "0f8a8d36159c8e0d13ac4887434049370be5cafd51a7c832101620441995d9bf",
+      "fastjsonschema/exceptions.py": "c3be3d260a8a8bc72504570e6dd71b655aac985e2827f401ca16754866d414dc",
+      "fastjsonschema/generator.py": "6d866dfd07eb087fefeeb24304cb5e789c78503ca0115ed76633ad14bde2925b",
+      "fastjsonschema/indent.py": "8ee6455bd2d2be60c96cf148526dc63ea74fa89a149eabccf27787379ae4bf35",
+      "fastjsonschema/ref_resolver.py": "3d69eefb6319cd61f9732983bdd72f5dfc7788e5bf32be9cfb15cc626f450fb4",
+      "fastjsonschema/version.py": "319d9c5b54d1d2767e849977d3b020aba35274fcf52450200d3133cc0dd3fbb7"
+    },
+    "upstream_files": {
+      "LICENSE": "9ccddf69eb3998a60148debe85b94c5afed53691b6474692e78abcc0a0e544f1",
+      "fastjsonschema/__init__.py": "1b30b2c1695a9dd8d042c24b5da6641d8767c9d35c21317aaf6e00bf98106205",
+      "fastjsonschema/__main__.py": "e217dddb7a6bcf199073c5632f47d4b1bb2bbef03bde02761c334f80b2c57402",
+      "fastjsonschema/draft04.py": "9d43f52e18d806b4ccadf848f2734dc469e5073d5c4eb269e5c92024932c66a4",
+      "fastjsonschema/draft06.py": "7123e77e5ab276be84578a74d93fe08785455fb99555da0a0b19cdc270bf3cf0",
+      "fastjsonschema/draft07.py": "0f8a8d36159c8e0d13ac4887434049370be5cafd51a7c832101620441995d9bf",
+      "fastjsonschema/exceptions.py": "c3be3d260a8a8bc72504570e6dd71b655aac985e2827f401ca16754866d414dc",
+      "fastjsonschema/generator.py": "6d866dfd07eb087fefeeb24304cb5e789c78503ca0115ed76633ad14bde2925b",
+      "fastjsonschema/indent.py": "8ee6455bd2d2be60c96cf148526dc63ea74fa89a149eabccf27787379ae4bf35",
+      "fastjsonschema/ref_resolver.py": "3d69eefb6319cd61f9732983bdd72f5dfc7788e5bf32be9cfb15cc626f450fb4",
+      "fastjsonschema/version.py": "319d9c5b54d1d2767e849977d3b020aba35274fcf52450200d3133cc0dd3fbb7"
+    },
+    "normalization": "UTF-8 LF, trailing whitespace and extra terminal blank lines removed; no semantic edits"
+  },
+  "schema": {
+    "path": "kubernetes/vendor/kubernetes-schema.json",
+    "sha256": "9a5fb8f5a025bb994f6a4615f8e2398b50ec47e197302473a04b3f3184dac928",
+    "source": "https://github.com/kubernetes/kubernetes/blob/v1.34.1/api/openapi-spec/swagger.json",
+    "source_git_blob": "305a8a0ee5dcf8292c9cf58aa3676b3b6b39c8d9",
+    "source_sha256": "d3b0cdc2fda15c753206d25ab459dc7c12df64e2fd652b6809687471ea751c37"
+  }
+}

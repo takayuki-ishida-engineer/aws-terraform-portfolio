@@ -43,7 +43,10 @@ def root_values(plan,v):
     net=v['network_reference']
     require(net['scope']==dict(environment='dev',region='ca-central-1',partition='aws',account_id=v['aws_account_id']) and net['interface_version']==1,'root_scope')
     require(net['subnet_azs']['private'][v['ingress_subnet_key']]==v['active_workload_az'],'dev_ingress_az')
-    return dict(expected_scope=net['scope'],network_reference=net,name=v['ingress_name'],subnet_keys=[v['ingress_subnet_key']],backend_target_port=v['gateway_target_port'],eks_security_groups=dict(cluster=sg('cluster'),nodes=sg('nodes')),cross_zone_enabled=False,deletion_protection=v.get('deletion_protection',True),tags=dict(v.get('tags',{}),Environment='dev',Service='platform',Project='aws-terraform-portfolio',ManagedBy='Terraform'))
+    oidc=rows['module.eks_platform.aws_iam_openid_connect_provider.cluster']['change'];cluster=rows['module.eks_platform.aws_eks_cluster.this']['change']
+    require(not unknown(oidc['after_unknown'].get('arn',False)) and not unknown(cluster['after_unknown'].get('identity',False)),'known_actual_oidc')
+    issuer=cluster['after']['identity'][0]['oidc'][0]['issuer']
+    return dict(controller_oidc=dict(issuer=issuer,provider_arn=oidc['after']['arn']),expected_scope=net['scope'],network_reference=net,name=v['ingress_name'],subnet_keys=[v['ingress_subnet_key']],backend_target_port=v['gateway_target_port'],eks_security_groups=dict(cluster=sg('cluster'),nodes=sg('nodes')),cross_zone_enabled=False,deletion_protection=v.get('deletion_protection',True),tags=dict(v.get('tags',{}),Environment='dev',Service='platform',Project='aws-terraform-portfolio',ManagedBy='Terraform'))
 def verify_root_ingress(plan,v):return verify_plan(plan,root_values(plan,v),'root')
 def verify_plan(plan,v,scope):
     n=v['network_reference'];s=v['expected_scope'];keys=v['subnet_keys'];port=v['backend_target_port'];eks=v['eks_security_groups']
@@ -66,9 +69,9 @@ def verify_plan(plan,v,scope):
         require(addr not in rows and addr==r['type']+'.'+r['name'] and r.get('module_address','')==prefix.rstrip('.') and r.get('index') is None,'unique_resource_identity')
         require(r['mode']=='managed' and r['provider_name']==PROVIDER and r['change']['actions']==['create'] and r['change']['before'] is None,'resource_owner')
         rows[addr]=r['change']
-    names={'aws_lb.this','aws_lb_listener.https_passthrough','aws_lb_target_group.gateway','aws_security_group.nlb','aws_security_group.vpc_link_client',
+    names={'aws_vpc_security_group_egress_rule.cluster_istio_webhook','aws_vpc_security_group_ingress_rule.nodes_istio_webhook','aws_vpc_security_group_egress_rule.nodes_istiod','aws_vpc_security_group_ingress_rule.nodes_istiod','aws_iam_role.controller','aws_iam_role_policy.controller','aws_lb.this','aws_lb_listener.https_passthrough','aws_lb_target_group.gateway','aws_security_group.nlb','aws_security_group.vpc_link_client',
         'aws_vpc_security_group_egress_rule.client_nlb','aws_vpc_security_group_ingress_rule.nlb_clients','aws_vpc_security_group_egress_rule.nlb_targets','aws_vpc_security_group_ingress_rule.nodes_targets','aws_vpc_security_group_egress_rule.cluster_webhook','aws_vpc_security_group_ingress_rule.nodes_webhook'}
-    require(set(rows)==names,'exact_11_owners_no_dynamic_registration')
+    require(set(rows)==names,'exact_17_owners_no_dynamic_registration')
     def value(a,k):
         c=rows[a];require(k in c['after'] and not unknown(c['after_unknown'].get(k,False)),'critical_value:'+a+':'+k);return c['after'][k]
     def same(a,k,x):require(value(a,k)==x,'contract:'+a+':'+k)
@@ -86,13 +89,32 @@ def verify_plan(plan,v,scope):
     for k,x in dict(enabled=True,port='traffic-port',protocol='TCP',interval=30,healthy_threshold=3,unhealthy_threshold=3).items():require(hc[0][k]==x,'health:'+k)
     same(li,'load_balancer_arn',value(lb,'arn'));same(li,'port',443);same(li,'protocol','TCP');same(li,'certificate_arn',None);same(li,'alpn_policy',None);same(li,'mutual_authentication',[])
     actions=value(li,'default_action');require(len(actions)==1 and actions[0]['type']=='forward' and actions[0]['target_group_arn']==value(tg,'arn') and not actions[0]['forward'] and not actions[0]['redirect'] and not actions[0]['fixed_response'],'actual_forward')
-    flows=[('egress','client_nlb',client,nlb,443),('ingress','nlb_clients',nlb,client,443),('egress','nlb_targets',nlb,eks['nodes'],port),('ingress','nodes_targets',eks['nodes'],nlb,port),('egress','cluster_webhook',eks['cluster'],eks['nodes'],9443),('ingress','nodes_webhook',eks['nodes'],eks['cluster'],9443)]
+    flows=[('egress','client_nlb',client,nlb,443),('ingress','nlb_clients',nlb,client,443),('egress','nlb_targets',nlb,eks['nodes'],port),('ingress','nodes_targets',eks['nodes'],nlb,port),('egress','cluster_webhook',eks['cluster'],eks['nodes'],9443),('ingress','nodes_webhook',eks['nodes'],eks['cluster'],9443),('egress','cluster_istio_webhook',eks['cluster'],eks['nodes'],15017),('ingress','nodes_istio_webhook',eks['nodes'],eks['cluster'],15017),('egress','nodes_istiod',eks['nodes'],eks['nodes'],15012),('ingress','nodes_istiod',eks['nodes'],eks['nodes'],15012)]
     for direction,label,owner,peer,p in flows:
         a='aws_vpc_security_group_'+direction+'_rule.'+label
         for k,x in dict(security_group_id=owner,referenced_security_group_id=peer,ip_protocol='tcp',from_port=p,to_port=p,cidr_ipv4=None,cidr_ipv6=None,prefix_list_id=None).items():same(a,k,x)
-    for a in names:require(all(value(a,'tags').get(k)==x for k,x in v.get('tags',{}).items() if k!='Name'),'governance_tags')
+    for a in names-{'aws_iam_role_policy.controller'}:require(all(value(a,'tags').get(k)==x for k,x in v.get('tags',{}).items() if k!='Name'),'governance_tags')
+    oidc=v['controller_oidc'];issuer=oidc['issuer'];provider=oidc['provider_arn']
+    require(re.fullmatch(r'https://oidc[.]eks[.]'+s['region']+r'[.]amazonaws[.]com/id/[A-Za-z0-9]+',issuer) and provider=='arn:aws:iam::'+s['account_id']+':oidc-provider/'+issuer.removeprefix('https://'),'exact_oidc_scope')
+    role='aws_iam_role.controller';policy='aws_iam_role_policy.controller';subject='system:serviceaccount:kube-system:aws-load-balancer-controller'
+    same(role,'name',v['name']+'-lbc');same(role,'arn','arn:aws:iam::'+s['account_id']+':role/'+v['name']+'-lbc')
+    expected_trust={'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'sts:AssumeRoleWithWebIdentity','Principal':{'Federated':provider},'Condition':{'StringEquals':{issuer.removeprefix('https://')+':aud':'sts.amazonaws.com',issuer.removeprefix('https://')+':sub':subject}}}]}
+    require(parse(value(role,'assume_role_policy'))==expected_trust,'exact_irsa_trust_no_human_ec2_wildcards')
+    same(role,'inline_policy',[]);same(role,'managed_policy_arns',[]);same(policy,'role',value(role,'name'))
+    condition={'StringEquals':{'aws:RequestedRegion':s['region']}}
+    expected_policy={'Version':'2012-10-17','Statement':[
+       {'Sid':'RegionalDiscovery','Effect':'Allow','Action':['ec2:DescribeVpcs','ec2:DescribeSecurityGroups','ec2:DescribeInstances','ec2:DescribeAvailabilityZones','elasticloadbalancing:DescribeTargetGroups','elasticloadbalancing:DescribeTargetHealth'],'Resource':'*','Condition':condition},
+       {'Sid':'OwnedTargetRegistration','Effect':'Allow','Action':['elasticloadbalancing:RegisterTargets','elasticloadbalancing:DeregisterTargets'],'Resource':value(tg,'arn'),'Condition':condition}]}
+    require(parse(value(policy,'policy'))==expected_policy,'exact_registration_policy_no_sg_modify_or_create')
+    identity=dict(interface_version=1,scope=s,role_arn=value(role,'arn'),oidc_issuer=issuer,oidc_provider_arn=provider,namespace='kube-system',service_account='aws-load-balancer-controller',target_group_arn=value(tg,'arn'))
+    if scope=='root':
+        identity.update(cluster_name=next(r for r in plan['resource_changes'] if r['address']=='module.eks_platform.aws_eks_cluster.this')['change']['after']['name'],kubernetes_version=next(r for r in plan['resource_changes'] if r['address']=='module.eks_platform.aws_eks_cluster.this')['change']['after']['version'])
+        # Actual output active AZ is validated by the Root input contract.
+        identity['active_workload_az']=n['subnet_azs']['private'][keys[0]]
+    io=plan['output_changes']['controller_identity']
+    require(io['actions']==['create'] and io['before'] is None and io['after']==identity and not unknown(io['after_unknown']) and io['after_sensitive'] is False,'actual_controller_identity_output')
     out=dict(interface_version=1,scope=s,nlb_arn=value(lb,'arn'),nlb_dns_name=value(lb,'dns_name'),nlb_zone_id=value(lb,'zone_id'),listener_arn=value(li,'arn'),target_group_arn=value(tg,'arn'),target_group_name=value(tg,'name'),nlb_security_group_id=nlb,vpc_link_client_security_group_id=client,private_subnet_ids={k:private[k] for k in keys},vpc_id=value(tg,'vpc_id'),backend_target_port=value(tg,'port'),cross_zone_enabled=value(lb,'enable_cross_zone_load_balancing'))
-    outputs=plan.get('output_changes',{});require(set(outputs)==({'platform','private_ingress'} if scope=='root' else {'private_ingress'}),'output_inventory')
+    outputs=plan.get('output_changes',{});require(set(outputs)==({'platform','private_ingress','controller_identity'} if scope=='root' else {'private_ingress','controller_identity'}),'output_inventory')
     o=outputs['private_ingress'];require(o['actions']==['create'] and o['before'] is None and o['after']==out and not unknown(o['after_unknown']) and o['after_sensitive'] is False,'actual_ingress_output')
     return len(rows)
 def source_contract(sources=None):
@@ -149,11 +171,28 @@ def self_test(events,scope,plans):
         for k in path[:-1]:d=d[k]
         d[path[-1]]=x;return q
     variants=[('aws_lb.this',['internal'],False),('aws_lb.this',['load_balancer_type'],'application'),('aws_lb.this',['security_groups'],[]),('aws_lb.this',['subnets'],['subnet-00000000000000003']),('aws_lb.this',['enforce_security_group_inbound_rules_on_private_link_traffic'],'off'),('aws_lb.this',['enable_cross_zone_load_balancing'],True),('aws_lb_listener.https_passthrough',['protocol'],'TLS'),('aws_lb_listener.https_passthrough',['port'],80),('aws_lb_listener.https_passthrough',['certificate_arn'],'unapproved'),('aws_lb_listener.https_passthrough',['default_action',0,'target_group_arn'],'fabricated'),('aws_lb_target_group.gateway',['target_type'],'instance'),('aws_lb_target_group.gateway',['port'],443),('aws_lb_target_group.gateway',['preserve_client_ip'],'true'),('aws_lb_target_group.gateway',['proxy_protocol_v2'],True),('aws_lb_target_group.gateway',['health_check',0,'port'],'443'),('aws_lb_target_group.gateway',['health_check',0,'protocol'],'HTTPS')]
-    for a in ['aws_vpc_security_group_egress_rule.client_nlb','aws_vpc_security_group_ingress_rule.nlb_clients','aws_vpc_security_group_egress_rule.nlb_targets','aws_vpc_security_group_ingress_rule.nodes_targets','aws_vpc_security_group_egress_rule.cluster_webhook','aws_vpc_security_group_ingress_rule.nodes_webhook']:
+    for a in ['aws_vpc_security_group_egress_rule.client_nlb','aws_vpc_security_group_ingress_rule.nlb_clients','aws_vpc_security_group_egress_rule.nlb_targets','aws_vpc_security_group_ingress_rule.nodes_targets','aws_vpc_security_group_egress_rule.cluster_webhook','aws_vpc_security_group_ingress_rule.nodes_webhook','aws_vpc_security_group_egress_rule.cluster_istio_webhook','aws_vpc_security_group_ingress_rule.nodes_istio_webhook','aws_vpc_security_group_egress_rule.nodes_istiod','aws_vpc_security_group_ingress_rule.nodes_istiod']:
         variants.extend([(a,['cidr_ipv4'],'0.0.0.0/0'),(a,['ip_protocol'],'-1'),(a,['referenced_security_group_id'],'sg-11111111111111111'),(a,['from_port'],0)])
     detections=[reject(lambda a=a,path=path,x=x:verify(edit(a,path,x)),a+str(path)) for a,path,x in variants]
     for label,fn in [('missing_node_ingress',lambda q:q['resource_changes'].__setitem__(slice(None),[r for r in q['resource_changes'] if r['address']!=prefix+'aws_vpc_security_group_ingress_rule.nodes_targets'])),('duplicate_resource',lambda q:q['resource_changes'].append(copy.deepcopy(q['resource_changes'][-1]))),('dynamic_registration',lambda q:q['resource_changes'].append(dict(address=prefix+'aws_lb_target_group_attachment.forbidden',type='aws_lb_target_group_attachment',name='forbidden',module_address=prefix.rstrip('.'),mode='managed',provider_name=PROVIDER,change={'actions':['create'],'before':None,'after':{},'after_unknown':{}}))),('unknown_nlb_arn',lambda q:next(r for r in q['resource_changes'] if r['address']==prefix+'aws_lb.this')['change']['after_unknown'].update(arn=True)),('output_corruption',lambda q:q['output_changes']['private_ingress']['after'].update(target_group_arn='fabricated'))]:
         q=copy.deepcopy(p);fn(q);detections.append(reject(lambda q=q:verify(q),label))
+    test_oidc=(root_values(p,v) if scope=='root' else v)['controller_oidc']
+    policy_detections=[]
+    for addr,field,change,label in [
+      ('aws_iam_role.controller','assume_role_policy',lambda p:p['Statement'][0].update(Principal={'Federated':'*'}),'wildcard_oidc'),
+      ('aws_iam_role.controller','assume_role_policy',lambda p:p['Statement'][0].update(Action='sts:AssumeRole'),'human_assumption'),
+      ('aws_iam_role.controller','assume_role_policy',lambda p:p['Statement'][0]['Condition']['StringEquals'].update({test_oidc['issuer'].removeprefix('https://')+':aud':'wrong'}),'wrong_audience'),
+      ('aws_iam_role.controller','assume_role_policy',lambda p:p['Statement'][0]['Condition']['StringEquals'].update({test_oidc['issuer'].removeprefix('https://')+':sub':'system:serviceaccount:*:*'}),'wildcard_subject'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][1].update(Resource='*'),'broad_registration'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][1]['Action'].append('elasticloadbalancing:ModifyTargetGroup'),'modify_tg'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][1]['Action'].append('elasticloadbalancing:ModifyTargetGroupAttributes'),'modify_attributes'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][1]['Action'].append('ec2:AuthorizeSecurityGroupIngress'),'sg_mutation'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][1]['Action'].append('elasticloadbalancing:CreateLoadBalancer'),'create_lb'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][1]['Action'].append('sts:AssumeRole'),'cross_account_assume'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][1].pop('Condition'),'missing_region'),
+      ('aws_iam_role_policy.controller','policy',lambda p:p['Statement'][0]['Action'].append('secretsmanager:GetSecretValue'),'secret_access')]:
+        row=next(r for r in p['resource_changes'] if r['address']==prefix+addr);policy=parse(row['change']['after'][field]);change(policy)
+        policy_detections.append(reject(lambda addr=addr,field=field,policy=policy:verify(edit(addr,[field],json.dumps(policy))),label))
     faults=[]
     for kind in ['version','test_abstract','test_plan','test_run','diagnostic','test_summary','test_file']:
         index=next(i for i,e in enumerate(events) if e['type']==kind and (kind not in {'test_run','test_file'} or 'status' in e[kind]))
@@ -183,7 +222,7 @@ def self_test(events,scope,plans):
     for path,pattern,replacement in changes:
         q=sources.copy();q[path],count=re.subn(pattern,replacement,q[path],count=1);require(count==1,'source_mutation_witness:'+path+pattern)
         source_detections.append(reject(lambda q=q:source_contract(q),path+pattern))
-    return dict(semantic_mutations=len(detections),semantic_detections=detections,capture_failure_injections=len(faults),capture_detections=faults,source_dependency_mutations=len(source_detections),source_dependency_detections=source_detections)
+    return dict(semantic_mutations=len(detections),semantic_detections=detections,capture_failure_injections=len(faults),capture_detections=faults,source_dependency_mutations=len(source_detections),source_dependency_detections=source_detections,iam_policy_mutations=len(policy_detections),iam_policy_detections=policy_detections)
 def main():
     a=argparse.ArgumentParser();a.add_argument('--scope',choices=['child','root'],required=True);a.add_argument('--events',type=Path,required=True);a.add_argument('--exit-code',type=int,default=0);a.add_argument('--self-test',action='store_true');args=a.parse_args()
     try:

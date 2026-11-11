@@ -9,6 +9,9 @@ from check_ingress import MODULE,ROOT,definitions,read_events,require,verify_pla
 def main():
     a=argparse.ArgumentParser();a.add_argument('--terraform',default='terraform');args=a.parse_args()
     variants=[
+      ('wildcard_irsa','iam.tf',r'Federated\s*=\s*var.controller_oidc.provider_arn','Federated = "*"'),
+      ('unrestricted_registration','iam.tf',r'Resource\s*=\s*aws_lb_target_group.gateway.arn','Resource = "*"'),
+      ('controller_sg_write','iam.tf',r'"elasticloadbalancing:DeregisterTargets"','"elasticloadbalancing:DeregisterTargets", "ec2:AuthorizeSecurityGroupIngress"'),
       ('public_nlb','main.tf',r'(internal\s*=\s*)true',r'\g<1>false'),
       ('tls_listener','main.tf',r'(resource "aws_lb_listener"[\s\S]*?protocol\s*=\s*)"TCP"',r'\g<1>"TLS"'),
       ('instance_targets','main.tf',r'(target_type\s*=\s*)"ip"',r'\g<1>"instance"'),
