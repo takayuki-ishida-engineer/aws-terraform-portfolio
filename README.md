@@ -6,6 +6,22 @@ verification. AWS Terraform is the primary portfolio; AWS CloudFormation and
 Azure Terraform are separate, smaller supporting portfolios, not implementations
 claimed by this repository.
 
+## V6 Cognito source foundation
+
+Accepted post-V5 main `97f870753926398368733c39da722d5d7b792fa5` passed
+[push CI43109394809](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43109394809)
+(686 native/153 toolkit/13 configurations). V6 adds [cognito_auth](infra/modules/cognito_auth/README.md) and
+DEV ca-central-1/api Root, five resources: protected email User Pool, prefix domain
+managed-login2, Resource Server, public code-only client and default branding.
+Future REST belongs in the same API State; historical HTTP API remains unchanged.
+Google IdP/Secret, actual users, email delivery, browser PKCE, real authentication,
+REST integration and backend tenant/owner authorization are not complete.
+Local Child49/Root46 native plus independent safety/evidence checks supplement
+existing686; expected full CI781/153 and15 shared-provider configurations requires
+independent exact-HEAD review. No AWS/State/Live execution or unavailable PDF claim.
+G01–G07, JPY10,000/72-hour removal, paid-plan/callback/account approvals and the
+Secrets recovery blocker remain OPEN. Historical status sections retain their scope.
+
 ## What is implemented
 
 The **post-R2 offline serverless API snapshot** has **eight reusable Terraform

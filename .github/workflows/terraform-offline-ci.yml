@@ -128,12 +128,12 @@ jobs:
           if checkpoint == "after_modules":
               expected = {"infra/services/dev/ca-central-1/serverless-api",
                       "infra/services/dev/ca-central-1/network",
-                      "infra/services/dev/ca-central-1/platform"} | {
+                      "infra/services/dev/ca-central-1/platform", "infra/services/dev/ca-central-1/api"} | {
                   "infra/modules/" + name for name in (
                       "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda_workload",
-                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress")}
+                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress", "cognito_auth")}
               if {row["module"] for row in initialized} != expected or references != len(expected) or len(identities) != 1:
-                  raise SystemExit("Expected thirteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+                  raise SystemExit("Expected fifteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
           if checkpoint == "job_completion":
               snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
@@ -930,6 +930,46 @@ jobs:
           print("Observed Kubernetes runtime checks (not Terraform native cases):", report)
           PYRUNTIME
 
+      - name: Verify V6 cognito actual Cognito plans and security
+        id: cognito
+        working-directory: infra/modules/cognito_auth
+        run: |
+          set -euo pipefail
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -lockfile=readonly -no-color
+          terraform validate -no-color
+          terraform test -json -verbose -no-color | python3 "$GITHUB_WORKSPACE/infra/modules/eks_platform/tests/check_platform_configuration.py" --compact > "$RUNNER_TEMP/cognito-tests.jsonl"
+          python3 "$GITHUB_WORKSPACE/infra/modules/cognito_auth/tests/verify.py" --events "$RUNNER_TEMP/cognito-tests.jsonl" --self-test > "$RUNNER_TEMP/cognito-verification.json"
+          python3 tests/check_rejections.py --terraform terraform > "$RUNNER_TEMP/cognito-rejections.json"
+          python3 - <<'PYAUTH'
+          import json,os
+          from pathlib import Path
+          r=json.loads(Path(os.environ['RUNNER_TEMP'],"cognito-verification.json").read_text())
+          assert r==dict(status='passed',native_tests=49,positive_plans=5,negative_tests=44,security_mutations=32,evidence_faults=13),r
+          extra=json.loads(Path(os.environ['RUNNER_TEMP'],'cognito-rejections.json').read_text())
+          assert extra['status']=='passed' and extra['source_mutations']==10 and extra['required_root_inputs']==16,extra
+          print("Actual V6 offline verification:",r)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write(f"passed={r['native_tests']}\n")
+          PYAUTH
+
+      - name: Verify V6 api actual Cognito plans and security
+        id: api
+        working-directory: infra/services/dev/ca-central-1/api
+        run: |
+          set -euo pipefail
+          terraform init -backend=false -input=false -lockfile=readonly -no-color
+          terraform validate -no-color
+          terraform test -json -verbose -no-color | python3 "$GITHUB_WORKSPACE/infra/modules/eks_platform/tests/check_platform_configuration.py" --compact > "$RUNNER_TEMP/api-tests.jsonl"
+          python3 "$GITHUB_WORKSPACE/infra/modules/cognito_auth/tests/verify.py" --events "$RUNNER_TEMP/api-tests.jsonl" --root --self-test > "$RUNNER_TEMP/api-verification.json"
+          python3 - <<'PYAUTH'
+          import json,os
+          from pathlib import Path
+          r=json.loads(Path(os.environ['RUNNER_TEMP'],"api-verification.json").read_text())
+          assert r==dict(status='passed',native_tests=46,positive_plans=5,negative_tests=41,security_mutations=32,evidence_faults=13),r
+          print("Actual V6 offline verification:",r)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write(f"passed={r['native_tests']}\n")
+          PYAUTH
+
       - name: Measure shared provider storage after all modules
         run: |
           set -euo pipefail
@@ -973,6 +1013,10 @@ jobs:
           ROOT_PASSED: ${{ steps.root_integration.outputs.passed }}
           PLATFORM_RESULT: ${{ steps.platform.outcome }}
           PLATFORM_PASSED: ${{ steps.platform.outputs.passed }}
+          COGNITO_RESULT: ${{ steps.cognito.outcome }}
+          COGNITO_PASSED: ${{ steps.cognito.outputs.passed }}
+          API_RESULT: ${{ steps.api.outcome }}
+          API_PASSED: ${{ steps.api.outputs.passed }}
           RUNTIME_RESULT: ${{ steps.kubernetes_runtime.outcome }}
           INGRESS_RESULT: ${{ steps.private_ingress.outcome }}
           INGRESS_PASSED: ${{ steps.private_ingress.outputs.passed }}
@@ -1012,6 +1056,8 @@ jobs:
             ("Dev serverless API root integration/plans/mutations", "ROOT_RESULT", os.environ.get("ROOT_PASSED", "")),
             ("DEV network init/validate/required-inputs/plans/mutations", "NETWORK_RESULT", os.environ.get("NETWORK_PASSED", "")),
             ("DEV platform root/private EKS/required network inputs/security", "PLATFORM_RESULT", os.environ.get("PLATFORM_PASSED", "")),
+            ("Cognito actual plans/security", "COGNITO_RESULT", os.environ.get("COGNITO_PASSED", "")),
+            ("DEV API root Cognito integration", "API_RESULT", os.environ.get("API_PASSED", "")),
             ("Kubernetes pinned Helm/schema/TLS/RBAC/mutations", "RUNTIME_RESULT", ""),
             ("Private ingress/TCP/SG/ownership/plans/source mutations", "INGRESS_RESULT", os.environ.get("INGRESS_PASSED", "")),
             ("EKS child/IAM/SG/access/addons/plans/source mutations", "EKS_RESULT", os.environ.get("EKS_PASSED", "")),
