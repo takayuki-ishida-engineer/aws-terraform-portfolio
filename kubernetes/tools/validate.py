@@ -43,10 +43,22 @@ def structural(objects):
   _CACHE[digest](copy.deepcopy(obj))
  return len(objects)
 
+def application_network_policy(objects):
+ # Policies are additive: validating only the named deny policy would overlook
+ # a second policy that grants traffic. No other policy is approved in NP-1.
+ policies=[o for o in objects if o['kind']=='NetworkPolicy']
+ need(len(policies)==1,'NP-1 permits exactly one NetworkPolicy; no additive allow policy')
+ policy=policies[0]
+ need(identity(policy)==('networking.k8s.io/v1','NetworkPolicy','portfolio-app','default-deny'),'application NetworkPolicy identity')
+ need(policy['spec']=={'podSelector':{},'policyTypes':['Ingress','Egress'],'ingress':[],'egress':[]},'all application Pods: explicit ingress/egress default deny, no exceptions')
+ namespace=next(o for o in objects if o['kind']=='Namespace' and o['metadata']['name']=='portfolio-app')
+ need(objects.index(namespace)<objects.index(policy),'application namespace before NetworkPolicy')
+
 def verify(objects,d,fixture=False):
  metadata(d,fixture);need(isinstance(objects,list),'resource list');rows={}
  for o in objects:
   need(isinstance(o,dict) and all(k in o for k in ['apiVersion','kind','metadata']),'resource envelope');i=identity(o);need(i not in rows,'duplicate object');rows[i]=o
+ application_network_policy(objects)
  expected=json.loads((ROOT/'kubernetes/tests/expected-inventory.json').read_text());need(set(rows)=={tuple(x) for x in expected},'complete exact ownership inventory')
  structural(objects)
  def obj(kind,name,ns=''):return next(o for o in objects if o['kind']==kind and o['metadata']['name']==name and o['metadata'].get('namespace','')==ns)

@@ -186,6 +186,12 @@
     "portfolio-backend"
   ],
   [
+    "networking.k8s.io/v1",
+    "NetworkPolicy",
+    "portfolio-app",
+    "default-deny"
+  ],
+  [
     "rbac.authorization.k8s.io/v1",
     "ClusterRole",
     "",
