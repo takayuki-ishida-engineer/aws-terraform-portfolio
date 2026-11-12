@@ -8,8 +8,12 @@ claimed by this repository.
 
 ## Current operating and completion policy
 
-Master Policy v13 (2026-11-12) approved operating requirements are recorded in
-[AGENTS](AGENTS.md) and the [verification policy](docs/portfolio-verification-policy.md#official-aws-emulator--policy-v13).
+Master Policy v14 (2026-11-12) is the sole current policy authority. Its complete
+24-page user-supplied text was reviewed with user approval; the original PDF was
+unavailable and its SHA-256 remains unverified. Apply v14 and the permanent
+[AGENTS](AGENTS.md) controls. Stale earlier-version labels in the
+[verification policy](docs/portfolio-verification-policy.md#official-aws-emulator--policy-v13)
+are tracked in the V7-0 contract and do not make earlier policies current.
 Real AWS access remains prohibited in Codex Cloud. Strictly isolated official AWS
 Emulator lifecycle validation is permitted for supported resources and supplements
 all existing credential-free CI/security tests. Real AWS deployment is optional,
@@ -17,6 +21,9 @@ not mandatory for portfolio completion; unsupported/untested behavior must remai
 explicit and independent review is required. No emulator CI requirement is added.
 V6 has merged at main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0`.
 Historical phase snapshots below retain their original evidence scope.
+See [V7-0 REST/private integration contract](docs/v7-rest-private-integration-feasibility.md)
+for static Provider6.72.0 findings, P0 OPEN gates and proposed implementation order;
+no V7 resource implementation or end-to-end feasibility approval is claimed.
 
 ## V6 Cognito source foundation
 
@@ -149,8 +156,10 @@ G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
 
 ## Current limitations
 
-Current operating policy is Master Policy v13 (2026-11-12), per user approval.
-The external PDF is unavailable here; the [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status) preserves historical v10 provenance without claiming full PDF review.
+Current operating policy is Master Policy v14 (2026-11-12), per user instruction.
+The complete user-supplied v14 text was reviewed; original PDF/hash verification
+was not possible. The [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status)
+preserves historical provenance without treating earlier policies as current.
 
 The full REST/mTLS/Cognito/database/delivery architecture is not deployed. V4/V5
 provide NLB and runtime source, not an operational Cluster or runtime workloads; actual capacity, private access and AWS-managed Cluster SG residual

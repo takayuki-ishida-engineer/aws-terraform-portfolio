@@ -20,14 +20,25 @@ independent exact-HEAD review. No AWS/State/Live execution or unavailable PDF cl
 G01–G07, JPY10,000/72-hour removal, paid-plan/callback/account approvals and the
 Secrets recovery blocker remain OPEN. Historical status sections retain their scope.
 
+## V7-0 technical contract — implementation not started
+
+See the [REST/private integration feasibility contract](v7-rest-private-integration-feasibility.md)
+for pinned Provider6.72.0/AWS specification findings and staged V7-A/B/C/D gates.
+The NLB-versus-listener integration target wording is P0 OPEN, as are backend
+server trust/SNI, ACM client-certificate verification and approved minimal output
+handoff. This does not change Regional REST/Cognito/VPC Link V2/internal NLB TCP443/
+Istio MUTUAL/STRICT architecture or resource/State writers. Only the historical
+single-VPC lifecycle has direct emulator proof; no REST/mTLS runtime PASS is claimed.
+
 ## Authority, evidence and status
 
-The current approved operating policy is **Master Policy v13 (2026-11-12)**,
-as identified by the user's approval. The external v13 PDF was not supplied; only
-the explicit user-approved operating requirements are applied here, without
-claiming full PDF review or changing the approved architecture. See the
-[emulator and completion policy](portfolio-verification-policy.md#official-aws-emulator--policy-v13).
-The v11 policy remains historical implementation/design provenance.
+The current approved operating policy is **Master Policy v14 (2026-11-12)**,
+using the complete 24-page text supplied and authorized by the user. All supplied
+text was reviewed; the original PDF was unavailable and its SHA-256 is unverified.
+No original-PDF verification is claimed. v14 alone governs current work; the
+[verification policy](portfolio-verification-policy.md#official-aws-emulator--policy-v13)
+retains stale authority labels tracked in V7-0 P2-02, not a second current policy.
+Earlier policy versions are historical implementation/design provenance only.
 The design below retains its recorded v10 (2026-11-08) provenance and approved
 clarifications/subsequent repository decisions. R3 infers no undocumented v11
 contents or blanket v10/v11 equivalence and changes no approved architecture.

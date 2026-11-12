@@ -216,14 +216,24 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: AWS Emulator governance alignment
+## Current phase only: V7-0 REST/private integration technical contract
 
-Master Policy v13 (2026-11-12) operating requirements are approved by the user;
-the external PDF is not supplied or claimed independently read. V6 has merged at
-main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0`.
-Use chore/aws-emulator-governance-alignment for governance/documentation only.
-Correct AGENTS and concrete conflicting documentation; preserve infrastructure,
-provider locks, tests/security assertions, workflows, Kubernetes and PDFs.
-Run documentation/scope/secret/diff checks only, no emulator lifecycle replay.
-Commit/push/open one PR, then stop for independent review. Do not merge, delete
-the branch, implement REST/CloudFront/V7 or begin another phase.
+Master Policy v14 (2026-11-12) alone is the current policy authority. The complete
+24-page user-supplied text was read and authorized as the reference. The original
+PDF is unavailable; its SHA-256 remains unverified, explicitly accepted by the
+user for this task. Do not claim original-PDF/hash verification or apply an older
+edition as current policy. Under v14, all fourteen emulator controls include saved
+Plan review, generated STS identity and cleanup of State backups; no lifecycle
+operation is needed or authorized for this documentation-only task.
+PR #35 governance alignment is complete; permanent rules above remain unchanged.
+Use docs/v7-rest-private-integration-feasibility from main
+`a8ae82e8265f577e2801f87ace6fa83da0a7bfaa` for documentation only.
+Allowed: docs/v7-rest-private-integration-feasibility.md, minimal architecture-v2.md
+reference/status, README authority/status and this current-phase section only.
+Verify AWS official specifications and Provider v6.72.0 Docs/Go implementation;
+record contradictions and unresolved certificate/ARN/SNI/ownership decisions OPEN.
+No Terraform/provider-lock/test/workflow/Kubernetes/PDF changes, emulator lifecycle,
+real AWS access, security downgrade or automatic V7-A. Preserve Architecture v2,
+all14 isolation controls and existing writer/State boundaries. Run document/link/
+secret/scope/diff checks, commit/push/open one PR and stop for independent review.
+No CI completion polling, self-approval, merge or branch deletion.
