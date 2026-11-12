@@ -37,8 +37,9 @@ future implementation.
 - Use feature flags only for genuine optional functionality. Do not use flags to
   conceal breaking changes or replace required configuration.
 - Require Terraform plan review for changes affecting existing infrastructure.
-  Obtain such plans through an authorized workflow outside Codex Cloud; this
-  requirement does not authorize AWS credentials or deployments in Codex Cloud.
+  Obtain real AWS plans through a separately authorized workflow outside Codex
+  Cloud. Emulator plans follow the isolated verification rules below and do not
+  establish real infrastructure migration safety or authorize real AWS access.
 
 ### Terraform state and scope
 
@@ -55,13 +56,111 @@ future implementation.
 - Never read, pass, create, update, or output actual secret values through
   Terraform. Do not put them in configuration, variables, outputs, plans, or state.
 - Do not implement ephemeral or write-only secret-value management alternatives.
-- Never request, add, or use AWS credentials in Codex Cloud. Never deploy or
-  destroy AWS infrastructure from Codex Cloud; do not run `terraform apply` or
-  `terraform destroy` there. Future phase authorization does not relax this rule.
+- **Real AWS is prohibited in Codex Cloud**: never request, add or use real AWS
+  credentials, AWS SSO, authenticated real AWS APIs or real AWS infrastructure.
+  Real AWS Terraform Plan, Apply, Destroy and Import remain prohibited here.
+  Never fall back to real AWS when emulator verification fails. Optional real AWS
+  verification requires a separate user decision and authorized execution outside
+  Codex Cloud, with all applicable G01–G07, budget and teardown controls.
+- **Official AWS Emulator is permitted under strict isolation**: Terraform Plan,
+  Apply, Read/Refresh, Update and Destroy are allowed only under every mandatory
+  control below. This is the standard approach for future supported resources,
+  not a permission confined to the historical VPC experiment. It does not permit
+  real credentials, application secret values, production data or real AWS calls.
 - Never commit state, plan files, local secrets, private keys, credentials, or
   environment files. Keep `.terraform.lock.hcl` trackable.
 - Track `features.auto.tfvars` only for non-secret feature settings. Do not use
   this exception to store credentials or secret values.
+
+### Mandatory official AWS Emulator safety controls
+
+Before any emulator Terraform lifecycle operation, require all of the following:
+
+1. Official version-pinned, signature-verified AWS Emulator; verify publisher identity.
+2. Loopback-only local HTTPS endpoint.
+3. Emulator-generated credentials and CA only, isolated from real profiles/credentials;
+   keep emulator request authentication enabled.
+4. Valid TLS certificate verification; never disable it.
+5. Telemetry disabled.
+6. An isolated network namespace without external routes.
+7. Independent proof that real AWS endpoints cannot be contacted; endpoint variables
+   alone are not an isolation boundary.
+8. Verified local STS identity with synthetic account `000000000000`.
+9. Explicit provider endpoint and synthetic account guard.
+10. A disposable standalone Terraform Root and temporary local State, outside the
+    repository and separate from every operational Root and State.
+11. Plan inspection before Apply or Destroy; reject unexpected managed resources.
+12. Exact resource identity verification; never delete pre-existing resources.
+13. Independent API checks after creation and deletion.
+14. Confirmed resource cleanup, followed by removal of temporary State, credentials,
+    CA and plans. Never count emulator shutdown alone as successful Terraform Destroy.
+
+Use a disposable verification adapter when needed. Never modify a production Root
+or its State merely to configure emulator access. Never relax IAM, networking,
+authentication, TLS or other production security requirements for emulator compatibility.
+If any isolation control fails, stop before changing resources. A failed Apply can
+leave resources/State; inspect and clean up only positively identified test-owned
+resources through the verified emulator endpoint, and report any residual state.
+Do not commit or upload raw State, credentials, private keys or saved plans.
+
+### Emulator verification workflow and evidence
+
+Preserve all Terraform Native, Mock Plan, Python, Security, Negative and Mutation
+tests. For approved Terraform development affecting supported AWS resources:
+
+1. Implement the approved change.
+2. Run required affected offline and security tests.
+3. Identify supported resources and API operations; distinguish fidelity reports
+   from directly exercised behavior.
+4. Establish and independently verify every isolation control above.
+5. Exercise applicable Terraform Plan, Apply, Read, Update and Destroy operations.
+6. Independently verify resource identity and cleanup.
+7. Record actual evidence, unsupported operations, untested behavior and residual risk.
+8. Commit, push and open a PR only after required verification is complete, with any
+   specific evidence-backed unsupported-operation skip explicitly documented.
+
+Emulator lifecycle verification is not a permanent GitHub Actions requirement at
+this stage. Preserve all existing CI checks. Documentation-only changes with no
+AWS API behavior changes do not require emulator lifecycle runs. Do not rerun the
+historical feasibility proof for a documentation-only PR.
+
+Classify results precisely:
+
+- **PASS**: operation actually demonstrated.
+- **PARTIAL**: only part of the required behavior demonstrated.
+- **PARTIAL-SKIP**: a specific emulator API is unimplemented, supported by actual
+  evidence such as HTTP 501; skip only that operation and record untested behavior.
+- **FAIL**: Terraform code or configuration defect; correct it and retest.
+- **BLOCKED**: installation, connectivity, isolation or runtime prerequisite unmet.
+- **NOT_TESTED**: operation not executed.
+
+Unsupported APIs and failed setup are never successful tests. If another external
+download domain is required, stop and request user permission; no unapproved
+mirrors or network-policy bypass. If compatibility prevents a significant check,
+report residual risk and verification options. Real AWS testing remains optional
+and requires a separate user decision; Codex must not initiate it.
+
+### Portfolio completion and historical emulator evidence
+
+Real AWS deployment is not mandatory for portfolio completion. The default path is
+correct Terraform source/architecture, complete required credential-free CI,
+independent security/mutation validation, emulator lifecycle validation where
+supported, explicit unsupported/untested limitations, and independent PR review
+and approval. Emulator success is never evidence of actual AWS deployment, IAM
+enforcement, networking, costs, availability or recovery.
+
+The historical proof at main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0` used
+Emulator 1.0.322, Terraform 1.17.0, AWS Provider 6.72.0, AWS CLI 2.35.0 and disposable
+`aws_vpc.proof`. Create, Read/Refresh, Update, no-op Plan, Destroy, independent
+absence, State/credential cleanup and external isolation were reported PASS.
+It establishes only that tested VPC lifecycle, not Subnet, NAT, EKS, IAM, Cognito,
+RDS, other services or the complete VPC module. See the
+[verification policy](docs/portfolio-verification-policy.md#official-aws-emulator--policy-v13).
+
+Optional real AWS verification remains separately authorized, outside Codex Cloud:
+G01–G07 gates, cumulative JPY 10,000 DEV Live limit, complete verified teardown
+within 72 hours and the unresolved Secrets Manager recovery-window conflict
+remain unchanged. No Live gate is closed by emulator evidence.
 
 ### Git workflow and verification
 
@@ -117,19 +216,14 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: V6 Cognito authentication foundation
+## Current phase only: AWS Emulator governance alignment
 
-Use feature/cognito-v6-auth-foundation from accepted main
-`97f870753926398368733c39da722d5d7b792fa5`, successful push CI43109394809.
-Implement cognito_auth and DEV api Root only, with affected tests/checkers/CI/docs.
-Preserve existing Roots/resources/locks/test/security contracts and permanent rules.
-Use actual pinned6.72.0 schema and credential-free mocks, account guard/local backend.
-Require protected admin-managed email pool/TOTP, explicit paid-plan input, public
-code-only OAuth/revocation/strict URLs/derived scopes and default managed-login branding.
-No real users, secrets, Google IdP, frontend, REST or CloudFront. Google integration,
-browser S256/state/nonce and backend owner authorization remain external obligations.
-Run affected actual-plan/negative/mutation/evidence/required-input checks; preserve
-full prior CI and30-minute timeout. Commit/push/open one PR, no CI completion polling.
-G01–G07 OPEN; no AWS credentials/authenticated calls, State/apply/destroy/import or
-Live. Preserve JPY10,000/72-hour removal and Secrets recovery conflict. No merge,
-branch deletion, self-approval or V7. Stop after the exact-HEAD review handoff.
+Master Policy v13 (2026-11-12) operating requirements are approved by the user;
+the external PDF is not supplied or claimed independently read. V6 has merged at
+main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0`.
+Use chore/aws-emulator-governance-alignment for governance/documentation only.
+Correct AGENTS and concrete conflicting documentation; preserve infrastructure,
+provider locks, tests/security assertions, workflows, Kubernetes and PDFs.
+Run documentation/scope/secret/diff checks only, no emulator lifecycle replay.
+Commit/push/open one PR, then stop for independent review. Do not merge, delete
+the branch, implement REST/CloudFront/V7 or begin another phase.

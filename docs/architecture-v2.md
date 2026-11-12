@@ -22,9 +22,12 @@ Secrets recovery blocker remain OPEN. Historical status sections retain their sc
 
 ## Authority, evidence and status
 
-The current approved operating policy is **Master Policy v11 (2026-11-09)**,
-as identified by the user's approval. The external v11 PDF is unavailable in this
-task; it is not reproduced, edited or claimed independently reviewed in full.
+The current approved operating policy is **Master Policy v13 (2026-11-12)**,
+as identified by the user's approval. The external v13 PDF was not supplied; only
+the explicit user-approved operating requirements are applied here, without
+claiming full PDF review or changing the approved architecture. See the
+[emulator and completion policy](portfolio-verification-policy.md#official-aws-emulator--policy-v13).
+The v11 policy remains historical implementation/design provenance.
 The design below retains its recorded v10 (2026-11-08) provenance and approved
 clarifications/subsequent repository decisions. R3 infers no undocumented v11
 contents or blanket v10/v11 equivalence and changes no approved architecture.

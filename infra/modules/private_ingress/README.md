@@ -208,8 +208,10 @@ a separately approved external configuration change. No apply/destroy is run her
 G01–G07 remain OPEN: cumulative actual JPY10,000, complete verified removal within
 72 hours, no retained charge-generating exercise resources. Inventory must include
 dynamic controller resources. The unchanged Secrets Manager 30-day recovery blocker
-remains. No AWS credentials/authenticated requests/plan, real State operations,
-Apply/Destroy/Import or Live work occurs in Codex.
+remains. No real AWS credentials/authenticated requests/plan, operational State
+operations or real AWS Apply/Destroy/Import/Live work is permitted in Codex.
+Isolated Emulator adapters follow [the permanent controls](../../../AGENTS.md#mandatory-official-aws-emulator-safety-controls);
+the historical VPC proof establishes no ingress lifecycle compatibility.
 
 Sources:
 

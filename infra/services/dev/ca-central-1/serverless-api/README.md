@@ -289,8 +289,10 @@ revision are recorded in the PR and actual successful CI logs.
 
 Offline plans do not verify provider identity, deployed IAM, artifact contents,
 secret initialization, application payload 2.0 compatibility, API requests or
-service propagation. Never request/use AWS credentials, call account APIs, run
-an authenticated plan, apply or destroy in Codex Cloud or this offline CI.
+service propagation. Never request/use real AWS credentials, call real account APIs,
+or run real AWS plans/apply/destroy in Codex Cloud or this offline CI. Isolated
+Emulator adapter verification follows [the permanent controls](../../../../../AGENTS.md#mandatory-official-aws-emulator-safety-controls),
+without modifying this operational Root/State or claiming full module compatibility.
 
 ## Costs, state and teardown
 

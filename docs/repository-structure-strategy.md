@@ -23,9 +23,11 @@ Root → Child composition, and migration-first R0 → R1 → R2 → R3 → R4 b
 Architecture v2 features. R0 approved the strategy; R1/R2 subsequently implemented
 source refactors with offline verification, not actual state migration or Live
 approval. R3 only stabilizes documentation. Module count is not an acceptance goal.
-Current user-approved operating policy is v11 (2026-11-09); R0 recorded historical
+Current user-approved operating policy is v13 (2026-11-12), with
+[isolated Emulator/completion rules](portfolio-verification-policy.md#official-aws-emulator--policy-v13).
+v11 (2026-11-09) remains historical implementation provenance; R0 recorded historical
 v10 (2026-11-08). See [policy provenance/PDF limits](architecture-v2.md#authority-evidence-and-status).
-The unavailable external v11 PDF is not reproduced, edited or claimed fully reviewed.
+External policy PDFs are not supplied, edited or claimed independently reviewed in full.
 
 Pre-R1/R0 source snapshot: main `9bfb4bf9146d85744ab88fef117007851ba29346`, with matching
 [successful CI 42585657162](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42585657162).
@@ -752,9 +754,10 @@ from individual earlier branch runs. R0 does not execute or open R1–R4 PRs.
 | Candidate lifecycle-root/target-module responsibilities | Exact provider/global/certificate/state ownership, remote backend, downstream output distribution, account/IAM and legitimate shared-resource exceptions |
 | DEV RDS developer-access purpose and existing schedule | SSM/DB/endpoint/network permissions, SQL audit expectations, image/controller settings, timing and costs |
 
-G01–G07 remain OPEN. No AWS credentials/authenticated APIs/plans/imports/state
-operations/apply/destroy or infrastructure creation is authorized. Secrets Manager
-Approach A only; no actual secret values or customer/legacy ZIP/source reuse.
+G01–G07 remain OPEN. No real AWS credentials/authenticated APIs/plans/imports,
+operational State operations/apply/destroy or real infrastructure creation is
+authorized by this design. Isolated Emulator verification follows the v13 policy.
+Secrets Manager Approach A only; no actual secret values or customer/legacy ZIP/source reuse.
 DEV Live needs separate approval, actual cumulative spending at most JPY 10,000
 and independently verified complete removal of all exercise-created resources
 within 72 hours; stopping EC2 or running destroy alone is insufficient. The existing

@@ -11,16 +11,20 @@ owners are responsibilities to assign, not named people or assumed approvals.
 **No live AWS operations are authorized by this documentation.**
 
 A future live task requires separate explicit authorization in an approved
-execution environment outside Codex Cloud. Never request/use AWS credentials,
-run authenticated account APIs/plans, apply or destroy in Codex Cloud. No account,
-principal, budget, artifact or operational success is assumed here.
+execution environment outside Codex Cloud. Never request/use real AWS credentials,
+run authenticated real account APIs/plans, apply or destroy against AWS in Codex Cloud.
+Isolated official Emulator verification is separate from Live, is permitted only
+under [v13 controls](portfolio-verification-policy.md#official-aws-emulator--policy-v13),
+and does not close any gate. Real AWS deployment is optional for portfolio completion.
+No account, principal, budget, artifact or operational success is assumed here.
 
 ## Architecture v2 alignment — approved policy, execution OPEN
 
-Current operating policy is user-approved Master Policy v11 (2026-11-09).
+Current operating policy is user-approved Master Policy v13 (2026-11-12);
+v11 (2026-11-09) remains historical implementation/design provenance.
 Historical v10 (2026-11-08) and its approved security/cost clarifications are the
 recorded provenance of the [design](architecture-v2.md) and
-[verification contract](portfolio-verification-policy.md). The external v11 PDF is
+[verification contract](portfolio-verification-policy.md). The external policy PDF is
 unavailable here and not reproduced, revised or claimed independently reviewed in
 full; no undocumented equivalence/content or Live approval is inferred.
 Current post-R2 main df5ef4b2e03bd55109b0490b1e63d1d4199b663b passed
