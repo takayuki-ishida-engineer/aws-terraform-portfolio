@@ -1,0 +1,1702 @@
+{
+  "positive": {
+    "standard": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "pool_name": "dev-test-auth",
+      "domain_prefix": "test-portfolio-auth",
+      "feature_plan": "ESSENTIALS",
+      "allow_dev_loopback": false,
+      "callback_urls": [
+        "https://client.example.invalid/callback"
+      ],
+      "logout_urls": [
+        "https://client.example.invalid/logout"
+      ],
+      "default_redirect_uri": "https://client.example.invalid/callback",
+      "resource_server_identifier": "portfolio-api",
+      "scopes": {
+        "read": "Read approved records",
+        "write": "Write approved records"
+      },
+      "approved_scope_names": [
+        "read"
+      ],
+      "mfa_configuration": "ON",
+      "password_minimum_length": 14,
+      "access_token_minutes": 15,
+      "id_token_minutes": 15,
+      "refresh_token_hours": 8
+    },
+    "alternate_names": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "pool_name": "dev-alternate-auth",
+      "domain_prefix": "test-alternate-auth",
+      "feature_plan": "ESSENTIALS",
+      "allow_dev_loopback": false,
+      "callback_urls": [
+        "https://client.example.invalid/callback"
+      ],
+      "logout_urls": [
+        "https://client.example.invalid/logout"
+      ],
+      "default_redirect_uri": "https://client.example.invalid/callback",
+      "resource_server_identifier": "portfolio-api",
+      "scopes": {
+        "read": "Read approved records",
+        "write": "Write approved records"
+      },
+      "approved_scope_names": [
+        "read"
+      ],
+      "mfa_configuration": "ON",
+      "password_minimum_length": 14,
+      "access_token_minutes": 15,
+      "id_token_minutes": 15,
+      "refresh_token_hours": 8
+    },
+    "plus": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "pool_name": "dev-test-auth",
+      "domain_prefix": "test-portfolio-auth",
+      "feature_plan": "PLUS",
+      "allow_dev_loopback": false,
+      "callback_urls": [
+        "https://client.example.invalid/callback"
+      ],
+      "logout_urls": [
+        "https://client.example.invalid/logout"
+      ],
+      "default_redirect_uri": "https://client.example.invalid/callback",
+      "resource_server_identifier": "portfolio-api",
+      "scopes": {
+        "read": "Read approved records",
+        "write": "Write approved records"
+      },
+      "approved_scope_names": [
+        "read"
+      ],
+      "mfa_configuration": "ON",
+      "password_minimum_length": 14,
+      "access_token_minutes": 15,
+      "id_token_minutes": 15,
+      "refresh_token_hours": 8
+    },
+    "write_scope": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "pool_name": "dev-test-auth",
+      "domain_prefix": "test-portfolio-auth",
+      "feature_plan": "ESSENTIALS",
+      "allow_dev_loopback": false,
+      "callback_urls": [
+        "https://client.example.invalid/callback"
+      ],
+      "logout_urls": [
+        "https://client.example.invalid/logout"
+      ],
+      "default_redirect_uri": "https://client.example.invalid/callback",
+      "resource_server_identifier": "portfolio-api",
+      "scopes": {
+        "read": "Read approved records",
+        "write": "Write approved records"
+      },
+      "approved_scope_names": [
+        "read",
+        "write"
+      ],
+      "mfa_configuration": "ON",
+      "password_minimum_length": 14,
+      "access_token_minutes": 15,
+      "id_token_minutes": 15,
+      "refresh_token_hours": 8
+    },
+    "loopback": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "pool_name": "dev-test-auth",
+      "domain_prefix": "test-portfolio-auth",
+      "feature_plan": "ESSENTIALS",
+      "allow_dev_loopback": true,
+      "callback_urls": [
+        "http://localhost:8080/callback"
+      ],
+      "logout_urls": [
+        "http://127.0.0.1:8080/logout"
+      ],
+      "default_redirect_uri": "http://localhost:8080/callback",
+      "resource_server_identifier": "portfolio-api",
+      "scopes": {
+        "read": "Read approved records",
+        "write": "Write approved records"
+      },
+      "approved_scope_names": [
+        "read"
+      ],
+      "mfa_configuration": "ON",
+      "password_minimum_length": 14,
+      "access_token_minutes": 15,
+      "id_token_minutes": 15,
+      "refresh_token_hours": 8
+    }
+  },
+  "negative": {
+    "feature_plan_0": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "LITE",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "feature_plan"
+    },
+    "feature_plan_1": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "UNKNOWN",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "feature_plan"
+    },
+    "pool_name_2": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "prod-wrong",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "pool_name"
+    },
+    "pool_name_3": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "pool_name"
+    },
+    "domain_prefix_4": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "-bad",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "domain_prefix"
+    },
+    "domain_prefix_5": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "with.dot",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "domain_prefix"
+    },
+    "domain_prefix_6": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "amazon-name",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "domain_prefix"
+    },
+    "resource_server_identifier_7": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "*",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "resource_server_identifier"
+    },
+    "resource_server_identifier_8": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "https://*",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "resource_server_identifier"
+    },
+    "scopes_9": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {},
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "scopes"
+    },
+    "scopes_10": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": ""
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "scopes"
+    },
+    "scopes_11": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "*": "All"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "scopes"
+    },
+    "approved_scope_names_12": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "approved_scope_names"
+    },
+    "approved_scope_names_13": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "admin"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "approved_scope_names"
+    },
+    "mfa_configuration_14": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "OFF",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "mfa_configuration"
+    },
+    "mfa_configuration_15": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "SMS",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "mfa_configuration"
+    },
+    "password_minimum_length_16": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 8,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "password_minimum_length"
+    },
+    "password_minimum_length_17": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14.5,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "password_minimum_length"
+    },
+    "access_token_minutes_18": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 61,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "access_token_minutes"
+    },
+    "access_token_minutes_19": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 0,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "access_token_minutes"
+    },
+    "id_token_minutes_20": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 61,
+        "refresh_token_hours": 8
+      },
+      "failure": "id_token_minutes"
+    },
+    "refresh_token_hours_21": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 25
+      },
+      "failure": "refresh_token_hours"
+    },
+    "default_redirect_uri_22": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://other.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "default_redirect_uri"
+    },
+    "callback_urls_23": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          ""
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "callback_urls_24": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://*.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://*.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "callback_urls_25": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/#token"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/#token",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "callback_urls_26": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://user:pass@client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://user:pass@client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "callback_urls_27": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "http://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "http://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "callback_urls_28": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "http://localhost:8080/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "http://localhost:8080/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "callback_urls_29": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/${unresolved}"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/${unresolved}",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "callback_urls_30": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback",
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    },
+    "logout_urls_31": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          ""
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "logout_urls_32": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://*.example.invalid/callback"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "logout_urls_33": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/#token"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "logout_urls_34": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://user:pass@client.example.invalid/callback"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "logout_urls_35": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "http://client.example.invalid/callback"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "logout_urls_36": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "http://localhost:8080/callback"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "logout_urls_37": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/${unresolved}"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "logout_urls_38": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout",
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "logout_urls"
+    },
+    "scope_account_id": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "bad"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "expected_scope"
+    },
+    "scope_region": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "us-east-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "expected_scope"
+    },
+    "scope_partition": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws-cn",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "expected_scope"
+    },
+    "scope_environment": {
+      "values": {
+        "expected_scope": {
+          "environment": "qa",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "qa-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "expected_scope"
+    },
+    "invalid_port": {
+      "values": {
+        "expected_scope": {
+          "environment": "dev",
+          "partition": "aws",
+          "region": "ca-central-1",
+          "account_id": "000000000000"
+        },
+        "pool_name": "dev-test-auth",
+        "domain_prefix": "test-portfolio-auth",
+        "feature_plan": "ESSENTIALS",
+        "allow_dev_loopback": false,
+        "callback_urls": [
+          "https://client.example.invalid:65536/callback"
+        ],
+        "logout_urls": [
+          "https://client.example.invalid/logout"
+        ],
+        "default_redirect_uri": "https://client.example.invalid:65536/callback",
+        "resource_server_identifier": "portfolio-api",
+        "scopes": {
+          "read": "Read approved records",
+          "write": "Write approved records"
+        },
+        "approved_scope_names": [
+          "read"
+        ],
+        "mfa_configuration": "ON",
+        "password_minimum_length": 14,
+        "access_token_minutes": 15,
+        "id_token_minutes": 15,
+        "refresh_token_hours": 8
+      },
+      "failure": "callback_urls"
+    }
+  }
+}

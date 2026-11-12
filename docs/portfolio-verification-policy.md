@@ -5,6 +5,22 @@ approval; the target/security text retains recorded historical v10 provenance.
 See [policy authority and PDF limitations](architecture-v2.md#authority-evidence-and-status).
 No unavailable PDF contents or new implementation/Live approvals are inferred.
 
+## V6 Cognito source foundation
+
+Accepted post-V5 main `97f870753926398368733c39da722d5d7b792fa5` passed
+[push CI43109394809](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43109394809)
+(686 native/153 toolkit/13 configurations). V6 adds [cognito_auth](../infra/modules/cognito_auth/README.md) and
+DEV ca-central-1/api Root, five resources: protected email User Pool, prefix domain
+managed-login2, Resource Server, public code-only client and default branding.
+Future REST belongs in the same API State; historical HTTP API remains unchanged.
+Google IdP/Secret, actual users, email delivery, browser PKCE, real authentication,
+REST integration and backend tenant/owner authorization are not complete.
+Local Child49/Root46 native plus independent safety/evidence checks supplement
+existing686; expected full CI781/153 and15 shared-provider configurations requires
+independent exact-HEAD review. No AWS/State/Live execution or unavailable PDF claim.
+G01–G07, JPY10,000/72-hour removal, paid-plan/callback/account approvals and the
+Secrets recovery blocker remain OPEN. Historical status sections retain their scope.
+
 ## Evidence states and completion boundary
 
 The approved [Architecture v2 target](architecture-v2.md) is documentation, not

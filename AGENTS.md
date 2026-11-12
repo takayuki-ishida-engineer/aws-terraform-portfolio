@@ -117,30 +117,19 @@ future implementation.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: V5 private Kubernetes ingress runtime foundation
+## Current phase only: V6 Cognito authentication foundation
 
-Continue feature/kubernetes-ingress-v5-runtime from accepted post-V4 main
-`a4f0a9b8b0a810976c7ab305001729463443b27b`, successful push CI42757339642.
-User-supplied Master Policy v11 requirements authorize offline source implementation;
-the unavailable external PDF must not be claimed read. Preserve permanent rules.
-
-- Extend private_ingress in the existing Platform State with exact-subject IRSA,
-  owned-target registration only and scoped Istio15017/15012 rules. Preserve existing
-  SG/NLB/TG ownership, provider/backend/locks and every prior security contract.
-- Runtime owns pinned LBC/Istio sidecar configuration, Services, guarded TGB and
-  dynamic registration; no second load balancer, Terraform Pod registration,
-  Kubernetes/Helm provider, new Root/State or application release.
-- Require actual pinned Helm rendering, package/dependency integrity, schema and
-  independent IAM/RBAC/TGB/port/MUTUAL TLS/SPKI/STRICT/default-deny checks. External
-  CA/Secret references only; no real key/certificate/Secret or fake communication.
-- Layer TGB-only enforcement across IAM, controller flags, namespace/class,
-  Kubernetes RBAC and admission. Do not add SG/TG setting writes to cure runtime
-  AccessDenied; report any conflict for independent ownership review.
-- Required minimal output inputs do not prove AWS existence/publication. Preserve
-  external identity/state/capacity/connectivity/PKI/admission/teardown approvals.
-- Complete affected local verification before one commit/push/PR handoff. Preserve
-  all CI checks and30-minute timeout; observe trigger only, no CI completion polling.
-- No AWS/Kubernetes credentials/authenticated calls, State, apply/destroy/import,
-  real Helm/kubectl deployment or Live. G01–G07 remain OPEN, with cumulative
-  JPY10,000/72-hour complete removal and unresolved Secrets recovery blocker.
-- No merge, branch deletion, self-approval or V6; stop after review handoff.
+Use feature/cognito-v6-auth-foundation from accepted main
+`97f870753926398368733c39da722d5d7b792fa5`, successful push CI43109394809.
+Implement cognito_auth and DEV api Root only, with affected tests/checkers/CI/docs.
+Preserve existing Roots/resources/locks/test/security contracts and permanent rules.
+Use actual pinned6.72.0 schema and credential-free mocks, account guard/local backend.
+Require protected admin-managed email pool/TOTP, explicit paid-plan input, public
+code-only OAuth/revocation/strict URLs/derived scopes and default managed-login branding.
+No real users, secrets, Google IdP, frontend, REST or CloudFront. Google integration,
+browser S256/state/nonce and backend owner authorization remain external obligations.
+Run affected actual-plan/negative/mutation/evidence/required-input checks; preserve
+full prior CI and30-minute timeout. Commit/push/open one PR, no CI completion polling.
+G01–G07 OPEN; no AWS credentials/authenticated calls, State/apply/destroy/import or
+Live. Preserve JPY10,000/72-hour removal and Secrets recovery conflict. No merge,
+branch deletion, self-approval or V7. Stop after the exact-HEAD review handoff.
