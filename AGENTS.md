@@ -216,25 +216,21 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: NP-1 application namespace default-deny NetworkPolicy
+## Current phase only: NP-2A NetworkPolicy flow / VPC CNI compatibility design
 
-Use feat/np1-application-default-deny from main
-`684fe8ad69eb3d04bf8e44c65210343df70b2ae5`. Master Policy v14 alone governs;
-the complete user-supplied 24-page text is approved as the reference. Original
-PDF SHA-256 remains unverified; do not claim original-PDF verification.
-Implement portfolio-app all-Pod Ingress/Egress default deny in mesh_security;
-preserve the existing Namespace, STRICT mTLS and empty-ALLOW AuthorizationPolicy.
-No speculative DNS/xDS/Gateway/DB/application exceptions or application workloads.
-Scope: necessary Kubernetes manifests, validation/tests/inventory/schema subset,
-Kubernetes READMEs and this current-phase section only. Preserve pinned Helm,
-charts, Kubernetes fixtures and permanent rules byte-for-byte. No Terraform,
-EKS add-on, VPC CNI/strict-mode, State or architecture changes.
-The user additionally approved only the Kubernetes runtime expected-count line
-in .github/workflows/terraform-offline-ci.yml, reconciled to actual local results.
-Inspect real rendered manifests and additive-policy risks, preserve existing
-security tests, reject malformed evidence, document NP-2/NP-3 communication,
-CNI/startup/rollback and operational-enforcement OPENs. Offline checks do not
-prove live packet denial or admission enforcement. Emulator NOT_APPLICABLE;
-Kubernetes Live NOT_TESTED. No AWS/Cluster calls, credentials, deployments or
-NP-2/NP-3/V7-A. Run affected local checks, commit/push/open one PR and stop for
-independent review and user approval; no merge, branch deletion or CI polling.
+Use docs/np2-network-policy-flow-contract from main
+`5f007e8ee4f61cebc7b0aae835ab10e055f744a6`. Master Policy v14's user-authorized
+24-page text alone governs; original PDF SHA-256 remains unverified.
+Documentation only: docs/np2-network-policy-flow-contract.md, minimal links in
+Kubernetes README/architecture-v2.md and this phase section. Preserve permanent
+rules, Architecture v2, all resource/State writers and NP-1 deny/mesh policies.
+Investigate Service/Pod port equality with official AWS/Kubernetes/Istio and
+pinned1.32/LBC3.6.2/CNI sources; distinguish fixture values from approved builds.
+Record current versus future flows, alternatives, recommended port contract,
+NP-2B/NP-3 decisions, tests and rollback; do not implement the recommendation.
+No manifests, render/validate/tests, Terraform/State, add-on/CNI/strict mode,
+Gateway/TGB/NLB, secrets/PKI, CI or PDF changes; no AWS/Cluster operation.
+Emulator NOT_APPLICABLE; Kubernetes communications/enforcement NOT_TESTED.
+Check sources/links/scope/secrets/diff, commit/push/open one PR after required
+source access is available and stop. No mirror/bypass, CI polling, merge, branch
+deletion or automatic NP-2B/NP-3/V7-A. Report blocked sources and unresolved P0s.

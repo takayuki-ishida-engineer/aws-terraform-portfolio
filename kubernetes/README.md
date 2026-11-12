@@ -111,6 +111,10 @@ ownership and unsupported.
 
 ## NP-1 application default deny and NP-2 / NP-3 gates
 
+See the [NP-2A flow and VPC CNI compatibility contract](../docs/np2-network-policy-flow-contract.md)
+for Service/Pod port conflicts, recommended alternatives and gated future flows;
+this design does not modify the current bundle or authorize allow policies/CNI activation.
+
 [application-security.yaml](platform/istio/application-security.yaml) adds exactly
 one `networking.k8s.io/v1` NetworkPolicy, `portfolio-app/default-deny`.
 `podSelector: {}` selects every Pod in that namespace; both Ingress and Egress
