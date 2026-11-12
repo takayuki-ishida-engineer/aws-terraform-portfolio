@@ -1,11 +1,16 @@
-# V5 private Kubernetes ingress runtime foundation
+# Private Kubernetes runtime and NP-1 application network isolation
 
 Credential-free source and offline verification, not a deployed cluster. The
 accepted starting main is `a4f0a9b8b0a810976c7ab305001729463443b27b`, with
 [post-V4 CI42757339642](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42757339642)
 (678 native / 153 toolkit tests; 13 initialized Terraform configurations).
-Master Policy v11 requirements supplied by the user govern this work; the external
-PDF was unavailable and is not claimed independently read.
+That is historical V5 provenance. Current work follows Master Policy v14
+(2026-11-12), using the user-authorized complete 24-page text; the original PDF
+SHA-256 remains unverified. NP-1 starts from main
+`684fe8ad69eb3d04bf8e44c65210343df70b2ae5`, whose
+[push CI43175377665](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43175377665)
+completed successfully. That existing CI result does not establish this PR HEAD's
+regression result or any Kubernetes Live behavior.
 
 ## Ownership and artifacts
 
@@ -89,11 +94,11 @@ external chart-named webhook TLS Secret must exist before controller startup.
 | controller | 13 | 2 pinned LBC CRDs, Deployment/Service, external-IRSA SA, narrowed cluster and namespaced RBAC, two webhooks; external TLS Secret, role effectiveness and webhook readiness required |
 | istiod | 12 | revision portfolio-v1, SA, config, roles, Deployment/Service, injector/validator; required external cacerts and ready injection/validation CA |
 | gateway | 5 | SA, Deployment, ClusterIP Service, Role/Binding; wait for actual revision injection, SDS and readiness |
-| mesh_security | 4 | application Namespace, identity SA, STRICT PeerAuthentication and deny-default AuthorizationPolicy |
+| mesh_security | 5 | existing application Namespace, identity SA, STRICT PeerAuthentication, deny-default AuthorizationPolicy and all-Pod Ingress/Egress default-deny NetworkPolicy |
 | admission | 4 | two ValidatingAdmissionPolicies and enforcing Deny bindings; verify actual admission health before TGB writes |
 | binding_writer | 3 | dedicated SA, exact-name Role and Binding |
 | ingress | 2 | MUTUAL Gateway and exact TGB; writer SA submits TGB only after controller/Service/admission ready |
-| Total | 61 | 17 CRDs, 3 Deployments and 3 ClusterIP Services; no application, Secret, LoadBalancer Service or VirtualService |
+| Total | 62 | previous 61 objects plus one NetworkPolicy; 17 CRDs, 3 Deployments and 3 ClusterIP Services; no application, Secret, LoadBalancer Service or VirtualService |
 
 These are review/deployment stages, not authorization to run apply/install. Do not
 submit the entire List with an unrestricted human actor: the TGB guard accepts
@@ -103,6 +108,64 @@ There is no Helm release/cluster deployment in V5. A later deployment owner must
 review post-render apply/upgrade/rollback custody, CRD preservation and admission
 bootstrap; installing unmodified Helm releases alongside these objects is double
 ownership and unsupported.
+
+## NP-1 application default deny and NP-2 / NP-3 gates
+
+[application-security.yaml](platform/istio/application-security.yaml) adds exactly
+one `networking.k8s.io/v1` NetworkPolicy, `portfolio-app/default-deny`.
+`podSelector: {}` selects every Pod in that namespace; both Ingress and Egress
+are explicit and both rule lists are empty. The existing Namespace, ServiceAccount,
+STRICT PeerAuthentication and empty-ALLOW AuthorizationPolicy retain their owners.
+The existing renderer loads all five declarations into `mesh_security`, with the
+Namespace before the policy. Future application releases must wait for policy
+installation and verified enforcement before starting Pods. No application Pod,
+allow rule, extra Namespace, Helm ownership or Terraform resource is introduced.
+
+NetworkPolicy is network isolation; STRICT mTLS authenticates mesh transport and
+AuthorizationPolicy controls mesh requests. None substitutes for the others.
+Namespace NetworkPolicies grant traffic additively: an extra allow policy can
+reopen traffic even while default-deny remains. The offline validator therefore
+permits exactly this one policy in the entire current bundle, checks its complete
+specification independently of inventory, and rejects extra policies. This is a
+repository/rendered-bundle check, **not live admission enforcement**. Other cluster
+policies, authorizers, RBAC, cluster admins and Node paths are not inspected here.
+Runtime creation/update/deletion prevention, policy ownership/RBAC, enforcement
+observability and drift checks require separately reviewed operational controls.
+
+No CNI settings are changed. The existing
+[VPC CNI add-on](../infra/modules/eks_platform/addons.tf) uses
+`configuration_values = jsonencode({})`; this does not establish that NetworkPolicy
+enforcement or strict startup mode is active. NP-1 does not enable either.
+Without an enforcing plugin, a valid NetworkPolicy alone does not block packets.
+With enforcement, this all-deny policy deliberately provides no application DNS,
+xDS/CA, database or Gateway exceptions: future application sidecars/Pods must not
+be represented as ready until the necessary reviewed paths exist.
+
+The following are **OPEN communication contracts**, not approved allow policies
+or permission to begin NP-2/NP-3:
+
+| Future review | Required ownership / evidence before an allow or CNI change |
+| --- | --- |
+| CoreDNS TCP/UDP53 | Resolve actual DNS path, namespace/Pod labels, endpoints and possible NodeLocal/host-network behavior. Limit destination and both protocols; do not allow every kube-system Pod or arbitrary DNS resolver |
+| Istiod xDS/CA | Review actual revision/Service/endpoints and required TCP15012, bootstrap/renewal and return traffic; keep exact source/destination selectors and mesh identity boundaries |
+| Gateway application ingress | Review actual Service443 to reviewed backend Pod port, Gateway namespace/Pod selectors, application destination port and both-end policy selection. Do not assume Service443 equals the Pod port or authorize arbitrary ingress |
+| Webhooks and health | Distinguish API-server-to-webhook paths, Node/kubelet probes, controller9443, Istio15017 and Gateway readiness15021/TCP target health as applicable; identify which namespaces/Pods and enforcement hooks each actually traverses |
+| Application-to-application | Require actual workload and route inventory, protocol/ports, Pod labels and owner; exact SPIFFE/AuthorizationPolicy remains separate from L3/L4 allow rules |
+| PostgreSQL TLS | Approve actual private endpoint/address semantics and TCP5432, server CA/hostname verification, DB identity and SG ownership. No DB address or Secret is invented |
+| AWS APIs, metrics and logs | Identify actual IRSA/STS/image/API/telemetry dependencies and endpoint/NAT/DNS paths; review bounded egress, credential/redaction/cost controls and CNI capabilities, not a blanket public CIDR exception |
+| Labels / ServiceAccounts | Define who may change Namespace/Pod labels and workload templates, selectors and SAs. Standard NetworkPolicy selectors are not native ServiceAccount authorization; do not infer identity isolation from a mutable label |
+| VPC CNI enforcement / strict mode | Separately approve actual compatible add-on/node/kernel configuration, `enableNetworkPolicy` and `NETWORK_POLICY_ENFORCING_MODE=strict`, policy-agent readiness and cluster-wide startup impact including CoreDNS. Verify normal-mode startup gaps and strict-mode failure behavior; these are future changes, not enabled here |
+| Node / hostNetwork / policy limits | Review supported EC2 Linux Pod paths, ownerReferences, hostNetwork/Node exemptions, SG interactions and other policy tiers. Standard namespaced NetworkPolicy is not complete Node or cluster traffic isolation |
+| CNI transition / startup / rollback | Approve canary, baseline packet-denial tests, application/DNS/xDS readiness and reboot/upgrade coverage, failure detection and private recovery access. Roll back to a reviewed CNI/policy revision with workloads quiesced as needed; do not simply delete deny policies, switch to permissive startup or add allow-all to recover |
+
+Before NP-2, approve the actual flow/selector/identity matrix and its negative tests.
+Before NP-3, approve CNI enforcement/version support, ordering, startup failure,
+operational mutation prevention, packet tests and rollback custody. Review the
+[official EKS limitations](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html),
+[strict-mode configuration](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html)
+and [known issues](https://docs.aws.amazon.com/eks/latest/userguide/network-policies-troubleshooting.html)
+for the selected future versions; no version upgrade or Live action is authorized.
+All future traffic allowances remain absent and unapproved in NP-1.
 
 For teardown, first remove future application traffic/releases and the TGB via
 its approved writer, verify controller deregistration/finalizers and actual TG
@@ -190,10 +253,14 @@ No valid TLS/mTLS handshake or actual target registration is inferred from schem
 ## Offline evidence and limits
 
 [Runtime tests](tests/README.md) perform eight actual Helm renders over two
-positive configurations, validate 122 objects, reject 58 rendered security
-mutations, 18 invalid input contracts and 19 missing/malformed/fabricated evidence
+positive configurations, validate 124 objects, reject 77 rendered security
+mutations (existing58 plus19 NP-1), 18 invalid input contracts and21 missing/malformed/fabricated evidence
 cases. Core schemas come from pinned Kubernetes v1.34.1 OpenAPI; CRD schemas are
-from the exact pinned charts. Published IntOrString/quantity representations are
+from the exact pinned charts. NP-1 extends the selected schema definitions with
+NetworkPolicy and its reference closure from the **same** v1.34.1 source, whose
+existing SHA-256 and Git blob identity were checked. Only the derived subset hash
+changes in dependencies.lock.json; Helm/chart versions/hashes, Python libraries
+and Kubernetes fixtures are unchanged. Published IntOrString/quantity representations are
 normalized. No external schema fetch, live CEL/admission execution or API-server
 validation is claimed. Vendored parser/schema libraries (whitespace-normalized only) are hash-verified before
 import and retain their upstream licenses.
@@ -211,7 +278,9 @@ private deployment path, effective IAM/RBAC, runtime capacity, pricing or teardo
 is established. DEV Live requires separate authorization, cumulative actual cost
 <=JPY10,000 and complete verified removal within72 hours. The Secrets Manager
 30-day recovery conflict remains unresolved. No authenticated AWS/Kubernetes calls,
-real State, apply/destroy/import, cluster Helm/kubectl operations, merge or V6.
+real State, apply/destroy/import, cluster Helm/kubectl operations or merge.
+NP-1 Emulator: **NOT_APPLICABLE** (Kubernetes offline change); Kubernetes Live
+communications and CNI enforcement: **NOT_TESTED**. No NP-2/NP-3/V7-A is started.
 
 ## Consequential upstream sources
 

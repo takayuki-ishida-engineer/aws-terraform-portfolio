@@ -6,14 +6,14 @@ sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from common import ROOT,LOCK,parse,metadata,need,sha
 from render import render
-from validate import verify
+from validate import verify,application_network_policy,structural
 
 def capture(objects,evidence,d):
  need(evidence['status']=='rendered' and evidence['complete_v5'] is False and evidence['actual_helm_renders']==4,'fresh complete render evidence')
  need(evidence['helm_sha256']==LOCK['helm']['binary_sha256'] and evidence['charts']=={k:v['sha256'] for k,v in LOCK['charts'].items()},'pinned artifacts')
  need(evidence['input_sha256']==sha(json.dumps(d,sort_keys=True,separators=(',',':')).encode()),'input evidence')
  need(evidence['manifest_sha256']==sha(json.dumps(objects,sort_keys=True,separators=(',',':')).encode()) and evidence['resource_count']==len(objects),'manifest evidence')
- need(evidence['stages']=={'namespaces':2,'base':16,'controller':13,'istiod':12,'gateway':5,'mesh_security':4,'admission':4,'binding_writer':3,'ingress':2},'complete ordered stage evidence')
+ need(evidence['stages']=={'namespaces':2,'base':16,'controller':13,'istiod':12,'gateway':5,'mesh_security':5,'admission':4,'binding_writer':3,'ingress':2},'complete ordered stage evidence')
  need(sum(evidence['stages'].values())==len(objects) and set(evidence['raw_chart_counts'])=={'controller','base','istiod','gateway'} and all(type(x) is int and x>0 for x in evidence['raw_chart_counts'].values()),'no partial/failed chart evidence')
  return verify(objects,d,True)
 def main():
@@ -26,6 +26,12 @@ def main():
   except (ValueError,KeyError,TypeError,IndexError):collection.append(label);return
   raise ValueError('unsafe case accepted:'+label)
  def find(q,kind,name=None):return next(x for x in q if x['kind']==kind and (name is None or x['metadata']['name']==name))
+ # Assert the actual generated policy, not an expected inventory entry alone.
+ for q in [objects,altobjects]:
+  np=find(q,'NetworkPolicy');need(np['apiVersion']=='networking.k8s.io/v1' and np['metadata']=={'name':'default-deny','namespace':'portfolio-app'},'rendered NP identity')
+  need(np['spec']=={'podSelector':{},'policyTypes':['Ingress','Egress'],'ingress':[],'egress':[]},'rendered NP all Pods/both directions/no rules')
+  need(structural([np])==1,'actual NetworkPolicy schema validation')
+  need(find(q,'PeerAuthentication')['spec']=={'mtls':{'mode':'STRICT'}} and find(q,'AuthorizationPolicy')['spec']=={'action':'ALLOW','rules':[]},'preserved independent mesh authentication/authorization')
  cases=[]
  def change(label,kind,name,path,value):
   def edit(q):
@@ -75,6 +81,30 @@ def main():
    co=find(q,'Deployment','aws-load-balancer-controller')['spec']['template']['spec']['containers'][0];co['args']=[flag+'='+new if x.startswith(flag+'=') else x for x in co['args']]
   cases.append(('controller_flag:'+flag,mutate))
  cases.extend([('missing_object',lambda q:q.pop()),('duplicate_object',lambda q:q.append(copy.deepcopy(q[0]))),('forbidden_Secret',lambda q:q.append({'apiVersion':'v1','kind':'Secret','metadata':{'name':'forbidden'}}))])
+ # Exercise NP semantics separately as well as through full-bundle validation:
+ # an exact-inventory failure must not be the only additive-policy defense.
+ prior_cases=len(cases)
+ cases.append(('NP_missing',lambda q:q.remove(find(q,'NetworkPolicy'))))
+ change('NP_partial_selector','NetworkPolicy',None,['spec','podSelector'],{'matchLabels':{'app':'subset'}})
+ change('NP_expression_selector','NetworkPolicy',None,['spec','podSelector'],{'matchExpressions':[{'key':'app','operator':'Exists'}]})
+ for types in [['Ingress'],['Egress'],[]]:change('NP_policy_types:'+str(types),'NetworkPolicy',None,['spec','policyTypes'],types)
+ for direction,peer in [('ingress','from'),('egress','to')]:
+  change('NP_allow_all:'+direction,'NetworkPolicy',None,['spec',direction],[{}])
+  change('NP_public_IPv4:'+direction,'NetworkPolicy',None,['spec',direction],[{peer:[{'ipBlock':{'cidr':'0.0.0.0/0'}}]}])
+  change('NP_all_namespaces:'+direction,'NetworkPolicy',None,['spec',direction],[{peer:[{'namespaceSelector':{}}]}])
+  cases.append(('NP_missing_field:'+direction,lambda q,direction=direction:find(q,'NetworkPolicy')['spec'].pop(direction)))
+ change('NP_wrong_namespace','NetworkPolicy',None,['metadata','namespace'],'istio-ingress')
+ change('NP_missing_selector','NetworkPolicy',None,['spec','podSelector'],None)
+ change('NP_wrong_api','NetworkPolicy',None,['apiVersion'],'networking.k8s.io/v1beta1')
+ def additive_allow(q):
+  np=copy.deepcopy(find(q,'NetworkPolicy'));np['metadata']['name']='unreviewed-allow-all';np['spec']['ingress']=[{}];np['spec']['egress']=[{}];q.append(np)
+ cases.append(('NP_additive_allow_policy',additive_allow))
+ def policy_before_namespace(q):
+  np=find(q,'NetworkPolicy');q.remove(np);q.insert(0,np)
+ cases.append(('NP_before_namespace',policy_before_namespace))
+ policy_cases=cases[prior_cases:];policy_mutations=[]
+ for label,mutate in policy_cases:
+  q=copy.deepcopy(objects);mutate(q);reject(lambda q=q:application_network_policy(q),label,policy_mutations)
  for label,mutate in cases:
   q=copy.deepcopy(objects);mutate(q);reject(lambda q=q:verify(q,d,True),label,mutations)
  negatives=[]
@@ -88,9 +118,11 @@ def main():
   q=copy.deepcopy(evidence);q.pop(key);reject(lambda q=q:capture(objects,q,d),'missing:'+key,faults)
  for key,value in [('status','failed'),('actual_helm_renders',3),('helm_sha256','fabricated'),('manifest_sha256','fabricated'),('resource_count',0),('complete_v5',True)]:
   q=copy.deepcopy(evidence);q[key]=value;reject(lambda q=q:capture(objects,q,d),'fabricated:'+key,faults)
+ for label,edit in [('old_mesh_stage_count',lambda e:e['stages'].update(mesh_security=4)),('missing_mesh_stage',lambda e:e['stages'].pop('mesh_security'))]:
+  q=copy.deepcopy(evidence);edit(q);reject(lambda q=q:capture(objects,q,d),label,faults)
  for text in ['{broken','{"x":1,"x":2}','{"x":NaN}']:
   reject(lambda text=text:parse(text),'malformed:'+text,faults)
- report={'status':'passed','complete_runtime':True,'complete_v5':False,'aws_api_calls':0,'kubernetes_api_calls':0,'actual_helm_renders':8,'positive_configurations':2,'resource_count':count,'inventory':evidence['stages'],'schema_checked_objects':count*2,'semantic_mutations':len(mutations),'detected_mutations':mutations,'negative_cases':len(negatives),'rejected_inputs':negatives,'evidence_faults':len(faults),'rejected_evidence':faults,'chart_sha256':evidence['charts']}
+ report={'status':'passed','complete_runtime':True,'complete_v5':False,'aws_api_calls':0,'kubernetes_api_calls':0,'actual_helm_renders':8,'positive_configurations':2,'resource_count':count,'inventory':evidence['stages'],'schema_checked_objects':count*2,'semantic_mutations':len(mutations),'detected_mutations':mutations,'network_policy_mutations':len(policy_mutations),'detected_network_policy_mutations':policy_mutations,'negative_cases':len(negatives),'rejected_inputs':negatives,'evidence_faults':len(faults),'rejected_evidence':faults,'chart_sha256':evidence['charts']}
  if args.report:args.report.write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(report,indent=2))
 if __name__=='__main__':main()

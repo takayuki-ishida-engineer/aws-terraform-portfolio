@@ -216,24 +216,25 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: V7-0 REST/private integration technical contract
+## Current phase only: NP-1 application namespace default-deny NetworkPolicy
 
-Master Policy v14 (2026-11-12) alone is the current policy authority. The complete
-24-page user-supplied text was read and authorized as the reference. The original
-PDF is unavailable; its SHA-256 remains unverified, explicitly accepted by the
-user for this task. Do not claim original-PDF/hash verification or apply an older
-edition as current policy. Under v14, all fourteen emulator controls include saved
-Plan review, generated STS identity and cleanup of State backups; no lifecycle
-operation is needed or authorized for this documentation-only task.
-PR #35 governance alignment is complete; permanent rules above remain unchanged.
-Use docs/v7-rest-private-integration-feasibility from main
-`a8ae82e8265f577e2801f87ace6fa83da0a7bfaa` for documentation only.
-Allowed: docs/v7-rest-private-integration-feasibility.md, minimal architecture-v2.md
-reference/status, README authority/status and this current-phase section only.
-Verify AWS official specifications and Provider v6.72.0 Docs/Go implementation;
-record contradictions and unresolved certificate/ARN/SNI/ownership decisions OPEN.
-No Terraform/provider-lock/test/workflow/Kubernetes/PDF changes, emulator lifecycle,
-real AWS access, security downgrade or automatic V7-A. Preserve Architecture v2,
-all14 isolation controls and existing writer/State boundaries. Run document/link/
-secret/scope/diff checks, commit/push/open one PR and stop for independent review.
-No CI completion polling, self-approval, merge or branch deletion.
+Use feat/np1-application-default-deny from main
+`684fe8ad69eb3d04bf8e44c65210343df70b2ae5`. Master Policy v14 alone governs;
+the complete user-supplied 24-page text is approved as the reference. Original
+PDF SHA-256 remains unverified; do not claim original-PDF verification.
+Implement portfolio-app all-Pod Ingress/Egress default deny in mesh_security;
+preserve the existing Namespace, STRICT mTLS and empty-ALLOW AuthorizationPolicy.
+No speculative DNS/xDS/Gateway/DB/application exceptions or application workloads.
+Scope: necessary Kubernetes manifests, validation/tests/inventory/schema subset,
+Kubernetes READMEs and this current-phase section only. Preserve pinned Helm,
+charts, Kubernetes fixtures and permanent rules byte-for-byte. No Terraform,
+EKS add-on, VPC CNI/strict-mode, State or architecture changes.
+The user additionally approved only the Kubernetes runtime expected-count line
+in .github/workflows/terraform-offline-ci.yml, reconciled to actual local results.
+Inspect real rendered manifests and additive-policy risks, preserve existing
+security tests, reject malformed evidence, document NP-2/NP-3 communication,
+CNI/startup/rollback and operational-enforcement OPENs. Offline checks do not
+prove live packet denial or admission enforcement. Emulator NOT_APPLICABLE;
+Kubernetes Live NOT_TESTED. No AWS/Cluster calls, credentials, deployments or
+NP-2/NP-3/V7-A. Run affected local checks, commit/push/open one PR and stop for
+independent review and user approval; no merge, branch deletion or CI polling.

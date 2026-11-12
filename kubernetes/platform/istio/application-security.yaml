@@ -34,3 +34,18 @@ metadata:
 spec:
   action: ALLOW
   rules: []
+---
+# NP-1: all application Pods are isolated in both directions. NP-2 must review
+# required traffic before any allow rules or application workloads are added.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: portfolio-app
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []

@@ -124,7 +124,7 @@
   },
   "schema": {
     "path": "kubernetes/vendor/kubernetes-schema.json",
-    "sha256": "9a5fb8f5a025bb994f6a4615f8e2398b50ec47e197302473a04b3f3184dac928",
+    "sha256": "0a5c6406efdd66905f84f0a0bb27b409c13b5f349570e724d96ad1201725f0ad",
     "source": "https://github.com/kubernetes/kubernetes/blob/v1.34.1/api/openapi-spec/swagger.json",
     "source_git_blob": "305a8a0ee5dcf8292c9cf58aa3676b3b6b39c8d9",
     "source_sha256": "d3b0cdc2fda15c753206d25ab459dc7c12df64e2fd652b6809687471ea751c37"
