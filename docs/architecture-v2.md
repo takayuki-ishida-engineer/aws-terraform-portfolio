@@ -20,11 +20,21 @@ independent exact-HEAD review. No AWS/State/Live execution or unavailable PDF cl
 G01–G07, JPY10,000/72-hour removal, paid-plan/callback/account approvals and the
 Secrets recovery blocker remain OPEN. Historical status sections retain their scope.
 
+## V7-0 technical contract — implementation not started
+
+See the [REST/private integration feasibility contract](v7-rest-private-integration-feasibility.md)
+for pinned Provider6.72.0/AWS specification findings and staged V7-A/B/C/D gates.
+The NLB-versus-listener integration target wording is P0 OPEN, as are backend
+server trust/SNI, ACM client-certificate verification and approved minimal output
+handoff. This does not change Regional REST/Cognito/VPC Link V2/internal NLB TCP443/
+Istio MUTUAL/STRICT architecture or resource/State writers. Only the historical
+single-VPC lifecycle has direct emulator proof; no REST/mTLS runtime PASS is claimed.
+
 ## Authority, evidence and status
 
-The current approved operating policy is **Master Policy v13 (2026-11-12)**,
-as identified by the user's approval. The external v13 PDF was not supplied; only
-the explicit user-approved operating requirements are applied here, without
+The current approved operating policy is **Master Policy v14 (2026-11-12)**,
+as identified by the user's approval. The external v14 PDF was not available in Codex; only
+the explicit user-approved v14 requirements are applied here, without
 claiming full PDF review or changing the approved architecture. See the
 [emulator and completion policy](portfolio-verification-policy.md#official-aws-emulator--policy-v13).
 The v11 policy remains historical implementation/design provenance.

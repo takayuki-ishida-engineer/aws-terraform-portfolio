@@ -8,7 +8,8 @@ claimed by this repository.
 
 ## Current operating and completion policy
 
-Master Policy v13 (2026-11-12) approved operating requirements are recorded in
+Master Policy v14 (2026-11-12) is the user-identified current authority. Explicit
+v14 requirements and retained v13-derived isolation controls are recorded in
 [AGENTS](AGENTS.md) and the [verification policy](docs/portfolio-verification-policy.md#official-aws-emulator--policy-v13).
 Real AWS access remains prohibited in Codex Cloud. Strictly isolated official AWS
 Emulator lifecycle validation is permitted for supported resources and supplements
@@ -17,6 +18,9 @@ not mandatory for portfolio completion; unsupported/untested behavior must remai
 explicit and independent review is required. No emulator CI requirement is added.
 V6 has merged at main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0`.
 Historical phase snapshots below retain their original evidence scope.
+See [V7-0 REST/private integration contract](docs/v7-rest-private-integration-feasibility.md)
+for static Provider6.72.0 findings, P0 OPEN gates and proposed implementation order;
+no V7 resource implementation or end-to-end feasibility approval is claimed.
 
 ## V6 Cognito source foundation
 
@@ -149,7 +153,7 @@ G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
 
 ## Current limitations
 
-Current operating policy is Master Policy v13 (2026-11-12), per user approval.
+Current operating policy is Master Policy v14 (2026-11-12), per user instruction.
 The external PDF is unavailable here; the [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status) preserves historical v10 provenance without claiming full PDF review.
 
 The full REST/mTLS/Cognito/database/delivery architecture is not deployed. V4/V5
