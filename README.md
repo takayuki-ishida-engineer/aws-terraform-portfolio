@@ -6,6 +6,18 @@ verification. AWS Terraform is the primary portfolio; AWS CloudFormation and
 Azure Terraform are separate, smaller supporting portfolios, not implementations
 claimed by this repository.
 
+## Current operating and completion policy
+
+Master Policy v13 (2026-11-12) approved operating requirements are recorded in
+[AGENTS](AGENTS.md) and the [verification policy](docs/portfolio-verification-policy.md#official-aws-emulator--policy-v13).
+Real AWS access remains prohibited in Codex Cloud. Strictly isolated official AWS
+Emulator lifecycle validation is permitted for supported resources and supplements
+all existing credential-free CI/security tests. Real AWS deployment is optional,
+not mandatory for portfolio completion; unsupported/untested behavior must remain
+explicit and independent review is required. No emulator CI requirement is added.
+V6 has merged at main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0`.
+Historical phase snapshots below retain their original evidence scope.
+
 ## V6 Cognito source foundation
 
 Accepted post-V5 main `97f870753926398368733c39da722d5d7b792fa5` passed
@@ -137,8 +149,8 @@ G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
 
 ## Current limitations
 
-Current operating policy is Master Policy v11 (2026-11-09), per user approval.
-The external PDF is unavailable here; the [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status) preserves historical v10 provenance without claiming full v11 review.
+Current operating policy is Master Policy v13 (2026-11-12), per user approval.
+The external PDF is unavailable here; the [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status) preserves historical v10 provenance without claiming full PDF review.
 
 The full REST/mTLS/Cognito/database/delivery architecture is not deployed. V4/V5
 provide NLB and runtime source, not an operational Cluster or runtime workloads; actual capacity, private access and AWS-managed Cluster SG residual

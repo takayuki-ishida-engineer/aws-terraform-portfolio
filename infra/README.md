@@ -100,7 +100,10 @@ residual and withheld UpdateSecret/policy administration.
 Phase 3-3.5 keeps Developer EC2 inline and moves its six Secrets Manager actions
 into a workload-account-owned managed policy with a fixed Identity Center
 reference. An executable toolkit prepares optional user-run AWS validation;
-Codex Cloud and CI perform only offline checks.
+at that historical phase, Codex Cloud and CI performed only offline checks.
+Current v13 also permits isolated official Emulator lifecycle verification in
+Codex under [AGENTS controls](../AGENTS.md#mandatory-official-aws-emulator-safety-controls);
+CI retains its credential-free checks without a new emulator requirement.
 Phase 3-4 adds one reusable Lambda function module using an explicit versioned
 S3 ZIP, runtime/handler and existing execution-role/log-group references. It owns
 no IAM, logging, artifact or network dependencies. Defaults are x86_64, 128 MB,
@@ -568,8 +571,9 @@ effective permissions, runtime topology or Identity Center prerequisites.
 self-assign approved profiles within its scope; approval/audit controls and the
 controlled-executor trade-off remain as documented in the
 [IAM module](modules/iam_access/README.md) and
-[operations runbook](../docs/iam-access-operations.md). AWS credentials and deployment
-remain prohibited in this CI and in Codex Cloud.
+[operations runbook](../docs/iam-access-operations.md). Real AWS credentials and deployment
+remain prohibited in this CI and in Codex Cloud. Emulator-generated credentials
+are confined to the isolated v13 verification workflow above.
 
 ## Configuration and secrets
 

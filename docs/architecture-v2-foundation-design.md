@@ -1,10 +1,12 @@
 # Architecture v2 foundation design — Network / State / Identity
 
 This is an implementation-readiness proposal, not implementation or execution
-approval. Current operating policy is user-approved Master Policy v11 (2026-11-09);
+approval. Current operating policy is user-approved Master Policy v13 (2026-11-12),
+with [isolated Emulator/completion rules](portfolio-verification-policy.md#official-aws-emulator--policy-v13);
+v11 (2026-11-09) remains historical implementation/design provenance;
 this design retains historical v10 (2026-11-08) provenance. See
 [authority/PDF limitations](architecture-v2.md#authority-evidence-and-status); no
-unavailable v11 contents or new approval is inferred. The user **APPROVED**
+unavailable policy PDF contents or new architecture/Live approval is inferred. The user **APPROVED**
 maintainability-first functional module grouping
 and migration-first priority in the [R0 repository strategy](repository-structure-strategy.md).
 This supersedes the former standalone NAT/core/routing recommendation. Detailed
