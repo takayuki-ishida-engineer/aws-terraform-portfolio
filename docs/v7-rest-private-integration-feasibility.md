@@ -3,12 +3,46 @@
 ## Authority, baseline and verdict
 
 Documentation only. Starting main is `a8ae82e8265f577e2801f87ace6fa83da0a7bfaa`;
-latest main matched and there were no open PRs at entry. Master Policy v14
-(2026-11-12) is the user-identified authority. Its 24-page PDF was not accessible
-in Codex's local Library; no independent PDF review is claimed. This contract
-uses the explicit v14 instructions and repository evidence, without inferring
-unprovided requirements. Existing v13-derived verification controls remain the
-mandatory baseline; this PR does not alter permanent AGENTS rules.
+latest main matched and there were no open PRs at initial entry. On resumption,
+GitHub main still matches; the only open PR is this existing V7-0 PR #36, with no
+separate conflicting PR. Continue its branch rather than create a duplicate.
+Master Policy v14 (2026-11-12) is the sole current normative authority. The user
+supplied and authorized the complete 24-page text, which was read and compared
+with repository rules and source. The PDF binary remains unavailable: original
+PDF SHA-256 **NOT_VERIFIED**, expected
+`75265a33d4882ce0e98cdce4ab31c2bd428ca8123562125c307fd08764d0885d`.
+Text review is not original-PDF or hash verification; the user explicitly accepts
+this limitation for V7-0. No earlier policy edition is used as current authority.
+Permanent AGENTS rules remain byte-identical; v14 governs their application.
+
+### Policy/source alignment on resumption
+
+- v14 sections 3–7 preserve the documented Architecture v2, functional module
+  ownership and environment/Region/service State boundaries. Actual source has
+  eleven reusable children and four DEV ca-central-1 Roots: network, platform,
+  api and the independent historical serverless-api. API currently owns only
+  Cognito; no REST module, REST method or VPC Link is already implemented.
+- All fourteen emulator controls apply together. In particular, review a **saved
+  Plan** before Apply/Destroy, verify the generated STS identity as well as the
+  synthetic account, and remove State **backups** with other temporary material.
+  These clarify the shorter permanent AGENTS wording without changing it or
+  authorizing any lifecycle operation in this documentation PR.
+- Some unchanged documents still label v13 as current (verification policy and
+  foundation design); permanent AGENTS also retains a historical v13 anchor.
+  These are stale authority labels, not permission to use v13 as governing policy.
+  Correction of those files/permanent rules is outside V7-0's authorized scope:
+  record P2-02 and seek separately scoped correction; do not silently edit them.
+- Existing [namespace security declarations](../kubernetes/platform/istio/application-security.yaml)
+  contain deny-by-default Istio AuthorizationPolicy, not a Kubernetes NetworkPolicy.
+  Source has no NetworkPolicy declaration. v14 section 9.2's
+  default-deny NetworkPolicy target therefore remains unimplemented (P1-06),
+  separate from already implemented mesh policy. Do not claim runtime security
+  completion or change Kubernetes resources in V7-0.
+- No substantive architectural or security prohibition conflict was found that
+  prevents this documentation task. The P0 technical uncertainties below block
+  their dependent implementation, not evidence collection. No requirement is
+  weakened to close them. Codex documents/tests and submits; independent review
+  and explicit user approval remain prerequisites to merge and later work.
 
 **Verdict:** the pinned Provider can statically express the required REST and
 certificate-reference model. End-to-end feasibility is conditional, not proven.
@@ -311,7 +345,8 @@ No emulator API response alone establishes real AWS IAM, routing, TLS or capacit
 
 P0 blocks the affected implementation/integration acceptance; P1 must be resolved
 before its dependent PR; P2 is documentation/operational follow-up. These are not
-new approved architectural decisions. Unprovided v14 details require owner input.
+new approved architectural decisions. Any remaining technical or operational
+decision not approved by v14 requires owner input.
 
 | ID / priority | Decision and candidate alternatives | Risk / resolution evidence | Decision owner / gate |
 | --- | --- | --- | --- |
@@ -324,8 +359,9 @@ new approved architectural decisions. Unprovided v14 details require owner input
 | P1-03 | Deployment fingerprints, rollback, path/base-path/header mapping and logs | Deployment-snapshot security changes require redeploy; Stage/certificate updates and propagation are tracked separately. No secret/body logs or default endpoint bypass. Review account-wide API Gateway logging-role singleton before assigning its writer | API/application/security owners; V7-A schema and later B/C integration |
 | P1-04 | Emulator feature-specific compatibility and release-score mapping | Run affected real mock-plan/security tests, then isolated supported lifecycle. Preserve 501/validation/mismatch distinctions and residual gaps, without production workarounds | Implementation + independent reviewer; each future PR |
 | P1-05 | API client and backend claim/tenant/owner policy | Any-one scope matching, expiry/token_use/client identity, no ID-token substitution, no wildcard app allow. Agree trusted claim propagation and negative cases without fictional app | Identity/application/security owners; before application authorization acceptance |
+| P1-06 | v14 default-deny Kubernetes NetworkPolicy and scoped required traffic | Current application-security.yaml owns STRICT PeerAuthentication and empty-ALLOW AuthorizationPolicy, not NetworkPolicy. Review DNS/control-plane/webhook/mesh/application flows and enforcement support; require actual rendered-policy negative/mutation evidence in a separately authorized runtime PR | Runtime/network/security owners; before runtime security acceptance or optional Live; no Kubernetes changes in V7-0 |
 | P2-01 | Certificate monitoring/expiry/revocation, emergency denial and teardown runbook | Credential overlap, propagation delay, detach-before-delete and certificate/CA/CloudFront expenses; no72-hour budget guarantee | Operational/PKI owners; before optional Live |
-| P2-02 | Authority-label synchronization outside this PR's allowed files | README/architecture/current-phase identify v14; unchanged verification policy remains the v13-derived operating baseline. Future separately scoped documentation cleanup may update labels without changing controls | Repository owner; no permanent AGENTS changes in V7-0 |
+| P2-02 | Stale authority-label synchronization outside this PR's allowed files | Verification policy/foundation design still say current v13 and permanent AGENTS retains a historical v13 anchor. v14 alone governs; earlier editions are historical provenance only. A separately authorized correction is needed, without weakening controls or rewriting historical evidence | Repository owner; affected out-of-scope edits deferred, no permanent AGENTS changes in V7-0 |
 
 ## 7. Recommended staged implementation and V7-A entry gate
 

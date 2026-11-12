@@ -218,8 +218,13 @@ remain unchanged. No Live gate is closed by emulator evidence.
 
 ## Current phase only: V7-0 REST/private integration technical contract
 
-Master Policy v14 (2026-11-12) is the user-identified current authority. Its PDF is
-not accessible here or claimed independently read; use explicit user constraints.
+Master Policy v14 (2026-11-12) alone is the current policy authority. The complete
+24-page user-supplied text was read and authorized as the reference. The original
+PDF is unavailable; its SHA-256 remains unverified, explicitly accepted by the
+user for this task. Do not claim original-PDF/hash verification or apply an older
+edition as current policy. Under v14, all fourteen emulator controls include saved
+Plan review, generated STS identity and cleanup of State backups; no lifecycle
+operation is needed or authorized for this documentation-only task.
 PR #35 governance alignment is complete; permanent rules above remain unchanged.
 Use docs/v7-rest-private-integration-feasibility from main
 `a8ae82e8265f577e2801f87ace6fa83da0a7bfaa` for documentation only.

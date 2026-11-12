@@ -33,11 +33,12 @@ single-VPC lifecycle has direct emulator proof; no REST/mTLS runtime PASS is cla
 ## Authority, evidence and status
 
 The current approved operating policy is **Master Policy v14 (2026-11-12)**,
-as identified by the user's approval. The external v14 PDF was not available in Codex; only
-the explicit user-approved v14 requirements are applied here, without
-claiming full PDF review or changing the approved architecture. See the
-[emulator and completion policy](portfolio-verification-policy.md#official-aws-emulator--policy-v13).
-The v11 policy remains historical implementation/design provenance.
+using the complete 24-page text supplied and authorized by the user. All supplied
+text was reviewed; the original PDF was unavailable and its SHA-256 is unverified.
+No original-PDF verification is claimed. v14 alone governs current work; the
+[verification policy](portfolio-verification-policy.md#official-aws-emulator--policy-v13)
+retains stale authority labels tracked in V7-0 P2-02, not a second current policy.
+Earlier policy versions are historical implementation/design provenance only.
 The design below retains its recorded v10 (2026-11-08) provenance and approved
 clarifications/subsequent repository decisions. R3 infers no undocumented v11
 contents or blanket v10/v11 equivalence and changes no approved architecture.
