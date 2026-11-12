@@ -30,6 +30,10 @@ handoff. This does not change Regional REST/Cognito/VPC Link V2/internal NLB TCP
 Istio MUTUAL/STRICT architecture or resource/State writers. Only the historical
 single-VPC lifecycle has direct emulator proof; no REST/mTLS runtime PASS is claimed.
 
+See the [NP-2A NetworkPolicy flow/port compatibility design](np2-network-policy-flow-contract.md)
+for CNI prerequisites and approval-dependent port alternatives. Existing TCP443,
+TLS/identity, resource ownership and NP-1 implementation remain unchanged.
+
 ## Authority, evidence and status
 
 The current approved operating policy is **Master Policy v14 (2026-11-12)**,
