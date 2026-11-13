@@ -216,21 +216,23 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: NP-2A NetworkPolicy flow / VPC CNI compatibility design
+## Current phase only: NP-2P Gateway backend port alignment
 
-Use docs/np2-network-policy-flow-contract from main
-`5f007e8ee4f61cebc7b0aae835ab10e055f744a6`. Master Policy v14's user-authorized
-24-page text alone governs; original PDF SHA-256 remains unverified.
-Documentation only: docs/np2-network-policy-flow-contract.md, minimal links in
-Kubernetes README/architecture-v2.md and this phase section. Preserve permanent
-rules, Architecture v2, all resource/State writers and NP-1 deny/mesh policies.
-Investigate Service/Pod port equality with official AWS/Kubernetes/Istio and
-pinned1.32/LBC3.6.2/CNI sources; distinguish fixture values from approved builds.
-Record current versus future flows, alternatives, recommended port contract,
-NP-2B/NP-3 decisions, tests and rollback; do not implement the recommendation.
-No manifests, render/validate/tests, Terraform/State, add-on/CNI/strict mode,
-Gateway/TGB/NLB, secrets/PKI, CI or PDF changes; no AWS/Cluster operation.
-Emulator NOT_APPLICABLE; Kubernetes communications/enforcement NOT_TESTED.
-Check sources/links/scope/secrets/diff, commit/push/open one PR after required
-source access is available and stop. No mirror/bypass, CI polling, merge, branch
-deletion or automatic NP-2B/NP-3/V7-A. Report blocked sources and unresolved P0s.
+Use feat/np2p-gateway-port-alignment from main
+`df7b5370e5c502c6768b6bb53a7e9f551428e416`. Master Policy v14's approved24-page
+text governs; original PDF SHA-256 remains unverified. Implement approved NP-2A
+option A: Service/targetPort/Pod/TGB/Gateway/CEL use existing backend_target_port.
+Preserve NLB443, TG/SG/health, probe15021, names/selectors, MUTUAL/TLS1.2+/CA/SPKI,
+STRICT/AuthorizationPolicy/NP-1 deny, restricted PSS/UID1337/dropALL and IAM/RBAC.
+Only necessary runtime source/templates/tests and READMEs, NP-2A status and this
+phase section; CI changes limited to the one runtime expected-count line based
+on actual execution. Preserve permanent rules, all pins/fixtures/owners/State.
+Document input/output versioning, consumer migration, safe rollback and the
+runtime's explicit high-port/reserved-port profile without changing Terraform.
+P0-WEBHOOK and P0-CNI remain OPEN; source alignment is not live enforcement.
+No Terraform, CNI/add-on/strict-mode, webhook ports, allow policy, AWS/Cluster/
+State operation, actual certificate/Secret or deployment. Emulator NOT_APPLICABLE;
+Kubernetes communications and CNI enforcement NOT_TESTED. Run affected real Helm/
+schema/independent security/mutation/evidence checks and scope/secrets/diff checks,
+commit/push/open one PR and stop for independent review. No CI polling, merge,
+branch deletion or automatic NP-2B/NP-3/V7-A.

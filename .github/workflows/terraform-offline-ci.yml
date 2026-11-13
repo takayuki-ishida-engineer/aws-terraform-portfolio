@@ -924,7 +924,7 @@ jobs:
           import json, os
           from pathlib import Path
           report=json.loads(Path(os.environ["RUNNER_TEMP"], "runtime-verification.json").read_text())
-          expected={"actual_helm_renders":8,"positive_configurations":2,"resource_count":62,"schema_checked_objects":124,"semantic_mutations":77,"negative_cases":18,"evidence_faults":21}
+          expected={"actual_helm_renders":8,"positive_configurations":2,"resource_count":62,"schema_checked_objects":124,"semantic_mutations":97,"negative_cases":38,"evidence_faults":26}
           if report.get("status")!="passed" or report.get("complete_runtime") is not True or report.get("aws_api_calls")!=0 or report.get("kubernetes_api_calls")!=0 or any(report.get(k)!=v for k,v in expected.items()):
               raise SystemExit("Actual Helm/schema/TLS/RBAC/mutation/evidence validation failed")
           print("Observed Kubernetes runtime checks (not Terraform native cases):", report)

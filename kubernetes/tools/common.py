@@ -33,7 +33,7 @@ def metadata(d,fixture=False):
  need(re.fullmatch(r'https://oidc[.]eks[.]ca-central-1[.]amazonaws[.]com/id/[A-Za-z0-9]+',c['oidc_issuer']) and c['oidc_provider_arn']=='arn:aws:iam::'+s['account_id']+':oidc-provider/'+c['oidc_issuer'].removeprefix('https://'),'OIDC')
  need(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,39}',c['cluster_name']) and re.fullmatch(r'ca-central-1[a-z]',c['active_workload_az']),'cluster/AZ')
  need(c['kubernetes_version'] in ['1.33','1.34','1.35','1.36','1.37'],'Istio software matrix; live selection remains external')
- need(re.fullmatch(r'vpc-([0-9a-f]{8}|[0-9a-f]{17})',p['vpc_id']) and type(p['backend_target_port']) is int and 1<=p['backend_target_port']<=65535 and p['backend_target_port'] not in [15012,15017,15021,15090],'VPC/backend port cannot collide with system ports')
+ need(re.fullmatch(r'vpc-([0-9a-f]{8}|[0-9a-f]{17})',p['vpc_id']) and type(p['backend_target_port']) is int and 1024<=p['backend_target_port']<=65535 and not 15000<=p['backend_target_port']<=15090,'VPC/backend port: integer1024-65535, reserving Istio control/probe range15000-15090')
  need(set(r)=={'backend_hostname','gateway_tls_secret','gateway_client_ca_secret','expected_client_spki','trust_domain','webhook_tls_secret','webhook_ca_bundle','istio_ca_secret','resources'},'runtime fields')
  for field in ['backend_hostname','trust_domain']:
   need(len(r[field])<=253 and re.fullmatch(r'[a-z0-9]([a-z0-9.-]*[a-z0-9])?',r[field]) and '.' in r[field] and '*' not in r[field] and '..' not in r[field],'exact DNS:'+field)

@@ -5,7 +5,7 @@
   "spec": {
     "selector": {"istio": "portfolio-gateway"},
     "servers": [{
-      "port": {"number": 443, "name": "https-backend", "protocol": "HTTPS"},
+      "port": {"number": "${backend_target_port}", "name": "https-backend", "protocol": "HTTPS"},
       "hosts": ["${backend_hostname}"],
       "tls": {
         "mode": "MUTUAL",
