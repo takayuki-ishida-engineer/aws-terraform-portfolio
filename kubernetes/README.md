@@ -1,4 +1,4 @@
-# Private Kubernetes runtime and NP-1 application network isolation
+# Private Kubernetes runtime, NP-1 isolation and NP-2P Gateway ports
 
 Credential-free source and offline verification, not a deployed cluster. The
 accepted starting main is `a4f0a9b8b0a810976c7ab305001729463443b27b`, with
@@ -11,6 +11,65 @@ SHA-256 remains unverified. NP-1 starts from main
 [push CI43175377665](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43175377665)
 completed successfully. That existing CI result does not establish this PR HEAD's
 regression result or any Kubernetes Live behavior.
+
+## NP-2P Gateway port alignment and compatibility
+
+NP-2P implements the explicitly approved NP-2A option A from main
+`df7b5370e5c502c6768b6bb53a7e9f551428e416`. Every Kubernetes backend port derives
+from the existing reviewed private_ingress.backend_target_port input, **p**:
+
+| Component | Previous runtime | NP-2P |
+| --- | --- | --- |
+| Terraform NLB listener | TCP443 | TCP443, unchanged |
+| Terraform target group / static SG backend / TCP health | p / p / traffic-port | unchanged |
+| Gateway Pod | p | p |
+| Service.port / targetPort | 443 / p | p / p |
+| TGB serviceRef.port | 443 | p |
+| Istio Gateway HTTPS server | 443 | p |
+| TGB admission port condition | 443 | exact p |
+| Gateway readiness / liveness | 15021 | 15021, unchanged |
+
+The primary8443 and alternate9444 are synthetic test selections, not approved Live
+ports. NLB IP targets receive traffic directly on registered Pod IP:p; the
+Service supplies endpoint discovery. External NLB clients still target443. TLS
+terminates only at the MUTUAL Gateway; port alignment grants no network allowance.
+
+Input JSON shape/version1 and nested Platform interface_version1 stay unchanged:
+backend_target_port already means the actual backend port. No duplicate port input
+or Terraform output is introduced. The **generated runtime semantics change**;
+renderer evidence and test reports now require runtime_contract_version=2. The
+Kubernetes v1/List/API versions, names, selectors and ownership are unchanged.
+Current consumers are renderer CLI, independent validator/capture tests and the
+existing CI report reconciliation. All are updated or verified against the new
+semantics. No external publisher/consumer or deployed resource is assumed absent
+or migrated; actual output custody/consumer approval remains OPEN.
+
+Runtime inputs now reject low ports: integer1024–65535 only, with15000–15090
+conservatively reserved for Istio control/admin/probe/DNS/metrics ports. This
+does not claim every port in that interval is listening. The generic Platform
+contract remains1–65535; this selected runtime profile deliberately accepts a
+narrower subset. Previously accepted low/reserved inputs fail before Helm runs.
+No Root validation or actual backend allocation is silently changed.
+
+Migration requires reviewing each consumer, actual Platform backend provenance
+and namespace/target inventory; pair a newly rendered contract2 evidence report
+with its exact manifest/input hashes. Reject legacy reports even if tagged as
+otherwise complete; reject old443 manifests even if their hashes are recomputed.
+Never patch only Service, TGB, Gateway or CEL in an operational rollout. A future
+approved operator must coordinate Service/endpoints, Gateway config, fail-closed
+admission and TGB reconciliation, inspect deregistration/finalizers/health and
+retain a coherent known-good bundle. Rollback restores the matching renderer,
+validator, templates, manifest/evidence and admission contract together with
+traffic quiesced as needed; old443→high-port output is not CNI-compatible merely
+because it was restored. No CNI activation, enforcement bypass or IAM expansion
+is an approved recovery step. No deployment/migration/rollback was executed here.
+
+P0-PORT's **source alignment** is implemented and offline-tested; actual Envoy
+listeners, target registration, TLS/health and packet behavior remain NOT_TESTED.
+P0-WEBHOOK (Istiod443→15017/LBC443→9443) and P0-CNI (actual version/build/startup
+enforcement) remain OPEN. This does not establish cluster-wide NetworkPolicy
+compatibility. NP-2B/NP-3/V7-A, DNS/other allow policies and CNI activation require
+separate authorization.
 
 ## Ownership and artifacts
 
@@ -152,7 +211,7 @@ or permission to begin NP-2/NP-3:
 | --- | --- |
 | CoreDNS TCP/UDP53 | Resolve actual DNS path, namespace/Pod labels, endpoints and possible NodeLocal/host-network behavior. Limit destination and both protocols; do not allow every kube-system Pod or arbitrary DNS resolver |
 | Istiod xDS/CA | Review actual revision/Service/endpoints and required TCP15012, bootstrap/renewal and return traffic; keep exact source/destination selectors and mesh identity boundaries |
-| Gateway application ingress | Review actual Service443 to reviewed backend Pod port, Gateway namespace/Pod selectors, application destination port and both-end policy selection. Do not assume Service443 equals the Pod port or authorize arbitrary ingress |
+| Gateway application ingress | NP-2P aligns Service and Gateway backend port p; NLB stays443. Review actual Gateway namespace/Pod selectors, future application destination port and both-end policy selection. This grants no arbitrary ingress |
 | Webhooks and health | Distinguish API-server-to-webhook paths, Node/kubelet probes, controller9443, Istio15017 and Gateway readiness15021/TCP target health as applicable; identify which namespaces/Pods and enforcement hooks each actually traverses |
 | Application-to-application | Require actual workload and route inventory, protocol/ports, Pod labels and owner; exact SPIFFE/AuthorizationPolicy remains separate from L3/L4 allow rules |
 | PostgreSQL TLS | Approve actual private endpoint/address semantics and TCP5432, server CA/hostname verification, DB identity and SG ownership. No DB address or Secret is invented |
@@ -215,13 +274,13 @@ separate review blocker, not implicitly approved by this implementation.
 
 ## TLS, mesh and connectivity
 
-NLB remains internal TCP443 passthrough. TGB ip targets select Service443, whose
-required targetPort equals the actual Terraform target group backend port. The
+NLB remains internal TCP443 passthrough. TGB ip targets select Service port p,
+whose port and targetPort equal the actual Terraform target group backend port. The
 Gateway chart Deployment exposes that port; selectors match actual Pod labels.
 No Proxy Protocol, NLB TLS termination, automatic LB or Pod-IP Terraform resource
 is added. TCP health checks cannot establish TLS, authorization or application health.
 
-Istio Gateway has one HTTPS server on Service443, exact hostname, MUTUAL,
+Istio Gateway has one HTTPS server on Service/backend port p, exact hostname, MUTUAL,
 TLS>=1.2, explicit server credentialName, explicit client CA credential and one or
 two exact SHA-256 SPKI pins. CA trust and expected-client key authorization are
 separate controls. caCertCredentialName must end `-cacert`: pinned Istio SDS
@@ -257,8 +316,8 @@ No valid TLS/mTLS handshake or actual target registration is inferred from schem
 ## Offline evidence and limits
 
 [Runtime tests](tests/README.md) perform eight actual Helm renders over two
-positive configurations, validate 124 objects, reject 77 rendered security
-mutations (existing58 plus19 NP-1), 18 invalid input contracts and21 missing/malformed/fabricated evidence
+positive configurations, validate 124 objects, reject97 rendered security
+mutations (existing77 plus20 NP-2P),38 invalid input contracts and26 missing/malformed/fabricated evidence
 cases. Core schemas come from pinned Kubernetes v1.34.1 OpenAPI; CRD schemas are
 from the exact pinned charts. NP-1 extends the selected schema definitions with
 NetworkPolicy and its reference closure from the **same** v1.34.1 source, whose

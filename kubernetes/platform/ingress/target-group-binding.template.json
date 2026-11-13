@@ -6,7 +6,7 @@
     "targetGroupARN": "${target_group_arn}",
     "targetType": "ip",
     "vpcID": "${vpc_id}",
-    "serviceRef": {"name": "portfolio-gateway", "port": 443},
+    "serviceRef": {"name": "portfolio-gateway", "port": "${backend_target_port}"},
     "multiClusterTargetGroup": false
   }
 }

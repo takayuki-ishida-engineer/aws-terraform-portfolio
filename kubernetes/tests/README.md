@@ -1,4 +1,4 @@
-# Independent runtime and NP-1 checks
+# Independent runtime, NP-1 and NP-2P checks
 
 Run `python3 kubernetes/tests/check_runtime.py --helm /path/to/verified/helm` from
 the repository. The [installer](../tools/install_helm.py) verifies the locked Helm
@@ -6,20 +6,21 @@ archive against its official published SHA-256 and its extracted executable hash
 All four vendored chart hashes and Python dependency hashes are verified at use.
 
 Two actual positive renders (Kubernetes1.34/1.35, distinct backend ports/hostnames/
-client pins) invoke four complete pinned Helm charts each. The independently
+client pins and distinct synthetic target-group references) invoke four complete
+pinned Helm charts each. The independently
 implemented validator checks exact62-object ownership inventory and124 schema
 objects, using pinned core OpenAPI plus actual chart CRDs. It verifies IRSA SA,
 RBAC/bindings/admission, TGB refs, private Services, selectors/ports, pinned images,
 resource profiles, external CA dependencies, TLS MUTUAL/clientSPKI and STRICT/
 default-deny policies. CRDs are canonical-hash pinned, not assumed from strings.
 
-77 unsafe rendered mutations are actually submitted to validation: the existing
-58 cases plus19 NP-1 cases. Existing cases include
+97 unsafe rendered mutations are actually submitted to validation: the existing
+58 cases plus19 NP-1 and20 NP-2P cases. Existing cases include
 TLS downgrades/identity removal/plaintext, wrong TGB target/type/VPC/networking,
 LoadBalancer Service, port/selector/ref mistakes, broad RBAC/cluster-admin binding,
 missing guards, controller flags, CA fallback, privilege/image/AZ changes and
-missing/duplicate/forbidden objects. 18 invalid minimal inputs are rejected.
-21 evidence faults reject missing/failed/partial/fabricated artifacts, hash/count
+missing/duplicate/forbidden objects.38 invalid minimal inputs are rejected.
+26 evidence faults reject missing/failed/partial/fabricated artifacts, hash/count
 mismatch, malformed/duplicate/nonfinite JSON. Individual labels are emitted in
 the JSON report. Counts derive from executed cases; they are not native Terraform
 passes, simulated communications or a replacement for the153 toolkit tests.
@@ -40,6 +41,24 @@ These checks do not test packet filtering, CNI activation, application startup o
 live admission/RBAC enforcement. Other installed policies may broaden traffic:
 bundle validation cannot inspect or constrain an unconnected real Cluster.
 Emulator: NOT_APPLICABLE. Kubernetes Live communications: NOT_TESTED.
+
+NP-2P keeps both actual8443/9444 renders and derives Service.port/targetPort,
+Pod, TGB, Gateway server and admission CEL from the same backend input.20 new
+rendered mutations (ten per configuration) revert each port/guard individually,
+swap the target-group reference, coordinate all fields to the wrong port, change
+the immutable15021 probe or UID1337. Independent validation rejects each without
+relying only on a hash mismatch. Existing77 mutation cases remain present.
+Twenty additional input negatives reject low/out-of-range/non-integer/missing
+backend ports and the reserved Istio15000–15090 interval; four accepted metadata
+boundaries1024/14999/15091/65535 are checked without counting them as Helm renders.
+Five additional evidence faults reject missing/legacy runtime_contract_version,
+forged input/chart hashes and an unsafe manifest with a freshly recomputed hash.
+Generated evidence requires runtime_contract_version2; minimal input/Platform
+reference version1 and Kubernetes API versions are unchanged. Report counts are
+derived from executed cases and remain separate from Terraform/toolkit tests.
+The cross-fixture TG swap checks declared reference consistency; an ARN does not
+encode a port. Actual TG port/existence and trustworthy Platform output provenance
+still require external verification, never authenticated discovery in this test.
 
 `complete_runtime=true` means these runtime checks passed. Render/runtime reports
 retain `complete_v5=false`; only final affected-local acceptance after Terraform,

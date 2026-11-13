@@ -1,15 +1,55 @@
 # NP-2A NetworkPolicy flow contract and VPC CNI compatibility
 
+## NP-2P source implementation status
+
+The user explicitly approved option A for NP-2P from main
+`df7b5370e5c502c6768b6bb53a7e9f551428e416`. Current runtime source derives all
+Kubernetes Gateway backend ports from private_ingress.backend_target_port, p:
+Service.port=p, targetPort=p, Pod=p, TGB serviceRef.port=p, Gateway HTTPS server=p
+and admission CEL requires exactly p. NLB listener remains TCP443; TG/backend
+port, SG rules, traffic-port health check and probe15021 remain unchanged.
+Names, namespaces, selectors, MUTUAL/TLS1.2+/CA/SPKI, STRICT/default-deny mesh and
+NP-1 network policies, non-root UID1337/restricted PSS and resource writers remain.
+Synthetic8443 and alternate9444 fixtures are retained, not Live selections.
+
+The existing minimal input and nested Terraform reference schemas stay version1;
+no new or duplicated port input is added. Generated port semantics are versioned
+as **runtime_contract_version2** in renderer evidence and test reports. Capture
+requires2 and checks actual manifests, rejecting legacy evidence or a rehashed
+old443/partially changed bundle. Kubernetes v1/List and resource API versions are
+unchanged. The [runtime compatibility/migration/rollback contract](../kubernetes/README.md#np-2p-gateway-port-alignment-and-compatibility)
+identifies in-repository consumers and requires separate external-consumer/custody
+review; no actual deployment or migration is assumed. Runtime now restricts p to
+integer1024–65535, reserving15000–15090 for Istio control/probe use. Platform's
+general1–65535 interface remains unchanged and is explicitly wider than this
+runtime profile. Unsupported inputs fail closed before rendering.
+
+Affected local suite: two actual configurations/eight pinned Helm renders,
+62 resources each/124 full-bundle schema validations,97 rejected rendered
+mutations (the existing77 plus20 Gateway cases across both ports),38 rejected
+input cases and26 rejected evidence cases. These are source/offline results, not
+successful exact-HEAD CI or runtime connectivity. No Terraform/policy/SG/CNI/
+webhook ownership changes or new network allowances are part of NP-2P.
+
+**P0-PORT source alignment is implemented; external behavior remains OPEN.**
+Actual Envoy listeners, LBC target registration, TLS/health and packets remain
+NOT_TESTED. P0-WEBHOOK and P0-CNI remain OPEN; Gateway alignment alone does not
+establish cluster-wide NetworkPolicy compatibility. Emulator NOT_APPLICABLE;
+Kubernetes Live communication/CNI enforcement NOT_TESTED. No NP-2B/NP-3/V7-A
+authorization follows. Sections below retain the NP-2A design baseline and its
+pre-NP-2P comparisons; current linked runtime source incorporates this status.
+
 ## Authority, baseline and evidence boundary
 
 Master Policy v14 (2026-11-12) alone governs, using the user-authorized full
 24-page text. Original PDF SHA-256 remains unverified. Starting/latest main at
 entry: `5f007e8ee4f61cebc7b0aae835ab10e055f744a6`; working tree clean, no open PRs.
-This is documentation/design only, not approval to implement the recommendation.
+NP-2A was documentation/design only; NP-2P's separate approval and implemented
+scope are recorded above, without approving any additional phase.
 Architecture v2, Terraform1.17.0/AWS6.72.0, all resource addresses, State writers,
 NP-1 deny policies, chart versions, manifests and CI remain unchanged.
 
-**Verdict:** the existing Service443 → Pod8443 fixture is supported as a port
+**NP-2A baseline verdict, before NP-2P:** the Service443 → Pod8443 fixture is supported as a port
 translation by Istio/LBC source, but conflicts with the documented Amazon VPC CNI
 NetworkPolicy Service/container-port equality requirement. It is **not accepted
 as CNI NetworkPolicy-compatible**. This is not a measured packet failure: NP-1
@@ -295,7 +335,7 @@ These are **proposed tests, not executed PASS counts**:
 
 | ID | Alternatives / risk | Resolution and approver |
 | --- | --- | --- |
-| P0-PORT | Recommended A high-port Kubernetes alignment versus B all443; C unchanged mapping/names-only not supportable on current evidence | User + runtime/network/security reviewers approve complete contract/version/consumer, tests and rollback before port-dependent NP-2B; no implementation here |
+| P0-PORT — source aligned by NP-2P; runtime OPEN | User approved A; current runtime aligns ports, preserves Terraform and rejects partial/legacy bundles. B and C remain unselected historical comparisons | Independent exact-HEAD source/CI review and external consumer/operational verification still required; no actual registration/TLS/packet or CNI-compatibility acceptance follows |
 | P0-WEBHOOK | Istiod443→15017 and LBC443→9443, control-plane source treatment and CNI equality applicability | AWS version-specific clarification or proven supported equal-port webhook/clientConfig arrangement; EKS/runtime/security owners approve, preserve CA/fail-closed and SG ownership before NP-3 |
 | P0-CNI | Fixturev1.20/EKS1.34 versus newer documented1.21 behavior, actual build/kernel/agent/schema unspecified | User/EKS owner approve evidence-backed EKS/add-on/Node tuple and all system bootstrap flows. Do not assume latest docs certify old builds or auto-enable admin policies |
 | P1-DNS-XDS | Actual DNS namespace/labels/Service/NodeLocal path and app source selectors unknown; renewal/bootstrap can deadlock | Network/runtime/app owners approve exact both-end graph and verified behavior; DNS/xDS are not broad namespace egress grants |

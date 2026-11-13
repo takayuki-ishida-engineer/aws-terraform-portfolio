@@ -32,5 +32,15 @@ pins and incompatible software versions. Declared network references are not
 proof of AWS resource existence. Output publication/authenticity/access and
 single-writer State custody remain OPEN; do not distribute complete State.
 
+NP-2P retains this input schema/version1 and the nested Platform version1. The
+backend port must be an integer1024–65535 outside the conservatively reserved
+Istio range15000–15090. Platform's general1–65535 schema is unchanged; its wider
+range is not permission to use low/control ports in this runtime profile.
+All Kubernetes Gateway backend ports now use that one input; NLB remains443.
+Generated evidence requires runtime_contract_version2. Review and migrate old
+Service/TGB/Gateway443 consumers as a coordinated versioned bundle; old evidence
+or a partial manifest update is rejected. The [compatibility and rollback contract](../../README.md#np-2p-gateway-port-alignment-and-compatibility)
+does not implement publication or prove any deployed consumer has been migrated.
+
 See [runtime ownership, stages and operational barriers](../../README.md).
 No command in V5 connects to Kubernetes or AWS.
