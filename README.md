@@ -5,7 +5,7 @@ Terraform modules, Kubernetes runtime configuration, Python security validators 
 GitHub Actions. The focus is private infrastructure, least-privilege identity,
 clear resource ownership and reproducible verification.
 
-**Verified source baseline:** main
+**Verified implementation baseline (before this documentation change):** main
 [`be79be6`](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/commit/be79be6a64a6ef2e78f76e920afb335c59bbd49d),
 [successful credential-free CI run 43347607972](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43347607972):
 **781 Terraform Native tests, 153 Python toolkit tests**, and Kubernetes checks
@@ -155,15 +155,20 @@ reachability, controller registration or TLS/mTLS communication.
 - Actual account, State custody, output authenticity, capacity, certificates,
   callback domains, pricing and teardown require separate review and approval.
 
-Master Policy **v14 (2026-11-12)** is the current authority, based on the complete
-user-authorized 24-page text; the original PDF/hash remains unverified. Earlier
-policy labels retained in historical documents are not current authority; see
-[the authority record](docs/architecture-v2.md#authority-evidence-and-status).
+The owner-approved **AWS Terraform Portfolio MASTER POLICY v14.1 (2026-11-14)**
+is the current single-source policy. The original v14 text was user-authorized;
+the external v14.1 PDF has not been independently verified inside Codex. Earlier
+policy labels in historical documents are not current authority; the
+[architecture authority record](docs/architecture-v2.md#authority-evidence-and-status)
+retains its original v14 provenance.
 Real AWS deployment is optional for portfolio completion and prohibited in Codex
 Cloud. Optional external DEV Live work requires separate approval through all
 **G01–G07** gates, at most **JPY 10,000** cumulative actual spending and verified
 complete removal within **72 hours**. All gates remain OPEN, including the
 unresolved Secrets Manager 30-day recovery-window conflict.
+
+Older v14 references below are historical snapshots; v14.1 is the currently
+approved policy.
 
 ## Detailed engineering history
 

@@ -219,8 +219,9 @@ remain unchanged. No Live gate is closed by emulator evidence.
 ## Current phase only: recruiter-focused public README
 
 Use docs/recruiter-focused-readme from verified main
-`be79be6a64a6ef2e78f76e920afb335c59bbd49d`. Master Policy v14 governs; its
-user-authorized 24-page text is available, original PDF/hash unverified.
+`be79be6a64a6ef2e78f76e920afb335c59bbd49d`. Owner-approved Master Policy v14.1
+(2026-11-14) governs; the external v14.1 PDF has not been independently verified
+inside Codex. Original Architecture, Emulator, Live and CI boundaries remain.
 Improve only the root README and this phase section for infrastructure/DevOps/
 platform reviewers. Verify source inventory and exact-main CI evidence; distinguish
 implemented source, planned architecture, historical snapshots and untested Live
