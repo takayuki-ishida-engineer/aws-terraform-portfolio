@@ -1,12 +1,177 @@
-# AWS Terraform Infrastructure Portfolio
+# AWS Terraform and Kubernetes Portfolio
 
-An AWS-first infrastructure portfolio demonstrating reusable Terraform design,
-least-privilege access, explicit ownership boundaries and independent security
-verification. AWS Terraform is the primary portfolio; AWS CloudFormation and
-Azure Terraform are separate, smaller supporting portfolios, not implementations
-claimed by this repository.
+An AWS-first infrastructure and platform engineering portfolio built with reusable
+Terraform modules, Kubernetes runtime configuration, Python security validators and
+GitHub Actions. The focus is private infrastructure, least-privilege identity,
+clear resource ownership and reproducible verification.
 
-## Current operating and completion policy
+**Verified source baseline:** main
+[`be79be6`](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/commit/be79be6a64a6ef2e78f76e920afb335c59bbd49d),
+[successful credential-free CI run 43347607972](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43347607972):
+**781 Terraform Native tests, 153 Python toolkit tests**, and Kubernetes checks
+covering **8 pinned Helm renders across 2 configurations**. The repository contains
+**11 reusable Terraform modules and 4 DEV Root configurations**.
+
+**Maturity:** implemented source and offline verification. No live AWS/EKS deployment,
+Kubernetes packet-enforcement result or end-to-end mTLS handshake is claimed.
+
+## Implementation status
+
+| Area | Current status |
+| --- | --- |
+| AWS infrastructure | Terraform source for DEV networking, private EKS, internal NLB, controller IAM, Cognito and an independent serverless HTTP API |
+| Kubernetes runtime | Pinned controller/Istio rendering, guarded TargetGroupBinding, Gateway TLS configuration and application-namespace default-deny policies |
+| NetworkPolicy work | NP-1 default-deny and NP-2P Gateway backend-port alignment implemented; NP-2B allow policies and NP-3 CNI enablement remain unimplemented |
+| Architecture v2 integration | V7-0 technical contract documented; Regional REST API, VPC Link integration, CloudFront, database, delivery and application/backend implementation remain future work |
+
+## Technical stack
+
+| Layer | Technologies and controls present in source |
+| --- | --- |
+| Infrastructure | AWS, Terraform 1.17.0, locked AWS Provider 6.72.0; VPC, EKS EC2 Managed Node Groups, NLB, Cognito, Lambda, HTTP API, IAM, S3 and Secrets Manager metadata |
+| Kubernetes runtime | Helm 3.22.1, AWS Load Balancer Controller 3.6.2, Istio 1.32.0 sidecar-mode configuration, TargetGroupBinding and Kubernetes security policies |
+| Verification | Python 3, Terraform Native mock plans, independent plan/render validators, negative and mutation tests, pinned schema validation and credential-free GitHub Actions |
+| Security | Scoped IAM/IRSA, account guards, restricted Pod Security, RBAC, fail-closed admission, Gateway MUTUAL TLS, mesh STRICT mTLS and default-deny NetworkPolicy declarations |
+
+Pins and package hashes are recorded in the
+[runtime dependency lock](kubernetes/dependencies.lock.json) and committed Terraform
+provider locks. Test fixtures do not approve a live Kubernetes version or capacity.
+
+## Architecture
+
+The approved **Architecture v2 target** places CloudFront and Edge WAF ahead of a
+Regional REST API custom domain with inbound mTLS and Regional WAF. Cognito method
+scopes protect API access; private integration uses REST VPC Link V2 and an internal
+NLB with TCP:443 passthrough to Istio Gateway. Backend client-certificate verification,
+STRICT mesh mTLS, workload authorization and PostgreSQL TLS have separate trust
+and ownership contracts. This complete path is not implemented or deployed.
+
+The existing `serverless-api/` HTTP API remains independent of the future REST
+`api/` Root. DEV Roots own provider/account restrictions and local State, separated
+by environment, Region and service. Reusable children own resources; Kubernetes
+runtime owns dynamic Pod registration. No whole-State consumer is introduced.
+
+See the [architecture and implementation record](docs/architecture-v2.md),
+[Network / State / Identity foundation](docs/architecture-v2-foundation-design.md),
+[REST/private integration contract](docs/v7-rest-private-integration-feasibility.md)
+and [NetworkPolicy flow contract](docs/np2-network-policy-flow-contract.md).
+
+## Implemented components
+
+These are source implementations with offline evidence, not deployed services.
+The eleven reusable children are grouped below by responsibility.
+
+| Capability | Child modules and source ownership |
+| --- | --- |
+| Network | [vpc](infra/modules/vpc/README.md): legacy private-only defaults, opt-in per-AZ routing, NAT/EIP and scoped optional S3 Gateway Endpoint |
+| EKS platform | [eks_platform](infra/modules/eks_platform/README.md): private cluster API, multi-AZ cluster subnets, EC2 Managed Nodes, dedicated IAM/SGs, access entries and managed add-ons |
+| Private ingress | [private_ingress](infra/modules/private_ingress/README.md): internal NLB, TCP listener, IP target group, static SG rules and target-registration-only controller IAM |
+| Authentication | [cognito_auth](infra/modules/cognito_auth/README.md): protected email User Pool, public code-only client, Resource Server/scopes, prefix domain and managed-login branding |
+| Serverless API | [lambda_workload](infra/modules/lambda_workload/README.md) and [api_gateway_http](infra/modules/api_gateway_http/README.md): Lambda/execution IAM/application logs and AWS_IAM HTTP API/access logs |
+| Storage and metadata | [s3_artifact_bucket](infra/modules/s3_artifact_bucket/README.md), [secrets_manager](infra/modules/secrets_manager/README.md) and [cloudwatch_logs](infra/modules/cloudwatch_logs/README.md): private versioned artifacts, metadata-only secrets and reusable logging |
+| Administrative IAM | [iam_access](infra/modules/iam_access/README.md) and [iam_account_policies](infra/modules/iam_account_policies/README.md): separately scoped Identity Center access and workload-account policies |
+
+The four DEV Roots are [network](infra/services/dev/ca-central-1/network/README.md),
+[platform](infra/services/dev/ca-central-1/platform/README.md),
+[api](infra/services/dev/ca-central-1/api/README.md) and
+[serverless-api](infra/services/dev/ca-central-1/serverless-api/README.md), all under
+`dev/ca-central-1/`. The API Root currently composes Cognito only.
+
+The [Kubernetes runtime](kubernetes/README.md) supplies controller and Istio chart
+configuration, a ClusterIP Gateway Service, restricted TargetGroupBinding,
+external certificate/CA references, admission guards and namespace security.
+NP-2P derives Service, Pod, binding, Gateway and admission backend ports from one
+reviewed input while preserving the NLB TCP:443 listener.
+
+## Security engineering
+
+- **Identity:** dedicated roles, exact OIDC audience/subject trust and scoped
+  registration permissions. Controller IAM excludes load-balancer creation,
+  target-group modification and security-group writes.
+- **Ownership and secrets:** Terraform owns static AWS resources; the controller
+  owns dynamic target registration. Terraform manages Secrets Manager metadata,
+  never secret values, private keys or Google OAuth secrets.
+- **Runtime authorization:** restricted Pod Security, scoped RBAC and fail-closed
+  admission guards constrain runtime objects. `portfolio-app` has both-direction
+  default-deny NetworkPolicy, STRICT PeerAuthentication and a default-deny
+  Istio AuthorizationPolicy. Their live enforcement has not been demonstrated.
+- **Transport:** the NLB passes TCP through to a Gateway configured for MUTUAL TLS,
+  TLS 1.2 or newer and expected-client SPKI verification. Certificate custody,
+  rotation, revocation response and REST backend compatibility remain open.
+
+## Validation and CI
+
+At main **`be79be6a64a6ef2e78f76e920afb335c59bbd49d`**,
+[Terraform offline CI run 43347607972](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43347607972)
+was a **completed/success push run, attempt 1**, with every job step successful.
+The following results were checked against its actual logs:
+
+| Verification layer | Observed result |
+| --- | --- |
+| Terraform Native mock tests | 781 passing across affected Roots and reusable children |
+| Python policy-validation toolkit | 153 passing tests; export and offline dry-run steps successful |
+| Provider storage | 15 initialized configurations sharing one locked AWS 6.72.0 provider binary |
+| Kubernetes positives | 2 configurations, 8 pinned Helm renders, 62 resources per configuration and 124 schema-checked objects |
+| Kubernetes security/evidence rejection | 97 rendered mutations, 38 invalid inputs and 26 evidence faults rejected |
+
+Kubernetes counts are separate from Terraform Native and Python toolkit totals.
+Independent validators inspect actual mock-plan JSON and Helm-rendered resources;
+negative, mutation and malformed-evidence checks exercise unsafe variants. See the
+[workflow](.github/workflows/terraform-offline-ci.yml),
+[runtime test contract](kubernetes/tests/README.md) and
+[verification policy](docs/portfolio-verification-policy.md).
+
+AWS Emulator lifecycle testing is an additional isolated verification layer,
+**not a GitHub Actions stage**. The historical proof covers a disposable single
+`aws_vpc.proof` lifecycle only; it does not validate the complete VPC module or
+other AWS services. CI success does not establish real IAM enforcement, network
+reachability, controller registration or TLS/mTLS communication.
+
+## Repository navigation
+
+| Review goal | Entry points |
+| --- | --- |
+| Terraform design and resource contracts | [Modules](infra/modules/), [DEV Roots](infra/services/dev/ca-central-1/), [infrastructure guide](infra/README.md) |
+| Runtime source and rendering | [Kubernetes guide](kubernetes/README.md), [renderer](kubernetes/tools/render.py), [independent validator](kubernetes/tools/validate.py) |
+| Security and evidence checks | [Runtime checker](kubernetes/tests/check_runtime.py), [IAM reference checks](infra/modules/iam_access/tests/), [offline policy toolkit](scripts/aws-policy-validation/README.md) |
+| Design decisions and outstanding gates | [Architecture v2](docs/architecture-v2.md), [repository strategy](docs/repository-structure-strategy.md), [REST contract](docs/v7-rest-private-integration-feasibility.md), [NetworkPolicy contract](docs/np2-network-policy-flow-contract.md) |
+| Governance and historical acceptance | [AGENTS](AGENTS.md), [verification policy](docs/portfolio-verification-policy.md), [original MVP acceptance](docs/offline-mvp-acceptance.md), [Live readiness](docs/dev-live-validation-readiness.md), [bootstrap decisions](docs/dev-bootstrap-decision-plan.md) |
+
+## Limitations and open decisions
+
+- No live AWS/EKS deployment, Kubernetes packet enforcement, controller registration
+  or end-to-end mTLS handshake is claimed. VPC CNI NetworkPolicy enablement and
+  strict enforcement remain unimplemented and unverified.
+- NP-2P resolves Gateway port consistency in source. **P0-WEBHOOK** port translation
+  and **P0-CNI** version/bootstrap compatibility remain OPEN before NP-3; NP-2B
+  communication allow policies are not implemented.
+- V7 REST implementation has not started. **P0-01–P0-04** retain unresolved
+  integration-target ARN, backend server trust/SNI, client-certificate lifecycle
+  and trusted minimal output-handoff decisions. CloudFront, database, delivery and
+  application/backend architecture are incomplete; no application workload or
+  tenant/owner authorization is demonstrated.
+- Cognito Google federation, browser PKCE/state/nonce behavior and real login are
+  external or future work. Source configuration does not prove authentication.
+- Actual account, State custody, output authenticity, capacity, certificates,
+  callback domains, pricing and teardown require separate review and approval.
+
+Master Policy **v14 (2026-11-12)** is the current authority, based on the complete
+user-authorized 24-page text; the original PDF/hash remains unverified. Earlier
+policy labels retained in historical documents are not current authority; see
+[the authority record](docs/architecture-v2.md#authority-evidence-and-status).
+Real AWS deployment is optional for portfolio completion and prohibited in Codex
+Cloud. Optional external DEV Live work requires separate approval through all
+**G01–G07** gates, at most **JPY 10,000** cumulative actual spending and verified
+complete removal within **72 hours**. All gates remain OPEN, including the
+unresolved Secrets Manager 30-day recovery-window conflict.
+
+## Detailed engineering history
+
+The sections below preserve phase-specific implementation and acceptance evidence,
+including their original commits, counts and expected-CI wording. They are historical
+snapshots; use the verified main baseline above for current counts and maturity.
+
+### Current operating and completion policy
 
 Master Policy v14 (2026-11-12) is the sole current policy authority. Its complete
 24-page user-supplied text was reviewed with user approval; the original PDF was
@@ -25,7 +190,7 @@ See [V7-0 REST/private integration contract](docs/v7-rest-private-integration-fe
 for static Provider6.72.0 findings, P0 OPEN gates and proposed implementation order;
 no V7 resource implementation or end-to-end feasibility approval is claimed.
 
-## V6 Cognito source foundation
+### V6 Cognito source foundation
 
 Accepted post-V5 main `97f870753926398368733c39da722d5d7b792fa5` passed
 [push CI43109394809](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43109394809)
@@ -41,7 +206,7 @@ independent exact-HEAD review. No AWS/State/Live execution or unavailable PDF cl
 G01–G07, JPY10,000/72-hour removal, paid-plan/callback/account approvals and the
 Secrets recovery blocker remain OPEN. Historical status sections retain their scope.
 
-## What is implemented
+### What is implemented
 
 The **post-R2 offline serverless API snapshot** has **eight reusable Terraform
 modules repository-wide at that revision**, **four DEV root module instances**, **17 managed resource definitions**
@@ -87,7 +252,7 @@ There are10 children, three Roots; expected full CI678/153 and13 configurations
 await independent review. Local new Child28/updated Root38 native tests passed;
 all runtime/TLS/output-publication/Live gates remain OPEN.
 
-## Target architecture — defined, not deployed
+### Target architecture — defined, not deployed
 
 The next design combines Route 53, CloudFront, WAF and ACM with a Cognito-protected
 API Gateway REST API. CloudFront origin mTLS protects the Regional custom domain;
@@ -104,7 +269,7 @@ observability and shared event notifications complete the target.
 Configured AZ coverage can exceed active worker/database AZs. These targets make
 no measured SLA/RTO/RPO or disaster recovery guarantee; replica counts alone do not prove resilience.
 
-## Engineering highlights
+### Engineering highlights
 
 - **Infrastructure:** Terraform modules, environment/Region/service root ownership,
   account-restricted providers, secure defaults and explicit state boundaries.
@@ -116,7 +281,7 @@ no measured SLA/RTO/RPO or disaster recovery guarantee; replica counts alone do 
   digests, CodeBuild/private EKS deployment, Lambda versions/aliases, EventBridge
   notifications, Fluent Bit/Datadog and SSM-only Packer/Ansible administration.
 
-## Technical documentation
+### Technical documentation
 
 - [Architecture v2 and migration decisions](docs/architecture-v2.md)
 - [Portfolio Definition of Done and evidence policy](docs/portfolio-verification-policy.md)
@@ -126,7 +291,7 @@ no measured SLA/RTO/RPO or disaster recovery guarantee; replica counts alone do 
 - [Live-readiness approval gates](docs/dev-live-validation-readiness.md)
 - [Account, state and artifact bootstrap decision plan](docs/dev-bootstrap-decision-plan.md)
 
-## V5 private runtime source and offline evidence
+### V5 private runtime source and offline evidence
 
 Accepted post-V4 main `a4f0a9b8b0a810976c7ab305001729463443b27b` passed
 [CI42757339642](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42757339642)
@@ -154,7 +319,7 @@ Offline schemas do not prove handshakes, IAM, controller effectiveness or Live.
 G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
 30-day recovery conflict remain unchanged. No State/AWS/Kubernetes Live authority.
 
-## Current limitations
+### Current limitations
 
 Current operating policy is Master Policy v14 (2026-11-12), per user instruction.
 The complete user-supplied v14 text was reviewed; original PDF/hash verification
@@ -178,7 +343,7 @@ introduced here. Offline acceptance does not authorize live validation. Real
 production delivery would require operational, security, performance and recovery
 validation beyond this portfolio's completion scope.
 
-## DEV Live restrictions — all seven gates OPEN
+### DEV Live restrictions — all seven gates OPEN
 
 No Live operation is authorized here. Actual cumulative DEV Live spending must
 stay within **JPY 10,000**, and testing plus verified complete teardown must finish
