@@ -48,7 +48,7 @@ def signed_sts_request(access_key, secret_key, now=None):
   if at.tzinfo is None:raise ValueError('signed-sts-timezone')
   date=at.astimezone(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
   scope=date[:8]+'/ca-central-1/sts/aws4_request'
-  host='sts.ca-central-1.amazonaws.com'
+  host='127.0.0.1:9297'
   signed_headers='content-type;host;x-amz-date'
   canonical_headers='content-type:application/x-www-form-urlencoded\n'+'host:'+host+'\n'+'x-amz-date:'+date+'\n'
   body=b'Action=GetCallerIdentity&Version=2011-06-15'
