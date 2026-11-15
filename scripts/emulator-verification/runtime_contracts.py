@@ -50,10 +50,10 @@ def signed_sts_request(access_key, secret_key, now=None):
   scope=date[:8]+'/ca-central-1/sts/aws4_request'
   host='sts.ca-central-1.amazonaws.com'
   signed_headers='content-type;host;x-amz-date'
-  canonical_headers='content-type:application/x-www-form-urlencoded\\n'+'host:'+host+'\\n'+'x-amz-date:'+date+'\\n'
+  canonical_headers='content-type:application/x-www-form-urlencoded\n'+'host:'+host+'\n'+'x-amz-date:'+date+'\n'
   body=b'Action=GetCallerIdentity&Version=2011-06-15'
-  canonical='POST\\n/\\n\\n'+canonical_headers+'\\n'+signed_headers+'\\n'+hashlib.sha256(body).hexdigest()
-  to_sign='AWS4-HMAC-SHA256\\n'+date+'\\n'+scope+'\\n'+hashlib.sha256(canonical.encode()).hexdigest()
+  canonical='POST\n/\n\n'+canonical_headers+'\n'+signed_headers+'\n'+hashlib.sha256(body).hexdigest()
+  to_sign='AWS4-HMAC-SHA256\n'+date+'\n'+scope+'\n'+hashlib.sha256(canonical.encode()).hexdigest()
   def digest(key,value):return hmac.new(key,value.encode(),hashlib.sha256).digest()
   key=digest(('AWS4'+secret_key).encode(),date[:8])
   for part in ['ca-central-1','sts','aws4_request']:key=digest(key,part)
