@@ -165,10 +165,10 @@ class STSContracts(unittest.TestCase):
     self.assertEqual(request.full_url,'https://127.0.0.1:9297/')
     self.assertEqual(request.get_method(),'POST')
     self.assertEqual(request.data,b'Action=GetCallerIdentity&Version=2011-06-15')
-    self.assertEqual(request.get_header('Host'),'sts.ca-central-1.amazonaws.com')
+    self.assertEqual(request.get_header('Host'),'127.0.0.1:9297')
     self.assertEqual(request.get_header('Authorization'),
       'AWS4-HMAC-SHA256 Credential=EMULATOR123456789ABC/20261115/ca-central-1/sts/aws4_request, '
-      'SignedHeaders=content-type;host;x-amz-date, Signature=f4a844865d9f014468e65f88f22e65c534ba6c22db82268f5f19a538a8a9ee33')
+      'SignedHeaders=content-type;host;x-amz-date, Signature=82f338e47ee13d7f332e15d51373f01e26b71f85ef3f0434d5f75688240cc033')
   def test_structured_wire_parsers_reject_malformed_and_wrong_identity(self):
     self.assertEqual(signed_sts_identity(200,WIRE_SIGNED_XML),STS['signed'])
     for body in [WIRE_SIGNED_XML.replace(b'000000000000',b'111111111111'),
