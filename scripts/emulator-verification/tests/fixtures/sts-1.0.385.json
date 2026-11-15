@@ -5,7 +5,9 @@
     "sts_blob": "360b86ea65f621e19067df7b979dc28e9330f3a4",
     "renderer_blob": "8c519d7f06dda714f8dc88227c3cd4de393f0c03",
     "classification": "UPSTREAM_SOURCE_VERIFIED",
-    "note": "Source-derived public protocol examples; message/identity fields are synthetic. Not a captured wire response."
+    "cli_release": "2.35.0",
+    "cli_renderer_blob": "3f7e01429df94c3a25fadeb963a6d57e10a05b2e",
+    "note": "Source-derived public protocol examples; message/identity fields are synthetic. Not a captured wire response. CLI stderr follows AWS CLI 2.35.0 awscli/errorformat.py write_error(), which prefixes 'aws: [ERROR]: '."
   },
   "signed": {
     "Account": "000000000000",
@@ -14,12 +16,12 @@
   "wrong_secret": {
     "exit": 254,
     "stdout": "",
-    "stderr": "\nAn error occurred (SignatureDoesNotMatch) when calling the GetCallerIdentity operation: synthetic private message omitted\n"
+    "stderr": "\naws: [ERROR]: An error occurred (SignatureDoesNotMatch) when calling the GetCallerIdentity operation: synthetic private message omitted\n"
   },
   "unknown_key": {
     "exit": 254,
     "stdout": "",
-    "stderr": "\nAn error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: synthetic private message omitted\n"
+    "stderr": "\naws: [ERROR]: An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: synthetic private message omitted\n"
   },
   "unsigned": {
     "status": 403,

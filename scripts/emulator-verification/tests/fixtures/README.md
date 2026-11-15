@@ -31,7 +31,9 @@ raw response material. Pinned STS service blob `360b86ea65f621e19067df7b979dc28e
 explicitly distinguishes held-key signature mismatch from unresolved-key
 InvalidClientTokenId, including an unsigned request. The namespace/envelope comes
 from that service and pre_dispatch blob `8c519d7f06dda714f8dc88227c3cd4de393f0c03`.
-CLI envelopes use ClientError's documented template; messages are synthetic.
+CLI envelopes use ClientError's documented template inside AWS CLI 2.35.0
+`write_error()` (`aws: [ERROR]: ` prefix, errorformat.py blob
+`3f7e01429df94c3a25fadeb963a6d57e10a05b2e`); messages are synthetic.
 The separately labeled observed_run contains only allowlisted receipts read from
 Run 43715108794 at 406b468c820ed7ed7db86c9d38b578184811453d: signature PASS and
 unknown-key AUTH_UNEXPECTED_INVALID_TOKEN/254. The latter code is inferred from

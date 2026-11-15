@@ -77,6 +77,8 @@ class STSContracts(unittest.TestCase):
     self.assertIn('(InvalidClientTokenId)',STS['unknown_key']['stderr'])
     self.assertIn('(SignatureDoesNotMatch)',STS['wrong_secret']['stderr'])
     self.assertNotIn('AccessDenied',STS['unknown_key']['stderr'])
+    self.assertEqual((STS['provenance']['cli_release'],STS['provenance']['cli_renderer_blob']),('2.35.0','3f7e01429df94c3a25fadeb963a6d57e10a05b2e'))
+    for probe in ['wrong_secret','unknown_key']:self.assertTrue(STS[probe]['stderr'].startswith('\naws: [ERROR]: An error occurred ('))
   def test_real_run_orchestration_independently_checks_both_key_halves(self):
     code,rows,model=self.invoke();self.assertEqual(code,0)
     probes=[env for args,env in model.calls if 'get-caller-identity' in args]
@@ -107,13 +109,16 @@ class STSContracts(unittest.TestCase):
           self.assertNotIn({'gate':'auth-invalid-'+('signature' if probe=='wrong_secret' else 'credential'),'status':'PASS'},result[1])
   def test_cli_envelope_rejects_embedded_duplicate_malformed_and_stdout(self):
     good=STS['unknown_key']['stderr']
-    for text,out in [('prefix '+good,''),(good+good,''),(good.replace('operation:','operation'),''),(good.replace('GetCallerIdentity','DescribeVpcs'),''),(good,json.dumps(STS['signed'])),(good+'\n'+LEAK,''),('<Error>'+good+'</Error>','')]:
+    for text,out in [('prefix '+good,''),(good+good,''),(good.replace('operation:','operation'),''),(good.replace('GetCallerIdentity','DescribeVpcs'),''),(good,json.dumps(STS['signed'])),(good+'\n'+LEAK,''),('<Error>'+good+'</Error>',''),(good.replace('aws: [ERROR]: ',''),''),(good.replace('aws: [ERROR]: ','aws: [ERROR]: aws: [ERROR]: '),''),(good.replace('[ERROR]','[WARNING]'),''),(good.replace('aws: [ERROR]:','aws: [ERROR]:  '),''),(good+'\nAdditional error details:\nType: Sender\n','')]:
       with self.subTest(case=text[:20]):
         reply=dict(STS['unknown_key'],stderr=text,stdout=out)
         self.assertIsNone(cli_error_code(subprocess.CompletedProcess([],254,out,text),'GetCallerIdentity'))
         self.assert_auth_blocked(*self.invoke(probe='unknown_key',reply=reply))
     retry=good.replace('operation:','operation (reached max retries: 1):')
     self.assertEqual(cli_error_code(subprocess.CompletedProcess([],254,'',retry),'GetCallerIdentity'),'InvalidClientTokenId')
+    # Regression for Runs 43723761085/43733987794: the pinned CLI's exact rendering classifies.
+    for probe,code in [('wrong_secret','SignatureDoesNotMatch'),('unknown_key','InvalidClientTokenId')]:
+      self.assertEqual(cli_error_code(subprocess.CompletedProcess([],254,'',STS[probe]['stderr']),'GetCallerIdentity'),code)
   def test_unsigned_envelope_is_source_derived_and_namespace_aware(self):
     body=STS['unsigned']['body'].encode();self.assertTrue(unsigned_sts_rejected(403,body))
     with_id=body.replace(b'</ErrorResponse>',b'<RequestId>synthetic</RequestId></ErrorResponse>')
@@ -208,6 +213,6 @@ class STSContracts(unittest.TestCase):
           self.assertFalse(any(row['gate']==gate and row['status']=='PASS' for row in result[1]))
   def test_independent_absence_rejects_error_text_inside_unrelated_output(self):
     run=object.__new__(lifecycle.Run);run.owned_id='vpc-owned';run.env={'AWS_CA_BUNDLE':'private'}
-    reply=subprocess.CompletedProcess([],254,'','prefix An error occurred (InvalidVpcID.NotFound) when calling the DescribeVpcs operation: private')
+    reply=subprocess.CompletedProcess([],254,'','prefix aws: [ERROR]: An error occurred (InvalidVpcID.NotFound) when calling the DescribeVpcs operation: private')
     run.cmd=lambda *args,**kw:reply
     with self.assertRaises(Blocked):run.absence()
