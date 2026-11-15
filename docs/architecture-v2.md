@@ -36,12 +36,14 @@ TLS/identity, resource ownership and NP-1 implementation remain unchanged.
 
 ## Authority, evidence and status
 
-The current approved operating policy is **Master Policy v14 (2026-11-12)**,
-using the complete 24-page text supplied and authorized by the user. All supplied
-text was reviewed; the original PDF was unavailable and its SHA-256 is unverified.
-No original-PDF verification is claimed. v14 alone governs current work; the
-[verification policy](portfolio-verification-policy.md#official-aws-emulator--policy-v13)
-retains stale authority labels tracked in V7-0 P2-02, not a second current policy.
+Current operating requirements are the owner-authorized **Master Policy v14.2**
+[alignment record](policy-v14-2-alignment.md): mandatory Core offline quality,
+separate portfolio-level representative Emulator demonstration, optional external
+Live and unchanged architecture/security controls. The v14.2 PDF/full text/hash
+is unavailable; no original-PDF verification or unprovided clause is claimed.
+The earlier complete v14 text and v14.1 34-page extraction were user-supplied;
+their original PDFs were not independently verified. See the current
+[verification policy](portfolio-verification-policy.md).
 Earlier policy versions are historical implementation/design provenance only.
 The design below retains its recorded v10 (2026-11-08) provenance and approved
 clarifications/subsequent repository decisions. R3 infers no undocumented v11

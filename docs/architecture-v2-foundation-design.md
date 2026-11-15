@@ -1,8 +1,9 @@
 # Architecture v2 foundation design — Network / State / Identity
 
 This is an implementation-readiness proposal, not implementation or execution
-approval. Current operating policy is user-approved Master Policy v13 (2026-11-12),
-with [isolated Emulator/completion rules](portfolio-verification-policy.md#official-aws-emulator--policy-v13);
+approval. Current operating requirements are the owner-authorized Master Policy
+v14.2 [alignment record](policy-v14-2-alignment.md), with separate Core offline and
+portfolio-level representative [Emulator/completion gates](portfolio-verification-policy.md);
 v11 (2026-11-09) remains historical implementation/design provenance;
 this design retains historical v10 (2026-11-08) provenance. See
 [authority/PDF limitations](architecture-v2.md#authority-evidence-and-status); no

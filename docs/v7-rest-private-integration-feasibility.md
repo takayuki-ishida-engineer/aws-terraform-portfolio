@@ -1,5 +1,26 @@
 # V7-0 REST / private integration technical contract
 
+## Current v14.2 acceptance overlay
+
+The owner-authorized [v14.2 alignment record](policy-v14-2-alignment.md) governs
+current acceptance. Earlier authority/baseline statements below record V7-0's
+historical study, not today's main/PR state or governing edition. Technical P0
+questions remain OPEN; the acceptance change does not resolve ARN, PKI or manifest
+contracts. Current runtime source includes NP-1/NP-2P; historical absence statements
+below are not a current inventory (see [runtime checks](../kubernetes/tests/README.md)).
+
+Phase 1 is policy documentation only, with exact-HEAD Full CI and a stop for
+independent review/owner approval. After its merge is observed and the owner resumes
+Phase 2, V7-A is limited to the new REST core/Authorizer and actual Cognito ARN
+reference, default endpoint disabled, with existing Cognito resources/outputs
+preserved. No Method, Integration, Deployment/Stage, VPC Link, Backend or Custom
+Domain is included. All affected offline checks and existing Full CI remain required.
+Emulator lifecycle is NOT_TESTED and known namespace isolation is environment
+BLOCKED; neither is a Core PR rejection by itself, a compatibility PASS or an API
+skip. Representative lifecycle demonstration is still mandatory at portfolio level
+under all fourteen controls, in a separately approved track. No implementation,
+workflow, Emulator run, merge or portfolio completion is authorized by this PR.
+
 ## Authority, baseline and verdict
 
 Documentation only. Starting main is `a8ae82e8265f577e2801f87ace6fa83da0a7bfaa`;
@@ -357,11 +378,11 @@ decision not approved by v14 requires owner input.
 | P1-01 | Custom-domain public certificate/DNS/control, versioned truststore and inbound client identity | TLS_1_2/mTLS compatibility; ownership certificate if imported/private. Minimal CA is not a single-client allowlist; review revocation-equivalent checks compatible with Cognito, no second method authorizer assumption | PKI/security/DNS/API owners; before V7-C/D |
 | P1-02 | Link subnet/AZ/ENI capacity, supported AZ IDs and replacement/idle recovery | Private scope and SG references, active DEV AZ, cross-zone cost/failure and complete teardown evidence; no allocation inferred | Network/Platform/API owners; before link implementation/operational selection |
 | P1-03 | Deployment fingerprints, rollback, path/base-path/header mapping and logs | Deployment-snapshot security changes require redeploy; Stage/certificate updates and propagation are tracked separately. No secret/body logs or default endpoint bypass. Review account-wide API Gateway logging-role singleton before assigning its writer | API/application/security owners; V7-A schema and later B/C integration |
-| P1-04 | Emulator feature-specific compatibility and release-score mapping | Run affected real mock-plan/security tests, then isolated supported lifecycle. Preserve 501/validation/mismatch distinctions and residual gaps, without production workarounds | Implementation + independent reviewer; each future PR |
+| P1-04 | Emulator feature-specific compatibility and release-score mapping | Every implementation PR retains affected mock/security/evidence checks. Separately approved representative demonstration requires isolated lifecycle and precise 501/validation/mismatch evidence, without production workarounds | Implementation + independent reviewer; separate demonstration track under v14.2 |
 | P1-05 | API client and backend claim/tenant/owner policy | Any-one scope matching, expiry/token_use/client identity, no ID-token substitution, no wildcard app allow. Agree trusted claim propagation and negative cases without fictional app | Identity/application/security owners; before application authorization acceptance |
 | P1-06 | v14 default-deny Kubernetes NetworkPolicy and scoped required traffic | Current application-security.yaml owns STRICT PeerAuthentication and empty-ALLOW AuthorizationPolicy, not NetworkPolicy. Review DNS/control-plane/webhook/mesh/application flows and enforcement support; require actual rendered-policy negative/mutation evidence in a separately authorized runtime PR | Runtime/network/security owners; before runtime security acceptance or optional Live; no Kubernetes changes in V7-0 |
 | P2-01 | Certificate monitoring/expiry/revocation, emergency denial and teardown runbook | Credential overlap, propagation delay, detach-before-delete and certificate/CA/CloudFront expenses; no72-hour budget guarantee | Operational/PKI owners; before optional Live |
-| P2-02 | Stale authority-label synchronization outside this PR's allowed files | Verification policy/foundation design still say current v13 and permanent AGENTS retains a historical v13 anchor. v14 alone governs; earlier editions are historical provenance only. A separately authorized correction is needed, without weakening controls or rewriting historical evidence | Repository owner; affected out-of-scope edits deferred, no permanent AGENTS changes in V7-0 |
+| P2-02 | Historical authority-label synchronization | The v14.2 Policy Alignment PR updates current authority and acceptance sections; historical v13/v14 study records and evidence remain scoped. No PDF verification is inferred | Repository owner + independent reviewer; policy PR approval/merge remains required |
 
 ## 7. Recommended staged implementation and V7-A entry gate
 
@@ -369,7 +390,7 @@ These are recommendations for separately authorized PRs, not permission to start
 
 | Stage | Proposed files/ownership | Inputs/outputs and checks | Gate / excluded work |
 | --- | --- | --- | --- |
-| V7-A REST core + Cognito contract | Future infra/modules/api_gateway_rest and existing api Root; preserve all V6 addresses | Regional API and Cognito authorizer from actual V6 output, default endpoint disabled and minimal outputs. Agree the nonempty method/scope and deployment contract, but defer Method/Deployment/Stage resource creation until real integrations can be defined in V7-B. Actual plan inventory/output/reference checks, scope/config negatives, security/source mutations, evidence rejection and isolated supported API lifecycle | Approve exact route/log/deployment responsibilities, test criteria and independent review. No private Integration target selection, custom-domain allocation or fake public invoke success |
+| V7-A REST core + Cognito contract | Future infra/modules/api_gateway_rest and existing api Root; preserve all V6 addresses/outputs | Regional API and Cognito authorizer from actual V6 output, default endpoint disabled and minimal outputs. Defer Method/Integration/Deployment/Stage/VPC Link/Backend/Custom Domain. Actual mock-plan inventory/output/reference checks, scope/config negatives, security/source mutations and evidence rejection; exact-HEAD Full CI | Observe Policy Alignment merge and owner resumption, then independent review/user approval. Emulator NOT_TESTED with namespace environment BLOCKED, separate representative track; no fake public invoke success |
 | V7-B VPC Link/private HTTPS composition | Same API child/Root; consume Platform/Network minimal references only | V2 link and immutable subnet/SG selection; integration_target after P0-01; HTTPS URI/SNI/Host and TCP443, protected Methods plus actual Integrations/Deployment/Stage. Required certificate-reference contract must be respected before any connectivity claim. Wrong ARN family/scope/SG/AZ/URI/ownership/malformed-manifest and TLS-downgrade mutations; actual link/integration lifecycle where supported | Resolve P0-01/02/04 and P1-02. No NLB/TG/SG recreation or operational State reader |
 | V7-C Regional custom domain/truststore/WAF | Approved API-owned domain/mapping/Stage WAF/log resources; external DNS/PKI/truststore writers explicitly assigned | External server certificate and versioned truststore reference, compatible TLS_1_2, mapping, WAF, disabled default endpoint. Negative trust/version/bypass/policy/ownership cases; supported isolated API lifecycle | Resolve P1-01/03; no domain/certificate existence, CloudFront plan or real AWS assumption |
 | V7-D backend client identity and combined security acceptance | Verify/complete the existing API-owned Stage ACM ARN association plus separately owned external PKI/runtime contracts; no second Stage writer | ARN Read-back, external server/client trust and pin rotation; preserve Gateway MUTUAL/-cacert/SPKI and STRICT/default-deny. Wrong/expired/untrusted/other-client and no-client/SNI mismatch checks where genuinely executable; distinguish API storage from actual handshakes | Resolve P0-03 and remaining P0/P1. No private key in Terraform, no claimed real handshake from mocks/emulator storage, no automatic Live |
@@ -378,7 +399,9 @@ Minimum before V7-A: explicit user authorization after independent V7-0 review;
 approve the narrowed REST-core scope and resource-writer map, method/scope and
 redeployment schema, required non-secret inputs and output interface, logs/account
 singleton decision or explicit deferral without a competing writer, concrete
-positive/negative/mutation/evidence criteria and emulator-supported operation plan.
+positive/negative/mutation/evidence criteria. Representative Emulator planning and
+execution belong to the separately approved track; they are not a blanket V7-A
+implementation PR prerequisite under v14.2.
 Keep P0-01/02/03/04 visible and exclude their dependent integrations, rather than
 inventing target ARNs, certificates or output publication. Do not create a Deployment over methods with no integration, or add a fictional
 MOCK/Lambda integration to make deployment pass. V7-A has no business Method,

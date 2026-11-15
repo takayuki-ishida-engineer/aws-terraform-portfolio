@@ -1,23 +1,30 @@
 # Portfolio verification policy — evidence and operating boundaries
 
-Current approved operating policy is Master Policy v13 (2026-11-12), per user
-approval. The explicit v13 operating requirements below supersede blanket Codex
-Apply/Destroy prohibitions; historical v10/v11 design and evidence stay scoped.
+Current operating requirements are the owner-authorized Master Policy v14.2
+[alignment record](policy-v14-2-alignment.md). Core Implementation and mandatory
+portfolio-level representative Emulator demonstration have separate acceptance
+gates. Historical v10–v14.1 design and evidence stay scoped.
 See [policy authority and PDF limitations](architecture-v2.md#authority-evidence-and-status).
 No unavailable PDF contents or new implementation/Live approvals are inferred.
 
-## Official AWS Emulator — policy v13
+<a id="official-aws-emulator--policy-v13"></a>
+
+## Official AWS Emulator — safety boundary
+
+The legacy v13 anchor above preserves historical links, not old policy authority.
 
 The approved permanent [AGENTS rules](../AGENTS.md#mandatory-official-aws-emulator-safety-controls)
 are the mandatory lifecycle safety checklist. Real AWS credentials/SSO,
 authenticated real APIs and real AWS Plan/Apply/Destroy/Import remain prohibited
 in Codex Cloud. Isolated official Emulator Plan/Apply/Read/Refresh/Update/Destroy
-is the standard verification path for supported future Terraform resources, not
-just an exception for one old experiment. No real AWS fallback is permitted.
+is permitted only under all fourteen controls. Representative demonstration is
+mandatory at portfolio level; lifecycle for every resource is not a blanket
+implementation PR prerequisite. No real AWS fallback is permitted.
 
-For affected Terraform work: implement, run required affected offline/security
-tests, identify supported operations, establish isolation, exercise applicable
-lifecycle, independently verify identity/cleanup and record evidence before PR.
+For every Terraform implementation, require affected offline/security checks,
+unchanged Full CI, independent review and user approval. For separately approved
+Emulator work, identify supported operations, establish isolation, exercise the
+approved lifecycle, independently verify identity/cleanup and record evidence.
 The mandatory controls include pinned signature-verified Emulator, loopback HTTPS,
 generated credentials/CA, verified TLS, telemetry off, network namespace without
 external routes, independent external-AWS denial, local STS account `000000000000`,
@@ -26,8 +33,11 @@ exact ownership, independent create/delete checks and full temporary-file cleanu
 Never weaken production security or alter operational Roots/State for the emulator.
 
 Preserve every existing Native/Mock Plan/Python/Security/Negative/Mutation check.
-Do not make the emulator a permanent CI requirement now. Documentation changes
-without affected API behavior need only documentation checks, not lifecycle replay.
+Emulator execution is separate from required Full CI. A dedicated workflow_dispatch
+workflow may be designed in a separately approved PR and run only after its merge,
+on standard public GitHub-hosted Ubuntu runners without additional charges.
+No such workflow is introduced here. Documentation changes require documentation
+checks and existing Full CI on every PR, without lifecycle replay.
 PASS means directly demonstrated; PARTIAL means partial evidence; PARTIAL-SKIP
 requires actual evidence of the specific unimplemented API (for example HTTP 501).
 FAIL is a Terraform/configuration defect requiring correction/retest; BLOCKED is
@@ -63,10 +73,13 @@ claim follows from it. Original historical acceptance records remain unchanged.
 
 ### Default portfolio completion path
 
-Real AWS deployment is not mandatory. Completion uses correct Terraform source
-and architecture, complete required credential-free CI, independent security and
-mutation validation, emulator lifecycle where supported, explicit unsupported/
-untested evidence and independent PR approval. Optional real AWS verification
+Real AWS deployment is not mandatory. Core Implementation uses correct source and
+architecture, affected offline/security/mutation/evidence checks and complete
+credential-free Full CI on every PR, with independent review and user approval.
+Representative Emulator lifecycle remains a separate portfolio-level requirement,
+not a blanket per-resource PR gate. Core Portfolio Complete requires a separate
+assessment of all approved scope, representative evidence and residual risk;
+no individual PR or historical VPC result declares completion. Optional real AWS verification
 requires a separate user decision and G01–G07, cumulative actual JPY 10,000 and
 complete verified teardown within 72 hours. Secrets Manager's 30-day recovery
 conflict remains OPEN. Emulator success never becomes actual AWS deployment evidence.
@@ -95,8 +108,8 @@ implementation or Live authorization. Label each component/environment separatel
 | Evidence state | Required evidence | Limitation |
 | --- | --- | --- |
 | Defined, not deployed | Approved architecture/environment contract | Does not establish implemented source or a passed test |
-| Implemented and tested offline | Source revision plus actual mock/static/security and successful CI evidence | Does not establish deployed identity, authorization or service operation |
-| Emulator lifecycle demonstrated | Pinned versions, verified isolation, actual lifecycle, independent identity/cleanup evidence | Limited to tested resource/API behavior; not real AWS deployment or security effectiveness |
+| Core Implementation — offline tested | Source revision, affected fmt/init/validate/Native/Mock/Negative/Security/Mutation/Evidence, exact-HEAD Full CI, independent review and user approval | Not whole-portfolio completion, deployed identity, authorization or service operation |
+| EMULATOR DEMONSTRATED | Pinned versions, all fourteen controls, actual representative lifecycle, independent identity/cleanup evidence | Limited to successfully measured resource/API behavior; not real AWS deployment or security effectiveness |
 | DEV Live tested with explicit approved evidence | Separately authorized scenario, actual outcomes and redacted evidence | Applies only to scenarios/resources/revisions actually verified |
 | OPEN / awaiting approval | Explicit unresolved decision, scenario or approval | No assumption of implementation, authorization or success |
 
@@ -223,7 +236,7 @@ No real AWS Live operation is authorized by this PR. Actual external execution
 requires all applicable gate evidence, independent approval and explicit scope outside Codex
 Cloud. Never request/use real AWS credentials, authenticated real AWS APIs/plans,
 operational State operations or real AWS apply/destroy/deployments in Codex Cloud.
-Isolated emulator verification follows the v13 rules above and is not Live.
+Isolated emulator verification follows the unchanged fourteen controls above and is not Live.
 No workload/destructive testing in the Organizations Management Account.
 
 **Actual cumulative DEV Live spending must stay within JPY 10,000 across the
