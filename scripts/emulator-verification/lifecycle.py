@@ -7,7 +7,7 @@ from pathlib import Path
 from gates import require,network_gate,unreachable_gate,identity_gate,tls_gate,plan_gate,state_id,api_owner,evidence_gate,CONTROLS,OPERATIONS,freshness_gate,refresh_gate
 HERE=Path(__file__).resolve().parent
 PRIVATE=Path('/work/private')
-from runtime_contracts import ENDPOINT,DIAGNOSTICS,RuntimeFailure,strict_json,startup_record,generated_file,cli_error_code,unsigned_sts_rejected
+from runtime_contracts import ENDPOINT,DIAGNOSTICS,RuntimeFailure,strict_json,startup_record,generated_file,cli_error_code,unsigned_sts_rejected,signed_sts_request,signed_sts_identity,sts_rejection
 API_NAMES={'CreateVpc','DescribeVpcs','DescribeVpcAttribute','ModifyVpcAttribute','CreateTags','DeleteTags','DeleteVpc','GetCallerIdentity','GetUser','ListRoles'}
 
 def emit(gate,status,exit_code=None,api=None,resource_id=None,diagnostic=None,sha=None,run_id=None):
@@ -195,6 +195,28 @@ class Run:
     else:raise RuntimeFailure('TLS_VALIDATION_FAILED')
     if self.emulator.poll() is not None:raise RuntimeFailure('STARTUP_PROCESS_EXIT')
     self.mark('controls','2');self.mark('controls','4');self.mark('controls','5');emit('startup-ready','PASS')
+  def structured_auth_rejection(self, changed, expected_code):
+    """If CLI text is unclassifiable, prove rejection over strict local HTTPS.
+
+    The same independent signer must first authenticate the original credentials
+    successfully, so a broken signer cannot make all negative probes appear safe.
+    """
+    try:
+      context=ssl.create_default_context(cafile=self.env['AWS_CA_BUNDLE'])
+      tls_gate(context.verify_mode,context.check_hostname)
+      original=signed_sts_request(self.credentials['aws_access_key_id'],self.credentials['aws_secret_access_key'])
+      with self.http(original,context) as response:
+        identity=signed_sts_identity(response.status,response.read(8193))
+      if identity is None:return False
+      identity_gate(identity)
+      invalid=signed_sts_request(changed['aws_access_key_id'],changed['aws_secret_access_key'])
+      try:
+        with self.http(invalid,context):return False
+      except urllib.error.HTTPError as error:
+        return sts_rejection(error.code,error.read(8193),expected_code)
+    except Exception:
+      # No private response body, credential, request or exception is logged.
+      return False
   def authenticate(self):
     self.current_operation='auth-signed-sts'
     try:identity_gate(self.aws('sts','get-caller-identity'))
@@ -210,6 +232,12 @@ class Run:
       env=dict(self.env,AWS_ACCESS_KEY_ID=changed['aws_access_key_id'],AWS_SECRET_ACCESS_KEY=changed['aws_secret_access_key'])
       result=self.cmd(args,ok=(0,254,255),env=env)
       observed=cli_error_code(result,'GetCallerIdentity')
+      if result.returncode==254 and observed is None:
+        # A text rendering mismatch is not a security verdict. Independently
+        # verify a successful baseline and the exact rejected STS XML response.
+        if self.structured_auth_rejection(changed,code):
+          emit(self.current_operation,'PASS',diagnostic='AUTH_WIRE_FALLBACK_VERIFIED')
+          continue
       if result.returncode!=254 or observed!=code:
         diagnostic='AUTH_REQUEST_ACCEPTED' if result.returncode==0 else {'AccessDenied':'AUTH_UNEXPECTED_ACCESS_DENIED','SignatureDoesNotMatch':'AUTH_UNEXPECTED_SIGNATURE_MISMATCH','InvalidClientTokenId':'AUTH_UNEXPECTED_INVALID_TOKEN'}.get(observed,'AUTH_UNCLASSIFIED_REJECTION')
         emit(self.current_operation,'BLOCKED',exit_code=result.returncode,diagnostic=diagnostic)
