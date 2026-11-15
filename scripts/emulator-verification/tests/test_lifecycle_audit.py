@@ -112,7 +112,7 @@ class Model:
         else:out=json.dumps(dict(STS['signed'],Account='111111111111') if self.fault=='sts-mismatch' else STS['signed'])
       elif 'describe-vpcs' in args:
         if '--vpc-ids' in args and args[args.index('--vpc-ids')+1] not in self.inventory:
-          code=254;err='An error occurred (InvalidVpcID.NotFound) when calling the DescribeVpcs operation: '+LEAK
+          code=254;err='\naws: [ERROR]: An error occurred (InvalidVpcID.NotFound) when calling the DescribeVpcs operation: '+LEAK+'\n'
         else:out=json.dumps({'Vpcs':list(self.inventory.values())})
       elif 'delete-vpc' in args:
         target=args[args.index('--vpc-id')+1];self.delete_ids.append(target);self.inventory.pop(target)

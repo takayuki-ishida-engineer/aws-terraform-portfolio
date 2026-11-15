@@ -25,15 +25,21 @@ def strict_json(s):
     return d
   return json.loads(s,object_pairs_hook=pairs,parse_constant=lambda value:(_ for _ in ()).throw(Blocked('nonfinite-json')))
 
+# AWS CLI 2.35.0 writes every ClientError through awscli/errorformat.py
+# write_error(), which prefixes the botocore message with this exact text.
+CLI_ERROR_PREFIX='aws: [ERROR]: '
+
 def cli_error_code(result, operation):
   """Read one CLI ClientError envelope, never an embedded error-looking string.
 
   Caller must separately require exit 254 and the service-specific expected code.
-  The message is private and is neither returned nor logged. Retry wording follows
-  botocore ClientError; arbitrary/multiple records or successful JSON are refused.
+  The message is private and is neither returned nor logged. The pinned CLI's
+  write_error() prefix is required exactly once; retry wording follows botocore
+  ClientError. Arbitrary/multiple records, enhanced-format detail lines, other
+  prefixes or successful JSON are refused.
   """
   if result.stdout.strip():return None
-  match=re.fullmatch(r'An error occurred \(([A-Za-z0-9.]+)\) when calling the '+re.escape(operation)+r' operation(?: \(reached max retries: [0-9]+\))?: [^\r\n]+',result.stderr.strip())
+  match=re.fullmatch(re.escape(CLI_ERROR_PREFIX)+r'An error occurred \(([A-Za-z0-9.]+)\) when calling the '+re.escape(operation)+r' operation(?: \(reached max retries: [0-9]+\))?: [^\r\n]+',result.stderr.strip())
   return match[1] if match else None
 
 def signed_sts_request(access_key, secret_key, now=None):

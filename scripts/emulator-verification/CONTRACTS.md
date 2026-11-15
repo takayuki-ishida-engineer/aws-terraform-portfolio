@@ -1,5 +1,40 @@
 # STS correction and remaining runtime contract review
 
+## Follow-up: AWS CLI error prefix root cause (Runs 43723761085 and 43733987794)
+
+Run [43733987794](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43733987794)
+on merged main `16a94b5f18c02b63d9aec54c5a87f00ac05ec7f9` again BLOCKED at
+`auth-invalid-signature` (`AUTH_STRUCTURED_REJECTION_UNPROVEN`, exit 254).
+The cause of both runs is now source-verified. AWS CLI 2.35.0
+`ClientErrorHandler` [S5] writes every ClientError through `write_error()` in
+[awscli/errorformat.py](https://github.com/aws/aws-cli/blob/2.35.0/awscli/errorformat.py)
+(blob `3f7e01429df94c3a25fadeb963a6d57e10a05b2e`), which emits
+`\naws: [ERROR]: <botocore ClientError text>\n` in both the default `enhanced`
+and the `legacy` error format. `cli_error_code` anchored its full match at
+`An error occurred`, so it refused every real envelope. Historical Run 43715108794
+classified the code only because its substring search ignored the prefix.
+Emulator wording for both refusals is fixed single-line text
+([authentication_refusal.rs](https://github.com/aws/aws-emulator/blob/v1.0.385/services/common/src/authentication_refusal.rs)),
+and STS models neither code, so the enhanced format adds no detail lines.
+
+`cli_error_code` now requires that exact prefix once, followed by the unchanged
+single-record ClientError grammar. Arbitrary leading text, the unprefixed form,
+a duplicated or different-level prefix, extra spacing and enhanced detail blocks
+remain refused. The fix also covers the post-Destroy `InvalidVpcID.NotFound`
+absence oracle, which shares the parser and would otherwise have blocked after a
+successful Destroy. Fixtures and test literals use the 2.35.0 rendering; the
+pre-fix parser fails 20 tests and 1 error against them, including the complete
+lifecycle test.
+
+The structured loopback fallback also returned False in Run 43733987794. Its
+failing step is not observable from the allowlisted receipts. The fixed-request
+signer was cross-checked locally against botocore `SigV4Auth` with identical
+inputs (signatures match), and the Emulator's source 403 template matches
+`sts_rejection`, so the signed success response or transport remain unproven
+candidates. The fallback stays fail-closed and is no longer reached when the real
+CLI envelope parses. Runtime results after this fix are NOT_TESTED until a fresh
+Owner-approved dispatch.
+
 ## Follow-up: unclassified AWS CLI diagnostic in Run 43723761085
 
 Run [43723761085](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43723761085)
@@ -143,6 +178,8 @@ AWS sources below are release **v1.0.385**, commit
   generated material and startup fields; unchanged startup audit in AUDIT.md.
 - **S5** [AWS CLI 2.35.0 errorhandler.py](https://github.com/aws/aws-cli/blob/2.35.0/awscli/errorhandler.py),
   blob `e09d4c740220dc4d4532732db87c12e223d228a7`, ClientErrorHandler/RC 254.
+  [AWS CLI 2.35.0 errorformat.py](https://github.com/aws/aws-cli/blob/2.35.0/awscli/errorformat.py),
+  blob `3f7e01429df94c3a25fadeb963a6d57e10a05b2e`, `write_error()` `aws: [ERROR]: ` prefix.
   [botocore ClientError format](https://github.com/boto/botocore/blob/1.42.46/botocore/exceptions.py#L517),
   blob `294bbf4020cf94067b8637c0607c93ed707dcffc`, message/retry template;
   this is authoritative template evidence, not proof of the embedded CLI library
