@@ -25,7 +25,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      RUNNER_KIND: ${{ runner.environment }}
       ACTOR: ${{ github.actor }}
       TRIGGERING_ACTOR: ${{ github.triggering_actor }}
       OWNER_CHECKED_AT: ${{ inputs.owner_checked_at }}
@@ -59,6 +58,8 @@ jobs:
           submodules: false
           lfs: false
       - name: Prepare verified packages and offline dependencies
+        env:
+          RUNNER_KIND: ${{ runner.environment }}
         run: python3 scripts/emulator-verification/prepare.py
       - name: Build temporary image and run isolated verification
         id: execution
