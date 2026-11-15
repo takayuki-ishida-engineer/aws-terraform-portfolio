@@ -307,4 +307,4 @@ if __name__=='__main__':
   import test_gpg_signatures,test_lifecycle_audit,test_sts_contracts
   suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in [Gates,PreparationDiagnostics,test_gpg_signatures.SignatureStatus,test_gpg_signatures.RealGPG,test_lifecycle_audit.IntegratedLifecycle,test_lifecycle_audit.RuntimeContracts,test_lifecycle_audit.LocalTLS,test_lifecycle_audit.HostWorkflow,test_sts_contracts.STSContracts])
   result=unittest.TextTestRunner(verbosity=2).run(suite)
-  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==63 else 1)
+  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==67 else 1)

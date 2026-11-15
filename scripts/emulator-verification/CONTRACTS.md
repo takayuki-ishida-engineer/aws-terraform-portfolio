@@ -1,5 +1,41 @@
 # STS correction and remaining runtime contract review
 
+## Follow-up: unclassified AWS CLI diagnostic in Run 43723761085
+
+Run [43723761085](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43723761085)
+on merged main `785f68af4d915378d17e3528635e6abbe26b7ced`
+passed package validation, Docker, isolation, startup and signed STS. The
+wrong-secret probe exited 254 but its human-facing CLI stderr failed the
+single-line `cli_error_code` parser and was reported
+`AUTH_UNCLASSIFIED_REJECTION`. The raw stderr is intentionally unavailable:
+the exact formatting mismatch and actual server error code are **not
+independently proven by that log**. Do not claim the Emulator accepted an
+invalid secret, or that the prior expected code was definitely returned.
+
+To avoid relying on human-facing CLI text, an unclassifiable exit-254 STS
+negative probe now requires an **independent structured loopback HTTPS proof**:
+a fixed-request, pure-standard-library SigV4 signer must first authenticate the
+original Emulator-issued key and secret successfully and return the exact
+synthetic STS identity; only then may the mutated credential pass if a separately
+signed request returns HTTP 403 with exactly the expected namespace-aware,
+single-error STS XML code. Unknown key requires `InvalidClientTokenId`;
+wrong secret requires `SignatureDoesNotMatch`. An unexpected CLI exit code,
+recognized but incorrect CLI error, failed signed baseline, HTTP 2xx/404,
+malformed XML or wrong code is BLOCKED. The successful alternative is recorded
+with the fixed `AUTH_WIRE_FALLBACK_VERIFIED` diagnostic; failed proof is
+`AUTH_STRUCTURED_REJECTION_UNPROVEN`, with no raw response or secret exposure.
+
+The fixed deterministic SigV4 request vector was checked independently
+against Botocore SigV4Auth (reference test; the runtime has no Botocore
+dependency). The pure signing and XML parsers plus integrated real-Run mock
+transport are tested by positive/negative/mutation cases. This does **not**
+establish installed Emulator/Provider interoperability or a successful live
+lifecycle, which remain `RUNTIME_NOT_TESTED`. No new network destination is
+introduced: the request URL is hard-coded to `https://127.0.0.1:9297/`,
+and the existing strict CA/hostname validation, proxy prohibition and
+network isolation still apply.
+
+
 Baseline main: `406b468c820ed7ed7db86c9d38b578184811453d`.
 Reviewed on 2026-11-15 (Asia/Tokyo). Historical failed
 [Run 43715108794](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43715108794)

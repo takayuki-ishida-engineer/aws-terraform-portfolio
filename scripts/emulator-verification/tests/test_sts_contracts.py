@@ -2,20 +2,26 @@
 
 No AWS CLI, Emulator, Docker or resource operation is executed by these tests.
 """
-import copy,inspect,io,json,ssl,subprocess,sys,tempfile,unittest,urllib.error
+import copy,datetime,inspect,io,json,ssl,subprocess,sys,tempfile,unittest,urllib.error
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 import lifecycle,host_evidence
 from gates import Blocked,CONTROLS
-from runtime_contracts import cli_error_code,unsigned_sts_rejected
+from runtime_contracts import cli_error_code,unsigned_sts_rejected,signed_sts_request,signed_sts_identity,sts_rejection
 from test_lifecycle_audit import Model,STS,LEAK,SHA,RUN
+
+WIRE_SIGNED_XML=(b'<?xml version="1.0"?><GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">'
+  b'<GetCallerIdentityResult><UserId>synthetic</UserId><Account>000000000000</Account>'
+  b'<Arn>arn:aws:iam::000000000000:user/emulator</Arn></GetCallerIdentityResult>'
+  b'<ResponseMetadata><RequestId>synthetic</RequestId></ResponseMetadata>'
+  b'</GetCallerIdentityResponse>')
 
 
 class AuthModel(Model):
   """Inject only transport replies, using independent literal fixture outcomes."""
-  def __init__(self,directory,probe=None,reply=None,unsigned=None):
-    super().__init__(directory);self.probe=probe;self.reply=reply;self.unsigned=unsigned
+  def __init__(self,directory,probe=None,reply=None,unsigned=None,wire=None):
+    super().__init__(directory);self.probe=probe;self.reply=reply;self.unsigned=unsigned;self.wire=wire;self.wire_requests=[]
   def command(self,args,**kw):
     result=super().command(args,**kw)
     if 'get-caller-identity' in args:
@@ -24,6 +30,20 @@ class AuthModel(Model):
       if probe==self.probe:return subprocess.CompletedProcess(args,self.reply['exit'],self.reply['stdout'],self.reply['stderr'])
     return result
   def http(self,request,context,timeout=5):
+    if self.wire is not None and not isinstance(request,str) and request.has_header('Authorization'):
+      from test_lifecycle_audit import Response
+      self.wire_requests.append(request)
+      if len(self.wire_requests)%2==1:
+        if self.wire=='bad-baseline':
+          raise urllib.error.HTTPError(request.full_url,403,'private',{},io.BytesIO(STS['unsigned']['body'].encode()))
+        return Response(WIRE_SIGNED_XML,200)
+      if self.wire=='accepted-invalid':return Response(WIRE_SIGNED_XML,200)
+      expected='SignatureDoesNotMatch' if self.probe=='wrong_secret' else 'InvalidClientTokenId'
+      if self.wire=='wrong-code':expected='AccessDenied'
+      status=404 if self.wire=='not-routed' else 403
+      body=STS['unsigned']['body'].replace('InvalidClientTokenId',expected).encode()
+      if self.wire=='malformed-xml':body=b'<Code>'+expected.encode()+b'</Code>'
+      raise urllib.error.HTTPError(request.full_url,status,'private',{},io.BytesIO(body))
     if not isinstance(request,str) and self.unsigned:
       status,body=self.unsigned
       if status==200:
@@ -138,6 +158,54 @@ class STSContracts(unittest.TestCase):
       self.assertEqual(run.report['controls']['3'],'PASS')
       for secret in ['DUMMY_ACCESS','DUMMY_SECRET','private-ca-path','private message']:self.assertNotIn(secret,out.getvalue())
       self.assertTrue(all(row['status']=='PASS' for row in map(json.loads,out.getvalue().splitlines())))
+  def test_signed_wire_matches_independent_botocore_sigv4_vector(self):
+    # Fixed independent Botocore 1.43.18 SigV4Auth reference, not a production-derived oracle.
+    at=datetime.datetime(2026,11,15,tzinfo=datetime.timezone.utc)
+    request=signed_sts_request('EMULATOR123456789ABC','0123456789abcdef0123456789abcdef01234567',at)
+    self.assertEqual(request.full_url,'https://127.0.0.1:9297/')
+    self.assertEqual(request.get_method(),'POST')
+    self.assertEqual(request.data,b'Action=GetCallerIdentity&Version=2011-06-15')
+    self.assertEqual(request.get_header('Host'),'127.0.0.1:9297')
+    self.assertEqual(request.get_header('Authorization'),
+      'AWS4-HMAC-SHA256 Credential=EMULATOR123456789ABC/20261115/ca-central-1/sts/aws4_request, '
+      'SignedHeaders=content-type;host;x-amz-date, Signature=82f338e47ee13d7f332e15d51373f01e26b71f85ef3f0434d5f75688240cc033')
+  def test_structured_wire_parsers_reject_malformed_and_wrong_identity(self):
+    self.assertEqual(signed_sts_identity(200,WIRE_SIGNED_XML),STS['signed'])
+    for body in [WIRE_SIGNED_XML.replace(b'000000000000',b'111111111111'),
+                 WIRE_SIGNED_XML.replace(b'GetCallerIdentityResponse',b'ErrorResponse'),
+                 WIRE_SIGNED_XML.replace(b'<Account>',b'<Account>bad</Account><Account>'),
+                 b'<!DOCTYPE evil>'+WIRE_SIGNED_XML]:
+      with self.subTest(body=body[:25]):
+        value=signed_sts_identity(200,body)
+        self.assertTrue(value is None or value!=STS['signed'])
+    self.assertIsNone(signed_sts_identity(403,WIRE_SIGNED_XML))
+    unsigned=STS['unsigned']['body'].encode()
+    self.assertTrue(sts_rejection(403,unsigned,'InvalidClientTokenId'))
+    self.assertTrue(sts_rejection(403,unsigned.replace(b'InvalidClientTokenId',b'SignatureDoesNotMatch'),'SignatureDoesNotMatch'))
+    for code,status,body in [('AccessDenied',403,unsigned),( 'SignatureDoesNotMatch',200,unsigned),
+                             ('SignatureDoesNotMatch',403,unsigned),('InvalidClientTokenId',404,unsigned),
+                             ('InvalidClientTokenId',403,b'<Code>InvalidClientTokenId</Code>')]:
+      with self.subTest(code=code,status=status):self.assertFalse(sts_rejection(status,body,code))
+  def test_unclassified_cli_requires_exact_signed_wire_positive_and_negative(self):
+    for probe in ['wrong_secret','unknown_key']:
+      reply=dict(STS[probe],stderr='unclassifiable synthetic CLI diagnostic')
+      with self.subTest(probe=probe):
+        code,rows,model=self.invoke(probe=probe,reply=reply,wire='valid')
+        self.assertEqual(code,0)
+        self.assertEqual(len(model.wire_requests),2)
+        self.assertIn({'gate':'auth-invalid-'+('signature' if probe=='wrong_secret' else 'credential'),
+                       'status':'PASS','diagnostic':'AUTH_WIRE_FALLBACK_VERIFIED'},rows)
+        self.assertIn({'gate':'authentication-enforced','status':'PASS'},rows)
+        self.assertEqual(model.inventory,model.original)
+  def test_unclassified_cli_never_passes_on_false_wire_proof(self):
+    for probe in ['wrong_secret','unknown_key']:
+      reply=dict(STS[probe],stderr='unclassifiable synthetic CLI diagnostic')
+      for wire in ['bad-baseline','accepted-invalid','wrong-code','not-routed','malformed-xml']:
+        with self.subTest(probe=probe,wire=wire):
+          result=self.invoke(probe=probe,reply=reply,wire=wire)
+          self.assert_auth_blocked(*result)
+          gate='auth-invalid-'+('signature' if probe=='wrong_secret' else 'credential')
+          self.assertFalse(any(row['gate']==gate and row['status']=='PASS' for row in result[1]))
   def test_independent_absence_rejects_error_text_inside_unrelated_output(self):
     run=object.__new__(lifecycle.Run);run.owned_id='vpc-owned';run.env={'AWS_CA_BUNDLE':'private'}
     reply=subprocess.CompletedProcess([],254,'','prefix An error occurred (InvalidVpcID.NotFound) when calling the DescribeVpcs operation: private')

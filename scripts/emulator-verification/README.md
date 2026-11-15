@@ -138,11 +138,11 @@ Emulator shutdown loses memory but does not count as independent Destroy proof.
 ## Offline PR checks
 
 Run `PYTHONDONTWRITEBYTECODE=1 python3 scripts/emulator-verification/tests/test_verification.py`.
-The current total is 63; see CONTRACTS.md and AUDIT.md for the integrated failure matrix and exact
+The current total is 67; see CONTRACTS.md and AUDIT.md for the integrated failure matrix and exact
 source/real-local/simulated/runtime-not-tested boundaries.
 The original nineteen test methods remain, plus six preparation-diagnostic test
 methods (25 before the signature fix). Nine further signature methods brought that baseline to 34.
-The comprehensive audit added 17 methods (51); the STS contract review adds 12 more (63). They execute explicit negative/mutation subcases, including real
+The comprehensive audit added 17 methods (51); the STS contract review adds 12 more (63); the structured STS wire fallback adds 4 more (67). They execute explicit negative/mutation subcases, including real
 GPG rejection of an invalid signature, actual initial consent script execution,
 route/reachability/STS/Plan/ID/evidence mutations, changed saved-plan refusal,
 strict TLS configuration, failed cleanup coordination and secret-output suppression.
