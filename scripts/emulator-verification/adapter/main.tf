@@ -24,6 +24,7 @@ variable "phase" {
 }
 provider "aws" {
   region              = "ca-central-1"
+  max_retries         = 2
   allowed_account_ids = ["000000000000"]
   custom_ca_bundle    = var.ca_file
   endpoints {

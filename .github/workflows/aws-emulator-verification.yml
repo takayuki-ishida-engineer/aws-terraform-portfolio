@@ -73,10 +73,18 @@ jobs:
             result=$?
             set +e
             cleanup_failed=0
-            if docker container inspect "$container" >/dev/null 2>&1; then docker rm -f "$container" >/dev/null || cleanup_failed=1; fi
+            if owned_container=$(docker container ls --all --filter "name=^/${container}$" --format '{{.Names}}'); then
+              if test -n "$owned_container"; then
+                if test "$owned_container" = "$container"; then docker rm -f "$container" >/dev/null || cleanup_failed=1; else cleanup_failed=1; fi
+              fi
+            else cleanup_failed=1; fi
             if test -f "$image_file"; then docker image rm "$(cat "$image_file")" >/dev/null || cleanup_failed=1; fi
             rm -rf -- "$context" "$image_file" || cleanup_failed=1
-            if test "$cleanup_failed" != 0; then exit 1; fi
+            if test "$cleanup_failed" != 0; then
+              printf '%s\n' '{"gate":"host-cleanup","status":"FAIL","diagnostic":"HOST_CLEANUP_FAILED"}' | tee -a "$RUNNER_TEMP/emulator-safe-report.json"
+              exit 1
+            fi
+            printf '%s\n' '{"gate":"host-cleanup","status":"PASS"}' | tee -a "$RUNNER_TEMP/emulator-safe-report.json"
             exit "$result"
           }
           trap cleanup EXIT
@@ -89,21 +97,9 @@ jobs:
           OWNER_ATTESTATION_ACCEPTED: ${{ steps.consent.outputs.accepted }}
         if: always()
         run: |
-          python3 - <<'PY'
-          import json,os,re
-          from pathlib import Path
-          p=Path(os.environ['RUNNER_TEMP'])/'emulator-safe-report.json'
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as out:
-              out.write('## Representative Emulator run\n\n')
-              out.write('Target SHA: '+(os.environ['TARGET_SHA'] if re.fullmatch('[0-9a-f]{40}',os.environ['TARGET_SHA']) else 'INVALID')+'\n\n')
-              out.write('Billing: '+('owner-attested; not API-audited' if os.environ.get('OWNER_ATTESTATION_ACCEPTED')=='true' else 'NOT VERIFIED / BLOCKED')+'\n\n')
-              if p.exists():
-                  complete=False
-                  for line in p.read_text().splitlines():
-                      r=json.loads(line)
-                      assert re.fullmatch('[A-Za-z0-9_-]{1,100}',r['gate']) and r['status'] in ['PASS','FAIL','BLOCKED','NOT_TESTED','PARTIAL-SKIP']
-                      complete |= r['gate']=='lifecycle-evidence-complete' and r['status']=='PASS'
-                      out.write('| '+r['gate']+' | '+r['status']+' |\n')
-                  out.write('\n'+('Complete measured lifecycle evidence recorded; independent review pending.' if complete and os.environ.get('EXECUTION_STATUS')=='success' else 'FAIL/BLOCKED: incomplete lifecycle or host-cleanup evidence; not demonstrated.')+'\n')
-              else: out.write('BLOCKED: no isolated run evidence; no lifecycle success claimed.\n')
-          PY
+          if test -f scripts/emulator-verification/host_evidence.py; then
+            python3 scripts/emulator-verification/host_evidence.py
+          else
+            printf '%s\n' 'BLOCKED: CHECKOUT_UNAVAILABLE; no lifecycle evidence.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

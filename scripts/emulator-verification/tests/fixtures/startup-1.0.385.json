@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-11-15T00:00:00Z",
+  "level": "INFO",
+  "fields": {
+    "message": "emulator server information",
+    "endpoint_url": "https://127.0.0.1:9297",
+    "health_check_url": "https://127.0.0.1:9297/__admin/health",
+    "config_file": "/work/private/home/.aws/emulator/9297/config",
+    "ca_file": "/work/private/home/.aws/emulator/9297/ca.pem",
+    "java_truststore_file": "/work/private/home/.aws/emulator/9297/truststore.p12"
+  },
+  "target": "emulator_server"
+}

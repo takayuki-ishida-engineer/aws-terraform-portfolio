@@ -1,0 +1,51 @@
+{
+  "address": "aws_vpc.proof",
+  "mode": "managed",
+  "type": "aws_vpc",
+  "name": "proof",
+  "provider_name": "registry.terraform.io/hashicorp/aws",
+  "change": {
+    "actions": [
+      "create"
+    ],
+    "before": null,
+    "after": {
+      "assign_generated_ipv6_cidr_block": null,
+      "cidr_block": "10.238.0.0/16",
+      "enable_dns_hostnames": false,
+      "enable_dns_support": true,
+      "instance_tenancy": null,
+      "ipv4_ipam_pool_id": null,
+      "ipv4_netmask_length": null,
+      "ipv6_ipam_pool_id": null,
+      "ipv6_netmask_length": null,
+      "tags": {
+        "Name": "emulator-proof-123-1",
+        "Phase": "create",
+        "VerificationRun": "123-1"
+      }
+    },
+    "after_unknown": {
+      "arn": true,
+      "default_network_acl_id": true,
+      "default_route_table_id": true,
+      "default_security_group_id": true,
+      "dhcp_options_id": true,
+      "enable_network_address_usage_metrics": true,
+      "id": true,
+      "ipv6_association_id": true,
+      "ipv6_cidr_block": true,
+      "ipv6_cidr_block_network_border_group": true,
+      "main_route_table_id": true,
+      "owner_id": true,
+      "region": true,
+      "tags": {},
+      "tags_all": true
+    },
+    "before_sensitive": false,
+    "after_sensitive": {
+      "tags": {},
+      "tags_all": {}
+    }
+  }
+}

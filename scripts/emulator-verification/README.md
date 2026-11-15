@@ -1,5 +1,11 @@
 # Owner-dispatched representative Emulator verification
 
+The current [comprehensive audit](AUDIT.md) records confirmed defects, historical
+real-run PASS, source/simulation evidence and runtime-only risks. Current tests:
+51 methods (original 34 retained), including integrated orchestration, real local
+TLS and fake-Docker workflow cleanup. Real Emulator Lifecycle remains NOT_TESTED
+in this audit. No future startup/API/cleanup success is guaranteed.
+
 Phase 3 supplies implementation and offline contracts only. **Lifecycle NOT_TESTED**:
 no container, Emulator server, Terraform Apply/Destroy or workflow_dispatch has run
 in this PR. A merged workflow is not AWS EMULATOR DEMONSTRATED or Portfolio Complete.
@@ -76,15 +82,17 @@ runner uses no paid feature, Artifact or persistent cache.
 
 ## Safety matrix: implementation versus evidence
 
-All runtime rows below are **NOT_TESTED** in this PR; Codex Cloud's known namespace
-restriction stays environment **BLOCKED** and is not bypassed. Package signatures
+No new Emulator runtime rows below execute in this audit. Historical Run
+43703888134 passed preparation/build, tools and isolation controls 6/7; subsequent
+startup/auth/Provider/lifecycle behavior remains **NOT_TESTED** here. Codex Cloud's
+known namespace restriction remains environment **BLOCKED** and is not bypassed. Package signatures
 were verified separately as described above, not an actual isolated run.
 
 | Control | Implemented guard / evidence produced only during actual dispatch |
 | --- | --- |
 | 1 | Fixed signed official DEB, exact publisher fingerprint, artifact hashes, package/runtime versions; bad/expired/revoked signature rejected |
 | 2 | Bind exactly 127.0.0.1:9297, require exact HTTPS startup endpoint; no Docker port publication |
-| 3 | Fresh private HOME, generated credentials/CA only, default generated profile, --auth on, unsigned EC2 must return 403; 404 is insufficient |
+| 3 | Fresh private HOME, owned regular 0600 generated files, --auth on; signed STS succeeds, invalid signature/credential reject, routed unsigned STS 403 required; 404 is insufficient |
 | 4 | Generated CA + strict hostname/TLS validation; system trust must reject private CA; no verification-disable flag |
 | 5 | --telemetry off and EMULATOR_TELEMETRY=off, no external routes |
 | 6 | Docker network none; actual netns differs from host; only lo, IPv4/IPv6 all-table routes loopback only |
@@ -95,7 +103,7 @@ were verified separately as described above, not an actual isolated run.
 | 11 | Saved Plan JSON/version/configuration/change inventory checks, exact single aws_vpc.proof, CIDR/run tags/action/owned ID, hash recheck before apply |
 | 12 | State ID must match independently described VPC, exact CIDR/run tags; pre-existing VPC snapshot preserved |
 | 13 | Independent API creation/update/absence checks; InvalidVpcID.NotFound required, baseline unchanged and State empty before shutdown |
-| 14 | Destroy via reviewed saved destroy plan; private State/backups/plans/credentials/CA/logs removed, only own image/container/context cleaned |
+| 14 | Reviewed Destroy and independent absence; separate resource/material/process/host cleanup receipts; no resource attempt means resource cleanup NOT_TESTED; only own image/container/context cleaned |
 
 The adapter uses 10.238.0.0/16 as **synthetic test data**, never an operational
 allocation; a pre-existing VPC with that CIDR stops before create. No module-wide
@@ -126,9 +134,11 @@ Emulator shutdown loses memory but does not count as independent Destroy proof.
 ## Offline PR checks
 
 Run `PYTHONDONTWRITEBYTECODE=1 python3 scripts/emulator-verification/tests/test_verification.py`.
+The current total is 51; see AUDIT.md for the integrated failure matrix and exact
+source/real-local/simulated/runtime-not-tested boundaries.
 The original nineteen test methods remain, plus six preparation-diagnostic test
-methods (25 before the signature fix). Nine further signature methods bring the
-current total to 34. They execute explicit negative/mutation subcases, including real
+methods (25 before the signature fix). Nine further signature methods brought that baseline to 34.
+The comprehensive audit adds 17 methods for the current total of 51. They execute explicit negative/mutation subcases, including real
 GPG rejection of an invalid signature, actual initial consent script execution,
 route/reachability/STS/Plan/ID/evidence mutations, changed saved-plan refusal,
 strict TLS configuration, failed cleanup coordination and secret-output suppression.
