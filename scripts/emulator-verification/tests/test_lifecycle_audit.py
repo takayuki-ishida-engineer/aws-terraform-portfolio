@@ -11,6 +11,8 @@ HERE=Path(__file__).resolve().parents[1]
 FIXTURES=Path(__file__).parent/'fixtures'
 SHA='a'*40;RUN='123-1';ID='vpc-0123456789abcdef0';BASE='vpc-eeeeeeee'
 LEAK='DUMMY_SECRET_OR_RAW_LOG_MUST_NOT_ESCAPE'
+# Independent source-derived service oracle; never import production error codes.
+STS=json.loads((FIXTURES/'sts-1.0.385.json').read_text())
 
 def attrs(phase='create'):
   a=copy.deepcopy(json.loads((FIXTURES/'native-vpc-create-change.json').read_text())['change']['after'])
@@ -88,9 +90,9 @@ class Model:
       if self.fault=='untrusted-ca-accepted':return Response()
       raise urllib.error.URLError(ssl.SSLCertVerificationError(LEAK))
     if isinstance(request,str):return Response(b'not-ready' if self.fault=='health-timeout' else b'ok')
-    code=404 if self.fault=='unsigned-unknown-service' else 403
-    error='UnknownService' if code==404 else 'InvalidClientTokenId'
-    raise urllib.error.HTTPError('https://127.0.0.1:9297',code,'private error',{},io.BytesIO(('<Error><Code>'+error+'</Code>'+LEAK+'</Error>').encode()))
+    code=404 if self.fault=='unsigned-unknown-service' else STS['unsigned']['status']
+    body='<Error><Code>UnknownService</Code></Error>' if code==404 else STS['unsigned']['body']
+    raise urllib.error.HTTPError('https://127.0.0.1:9297',code,'private error',{},io.BytesIO(body.encode()))
   def write_state(self):
     (self.run.root/'terraform.tfstate').write_text(json.dumps(state(self.values)))
   def command(self,args,**kw):
@@ -102,11 +104,12 @@ class Model:
       if '--version' in args:out='aws-cli/2.35.0'
       elif 'get-caller-identity' in args:
         env=kw['env'];error=None
-        if env.get('AWS_ACCESS_KEY_ID') and env['AWS_ACCESS_KEY_ID']!='DUMMY_ACCESS':error='AccessDenied'
-        elif env.get('AWS_SECRET_ACCESS_KEY') and env['AWS_SECRET_ACCESS_KEY']!='DUMMY_SECRET':error='SignatureDoesNotMatch'
-        if self.fault=='invalid-credential-accepted' and error=='AccessDenied':error=None
-        if error and self.fault!='auth-off':code=254;err='An error occurred ('+error+') when calling the GetCallerIdentity operation: '+LEAK
-        else:out=json.dumps({'Account':'111111111111' if self.fault=='sts-mismatch' else '000000000000','Arn':'arn:aws:iam::000000000000:user/emulator'})
+        if env.get('AWS_ACCESS_KEY_ID') and env['AWS_ACCESS_KEY_ID']!='DUMMY_ACCESS':error='unknown_key'
+        elif env.get('AWS_SECRET_ACCESS_KEY') and env['AWS_SECRET_ACCESS_KEY']!='DUMMY_SECRET':error='wrong_secret'
+        if self.fault=='invalid-credential-accepted' and error=='unknown_key':error=None
+        if error and self.fault!='auth-off':
+          reply=STS[error];code=reply['exit'];out=reply['stdout'];err=reply['stderr'].replace('synthetic private message omitted',LEAK)
+        else:out=json.dumps(dict(STS['signed'],Account='111111111111') if self.fault=='sts-mismatch' else STS['signed'])
       elif 'describe-vpcs' in args:
         if '--vpc-ids' in args and args[args.index('--vpc-ids')+1] not in self.inventory:
           code=254;err='An error occurred (InvalidVpcID.NotFound) when calling the DescribeVpcs operation: '+LEAK

@@ -1,8 +1,10 @@
 # Owner-dispatched representative Emulator verification
 
-The current [comprehensive audit](AUDIT.md) records confirmed defects, historical
+The current [STS and remaining-contract review](CONTRACTS.md) corrects the
+service-specific authentication oracle and documents source/runtime boundaries.
+The historical [comprehensive audit](AUDIT.md) records confirmed defects, historical
 real-run PASS, source/simulation evidence and runtime-only risks. Current tests:
-51 methods (original 34 retained), including integrated orchestration, real local
+63 methods (all previous 51 retained), including integrated orchestration, real local
 TLS and fake-Docker workflow cleanup. Real Emulator Lifecycle remains NOT_TESTED
 in this audit. No future startup/API/cleanup success is guaranteed.
 
@@ -84,7 +86,9 @@ runner uses no paid feature, Artifact or persistent cache.
 
 No new Emulator runtime rows below execute in this audit. Historical Run
 43703888134 passed preparation/build, tools and isolation controls 6/7; subsequent
-startup/auth/Provider/lifecycle behavior remains **NOT_TESTED** here. Codex Cloud's
+Run 43715108794 also passed startup, signed STS and bad-secret rejection before
+the unknown-key contract mismatch. Provider/lifecycle behavior remains
+**NOT_TESTED** here; see CONTRACTS.md for the exact evidence boundaries. Codex Cloud's
 known namespace restriction remains environment **BLOCKED** and is not bypassed. Package signatures
 were verified separately as described above, not an actual isolated run.
 
@@ -134,11 +138,11 @@ Emulator shutdown loses memory but does not count as independent Destroy proof.
 ## Offline PR checks
 
 Run `PYTHONDONTWRITEBYTECODE=1 python3 scripts/emulator-verification/tests/test_verification.py`.
-The current total is 51; see AUDIT.md for the integrated failure matrix and exact
+The current total is 63; see CONTRACTS.md and AUDIT.md for the integrated failure matrix and exact
 source/real-local/simulated/runtime-not-tested boundaries.
 The original nineteen test methods remain, plus six preparation-diagnostic test
 methods (25 before the signature fix). Nine further signature methods brought that baseline to 34.
-The comprehensive audit adds 17 methods for the current total of 51. They execute explicit negative/mutation subcases, including real
+The comprehensive audit added 17 methods (51); the STS contract review adds 12 more (63). They execute explicit negative/mutation subcases, including real
 GPG rejection of an invalid signature, actual initial consent script execution,
 route/reachability/STS/Plan/ID/evidence mutations, changed saved-plan refusal,
 strict TLS configuration, failed cleanup coordination and secret-output suppression.

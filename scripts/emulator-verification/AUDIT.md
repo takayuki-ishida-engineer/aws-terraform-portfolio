@@ -1,5 +1,8 @@
 # Comprehensive lifecycle preflight audit
 
+Historical audit; the [STS contract correction](CONTRACTS.md) supersedes its
+unknown-key error assumption and updates evidence for Run 43715108794.
+
 Base main: `e1c7b4e2faec4215ab82e8bd60553196a2d4d125`. Failed real Run:
 [43703888134](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43703888134).
 This audit implements source/Offline changes only. No Docker, Emulator, real
@@ -15,7 +18,7 @@ Success of a future lifecycle **cannot be guaranteed** by these checks.
 | CONFIRMED DEFECT | Top-level message lookup cannot consume v1.0.385 tracing-subscriber nested fields | startup_record reads fields.message/endpoint/health/material paths; source-derived fixture, nested/invalid/fake-ready mutations |
 | CONFIRMED DEFECT | Startup and other errors collapsed to generic execution/BLOCKED | Fixed allowlisted diagnostics for timeout, process exit, JSON, material, TLS, authentication, command and cleanup failures; no raw logs/exception strings |
 | CONFIRMED DEFECT | Ready event was not a retried health acceptance; CA path/credential permissions checks were incomplete | Live process + strict CA/hostname HTTPS health 200/ok + untrusted-CA rejection; regular UID-owned 0600 canonical files, no symlink aliases; no Ready PASS beforehand |
-| PROBABLE DEFECT | An unsigned EC2 request is not a universal 403 authentication proof; official documentation permits UnknownService 404 | Successful signed CLI STS identity, wrong secret SignatureDoesNotMatch and unknown key AccessDenied required; explicitly routed unsigned STS 403/InvalidClientTokenId; 404 is rejected with an explicit AUTH_UNSIGNED_UNRESOLVED receipt; unexpected rejection/acceptance is classified with fixed per-probe diagnostics, never raw CLI error text. Healthy and failed-auth orchestration covered; real API behavior remains NOT_TESTED |
+| PROBABLE DEFECT | An unsigned EC2 request is not a universal 403 authentication proof; official documentation permits UnknownService 404 | Successful signed CLI STS identity, wrong secret SignatureDoesNotMatch and unknown key InvalidClientTokenId required (corrected after Run 43715108794; the original generic AccessDenied assumption was wrong); explicitly routed unsigned STS 403/InvalidClientTokenId; 404 is rejected with an explicit AUTH_UNSIGNED_UNRESOLVED receipt; unexpected rejection/acceptance is classified with fixed per-probe diagnostics, never raw CLI error text. Healthy and failed-auth orchestration covered; real API behavior remains NOT_TESTED |
 | CONFIRMED DEFECT | Disposable empty State was implicit; Refresh/no-op checked exit only | Explicit initial empty State receipt; saved Refresh JSON validates exact planned resource/ID/tags and no drift; no-op saved Plan reviewed; real Terraform Native Mock change projection plus official JSON implementation |
 | CONFIRMED DEFECT | Wrong JSON State shape could appear empty; indexed/deposed instances and duplicate API tags could masquerade as exact ownership | Require raw State resources array/no unexpected outputs/provider; reject ambiguous instance addresses and duplicate tags; exact State/API/Plan ID and run-marker checks preserved |
 | PROBABLE DEFECT | Tag list ordering could falsely change the baseline | Normalize only the API Tags map ordering, rejecting duplicate keys; reordered baseline regression passes |
