@@ -176,7 +176,129 @@ class Gates(unittest.TestCase):
     self.assertIn('ssl.create_default_context(cafile=str(ca))',src)
     self.assertIn('ubuntu:24.04@sha256:',docker);self.assertIn('sha256sum --check',docker)
 
+class PreparationDiagnostics(unittest.TestCase):
+  LEAK='DO_NOT_LOG_ARBITRARY_EXCEPTION_OR_CREDENTIAL'
+
+  def invoke(self, failure=None, **options):
+    """Exercise real orchestration; all processes/downloads/DNS are synthetic."""
+    import hashlib,subprocess
+    from contextlib import contextmanager,ExitStack,redirect_stderr
+    import prepare
+    output=io.StringIO();errors=io.StringIO();visited=[]
+    with tempfile.TemporaryDirectory() as directory:
+      repo=Path(directory);source=repo/'scripts/emulator-verification';source.mkdir(parents=True)
+      (source/'adapter').mkdir();(source/'adapter/main.tf').write_text('public adapter fixture\n')
+      (source/'awscli-publisher.asc').write_text('public key fixture\n');(source/'Dockerfile').write_text('public image fixture\n')
+      seed=repo/'infra/services/dev/ca-central-1/network';seed.mkdir(parents=True)
+      (seed/'.terraform.lock.hcl').write_text('public lock fixture\n')
+      artifact=b'public package fixture';fingerprint='A'*40
+      lock=json.loads((HERE/'versions.json').read_text())
+      for name in ['emulator','awscli','terraform']:
+        lock[name]['sha256']=hashlib.sha256(artifact).hexdigest()
+        if name!='terraform':lock[name]['fingerprint']=fingerprint
+      (source/'versions.json').write_text(json.dumps(lock) if not options.get('bad_config') else self.LEAK)
+      env={'PATH':'/no-real-tools','RUNNER_TEMP':directory,'ACTOR':'owner','OWNER':'owner','VISIBILITY':'public','GITHUB_REF':'refs/heads/main','TARGET_SHA':SHA,'OWNER_BILLING_CONFIRMED':'true','OWNER_CHECKED_AT':datetime.now(timezone.utc).isoformat(),'GITHUB_RUN_ATTEMPT':'1','TRIGGERING_ACTOR':'owner','RUNNER_KIND':'github-hosted','RUNNER_OS':'Linux','RUNNER_ARCH':'X64','GITHUB_RUN_ID':'123','UNRELATED_SECRET':self.LEAK,'AWS_SECRET_ACCESS_KEY':self.LEAK,'GITHUB_TOKEN':self.LEAK}
+      env.update(options.get('env',{}))
+      def process(args,**kwargs):
+        # Both streams can carry secrets on failure. Neither may be logged.
+        self.assertTrue(kwargs.get('capture_output'));self.assertTrue(kwargs.get('text'))
+        tool=Path(args[0]).name;stdout='';code=0
+        if tool=='git':stdout=SHA
+        elif tool=='docker':
+          if args[1]=='context':stdout=json.dumps(options.get('endpoint','unix:///var/run/docker.sock'))
+          elif options.get('docker_failed'):code=1;stdout=self.LEAK
+        elif tool=='curl':
+          if options.get('download_failed'):code=1;stdout=self.LEAK
+          else:Path(args[-1]).write_bytes(b'wrong checksum' if options.get('bad_hash') else artifact)
+        elif tool=='gpg':
+          if '--with-colons' in args:stdout='fpr:::::::::'+('B'*40 if options.get('bad_publisher') else fingerprint)+':\n'
+          elif '--verify' in args:
+            stdout='[GNUPG:] VALIDSIG '+fingerprint+' 0 0'
+            if options.get('bad_signature'):code=1;stdout=self.LEAK
+        elif tool=='dpkg-deb':stdout=lock['emulator']['package_version']
+        elif tool=='unzip':
+          target=Path(args[-1]);target.mkdir();(target/'terraform').write_text('public binary fixture')
+        elif tool=='terraform':
+          if args[1]=='version':stdout=json.dumps({'terraform_version':'incorrect' if options.get('bad_terraform') else '1.17.0'})
+          elif args[1]=='init':
+            adapter=Path(kwargs['cwd']);(adapter/'.terraform').mkdir()
+            if options.get('provider_failed'):code=1;stdout=self.LEAK
+            if options.get('lock_changed'):(adapter/'.terraform.lock.hcl').write_text('changed')
+          elif args[1:3]==['providers','mirror']:Path(args[-1]).mkdir()
+          else:raise AssertionError('Unexpected tool call')
+        else:raise AssertionError('Unexpected tool call')
+        return subprocess.CompletedProcess(args,code,stdout,self.LEAK)
+      original_stage=prepare.stage;original_read_text=Path.read_text
+      @contextmanager
+      def instrumented_stage(name):
+        visited.append(name)
+        with original_stage(name):
+          if name==failure:raise RuntimeError(self.LEAK+'\n::error::forged-log')
+          yield
+      def read_text(path,*args,**kwargs):
+        if str(path)=='/proc/meminfo':return 'MemAvailable: '+str(options.get('memory_kib',8*1024**2))+' kB\n'
+        return original_read_text(path,*args,**kwargs)
+      with ExitStack() as stack:
+        for context in [patch.object(prepare,'HERE',source),patch.dict(os.environ,env,clear=True),patch.object(prepare.os,'cpu_count',return_value=options.get('cpu',4)),patch.object(prepare.shutil,'disk_usage',return_value=Mock(free=options.get('disk',20*1024**3))),patch.object(Path,'read_text',read_text),patch.object(prepare.os,'readlink',return_value='net:[1]'),patch.object(prepare.socket,'getaddrinfo',return_value=[(None,None,None,None,('1.1.1.1',443))]),patch.object(prepare.subprocess,'run',side_effect=process),patch.object(prepare,'stage',instrumented_stage),redirect_stdout(output),redirect_stderr(errors)]:stack.enter_context(context)
+        code=prepare.entrypoint()
+    self.assertNotIn(self.LEAK,output.getvalue()+errors.getvalue())
+    self.assertEqual(errors.getvalue(),'')
+    rows=[json.loads(line) for line in output.getvalue().splitlines()]
+    self.assertTrue(all(row['gate'] in prepare.PREPARATION_GATES and row['status'] in ['PASS','BLOCKED'] for row in rows))
+    return code,rows,visited
+
+  def test_preparation_success_and_capacity_boundaries(self):
+    import prepare
+    code,rows,_=self.invoke(cpu=2,memory_kib=6*1024**2,disk=10*1024**3)
+    self.assertEqual(code,0);self.assertTrue(all(row['status']=='PASS' for row in rows))
+    self.assertEqual({row['gate'] for row in rows},prepare.PREPARATION_GATES-{'preparation'})
+    self.assertEqual(rows[-1]['gate'],'verified-preparation')
+
+  def test_preparation_each_actual_stage_reports_its_failure(self):
+    _,_,stages=self.invoke()
+    for name in stages:
+      with self.subTest(gate=name):
+        code,rows,visited=self.invoke(failure=name)
+        self.assertEqual(code,1);self.assertEqual(rows[-1],{'gate':name,'status':'BLOCKED'})
+        self.assertEqual(sum(row['status']=='BLOCKED' for row in rows),1)
+        self.assertEqual(visited[-1],name)
+        self.assertNotIn('verified-preparation',[row['gate'] for row in rows])
+
+  def test_preparation_preflight_negative_gates(self):
+    cases=[('owner-confirmation',{'env':{'OWNER_BILLING_CONFIRMED':'false'}}),('runner-eligibility',{'env':{'RUNNER_KIND':'self-hosted'}}),('runner-cpu',{'cpu':1}),('runner-cpu',{'cpu':None}),('runner-memory',{'memory_kib':6*1024**2-1}),('runner-disk',{'disk':10*1024**3-1}),('docker-local-endpoint',{'env':{'DOCKER_HOST':'tcp://remote.invalid:2375'}}),('docker-local-endpoint',{'endpoint':'tcp://remote.invalid:2375'}),('docker-local-endpoint',{'docker_failed':True})]
+    for gate,options in cases:
+      with self.subTest(gate=gate,options=options):
+        code,rows,_=self.invoke(**options)
+        self.assertEqual(code,1);self.assertEqual(rows[-1],{'gate':gate,'status':'BLOCKED'})
+
+  def test_preparation_artifact_and_tool_negative_gates(self):
+    cases=[('workspace-configuration','bad_config'),('emulator-download','download_failed'),('emulator-sha256','bad_hash'),('emulator-gpg-publisher','bad_publisher'),('emulator-gpg-signature','bad_signature'),('terraform-installation','bad_terraform'),('provider-offline-mirror','provider_failed'),('provider-offline-mirror','lock_changed')]
+    for gate,option in cases:
+      with self.subTest(gate=gate):
+        code,rows,_=self.invoke(**{option:True})
+        self.assertEqual(code,1);self.assertEqual(rows[-1],{'gate':gate,'status':'BLOCKED'})
+
+  def test_preparation_unknown_exceptions_never_print_details(self):
+    import prepare,subprocess
+    from contextlib import redirect_stderr
+    class UnsafeException(Exception):
+      def __str__(self):raise AssertionError('Exception must not be formatted')
+    for error in [RuntimeError(self.LEAK),subprocess.CalledProcessError(1,[self.LEAK],output=self.LEAK,stderr=self.LEAK),UnicodeDecodeError('utf8',self.LEAK.encode(),0,1,self.LEAK),UnsafeException(),SystemExit(self.LEAK),KeyboardInterrupt(self.LEAK)]:
+      with self.subTest(kind=type(error).__name__):
+        out=io.StringIO();err=io.StringIO()
+        with patch.object(prepare,'main',side_effect=error),redirect_stdout(out),redirect_stderr(err):self.assertEqual(prepare.entrypoint(),1)
+        self.assertEqual(json.loads(out.getvalue()),{'gate':'preparation','status':'BLOCKED'})
+        self.assertEqual(err.getvalue(),'');self.assertNotIn(self.LEAK,out.getvalue())
+
+  def test_preparation_unapproved_gate_cannot_inject_log(self):
+    import prepare
+    def unknown():
+      with prepare.stage(self.LEAK+'\n::error::forged'):self.fail('Unknown gate executed')
+    out=io.StringIO()
+    with patch.object(prepare,'main',side_effect=unknown),redirect_stdout(out):self.assertEqual(prepare.entrypoint(),1)
+    self.assertEqual(json.loads(out.getvalue()),{'gate':'preparation','status':'BLOCKED'})
+
 if __name__=='__main__':
-  suite=unittest.defaultTestLoader.loadTestsFromTestCase(Gates)
+  suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in [Gates,PreparationDiagnostics])
   result=unittest.TextTestRunner(verbosity=2).run(suite)
-  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==19 else 1)
+  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==25 else 1)
