@@ -91,6 +91,17 @@ def plan_gate(plan, action, run_id, phase, owned_id=None):
   require(plan.get('terraform_version') == '1.17.0', 'plan-version')
   configuration=plan.get('configuration', {}).get('root_module', {})
   require(not configuration.get('module_calls') and [(r.get('address'),r.get('mode')) for r in configuration.get('resources', [])] == [('aws_vpc.proof','managed')], 'configuration-inventory')
+  require(not plan.get('deferred_changes') and not plan.get('errored',False),'plan-drift-or-deferred')
+  if plan.get('resource_drift'):
+    require(action=='delete' and len(plan['resource_drift'])==1,'plan-drift')
+    # Recovery may observe the already-applied, exact Phase tag transition.
+    drift_plan=dict(plan,resource_drift=[],resource_changes=plan['resource_drift'])
+    drift_plan.pop('planned_values',None) # Parent destroy values are checked separately below.
+    plan_gate(drift_plan,'update',run_id,'updated',owned_id)
+  if 'planned_values' in plan:
+    root=plan['planned_values'].get('root_module',{})
+    require(not root.get('child_modules'),'plan-value-modules')
+    require([r.get('address') for r in root.get('resources',[])]==([] if action=='delete' else ['aws_vpc.proof']),'plan-value-inventory')
   changes = plan.get('resource_changes', [])
   require(len(changes) == 1, 'single-plan-resource')
   r = changes[0]
@@ -103,8 +114,9 @@ def plan_gate(plan, action, run_id, phase, owned_id=None):
     require(c['before'] is None and owned_id is None, 'create-without-old-state')
   else:
     require(bool(owned_id) and c['before'].get('id') == owned_id, 'plan-owned-id')
+  if action == 'delete':require(c.get('after') is None,'delete-after-values')
   if action == 'update':
-    require(c['before']['tags'].get('Phase') == 'create' and phase == 'updated', 'tag-update-transition')
+    require(c['before']['tags'] == {'Name':'emulator-proof-'+run_id,'VerificationRun':run_id,'Phase':'create'} and phase == 'updated', 'tag-update-transition')
     require({k:v for k,v in c['before'].items() if k not in ['tags','tags_all']} == {k:v for k,v in c['after'].items() if k not in ['tags','tags_all']}, 'tag-only-update')
   if action in ['update', 'no-op']:
     require(c['before'].get('cidr_block') == row['cidr_block'] and c['before']['tags'].get('VerificationRun') == run_id, 'update-owner')
@@ -112,25 +124,46 @@ def plan_gate(plan, action, run_id, phase, owned_id=None):
     require(c['after'].get('id') == owned_id, 'update-id')
 
 def state_id(state, run_id):
-  rows = state.get('resources', [])
+  require(isinstance(state,dict) and state.get('version',4)==4 and 'values' not in state and 'root_module' not in state,'state-raw-format')
+  require('resources' in state and isinstance(state['resources'],list) and isinstance(state.get('outputs',{}),dict) and not state.get('outputs'),'state-resources-format')
+  rows = state['resources']
   if not rows:
     return None
   require(len(rows) == 1 and rows[0].get('type') == 'aws_vpc' and rows[0].get('name') == 'proof' and rows[0].get('mode') == 'managed' and 'module' not in rows[0], 'state-inventory')
+  require(rows[0].get('provider','provider[\"registry.terraform.io/hashicorp/aws\"]')=='provider[\"registry.terraform.io/hashicorp/aws\"]','state-provider')
   require(len(rows[0]['instances']) == 1, 'state-instances')
-  a = rows[0]['instances'][0]['attributes']
+  instance=rows[0]['instances'][0]
+  require('index_key' not in instance and 'deposed' not in instance,'state-instance-address')
+  a = instance['attributes']
   require(re.fullmatch('vpc-[0-9a-f]+', a.get('id', '')) and a.get('cidr_block') == '10.238.0.0/16' and a.get('tags', {}).get('VerificationRun') == run_id, 'state-owner')
   return a['id']
 
 def api_owner(vpc, owned_id, run_id, phase):
-  tags = {x['Key']: x['Value'] for x in vpc.get('Tags', [])}
+  raw=vpc.get('Tags',[])
+  tags = {x['Key']: x['Value'] for x in raw}
+  require(len(tags)==len(raw),'api-duplicate-tags')
   require(vpc.get('VpcId') == owned_id and vpc.get('CidrBlock') == '10.238.0.0/16' and tags == {'Name': 'emulator-proof-'+run_id, 'VerificationRun': run_id, 'Phase': phase}, 'api-resource-identity')
 
 CONTROLS = [str(i) for i in range(1, 15)]
-OPERATIONS = ['plan', 'create', 'read', 'api_create', 'update', 'api_update', 'no_op', 'destroy_plan', 'destroy', 'api_absence', 'state_empty', 'baseline_preserved', 'material_cleanup']
+OPERATIONS = ['initial_state_empty', 'plan', 'create', 'read', 'api_create', 'update', 'api_update', 'no_op', 'destroy_plan', 'destroy', 'api_absence', 'state_empty', 'baseline_preserved', 'material_cleanup']
 
 def evidence_gate(report):
   require(re.fullmatch('[0-9a-f]{40}', report.get('sha', '')), 'evidence-sha')
   for key, expected in [('controls', CONTROLS), ('operations', OPERATIONS)]:
     require(set(report.get(key, {})) == set(expected), 'evidence-inventory')
     require(all(v == 'PASS' for v in report[key].values()), 'incomplete-evidence')
-  require(report.get('cleanup_complete') is True, 'cleanup-incomplete')
+  require(report.get('cleanup_complete') is True and report.get('lifecycle_ok') is True, 'cleanup-incomplete')
+  require(all(report.get(name)=='PASS' for name in ['resource_cleanup','material_cleanup','process_cleanup']),'cleanup-evidence-missing')
+
+
+def refresh_gate(plan, owned_id, run_id, phase):
+  # Refresh-only JSON may omit no-op resource_changes; planned_values is still exact.
+  configuration=plan.get('configuration',{}).get('root_module',{})
+  require(plan.get('terraform_version')=='1.17.0' and not plan.get('resource_drift') and not plan.get('deferred_changes') and not plan.get('errored',False),'refresh-drift')
+  require(not configuration.get('module_calls') and [(r.get('address'),r.get('mode')) for r in configuration.get('resources',[])]==[('aws_vpc.proof','managed')],'refresh-configuration')
+  root=plan['planned_values']['root_module'];require(not root.get('child_modules'),'refresh-modules')
+  resources=root.get('resources',[])
+  require(len(resources)==1 and resources[0].get('address')=='aws_vpc.proof' and resources[0].get('mode')=='managed' and resources[0].get('type')=='aws_vpc' and resources[0].get('provider_name')=='registry.terraform.io/hashicorp/aws','refresh-inventory')
+  values=resources[0]['values']
+  require(values.get('id')==owned_id and values.get('cidr_block')=='10.238.0.0/16' and values.get('tags')=={'Name':'emulator-proof-'+run_id,'VerificationRun':run_id,'Phase':phase},'refresh-owner')
+  if plan.get('resource_changes'):plan_gate(plan,'no-op',run_id,phase,owned_id)

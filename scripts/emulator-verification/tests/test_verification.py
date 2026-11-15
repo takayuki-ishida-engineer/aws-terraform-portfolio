@@ -96,7 +96,7 @@ class Gates(unittest.TestCase):
     api_owner(vpc(),ID,RUN,'create')
     with self.assertRaises(Blocked):api_owner(vpc(),'vpc-other',RUN,'create')
   def test_missing_and_forged_evidence(self):
-    r={'sha':SHA,'controls':dict.fromkeys(CONTROLS,'PASS'),'operations':dict.fromkeys(OPERATIONS,'PASS'),'cleanup_complete':True};evidence_gate(r)
+    r={'sha':SHA,'controls':dict.fromkeys(CONTROLS,'PASS'),'operations':dict.fromkeys(OPERATIONS,'PASS'),'cleanup_complete':True,'lifecycle_ok':True,'resource_cleanup':'PASS','material_cleanup':'PASS','process_cleanup':'PASS'};evidence_gate(r)
     for group in ['controls','operations']:
       for name in list(r[group]):
         q=copy.deepcopy(r);q[group].pop(name)
@@ -304,7 +304,7 @@ class PreparationDiagnostics(unittest.TestCase):
     self.assertEqual(json.loads(out.getvalue()),{'gate':'preparation','status':'BLOCKED'})
 
 if __name__=='__main__':
-  import test_gpg_signatures
-  suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in [Gates,PreparationDiagnostics,test_gpg_signatures.SignatureStatus,test_gpg_signatures.RealGPG])
+  import test_gpg_signatures,test_lifecycle_audit
+  suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in [Gates,PreparationDiagnostics,test_gpg_signatures.SignatureStatus,test_gpg_signatures.RealGPG,test_lifecycle_audit.IntegratedLifecycle,test_lifecycle_audit.RuntimeContracts,test_lifecycle_audit.LocalTLS,test_lifecycle_audit.HostWorkflow])
   result=unittest.TextTestRunner(verbosity=2).run(suite)
-  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==34 else 1)
+  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==51 else 1)
