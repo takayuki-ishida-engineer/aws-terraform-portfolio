@@ -29,8 +29,10 @@ were not retained under policy and cannot establish new version compatibility.
 `sts-1.0.385.json` is an independent source-derived service oracle, not captured
 raw response material. Pinned STS service blob `360b86ea65f621e19067df7b979dc28e9330f3a4`
 explicitly distinguishes held-key signature mismatch from unresolved-key
-InvalidClientTokenId, including an unsigned request. The namespace/envelope comes
-from that service and pre_dispatch blob `8c519d7f06dda714f8dc88227c3cd4de393f0c03`.
+InvalidClientTokenId, including an unsigned request. pre_dispatch blob
+`8c519d7f06dda714f8dc88227c3cd4de393f0c03` routes awsQuery refusals to
+smithy-schema-server `query_error_body()` (query.rs blob
+`98f689dd3990d4f3a1cfba0f00f52b03cde7c86e`), whose envelope carries no `xmlns`.
 CLI envelopes use ClientError's documented template inside AWS CLI 2.35.0
 `write_error()` (`aws: [ERROR]: ` prefix, errorformat.py blob
 `3f7e01429df94c3a25fadeb963a6d57e10a05b2e`); messages are synthetic.

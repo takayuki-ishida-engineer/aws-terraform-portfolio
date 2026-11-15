@@ -86,16 +86,24 @@ def signed_sts_identity(status, body):
   if len(account)!=1 or len(arn)!=1:return None
   return {'Account':account[0],'Arn':arn[0]}
 
+# Emulator v1.0.385 renders pre-dispatch awsQuery refusals with smithy-schema-server
+# query_error_body(), which stamps no xmlns; AWS STS itself uses its namespace.
+STS_ERROR_NAMESPACES=('','{https://sts.amazonaws.com/doc/2011-06-15/}')
+
 def sts_rejection(status, body, expected_code):
-  """Validate a single structured awsQuery rejection with an exact error code."""
+  """Validate a single structured awsQuery rejection with an exact error code.
+
+  The root may carry no namespace or the STS namespace; every child must share
+  the root's namespace, so foreign or mixed namespaces are refused.
+  """
   if expected_code not in ('SignatureDoesNotMatch','InvalidClientTokenId'):return False
   if status!=403 or not isinstance(body,bytes) or len(body)>8192:return False
   # No declarations/entities: authentication evidence never needs a DTD.
   if b'<!' in body:return False
-  ns='{https://sts.amazonaws.com/doc/2011-06-15/}'
   try:root=ET.fromstring(body)
   except (ET.ParseError,ValueError):return False
-  if root.tag!=ns+'ErrorResponse' or root.attrib:return False
+  ns=next((candidate for candidate in STS_ERROR_NAMESPACES if root.tag==candidate+'ErrorResponse'),None)
+  if ns is None or root.attrib:return False
   if [child.tag for child in root] not in [[ns+'Error'],[ns+'Error',ns+'RequestId']]:return False
   error=root[0]
   if error.attrib or [child.tag for child in error]!=[ns+'Type',ns+'Code',ns+'Message']:return False

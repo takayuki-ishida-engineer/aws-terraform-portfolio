@@ -1,5 +1,38 @@
 # STS correction and remaining runtime contract review
 
+## Follow-up: un-namespaced awsQuery refusal (Run 43741028022)
+
+Run [43741028022](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43741028022)
+on merged main `d9e5fe7ca3a72953b8b2d51f6d022bc385ab61fa` confirmed the CLI
+prefix fix in a real run: `auth-invalid-signature` and `auth-invalid-credential`
+both PASS. It then BLOCKED at `auth-unsigned-sts` with
+`AUTH_UNCLASSIFIED_REJECTION`: an HTTP error other than 404 whose body failed
+`sts_rejection`.
+
+Cause (source-verified): in
+[pre_dispatch.rs](https://github.com/aws/aws-emulator/blob/v1.0.385/vendor/smithy-server-runtime/src/pre_dispatch.rs)
+(blob `8c519d7f06dda714f8dc88227c3cd4de393f0c03`, the renderer the fixture already
+cited) the `<ErrorResponse{xmlns}>` template belongs to restXml only. Its
+`Query { ec2 }` arm carries no namespace and calls `query_error_body()` in
+[smithy-schema-server query.rs](https://github.com/aws/aws-emulator/blob/v1.0.385/vendor/smithy-schema-server/src/query.rs)
+(blob `98f689dd3990d4f3a1cfba0f00f52b03cde7c86e`), which renders
+`<ErrorResponse><Error><Type>Sender</Type><Code>…</Code><Message>…</Message></Error></ErrorResponse>`
+without `xmlns`; the STS envelope wrapper adds a sibling `<RequestId>`. The
+Emulator's own report
+[20261110T040626Z sts issue](https://github.com/aws/aws-emulator/blob/v1.0.385/issues/things-that-do-not-work/20261110T040626Z-sts-2-net-new-behavioral-root-causes-a-4313eb.md)
+records exactly that body for an unsigned GetCallerIdentity (403,
+`InvalidClientTokenId`). `sts_rejection` required the STS namespace, so it refused
+the Emulator's correct refusal. The same predicate judged the structured
+fallback's negative request, which explains why that fallback returned False in
+Run 43733987794.
+
+`sts_rejection` now accepts a root with no namespace or the STS namespace, and
+every child must share the root's namespace. Foreign or mixed namespaces, other
+codes or statuses, DTDs, duplicate, nested or missing elements remain refused.
+The fixture uses the exact v1.0.385 rendering; main's predicate fails 15 tests and
+1 error against it, including the complete lifecycle test. Stages after
+authentication remain unexercised in a real run.
+
 ## Follow-up: AWS CLI error prefix root cause (Runs 43723761085 and 43733987794)
 
 Run [43733987794](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43733987794)

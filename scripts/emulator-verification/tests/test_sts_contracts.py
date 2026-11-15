@@ -77,6 +77,7 @@ class STSContracts(unittest.TestCase):
     self.assertIn('(InvalidClientTokenId)',STS['unknown_key']['stderr'])
     self.assertIn('(SignatureDoesNotMatch)',STS['wrong_secret']['stderr'])
     self.assertNotIn('AccessDenied',STS['unknown_key']['stderr'])
+    self.assertEqual(STS['provenance']['query_error_body_blob'],'98f689dd3990d4f3a1cfba0f00f52b03cde7c86e')
     self.assertEqual((STS['provenance']['cli_release'],STS['provenance']['cli_renderer_blob']),('2.35.0','3f7e01429df94c3a25fadeb963a6d57e10a05b2e'))
     for probe in ['wrong_secret','unknown_key']:self.assertTrue(STS[probe]['stderr'].startswith('\naws: [ERROR]: An error occurred ('))
   def test_real_run_orchestration_independently_checks_both_key_halves(self):
@@ -123,7 +124,10 @@ class STSContracts(unittest.TestCase):
     body=STS['unsigned']['body'].encode();self.assertTrue(unsigned_sts_rejected(403,body))
     with_id=body.replace(b'</ErrorResponse>',b'<RequestId>synthetic</RequestId></ErrorResponse>')
     self.assertTrue(unsigned_sts_rejected(403,with_id))
-    cases=[body.replace(b'InvalidClientTokenId',b'AccessDenied'),body.replace(b'https://sts.amazonaws.com/doc/2011-06-15/',b'https://other.invalid/'),b'<Error><Code>InvalidClientTokenId</Code></Error>',body+b'broken',b'garbage<Code>InvalidClientTokenId</Code>',body.replace(b'<Code>',b'<Code>other</Code><Code>'),body.replace(b'<Message>',b'<Message><Code>InvalidClientTokenId</Code>'),body.replace(b'<Type>Sender</Type>',b''),body+b' '*8193,b'<!DOCTYPE fake>'+body]
+    # Regression for Run 43741028022: the v1.0.385 awsQuery refusal stamps no xmlns.
+    self.assertTrue(body.startswith(b'<?xml version="1.0"?><ErrorResponse><Error><Type>Sender</Type>'))
+    self.assertTrue(unsigned_sts_rejected(403,with_id.replace(b'<ErrorResponse>',b'<ErrorResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">')))
+    cases=[body.replace(b'InvalidClientTokenId',b'AccessDenied'),body.replace(b'<ErrorResponse>',b'<ErrorResponse xmlns="https://other.invalid/">'),body.replace(b'<ErrorResponse>',b'<ErrorResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">').replace(b'<Error>',b'<Error xmlns="">'),body.replace(b'<Error>',b'<Error xmlns="https://sts.amazonaws.com/doc/2011-06-15/">'),b'<Error><Code>InvalidClientTokenId</Code></Error>',body+b'broken',b'garbage<Code>InvalidClientTokenId</Code>',body.replace(b'<Code>',b'<Code>other</Code><Code>'),body.replace(b'<Message>',b'<Message><Code>InvalidClientTokenId</Code>'),body.replace(b'<Type>Sender</Type>',b''),body+b' '*8193,b'<!DOCTYPE fake>'+body]
     for i,bad in enumerate(cases):
       with self.subTest(case=i):self.assertFalse(unsigned_sts_rejected(403,bad))
     for status in [200,400,401,404,500]:self.assertFalse(unsigned_sts_rejected(status,body))
