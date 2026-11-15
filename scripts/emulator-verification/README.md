@@ -126,7 +126,8 @@ Emulator shutdown loses memory but does not count as independent Destroy proof.
 ## Offline PR checks
 
 Run `PYTHONDONTWRITEBYTECODE=1 python3 scripts/emulator-verification/tests/test_verification.py`.
-Nineteen test methods execute explicit negative/mutation subcases, including real
+The original nineteen test methods remain, plus six preparation-diagnostic test
+methods (25 total). They execute explicit negative/mutation subcases, including real
 GPG rejection of an invalid signature, actual initial consent script execution,
 route/reachability/STS/Plan/ID/evidence mutations, changed saved-plan refusal,
 strict TLS configuration, failed cleanup coordination and secret-output suppression.
@@ -135,3 +136,44 @@ The adapter separately passed backend-disabled readonly-lock init/validate and f
 in an external temporary directory. This does not start Emulator or apply resources.
 Future runtime/cleanup compatibility, Docker execution and cost eligibility remain
 unproven until the separately authorized merged-main dispatch.
+
+## Preparation diagnostics and unresolved failed run
+
+Run [43693589574](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43693589574)
+on main `6b46535db2386cabe5d351fb91a0922e8e8c654d` passed Owner consent and
+checkout, then reported only `preparation / BLOCKED`; the Docker execution step
+was skipped. The old catch-all discarded the failing stage and exception type.
+Those retained logs cannot identify whether capacity, Docker, downloads, signature
+checks or another prerequisite failed. The underlying preparation cause remains
+**BLOCKED / unidentified**; this diagnostic-only fix does not establish readiness.
+No manual run, Docker/Emulator startup or resource operation is performed here.
+
+`prepare.py` now emits a fixed allowlisted Gate plus PASS only after that stage
+succeeds. A failure emits the precise failing Gate plus BLOCKED and exits 1;
+nested signature failures preserve the publisher/signature Gate. Unclassified
+failures use the fixed `preparation / BLOCKED` fallback. Version-file parsing is
+inside the protected entry point, so malformed configuration cannot emit a raw
+JSON exception before the handler runs. Neither exception messages/types nor
+command arguments/stdout/stderr, environment dumps, binary contents, credentials,
+keys, State or Plans are included in diagnostic records. The existing successful
+preparation summary retains only its approved public version/hash/SHA metadata.
+
+| Preparation phase | Fixed diagnostic Gates |
+| --- | --- |
+| Consent / Runner | owner-confirmation; runner-eligibility; runner-cpu; runner-memory; runner-disk |
+| Docker | docker-local-endpoint |
+| Workspace | workspace-configuration; workspace-preparation; workspace-finalization |
+| Official downloads / SHA-256 | emulator-download/sha256; awscli-download/sha256; terraform-download/sha256 |
+| Signed artifacts | emulator/awscli signature-material, gpg-verification, gpg-publisher and gpg-signature (artifact prefix is `emulator-` or `awscli-`) |
+| Package / tools | emulator-package-version; terraform-installation; provider-offline-mirror |
+
+CPU >=2, available memory >=6 GiB and free disk >=10 GiB, Owner/$0 checks, HTTPS,
+package fingerprints/hashes, readonly provider lock and all 14 isolation controls
+are unchanged. Tests exercise real preparation orchestration with synthetic
+process/download/DNS responses; inject a failure at every actual stage; reject
+insufficient capacity, remote Docker, bad downloads/hashes/publisher/signature,
+wrong Terraform and provider/lock failures; and verify arbitrary exception text,
+command error streams and dummy credential values never appear in diagnostics.
+These tests do not resolve or replay the failed runtime run. After review/merge,
+a separately Owner-authorized fresh dispatch is needed to identify its actual
+preparation blocker with the new fixed Gate records.
