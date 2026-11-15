@@ -202,6 +202,8 @@ class IntegratedLifecycle(unittest.TestCase):
         code,rows,model=self.invoke(fault);self.assertEqual(code,1);self.assertFalse(model.run.creation_attempted)
         self.assertFalse(any(r['gate']=='lifecycle-evidence-complete' for r in rows));self.assertIn({'gate':'resource-cleanup','status':'NOT_TESTED'},rows)
         self.assertFalse(any(args[0]=='terraform' and args[1]=='apply' for args,_ in model.calls))
+        if fault=='invalid-credential-accepted':self.assertIn({'gate':'auth-invalid-credential','status':'BLOCKED','exit_code':0,'diagnostic':'AUTH_REQUEST_ACCEPTED'},rows)
+        if fault=='unsigned-unknown-service':self.assertIn({'gate':'auth-unsigned-sts','status':'BLOCKED','diagnostic':'AUTH_UNSIGNED_UNRESOLVED'},rows)
   def test_partial_apply_update_destroy_and_interrupt_recovery(self):
     for fault in ['partial-create','partial-create-no-state','partial-update','destroy-once','refresh-drift','command-timeout','sigterm']:
       with self.subTest(fault=fault):

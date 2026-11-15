@@ -7,7 +7,7 @@ STATUSES={'PASS','FAIL','BLOCKED','NOT_TESTED','PARTIAL-SKIP'}
 STAGES=set(OPERATIONS)|{'preflight','startup','generated-material','health','auth-signed-sts','auth-invalid-signature','auth-invalid-credential','auth-unsigned-sts','provider-init','baseline','api_absence'}
 REQUIRED={'control-'+key for key in CONTROLS}|set(OPERATIONS)|{'resource-cleanup','process-cleanup','lifecycle-evidence-complete','host-cleanup'}
 
-KNOWN=REQUIRED|{'execution-identity','execution','complete-evidence-and-cleanup','startup-ready','authentication-enforced','auth-invalid-signature','auth-invalid-credential','partial-create-api-cleanup','material-cleanup'}|{'recovery-'+name for name in [*CONTROLS,*OPERATIONS]}|{stage+'-'+tool for stage in STAGES for tool in ['ip','aws','terraform','aws-emulator']}
+KNOWN=REQUIRED|STAGES|{'execution-identity','execution','complete-evidence-and-cleanup','startup-ready','authentication-enforced','auth-invalid-signature','auth-invalid-credential','partial-create-api-cleanup','material-cleanup'}|{'recovery-'+name for name in [*CONTROLS,*OPERATIONS]}|{stage+'-'+tool for stage in STAGES for tool in ['ip','aws','terraform','aws-emulator']}
 
 def rows_from_text(text):
   rows=[]

@@ -205,7 +205,11 @@ class Run:
       changed=dict(self.credentials);value=changed[field];changed[field]=('X' if value[0]!='X' else 'Y')+value[1:]
       env=dict(self.env,AWS_ACCESS_KEY_ID=changed['aws_access_key_id'],AWS_SECRET_ACCESS_KEY=changed['aws_secret_access_key'])
       result=self.cmd(args,ok=(0,254,255),env=env)
-      if result.returncode!=254 or not re.search(r'An error occurred \('+code+r'\) when calling the GetCallerIdentity operation',result.stderr):raise RuntimeFailure('AUTH_REJECTION_UNPROVEN')
+      if result.returncode!=254 or not re.search(r'An error occurred \('+code+r'\) when calling the GetCallerIdentity operation',result.stderr):
+        observed=re.search(r'An error occurred \((AccessDenied|SignatureDoesNotMatch|InvalidClientTokenId)\)',result.stderr)
+        diagnostic='AUTH_REQUEST_ACCEPTED' if result.returncode==0 else {'AccessDenied':'AUTH_UNEXPECTED_ACCESS_DENIED','SignatureDoesNotMatch':'AUTH_UNEXPECTED_SIGNATURE_MISMATCH','InvalidClientTokenId':'AUTH_UNEXPECTED_INVALID_TOKEN'}.get(observed.group(1) if observed else None,'AUTH_UNCLASSIFIED_REJECTION')
+        emit(self.current_operation,'BLOCKED',exit_code=result.returncode,diagnostic=diagnostic)
+        raise RuntimeFailure('AUTH_REJECTION_UNPROVEN')
       emit(self.current_operation,'PASS')
     # Route unsigned STS explicitly; a 404 UnknownService never proves authentication.
     self.current_operation='auth-unsigned-sts'
@@ -215,7 +219,9 @@ class Run:
       with self.http(request,context):pass
     except urllib.error.HTTPError as error:
       body=error.read(8192)
-      if error.code!=403 or b'<Code>InvalidClientTokenId</Code>' not in body:raise RuntimeFailure('AUTH_REJECTION_UNPROVEN') from None
+      if error.code!=403 or b'<Code>InvalidClientTokenId</Code>' not in body:
+        emit('auth-unsigned-sts','BLOCKED',diagnostic='AUTH_UNSIGNED_UNRESOLVED' if error.code==404 else 'AUTH_UNCLASSIFIED_REJECTION')
+        raise RuntimeFailure('AUTH_REJECTION_UNPROVEN') from None
     else:raise RuntimeFailure('AUTH_REJECTION_UNPROVEN')
     self.mark('controls','3');emit('authentication-enforced','PASS')
   def variables(self,phase):
