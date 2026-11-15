@@ -162,8 +162,10 @@ The owner-authorized **MASTER POLICY v14.2** requirements are recorded in the
 [policy alignment record](docs/policy-v14-2-alignment.md). Mandatory offline quality,
 Full CI on every PR, independent review/user approval and separate representative
 Emulator demonstration are retained; Core Portfolio Complete is a separate scope
-assessment, not a claim made by this PR. The v14.2 PDF/full text/hash was not
-provided or independently verified here. Earlier policy labels in historical
+assessment without an Emulator prerequisite; PORTFOLIO COMPLETE requires both
+Core completion and representative Emulator demonstration. Neither is claimed here.
+The supplied v14.2 text was reviewed in full (43 pages, including A–T); the PDF
+binary and its hash were not independently verified. Earlier policy labels in historical
 documents are not current authority; the
 [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status)
 records the available policy provenance and limits.

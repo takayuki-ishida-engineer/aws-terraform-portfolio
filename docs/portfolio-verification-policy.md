@@ -77,8 +77,11 @@ Real AWS deployment is not mandatory. Core Implementation uses correct source an
 architecture, affected offline/security/mutation/evidence checks and complete
 credential-free Full CI on every PR, with independent review and user approval.
 Representative Emulator lifecycle remains a separate portfolio-level requirement,
-not a blanket per-resource PR gate. Core Portfolio Complete requires a separate
-assessment of all approved scope, representative evidence and residual risk;
+not a blanket per-resource PR gate. CORE PORTFOLIO COMPLETE independently requires all approved Core scope implemented,
+reviewed, owner-approved and merged with offline/security quality, Full CI and
+unverified scope explicit, without requiring Emulator demonstration.
+AWS EMULATOR DEMONSTRATED separately requires actual representative lifecycle and
+cleanup under all fourteen controls. PORTFOLIO COMPLETE requires both statuses;
 no individual PR or historical VPC result declares completion. Optional real AWS verification
 requires a separate user decision and G01–G07, cumulative actual JPY 10,000 and
 complete verified teardown within 72 hours. Secrets Manager's 30-day recovery
@@ -227,8 +230,8 @@ Never remove/disable/skip/weaken CI checks for efficiency or migration.
 Codex performs affected local checks and opens the PR; GitHub Actions runs complete
 regression, and independent review verifies completed CI and merge authorization.
 Documentation-only changes use consistency/links/scope/secret/diff checks, not
-unrelated full local regression. Do not repeatedly inspect successful logs or
-poll/wait for CI. V5 extends CI with actual pinned runtime validation without weakening existing checks.
+unrelated full local regression. Do not repeatedly inspect successful logs. Verify exact-HEAD Full CI completion
+for every PR before the independent-review/owner-approval handoff. V5 extends CI with actual pinned runtime validation without weakening existing checks.
 
 ## DEV Live — approved limits, scenario details OPEN
 

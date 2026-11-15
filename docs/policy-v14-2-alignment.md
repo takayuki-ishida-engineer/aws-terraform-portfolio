@@ -1,9 +1,10 @@
 # Master Policy v14.2 — owner-authorized alignment record
 
-The owner supplied the following v14.2 requirements on 2026-11-15 (Asia/Tokyo)
-in the Policy Alignment + V7-A development instruction. This record implements
-those explicit requirements; it does not infer an unavailable PDF's contents.
-The v14.2 PDF/full text/hash has not been supplied or independently verified here.
+The owner supplied the full 43-page Master Policy v14.2 text on 2026-11-15
+(Asia/Tokyo); all pages were reviewed, including priority provisions A–T and the
+34-page v14.1 archive. A–T override conflicting archived clauses. This record
+aligns repository rules with that supplied text. The PDF binary was not inspected;
+neither its hash nor the supplied archived-v14.1 SHA-256 was independently verified.
 The previously supplied v14.1 34-page extraction remains historical provenance;
 its architecture, ownership, security, Public governance and Live boundaries remain
 in force except for the expressly revised quality/Emulator acceptance model below.
@@ -19,9 +20,13 @@ Earlier editions and historical evidence do not supersede these current rules.
 
 The historical single aws_vpc.proof experiment retains only its recorded scope;
 it is not a new run, proof of REST/Cognito compatibility or automatic acceptance
-of future representative scenarios. Core Portfolio Complete is a separate owner
-and independent-review decision on all approved implementation scope, quality,
-representative demonstration evidence and explicit residual risk. This PR declares
+of future representative scenarios. CORE PORTFOLIO COMPLETE independently requires
+all approved Core scope implemented, offline/security checks, exact-HEAD Full CI,
+independent review, owner approval and merge, with unverified scope explicit;
+Emulator demonstration is not a prerequisite for that Core status.
+AWS EMULATOR DEMONSTRATED requires an actual representative lifecycle and cleanup
+under all fourteen controls. PORTFOLIO COMPLETE requires both statuses, independently
+reviewed and accepted by the owner. This PR declares
 neither V7-A nor the portfolio complete.
 
 An unexecuted Emulator lifecycle is NOT_TESTED. An unavailable isolation prerequisite
@@ -54,9 +59,23 @@ TLS/authentication weakening, real AWS fallback or secret-value Terraform is all
 
 ## Future optional Emulator workflow constraints
 
-Use workflow_dispatch on a standard GitHub-hosted Ubuntu runner in this public
-repository without additional charges. Do not use paid/larger/self-hosted runners
-or enable paid features. Preserve the existing required Full CI, its coverage,
+Use workflow_dispatch with ubuntu-24.04 on a standard GitHub-hosted runner only,
+under GitHub Free in this Public Repository. No spending beyond the existing Codex
+subscription is authorized. Larger runners, paid self-hosted runners and external
+paid services are prohibited. Maintain $0 Budgets and usage-blocking settings for
+Actions, Codespaces, Packages, Git LFS and AI Credits. Before every Emulator run,
+confirm current free eligibility, Public visibility, runner label, Budgets and stop
+settings. Unknown costs, expired/unverifiable controls or insufficient free CPU,
+memory, disk or time require fail-closed stopping for owner judgment; never resolve
+capacity shortages by moving to a paid environment or automatic plan expansion.
+
+The new Emulator workflow must not upload Artifacts, create persistent caches,
+push to registries, use Git LFS or GitHub Packages, or depend on paid Codespaces,
+AI credits/add-ons or external paid services. Owner-reported $0 Budgets and Usage
+blocked observations are historical evidence, not proof of run-time verification
+or a mathematical guarantee of zero future charges. This PR performs no Billing
+audit or settings change; inaccessible Billing information must not be presented
+as verified through an invented API. Preserve the existing required Full CI, its coverage,
 read-only permissions, allowed pinned Actions and Branch Protection. Review any
 new Action or permission separately under Public repository governance.
 

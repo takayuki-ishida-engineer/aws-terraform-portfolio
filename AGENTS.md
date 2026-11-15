@@ -133,7 +133,14 @@ as environment BLOCKED; neither is a resource-compatibility PASS or API skip.
 A dedicated Emulator GitHub Actions workflow is optional to run only within a
 separately user-approved scope. Its design/implementation requires a separate PR;
 execute it only after that workflow is merged. Use workflow_dispatch and standard
-GitHub-hosted Ubuntu runners for the public repository without additional charges.
+GitHub-hosted ubuntu-24.04 runners under GitHub Free for the public repository.
+Maintain $0 Budgets for Actions/Codespaces/Packages/Git LFS/AI Credits; verify free
+eligibility, Budgets and stop settings before every run. Unknown/unverifiable cost
+conditions or insufficient free capacity must fail closed, without paid fallback.
+No Larger Runner, paid self-hosted/external service, Artifact upload, persistent
+cache, registry push, Git LFS or Packages use in the new Emulator workflow.
+Owner-reported Budget existence is not run-time verification or a Billing audit;
+never claim inaccessible Billing data was verified. See the alignment record.
 Do not change the existing required Full CI or Branch Protection. Docker namespace
 isolation is a proposed method, not proof: all fourteen controls above still apply.
 Documentation-only changes do not require lifecycle replay, but still run Full CI.
@@ -161,9 +168,13 @@ requires approved architecture/ownership, fmt, locked init, validate, affected
 Native/Mock/Negative/Security/Mutation/Evidence checks, secret-free State, existing
 Full CI on every PR, independent review and user approval. Representative Emulator
 lifecycle demonstration remains mandatory at portfolio level, separately from
-per-resource implementation PR acceptance. Core Portfolio Complete requires a
-separate evaluation of all approved scope, representative demonstration evidence,
-limitations and residual risk; it is never declared by a single passing PR.
+per-resource implementation PR acceptance. CORE PORTFOLIO COMPLETE is independently
+assessed from all approved Core scope implemented, offline/security quality, Full
+CI, independent review, owner approval and merge, with unverified scope explicit;
+it does not require Emulator demonstration. AWS EMULATOR DEMONSTRATED requires
+actual representative lifecycle and cleanup under all fourteen controls.
+PORTFOLIO COMPLETE requires both statuses and separate owner/reviewer acceptance;
+none is automatically declared by a single passing PR.
 Emulator success is never evidence of actual AWS deployment, IAM enforcement,
 networking, costs, availability or recovery.
 
@@ -219,13 +230,14 @@ remain unchanged. No Live gate is closed by emulator evidence.
   authorize merge. Local success does not establish complete regression success.
 - After required affected local verification, commit, push and open the PR. Report
   its URL, exact HEAD SHA, changed files, actual local checks/results and relevant
-  tests intentionally delegated to GitHub Actions. Confirm the expected workflow
-  was triggered only if immediately observable, then end the task. Do not poll CI
-  repeatedly or wait for completed/success. Never claim pending/running CI passed.
+  tests intentionally delegated to GitHub Actions. Confirm the expected workflow's
+  Full CI completed on that exact PR HEAD before stopping for independent review
+  and owner approval. This applies to every PR, including docs/policy-only PRs.
+  Never claim pending/running CI passed.
 - Investigate subsequent CI failures in a separate follow-up task using the actual
   failed step and relevant logs. Continue on the existing open PR branch, make the
   smallest justified correction, rerun affected local tests and relevant security
-  checks, push to the same PR and stop without waiting for CI completion. Do not
+  checks, push to the same PR, verify exact-HEAD Full CI completion and stop. Do not
   rerun unrelated tests or introduce speculative fixes.
 - Use the minimum tool calls and analysis needed for reliable work. Avoid repeated
   reads of unchanged files, unnecessary full local suites, redundant successful
@@ -242,8 +254,8 @@ Keep the fourteen Emulator controls byte-identical, real AWS prohibited, all
 offline quality gates and Full CI unchanged, and independent review/user approval.
 No Terraform/runtime/test/workflow/pin, Branch Protection or security-setting changes.
 Run documentation/link/scope/secret/diff checks; commit, push and open one PR.
-For this explicitly requested phase, wait for Full CI on the exact PR HEAD and
-report its completed result, overriding the usual no-wait rule for this task only.
+Wait for Full CI on the exact PR HEAD and report its completed result, as required
+for every PR by v14.2 priority provisions D/F.
 Then stop. Do not merge or start V7-A. Phase 2 requires independent review, explicit
 user Squash Merge approval, observed merge into main and resumption by the user.
 Phase 3 workflow work/execution requires its own separate authorization and PR.

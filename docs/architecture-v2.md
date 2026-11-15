@@ -39,8 +39,9 @@ TLS/identity, resource ownership and NP-1 implementation remain unchanged.
 Current operating requirements are the owner-authorized **Master Policy v14.2**
 [alignment record](policy-v14-2-alignment.md): mandatory Core offline quality,
 separate portfolio-level representative Emulator demonstration, optional external
-Live and unchanged architecture/security controls. The v14.2 PDF/full text/hash
-is unavailable; no original-PDF verification or unprovided clause is claimed.
+Live and unchanged architecture/security controls. The full v14.2 text (43 pages: priority provisions A–T and the v14.1 archive)
+was supplied and reviewed. The PDF binary and hashes were not independently
+verified; no PDF/hash verification is claimed.
 The earlier complete v14 text and v14.1 34-page extraction were user-supplied;
 their original PDFs were not independently verified. See the current
 [verification policy](portfolio-verification-policy.md).
