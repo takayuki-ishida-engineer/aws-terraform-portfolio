@@ -1,5 +1,18 @@
 # V7-0 REST / private integration technical contract
 
+## V7-A source update — runtime not demonstrated
+
+V7-A adds [api_gateway_rest](../infra/modules/api_gateway_rest/README.md) and composes Regional REST core plus Cognito
+Authorizer with the actual existing authentication contract in the DEV API Root.
+Exactly two REST resources are added; five Cognito resources/authentication remain.
+REGIONAL and disable_execute_api_endpoint=true are fixed. No Method, path,
+Integration, Deployment/Stage, VPC Link, Backend or Custom Domain is included.
+Emulator Lifecycle NOT_TESTED; namespace isolation environment BLOCKED. No real
+API invocation, Cognito enforcement or TLS communication is claimed. P0-01–04,
+P1-02 and Runtime NP-2B/NP-3 remain OPEN. Earlier implementation-status statements
+below are historical snapshots; their evidence is not a new V7-A test result.
+
+
 ## Current v14.2 acceptance overlay
 
 The owner-authorized [v14.2 alignment record](policy-v14-2-alignment.md) governs

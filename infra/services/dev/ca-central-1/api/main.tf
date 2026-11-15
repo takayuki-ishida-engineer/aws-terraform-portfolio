@@ -1,6 +1,14 @@
 locals {
   required_tags = { Environment = "dev", Service = "api", Project = "aws-terraform-portfolio", ManagedBy = "Terraform" }
 }
+module "api_gateway_rest" {
+  source         = "../../../../modules/api_gateway_rest"
+  providers      = { aws = aws }
+  expected_scope = { environment = "dev", partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
+  name           = "${var.pool_name}-rest"
+  authentication = module.cognito_auth.authentication
+  tags           = merge(var.tags, local.required_tags)
+}
 module "cognito_auth" {
   source                     = "../../../../modules/cognito_auth"
   providers                  = { aws = aws }
