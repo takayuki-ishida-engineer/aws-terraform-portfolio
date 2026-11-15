@@ -1,3 +1,13 @@
+override_resource {
+  override_during = plan
+  target          = module.api_gateway_rest.aws_api_gateway_rest_api.this
+  values          = { id = "resttest123" }
+}
+override_resource {
+  override_during = plan
+  target          = module.api_gateway_rest.aws_api_gateway_authorizer.this
+  values          = { id = "authtest123" }
+}
 mock_provider "aws" {}
 override_resource {
   override_during = plan

@@ -34,7 +34,7 @@ def main():
    else:raise ValueError('unsafe source accepted '+name)
   d=td/'root';d.mkdir();(d/'tests').mkdir()
   for f in ROOT.glob('*.tf'):shutil.copy2(f,d/f.name)
-  shutil.copy2(ROOT/'.terraform.lock.hcl',d/'.terraform.lock.hcl');p=d/'main.tf';p.write_text(p.read_text().replace('../../../../modules/cognito_auth',str(MODULE)))
+  shutil.copy2(ROOT/'.terraform.lock.hcl',d/'.terraform.lock.hcl');p=d/'main.tf';p.write_text(p.read_text().replace('../../../../modules/cognito_auth',str(MODULE)).replace('../../../../modules/api_gateway_rest',str(REPO/'infra/modules/api_gateway_rest')))
   init=subprocess.run([args.terraform,'-chdir='+str(d),'init','-backend=false','-input=false','-lockfile=readonly','-no-color'],env=env,capture_output=True,text=True);need(init.returncode==0,'root rejection init')
   vals=dict(v);vals['aws_account_id']=vals.pop('expected_scope')['account_id'];rootheader=(ROOT/'tests/auth.tftest.hcl').read_text().split('run "')[0];rejections=[]
   for key in vals:

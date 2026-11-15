@@ -1,5 +1,19 @@
 # AWS Terraform and Kubernetes Portfolio
 
+## V7-A source update — runtime not demonstrated
+
+V7-A adds [api_gateway_rest](infra/modules/api_gateway_rest/README.md) and composes Regional REST core plus Cognito
+Authorizer with the actual existing authentication contract in the DEV API Root.
+The source now has 12 Child Modules and four DEV Roots. Exactly two REST resources
+are added; five Cognito resources/authentication remain.
+REGIONAL and disable_execute_api_endpoint=true are fixed. No Method, path,
+Integration, Deployment/Stage, VPC Link, Backend or Custom Domain is included.
+Emulator Lifecycle NOT_TESTED; namespace isolation environment BLOCKED. No real
+API invocation, Cognito enforcement or TLS communication is claimed. P0-01–04,
+P1-02 and Runtime NP-2B/NP-3 remain OPEN. Earlier implementation-status statements
+below are historical snapshots; their evidence is not a new V7-A test result.
+
+
 An AWS-first infrastructure and platform engineering portfolio built with reusable
 Terraform modules, Kubernetes runtime configuration, Python security validators and
 GitHub Actions. The focus is private infrastructure, least-privilege identity,
@@ -22,7 +36,7 @@ Kubernetes packet-enforcement result or end-to-end mTLS handshake is claimed.
 | AWS infrastructure | Terraform source for DEV networking, private EKS, internal NLB, controller IAM, Cognito and an independent serverless HTTP API |
 | Kubernetes runtime | Pinned controller/Istio rendering, guarded TargetGroupBinding, Gateway TLS configuration and application-namespace default-deny policies |
 | NetworkPolicy work | NP-1 default-deny and NP-2P Gateway backend-port alignment implemented; NP-2B allow policies and NP-3 CNI enablement remain unimplemented |
-| Architecture v2 integration | V7-0 technical contract documented; Regional REST API, VPC Link integration, CloudFront, database, delivery and application/backend implementation remain future work |
+| Architecture v2 integration | V7-A REST core and Cognito Authorizer source; Methods, VPC Link integration, CloudFront, database, delivery and application/backend remain future work |
 
 ## Technical stack
 
@@ -148,7 +162,7 @@ reachability, controller registration or TLS/mTLS communication.
 - NP-2P resolves Gateway port consistency in source. **P0-WEBHOOK** port translation
   and **P0-CNI** version/bootstrap compatibility remain OPEN before NP-3; NP-2B
   communication allow policies are not implemented.
-- V7 REST implementation has not started. **P0-01–P0-04** retain unresolved
+- V7-A REST core source is implemented; integration/runtime are not. **P0-01–P0-04** retain unresolved
   integration-target ARN, backend server trust/SNI, client-certificate lifecycle
   and trusted minimal output-handoff decisions. CloudFront, database, delivery and
   application/backend architecture are incomplete; no application workload or

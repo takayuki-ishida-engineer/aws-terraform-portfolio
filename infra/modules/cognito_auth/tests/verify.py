@@ -13,6 +13,13 @@ def pairs(xs):
  return d
 def parse(t):return json.loads(t,object_pairs_hook=pairs,parse_constant=lambda x:(_ for _ in ()).throw(ValueError('nonfinite')))
 def verify(p,v,root=False):
+ if root:
+  sys.path.insert(0,str(HERE.parents[1]/'api_gateway_rest/tests'))
+  from check_rest_core import verify_plan
+  verify_plan(p,True)
+  p=copy.deepcopy(p)
+  p['resource_changes']=[r for r in p['resource_changes'] if r['address'].startswith('module.cognito_auth.')]
+  p['output_changes']={k:v for k,v in p['output_changes'].items() if k=='authentication'}
  prefix='module.cognito_auth.' if root else '';rows={}
  for r in p['resource_changes']:
   need(r['address'] not in rows,'duplicate owner');rows[r['address']]=r

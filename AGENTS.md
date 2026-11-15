@@ -246,16 +246,13 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: v14.2 policy alignment
+## Current phase only: V7-A REST core
 
-Align AGENTS.md and necessary governance/design documentation with the
-[owner-supplied v14.2 requirements](docs/policy-v14-2-alignment.md), from latest main.
-Keep the fourteen Emulator controls byte-identical, real AWS prohibited, all
-offline quality gates and Full CI unchanged, and independent review/user approval.
-No Terraform/runtime/test/workflow/pin, Branch Protection or security-setting changes.
-Run documentation/link/scope/secret/diff checks; commit, push and open one PR.
-Wait for Full CI on the exact PR HEAD and report its completed result, as required
-for every PR by v14.2 priority provisions D/F.
-Then stop. Do not merge or start V7-A. Phase 2 requires independent review, explicit
-user Squash Merge approval, observed merge into main and resumption by the user.
-Phase 3 workflow work/execution requires its own separate authorization and PR.
+PR #41 merged as 19f71ee451dd11c107c8a5e50ebe2370506f2fc2; the owner explicitly
+resumed Phase 2. Implement only api_gateway_rest Regional REST API and Cognito
+Authorizer in the existing API Root, preserving Cognito addresses/authentication.
+No Method, path, Integration, Deployment/Stage, VPC Link, Backend, Custom Domain
+or serverless-api changes. Add required offline/security/source/evidence tests
+and additive Full CI coverage; wait for exact-HEAD Full CI. Emulator NOT_TESTED,
+namespace environment BLOCKED; keep technical OPEN gates. Report PR/SHA/results
+and stop for independent review/owner approval. No merge, branch deletion or Phase 3.

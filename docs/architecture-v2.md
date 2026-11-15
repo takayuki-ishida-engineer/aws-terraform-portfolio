@@ -1,5 +1,18 @@
 # Architecture v2 — approved target and implementation status
 
+## V7-A source update — runtime not demonstrated
+
+V7-A adds [api_gateway_rest](../infra/modules/api_gateway_rest/README.md) and composes Regional REST core plus Cognito
+Authorizer with the actual existing authentication contract in the DEV API Root.
+Exactly two REST resources are added; five Cognito resources/authentication remain.
+REGIONAL and disable_execute_api_endpoint=true are fixed. No Method, path,
+Integration, Deployment/Stage, VPC Link, Backend or Custom Domain is included.
+Emulator Lifecycle NOT_TESTED; namespace isolation environment BLOCKED. No real
+API invocation, Cognito enforcement or TLS communication is claimed. P0-01–04,
+P1-02 and Runtime NP-2B/NP-3 remain OPEN. Earlier implementation-status statements
+below are historical snapshots; their evidence is not a new V7-A test result.
+
+
 See the [approved functional-module repository strategy](repository-structure-strategy.md): R0 → R1 → R2 → R3 → R4 migration/revalidation precedes new v2 features; coherent modules own coupled functionality rather than individual-resource wrappers.
 
 See the [Network / State / Identity foundation design](architecture-v2-foundation-design.md) for proposed implementation ownership and staged PR boundaries.
@@ -20,7 +33,7 @@ independent exact-HEAD review. No AWS/State/Live execution or unavailable PDF cl
 G01–G07, JPY10,000/72-hour removal, paid-plan/callback/account approvals and the
 Secrets recovery blocker remain OPEN. Historical status sections retain their scope.
 
-## V7-0 technical contract — implementation not started
+## V7-0 technical contract — integration not implemented
 
 See the [REST/private integration feasibility contract](v7-rest-private-integration-feasibility.md)
 for pinned Provider6.72.0/AWS specification findings and staged V7-A/B/C/D gates.

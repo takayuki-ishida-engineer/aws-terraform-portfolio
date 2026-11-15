@@ -131,9 +131,9 @@ jobs:
                       "infra/services/dev/ca-central-1/platform", "infra/services/dev/ca-central-1/api"} | {
                   "infra/modules/" + name for name in (
                       "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda_workload",
-                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress", "cognito_auth")}
+                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress", "cognito_auth", "api_gateway_rest")}
               if {row["module"] for row in initialized} != expected or references != len(expected) or len(identities) != 1:
-                  raise SystemExit("Expected fifteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+                  raise SystemExit("Expected sixteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
           if checkpoint == "job_completion":
               snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
@@ -970,6 +970,32 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write(f"passed={r['native_tests']}\n")
           PYAUTH
 
+      - name: Verify V7-A REST core and expanded API contracts
+        id: rest_core
+        working-directory: infra/modules/api_gateway_rest
+        run: |
+          set -euo pipefail
+          cp "$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/api/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -lockfile=readonly -no-color
+          terraform validate -no-color
+          terraform test -json -verbose -no-color | python3 "$GITHUB_WORKSPACE/infra/modules/eks_platform/tests/check_platform_configuration.py" --compact > "$RUNNER_TEMP/rest-core.jsonl"
+          python3 tests/check_rest_core.py --events "$RUNNER_TEMP/rest-core.jsonl" > "$RUNNER_TEMP/rest-child-verification.json"
+          python3 tests/check_rest_core.py --events "$RUNNER_TEMP/api-tests.jsonl" --root > "$RUNNER_TEMP/rest-root-verification.json"
+          python3 tests/check_source.py terraform > "$RUNNER_TEMP/rest-source-verification.json"
+          python3 - <<'PYREST'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])
+          for f,n,positive in [('rest-child-verification.json',20,1),('rest-root-verification.json',46,5)]:
+              r=json.loads((p/f).read_text())
+              assert r==dict(status='passed',native_tests=n,positive_plans=positive,negative_tests=n-positive,security_mutations=13,evidence_faults=9),r
+              print(f,r)
+          r=json.loads((p/'rest-source-verification.json').read_text())
+          assert r['status']=='passed' and r['source_mutations']==6 and r['missing_required_inputs']==3,r
+          print(r)
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out: out.write("passed=20\n")
+          PYREST
+
       - name: Measure shared provider storage after all modules
         run: |
           set -euo pipefail
@@ -1006,6 +1032,8 @@ jobs:
       - name: Summarize actual validation results
         if: ${{ always() }}
         env:
+          REST_RESULT: ${{ steps.rest_core.outcome }}
+          REST_PASSED: ${{ steps.rest_core.outputs.passed }}
           INSTALL_RESULT: ${{ steps.terraform.outcome }}
           FORMAT_RESULT: ${{ steps.format.outcome }}
           DEV_RESULT: ${{ steps.dev.outcome }}
@@ -1050,6 +1078,7 @@ jobs:
           import os
 
           rows = [
+            ("V7-A REST Core", "REST_RESULT", os.environ.get("REST_PASSED", "")),
             ("Terraform installation", "INSTALL_RESULT", ""),
             ("Repository formatting", "FORMAT_RESULT", ""),
             ("Dev root init/validate, readonly lock", "DEV_RESULT", ""),
