@@ -53,7 +53,9 @@ class Run:
       if self.current_operation in self.report['operations']:self.report['operations'][self.current_operation]=status
       emit(self.current_operation+'-'+Path(args[0]).name,status,p.returncode,api)
       raise RuntimeFailure('COMMAND_FAILED')
-    if p.returncode==0:emit(self.current_operation+'-'+Path(args[0]).name,'PASS',p.returncode)
+    # Negative authentication probes succeed only when rejection is established
+    # by authenticate(), never merely because the CLI unexpectedly exited zero.
+    if p.returncode==0 and self.current_operation not in ['auth-invalid-signature','auth-invalid-credential']:emit(self.current_operation+'-'+Path(args[0]).name,'PASS',p.returncode)
     return p
   def tf(self,*args,ok=(0,)):
     return self.cmd(['terraform',*args],ok)

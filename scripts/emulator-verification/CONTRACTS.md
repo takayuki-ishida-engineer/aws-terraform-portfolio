@@ -27,6 +27,11 @@ The source review below preceded the production changes.
    envelope parser prevents an embedded NotFound string from proving absence.
    Official optional ClientError retry wording is supported [S5]. No raw response,
    message, credential, State, Plan or arbitrary exception is printed.
+3. An unexpectedly accepted invalid credential caused the generic command
+   helper to emit an intermediate auth-invalid-*-aws/PASS before the probe
+   correctly BLOCKED. Suppress that premature receipt for both negative probes;
+   only the verified rejection may produce their PASS. Accepted-credential
+   tests now reject any PASS receipt for that probe, including command receipts.
 
 No further statically confirmed interoperability defect was established. Provider
 supporting reads and default VPC side effects were explicitly examined, rather

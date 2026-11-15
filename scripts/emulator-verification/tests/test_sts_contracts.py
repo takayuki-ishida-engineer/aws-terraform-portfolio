@@ -111,6 +111,8 @@ class STSContracts(unittest.TestCase):
       with self.subTest(probe=probe):
         result=self.invoke(probe=probe,reply=reply);self.assert_auth_blocked(*result)
         self.assertIn('AUTH_REQUEST_ACCEPTED',[row.get('diagnostic') for row in result[1]])
+        gate='auth-invalid-'+('signature' if probe=='wrong_secret' else 'credential')
+        self.assertFalse(any(row['gate'].startswith(gate) and row['status']=='PASS' for row in result[1]))
   def test_negative_control_old_production_expectation_fails_independent_oracle(self):
     # Deliberately restore the exact former bug in a transient function, not files.
     source=inspect.getsource(lifecycle.Run.authenticate)
