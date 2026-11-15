@@ -121,8 +121,11 @@ negative, mutation and malformed-evidence checks exercise unsafe variants. See t
 [runtime test contract](kubernetes/tests/README.md) and
 [verification policy](docs/portfolio-verification-policy.md).
 
-AWS Emulator lifecycle testing is an additional isolated verification layer,
-**not a GitHub Actions stage**. The historical proof covers a disposable single
+AWS Emulator lifecycle demonstration is required for representative portfolio
+scenarios, separately from Core Implementation's mandatory offline quality gates.
+It is not a blanket per-resource PR prerequisite or a current required CI stage.
+A future optional workflow needs separate approval and its own merged PR before
+execution; all fourteen safety controls remain mandatory. The historical proof covers a disposable single
 `aws_vpc.proof` lifecycle only; it does not validate the complete VPC module or
 other AWS services. CI success does not establish real IAM enforcement, network
 reachability, controller registration or TLS/mTLS communication.
@@ -155,20 +158,25 @@ reachability, controller registration or TLS/mTLS communication.
 - Actual account, State custody, output authenticity, capacity, certificates,
   callback domains, pricing and teardown require separate review and approval.
 
-The owner-approved **AWS Terraform Portfolio MASTER POLICY v14.1 (2026-11-14)**
-is the current single-source policy. The original v14 text was user-authorized;
-the external v14.1 PDF has not been independently verified inside Codex. Earlier
-policy labels in historical documents are not current authority; the
+The owner-authorized **MASTER POLICY v14.2** requirements are recorded in the
+[policy alignment record](docs/policy-v14-2-alignment.md). Mandatory offline quality,
+Full CI on every PR, independent review/user approval and separate representative
+Emulator demonstration are retained; Core Portfolio Complete is a separate scope
+assessment without an Emulator prerequisite; PORTFOLIO COMPLETE requires both
+Core completion and representative Emulator demonstration. Neither is claimed here.
+The supplied v14.2 text was reviewed in full (43 pages, including A–T); the PDF
+binary and its hash were not independently verified. Earlier policy labels in historical
+documents are not current authority; the
 [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status)
-retains its original v14 provenance.
+records the available policy provenance and limits.
 Real AWS deployment is optional for portfolio completion and prohibited in Codex
 Cloud. Optional external DEV Live work requires separate approval through all
 **G01–G07** gates, at most **JPY 10,000** cumulative actual spending and verified
 complete removal within **72 hours**. All gates remain OPEN, including the
 unresolved Secrets Manager 30-day recovery-window conflict.
 
-Older v14 references below are historical snapshots; v14.1 is the currently
-approved policy.
+Older v14/v14.1 references below are historical snapshots; current requirements
+are the owner-authorized v14.2 alignment record.
 
 ## Detailed engineering history
 
@@ -176,7 +184,9 @@ The sections below preserve phase-specific implementation and acceptance evidenc
 including their original commits, counts and expected-CI wording. They are historical
 snapshots; use the verified main baseline above for current counts and maturity.
 
-### Current operating and completion policy
+<a id="current-operating-and-completion-policy"></a>
+
+### Historical v14 operating and completion policy
 
 Master Policy v14 (2026-11-12) is the sole current policy authority. Its complete
 24-page user-supplied text was reviewed with user approval; the original PDF was
@@ -324,7 +334,9 @@ Offline schemas do not prove handshakes, IAM, controller effectiveness or Live.
 G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
 30-day recovery conflict remain unchanged. No State/AWS/Kubernetes Live authority.
 
-### Current limitations
+<a id="current-limitations"></a>
+
+### Historical v14 limitations
 
 Current operating policy is Master Policy v14 (2026-11-12), per user instruction.
 The complete user-supplied v14 text was reviewed; original PDF/hash verification

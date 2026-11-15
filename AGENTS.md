@@ -106,7 +106,13 @@ Do not commit or upload raw State, credentials, private keys or saved plans.
 ### Emulator verification workflow and evidence
 
 Preserve all Terraform Native, Mock Plan, Python, Security, Negative and Mutation
-tests. For approved Terraform development affecting supported AWS resources:
+tests. Master Policy v14.2 separates mandatory Core Implementation quality from
+portfolio-level representative AWS Emulator demonstration; see the
+[owner-authorized alignment record](docs/policy-v14-2-alignment.md).
+Every Terraform implementation requires affected offline/security verification.
+Emulator lifecycle for every resource is not a blanket PR prerequisite.
+
+For a separately approved Emulator demonstration:
 
 1. Implement the approved change.
 2. Run required affected offline and security tests.
@@ -116,13 +122,28 @@ tests. For approved Terraform development affecting supported AWS resources:
 5. Exercise applicable Terraform Plan, Apply, Read, Update and Destroy operations.
 6. Independently verify resource identity and cleanup.
 7. Record actual evidence, unsupported operations, untested behavior and residual risk.
-8. Commit, push and open a PR only after required verification is complete, with any
-   specific evidence-backed unsupported-operation skip explicitly documented.
+8. Record the tested SHA, exact operations, cleanup, limitations and residual risk.
+   Only actually successful operations may be marked EMULATOR DEMONSTRATED.
 
-Emulator lifecycle verification is not a permanent GitHub Actions requirement at
-this stage. Preserve all existing CI checks. Documentation-only changes with no
-AWS API behavior changes do not require emulator lifecycle runs. Do not rerun the
-historical feasibility proof for a documentation-only PR.
+Core implementation PRs require all affected offline/security checks, the existing
+Full CI on every PR, independent review and explicit user approval before merge.
+Report unexecuted Emulator lifecycle as NOT_TESTED and unmet isolation controls
+as environment BLOCKED; neither is a resource-compatibility PASS or API skip.
+
+A dedicated Emulator GitHub Actions workflow is optional to run only within a
+separately user-approved scope. Its design/implementation requires a separate PR;
+execute it only after that workflow is merged. Use workflow_dispatch and standard
+GitHub-hosted ubuntu-24.04 runners under GitHub Free for the public repository.
+Maintain $0 Budgets for Actions/Codespaces/Packages/Git LFS/AI Credits; verify free
+eligibility, Budgets and stop settings before every run. Unknown/unverifiable cost
+conditions or insufficient free capacity must fail closed, without paid fallback.
+No Larger Runner, paid self-hosted/external service, Artifact upload, persistent
+cache, registry push, Git LFS or Packages use in the new Emulator workflow.
+Owner-reported Budget existence is not run-time verification or a Billing audit;
+never claim inaccessible Billing data was verified. See the alignment record.
+Do not change the existing required Full CI or Branch Protection. Docker namespace
+isolation is a proposed method, not proof: all fourteen controls above still apply.
+Documentation-only changes do not require lifecycle replay, but still run Full CI.
 
 Classify results precisely:
 
@@ -142,12 +163,20 @@ and requires a separate user decision; Codex must not initiate it.
 
 ### Portfolio completion and historical emulator evidence
 
-Real AWS deployment is not mandatory for portfolio completion. The default path is
-correct Terraform source/architecture, complete required credential-free CI,
-independent security/mutation validation, emulator lifecycle validation where
-supported, explicit unsupported/untested limitations, and independent PR review
-and approval. Emulator success is never evidence of actual AWS deployment, IAM
-enforcement, networking, costs, availability or recovery.
+Real AWS deployment is not mandatory for portfolio completion. Core Implementation
+requires approved architecture/ownership, fmt, locked init, validate, affected
+Native/Mock/Negative/Security/Mutation/Evidence checks, secret-free State, existing
+Full CI on every PR, independent review and user approval. Representative Emulator
+lifecycle demonstration remains mandatory at portfolio level, separately from
+per-resource implementation PR acceptance. CORE PORTFOLIO COMPLETE is independently
+assessed from all approved Core scope implemented, offline/security quality, Full
+CI, independent review, owner approval and merge, with unverified scope explicit;
+it does not require Emulator demonstration. AWS EMULATOR DEMONSTRATED requires
+actual representative lifecycle and cleanup under all fourteen controls.
+PORTFOLIO COMPLETE requires both statuses and separate owner/reviewer acceptance;
+none is automatically declared by a single passing PR.
+Emulator success is never evidence of actual AWS deployment, IAM enforcement,
+networking, costs, availability or recovery.
 
 The historical proof at main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0` used
 Emulator 1.0.322, Terraform 1.17.0, AWS Provider 6.72.0, AWS CLI 2.35.0 and disposable
@@ -201,13 +230,14 @@ remain unchanged. No Live gate is closed by emulator evidence.
   authorize merge. Local success does not establish complete regression success.
 - After required affected local verification, commit, push and open the PR. Report
   its URL, exact HEAD SHA, changed files, actual local checks/results and relevant
-  tests intentionally delegated to GitHub Actions. Confirm the expected workflow
-  was triggered only if immediately observable, then end the task. Do not poll CI
-  repeatedly or wait for completed/success. Never claim pending/running CI passed.
+  tests intentionally delegated to GitHub Actions. Confirm the expected workflow's
+  Full CI completed on that exact PR HEAD before stopping for independent review
+  and owner approval. This applies to every PR, including docs/policy-only PRs.
+  Never claim pending/running CI passed.
 - Investigate subsequent CI failures in a separate follow-up task using the actual
   failed step and relevant logs. Continue on the existing open PR branch, make the
   smallest justified correction, rerun affected local tests and relevant security
-  checks, push to the same PR and stop without waiting for CI completion. Do not
+  checks, push to the same PR, verify exact-HEAD Full CI completion and stop. Do not
   rerun unrelated tests or introduce speculative fixes.
 - Use the minimum tool calls and analysis needed for reliable work. Avoid repeated
   reads of unchanged files, unnecessary full local suites, redundant successful
@@ -216,18 +246,16 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: recruiter-focused public README
+## Current phase only: v14.2 policy alignment
 
-Use docs/recruiter-focused-readme from verified main
-`be79be6a64a6ef2e78f76e920afb335c59bbd49d`. Owner-approved Master Policy v14.1
-(2026-11-14) governs; the external v14.1 PDF has not been independently verified
-inside Codex. Original Architecture, Emulator, Live and CI boundaries remain.
-Improve only the root README and this phase section for infrastructure/DevOps/
-platform reviewers. Verify source inventory and exact-main CI evidence; distinguish
-implemented source, planned architecture, historical snapshots and untested Live
-behavior. Preserve meaningful links and historical technical evidence.
-No Terraform/runtime/test/workflow/pin/ownership changes, AWS/Cluster/State access,
-visibility/security-setting changes or next-phase implementation. Run documentation,
-links, scope, secrets and diff checks; preserve permanent rules byte-for-byte.
-Commit/push/open one PR, report exact HEAD and actual CI state, then stop for
-independent review. No CI completion polling, merge or branch deletion.
+Align AGENTS.md and necessary governance/design documentation with the
+[owner-supplied v14.2 requirements](docs/policy-v14-2-alignment.md), from latest main.
+Keep the fourteen Emulator controls byte-identical, real AWS prohibited, all
+offline quality gates and Full CI unchanged, and independent review/user approval.
+No Terraform/runtime/test/workflow/pin, Branch Protection or security-setting changes.
+Run documentation/link/scope/secret/diff checks; commit, push and open one PR.
+Wait for Full CI on the exact PR HEAD and report its completed result, as required
+for every PR by v14.2 priority provisions D/F.
+Then stop. Do not merge or start V7-A. Phase 2 requires independent review, explicit
+user Squash Merge approval, observed merge into main and resumption by the user.
+Phase 3 workflow work/execution requires its own separate authorization and PR.

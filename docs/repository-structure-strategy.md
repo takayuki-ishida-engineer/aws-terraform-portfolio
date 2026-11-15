@@ -23,8 +23,9 @@ Root → Child composition, and migration-first R0 → R1 → R2 → R3 → R4 b
 Architecture v2 features. R0 approved the strategy; R1/R2 subsequently implemented
 source refactors with offline verification, not actual state migration or Live
 approval. R3 only stabilizes documentation. Module count is not an acceptance goal.
-Current user-approved operating policy is v13 (2026-11-12), with
-[isolated Emulator/completion rules](portfolio-verification-policy.md#official-aws-emulator--policy-v13).
+Current operating requirements are the owner-authorized v14.2
+[alignment record](policy-v14-2-alignment.md), with separate Core offline and
+portfolio-level representative [Emulator/completion gates](portfolio-verification-policy.md).
 v11 (2026-11-09) remains historical implementation provenance; R0 recorded historical
 v10 (2026-11-08). See [policy provenance/PDF limits](architecture-v2.md#authority-evidence-and-status).
 External policy PDFs are not supplied, edited or claimed independently reviewed in full.
