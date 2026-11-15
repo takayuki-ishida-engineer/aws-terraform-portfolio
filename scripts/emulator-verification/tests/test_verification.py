@@ -30,9 +30,9 @@ class Gates(unittest.TestCase):
         with self.assertRaises((Blocked,ValueError)):owner_gate(*a)
   def test_signature_status(self):
     fingerprint='A'*40
-    signature_gate('[GNUPG:] VALIDSIG '+fingerprint+' 0 0',fingerprint)
+    signature_gate('[GNUPG:] VALIDSIG '+fingerprint+' 2026-11-15 1794700800 0 4 0 22 8 00 '+fingerprint,fingerprint,0)
     for s in ['', '[GNUPG:] BADSIG test', '[GNUPG:] VALIDSIG '+'B'*40+' 0 0','[GNUPG:] VALIDSIG '+fingerprint+' 0 0\n[GNUPG:] EXPKEYSIG x']:
-      with self.subTest(s=s),self.assertRaises(Blocked):signature_gate(s,fingerprint)
+      with self.subTest(s=s),self.assertRaises(Blocked):signature_gate(s,fingerprint,0)
   def test_actual_gpg_rejects_invalid_signature(self):
     with tempfile.TemporaryDirectory() as d:
       p=Path(d);(p/'data').write_text('not an AWS package');(p/'sig').write_text('invalid signature')
@@ -201,8 +201,10 @@ class PreparationDiagnostics(unittest.TestCase):
       env.update(options.get('env',{}))
       def process(args,**kwargs):
         # Both streams can carry secrets on failure. Neither may be logged.
-        self.assertTrue(kwargs.get('capture_output'));self.assertTrue(kwargs.get('text'))
-        tool=Path(args[0]).name;stdout='';code=0
+        self.assertTrue(kwargs.get('capture_output'))
+        tool=Path(args[0]).name;binary=tool=='gpg' and '--verify' in args
+        self.assertEqual(bool(kwargs.get('text')),not binary)
+        stdout='';code=0
         if tool=='git':stdout=SHA
         elif tool=='docker':
           if args[1]=='context':stdout=json.dumps(options.get('endpoint','unix:///var/run/docker.sock'))
@@ -213,7 +215,7 @@ class PreparationDiagnostics(unittest.TestCase):
         elif tool=='gpg':
           if '--with-colons' in args:stdout='fpr:::::::::'+('B'*40 if options.get('bad_publisher') else fingerprint)+':\n'
           elif '--verify' in args:
-            stdout='[GNUPG:] VALIDSIG '+fingerprint+' 0 0'
+            stdout='[GNUPG:] VALIDSIG '+fingerprint+' 2026-11-15 1794700800 0 4 0 22 8 00 '+fingerprint
             if options.get('bad_signature'):code=1;stdout=self.LEAK
         elif tool=='dpkg-deb':stdout=lock['emulator']['package_version']
         elif tool=='unzip':
@@ -227,7 +229,7 @@ class PreparationDiagnostics(unittest.TestCase):
           elif args[1:3]==['providers','mirror']:Path(args[-1]).mkdir()
           else:raise AssertionError('Unexpected tool call')
         else:raise AssertionError('Unexpected tool call')
-        return subprocess.CompletedProcess(args,code,stdout,self.LEAK)
+        return subprocess.CompletedProcess(args,code,stdout.encode() if binary else stdout,self.LEAK.encode() if binary else self.LEAK)
       original_stage=prepare.stage;original_read_text=Path.read_text
       @contextmanager
       def instrumented_stage(name):
@@ -276,7 +278,10 @@ class PreparationDiagnostics(unittest.TestCase):
     for gate,option in cases:
       with self.subTest(gate=gate):
         code,rows,_=self.invoke(**{option:True})
-        self.assertEqual(code,1);self.assertEqual(rows[-1],{'gate':gate,'status':'BLOCKED'})
+        self.assertEqual(code,1)
+        expected={'gate':gate,'status':'BLOCKED'}
+        if option=='bad_signature':expected['diagnostic']='GPG_EXIT_NONZERO'
+        self.assertEqual(rows[-1],expected)
 
   def test_preparation_unknown_exceptions_never_print_details(self):
     import prepare,subprocess
@@ -299,6 +304,7 @@ class PreparationDiagnostics(unittest.TestCase):
     self.assertEqual(json.loads(out.getvalue()),{'gate':'preparation','status':'BLOCKED'})
 
 if __name__=='__main__':
-  suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in [Gates,PreparationDiagnostics])
+  import test_gpg_signatures
+  suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in [Gates,PreparationDiagnostics,test_gpg_signatures.SignatureStatus,test_gpg_signatures.RealGPG])
   result=unittest.TextTestRunner(verbosity=2).run(suite)
-  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==25 else 1)
+  raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==34 else 1)

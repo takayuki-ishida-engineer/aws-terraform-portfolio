@@ -25,10 +25,48 @@ def freshness_gate(checked_at, now=None):
   except (ValueError, TypeError):
     raise Blocked('owner-attestation-time')
 
-def signature_gate(status, fingerprint):
-  # GnuPG status-fd is parsed, not the human-readable Good signature message.
-  rows = [l.split() for l in status.splitlines() if l.startswith('[GNUPG:] VALIDSIG ')]
-  require(len(rows) == 1 and rows[0][2] == fingerprint and not any(x in status for x in ['BADSIG', 'ERRSIG', 'REVKEYSIG', 'EXPKEYSIG']), 'package-signature')
+GPG_DIAGNOSTIC_CODES=frozenset([
+  'GPG_EXIT_NONZERO','VALIDSIG_MISSING','VALIDSIG_MULTIPLE','VALIDSIG_MALFORMED',
+  'SIGNER_PRIMARY_MISMATCH','SIGNATURE_INVALID','SIGNATURE_EXPIRED_OR_REVOKED',
+  'GPG_RESULT_UNAVAILABLE',
+])
+
+class SignatureBlocked(Blocked):
+  def __init__(self, code):
+    self.code=code if code in GPG_DIAGNOSTIC_CODES else 'GPG_RESULT_UNAVAILABLE'
+    super().__init__()
+
+def signature_gate(status, fingerprint, returncode):
+  """Consume only status-fd bytes from the same successful gpg --verify process.
+
+  VALIDSIG's first fingerprint identifies the signer; its optional final field
+  identifies the cryptographically bound primary key. Never infer that binding
+  from key-list membership or GOODSIG text. Notation/UID payloads need not be UTF-8.
+  """
+  def reject(code):raise SignatureBlocked(code)
+  if type(returncode) is not int or returncode!=0:reject('GPG_EXIT_NONZERO')
+  if isinstance(status,str):status=status.encode('utf8')
+  if not isinstance(status,bytes):reject('GPG_RESULT_UNAVAILABLE')
+  records=[]
+  for line in status.split(b'\n'):
+    match=re.match(rb'^\[GNUPG:\] ([A-Z_]+)(?: |$)',line)
+    if match:records.append((match[1],line))
+  codes={code for code,_ in records}
+  if codes & {b'EXPSIG',b'EXPKEYSIG',b'REVKEYSIG',b'KEYEXPIRED',b'SIGEXPIRED',b'KEYREVOKED'}:
+    reject('SIGNATURE_EXPIRED_OR_REVOKED')
+  if codes & {b'BADSIG',b'ERRSIG',b'NO_PUBKEY',b'NODATA',b'BADARMOR',b'ERROR',b'FAILURE',b'UNEXPECTED',b'TRUNCATED'}:
+    reject('SIGNATURE_INVALID')
+  rows=[line for code,line in records if code==b'VALIDSIG']
+  if not rows:reject('VALIDSIG_MISSING')
+  if len(rows)!=1:reject('VALIDSIG_MULTIPLE')
+  try:args=rows[0].decode('ascii').split()[2:]
+  except UnicodeDecodeError:reject('VALIDSIG_MALFORMED')
+  if len(args) not in [9,10]:reject('VALIDSIG_MALFORMED')
+  signer=args[0];primary=args[9] if len(args)==10 else signer
+  valid_fingerprint=lambda value:isinstance(value,str) and re.fullmatch(r'(?:[0-9A-F]{40}|[0-9A-F]{64})',value)
+  if not all(valid_fingerprint(value) for value in [fingerprint,signer,primary]):reject('VALIDSIG_MALFORMED')
+  if primary!=fingerprint:reject('SIGNER_PRIMARY_MISMATCH')
+  return {'signer':signer,'primary':primary}
 
 def network_gate(host_ns, current_ns, links, routes):
   require(bool(host_ns) and host_ns != current_ns, 'independent-netns')

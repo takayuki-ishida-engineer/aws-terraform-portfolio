@@ -2,7 +2,7 @@
 import hashlib,json,os,re,shutil,socket,subprocess,tempfile
 from contextlib import contextmanager,nullcontext
 from pathlib import Path
-from gates import Blocked,require,signature_gate,owner_gate
+from gates import Blocked,SignatureBlocked,GPG_DIAGNOSTIC_CODES,require,signature_gate,owner_gate
 HERE=Path(__file__).resolve().parent
 PREPARATION_GATES=frozenset([
   'preparation','owner-confirmation','runner-eligibility','runner-cpu',
@@ -14,14 +14,18 @@ PREPARATION_GATES=frozenset([
 ])
 
 class PreparationBlocked(Blocked):
-  def __init__(self, gate):
+  def __init__(self, gate, diagnostic=None):
     # Expose only an allowlisted name; never format exception or command details.
     self.gate=gate if gate in PREPARATION_GATES else 'preparation'
+    self.diagnostic=diagnostic if diagnostic in GPG_DIAGNOSTIC_CODES else None
     super().__init__()
 
-def report(gate, status):
+def report(gate, status, diagnostic=None):
   require(gate in PREPARATION_GATES and status in ['PASS','BLOCKED'],'diagnostic-schema')
-  print(json.dumps({'gate':gate,'status':status}),flush=True)
+  require(diagnostic is None or (status=='BLOCKED' and diagnostic in GPG_DIAGNOSTIC_CODES),'diagnostic-code')
+  row={'gate':gate,'status':status}
+  if diagnostic is not None:row['diagnostic']=diagnostic
+  print(json.dumps(row),flush=True)
 
 @contextmanager
 def stage(gate):
@@ -30,6 +34,8 @@ def stage(gate):
     yield
   except PreparationBlocked:
     raise
+  except SignatureBlocked as error:
+    raise PreparationBlocked(gate,error.code) from None
   except (Exception,KeyboardInterrupt,SystemExit):
     raise PreparationBlocked(gate) from None
   else:
@@ -50,9 +56,11 @@ def verify_signature(package, signature, key, fingerprint, artifact=None):
       rows=command(['gpg','--homedir',d,'--batch','--with-colons','--fingerprint'])
       require(fingerprint in [l.split(':')[9] for l in rows.splitlines() if l.startswith('fpr:')],'publisher-fingerprint')
     with stage(artifact+'-gpg-signature') if artifact else nullcontext():
-      p=subprocess.run(['gpg','--homedir',d,'--batch','--status-fd','1','--verify',str(signature),str(package)],capture_output=True,text=True)
-      require(p.returncode==0,'package-signature-exit')
-      signature_gate(p.stdout,fingerprint)
+      try:
+        p=subprocess.run(['gpg','--homedir',d,'--batch','--status-fd','1','--verify',str(signature),str(package)],capture_output=True)
+      except (Exception,KeyboardInterrupt,SystemExit):
+        raise SignatureBlocked('GPG_RESULT_UNAVAILABLE') from None
+      signature_gate(p.stdout,fingerprint,p.returncode)
 
 def preflight():
   with stage('owner-confirmation'):
@@ -126,7 +134,7 @@ def entrypoint():
   try:
     main()
   except PreparationBlocked as error:
-    report(error.gate,'BLOCKED')
+    report(error.gate,'BLOCKED',error.diagnostic)
     return 1
   except (Exception,KeyboardInterrupt,SystemExit):
     # Unexpected failures are still nonzero, with no traceback or exception text.
