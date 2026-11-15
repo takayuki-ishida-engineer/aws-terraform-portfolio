@@ -246,13 +246,15 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: V7-A REST core
+## Current phase only: representative Emulator workflow implementation
 
-PR #41 merged as 19f71ee451dd11c107c8a5e50ebe2370506f2fc2; the owner explicitly
-resumed Phase 2. Implement only api_gateway_rest Regional REST API and Cognito
-Authorizer in the existing API Root, preserving Cognito addresses/authentication.
-No Method, path, Integration, Deployment/Stage, VPC Link, Backend, Custom Domain
-or serverless-api changes. Add required offline/security/source/evidence tests
-and additive Full CI coverage; wait for exact-HEAD Full CI. Emulator NOT_TESTED,
-namespace environment BLOCKED; keep technical OPEN gates. Report PR/SHA/results
-and stop for independent review/owner approval. No merge, branch deletion or Phase 3.
+PR #42 merged as acdef93d07a2e8957af00199b3682d7c57066891; Phase 3 is explicitly
+approved for source/static/unit/negative/mutation checks and a separate PR only.
+Implement a manual owner-gated standard ubuntu-24.04 workflow and isolated single
+VPC adapter under scripts/emulator-verification, preserving required Full CI and
+all permanent controls. No Docker/Emulator startup, resource lifecycle, Apply or
+Destroy, manual dispatch, paid fallback or V7-B work in this PR. Report exact-HEAD
+Full CI and static-contract CI, NOT_TESTED runtime/cleanup and known Codex namespace
+BLOCKED. Stop for independent review/Owner approval; no merge or branch deletion.
+Actual dispatch requires workflow merge, main CI success and fresh Owner cost
+confirmation, followed by independent evidence review.

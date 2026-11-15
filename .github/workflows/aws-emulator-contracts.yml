@@ -1,0 +1,25 @@
+name: AWS Emulator offline contracts
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: emulator-contracts-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  static-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Offline unit negative and mutation contracts only
+        run: python3 scripts/emulator-verification/tests/test_verification.py

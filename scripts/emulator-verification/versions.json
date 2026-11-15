@@ -1,0 +1,23 @@
+{
+  "emulator": {
+    "version": "1.0.385",
+    "package_version": "1.0.385-1",
+    "url": "https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS/aws-emulator_1.0.385-1_amd64.deb",
+    "sha256": "5344b39e76089633f3cc2d8795e5554ff0a89f4c26bc316fa748b3909423d3f5",
+    "key_url": "https://downloads.aws.com/keys/gpg/current.asc",
+    "fingerprint": "98BCF336A3BE53B734E967C52E5BF49BD940F624"
+  },
+  "terraform": {
+    "version": "1.17.0",
+    "url": "https://releases.hashicorp.com/terraform/1.17.0/terraform_1.17.0_linux_amd64.zip",
+    "sha256": "c168cab7c637a8769fdb90089ddd19de701bc6ff8aca64dc2e2185fe46f59f67"
+  },
+  "awscli": {
+    "version": "2.35.0",
+    "url": "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.35.0.zip",
+    "sha256": "339009d6ad0ad5d1448922ede4d07bf0ba44b6a91d9412610a8e745da9aca04b",
+    "fingerprint": "FB5DB77FD5C118B80511ADA8A6310ACC4672475C"
+  },
+  "provider": "6.72.0",
+  "ubuntu_image": "ubuntu:24.04@sha256:77eb101c607d6e3d4f5ad0c8a02c2136c689b98aba1f359e6502ba517e5c57ec"
+}
