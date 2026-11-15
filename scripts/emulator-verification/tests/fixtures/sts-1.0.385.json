@@ -5,9 +5,10 @@
     "sts_blob": "360b86ea65f621e19067df7b979dc28e9330f3a4",
     "renderer_blob": "8c519d7f06dda714f8dc88227c3cd4de393f0c03",
     "classification": "UPSTREAM_SOURCE_VERIFIED",
+    "query_error_body_blob": "98f689dd3990d4f3a1cfba0f00f52b03cde7c86e",
     "cli_release": "2.35.0",
     "cli_renderer_blob": "3f7e01429df94c3a25fadeb963a6d57e10a05b2e",
-    "note": "Source-derived public protocol examples; message/identity fields are synthetic. Not a captured wire response. CLI stderr follows AWS CLI 2.35.0 awscli/errorformat.py write_error(), which prefixes 'aws: [ERROR]: '."
+    "note": "Source-derived public protocol examples; message/identity fields are synthetic. Not a captured wire response. CLI stderr follows AWS CLI 2.35.0 awscli/errorformat.py write_error(), which prefixes 'aws: [ERROR]: '. awsQuery refusal bodies follow smithy-schema-server query_error_body(), which stamps no xmlns."
   },
   "signed": {
     "Account": "000000000000",
@@ -25,7 +26,7 @@
   },
   "unsigned": {
     "status": 403,
-    "body": "<?xml version=\"1.0\"?><ErrorResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\"><Error><Type>Sender</Type><Code>InvalidClientTokenId</Code><Message>synthetic private message omitted</Message></Error></ErrorResponse>"
+    "body": "<?xml version=\"1.0\"?><ErrorResponse><Error><Type>Sender</Type><Code>InvalidClientTokenId</Code><Message>synthetic private message omitted</Message></Error></ErrorResponse>"
   },
   "observed_run": {
     "run_id": "43715108794",
