@@ -232,14 +232,17 @@ class Run:
       env=dict(self.env,AWS_ACCESS_KEY_ID=changed['aws_access_key_id'],AWS_SECRET_ACCESS_KEY=changed['aws_secret_access_key'])
       result=self.cmd(args,ok=(0,254,255),env=env)
       observed=cli_error_code(result,'GetCallerIdentity')
+      wire_unproven=False
       if result.returncode==254 and observed is None:
         # A text rendering mismatch is not a security verdict. Independently
         # verify a successful baseline and the exact rejected STS XML response.
         if self.structured_auth_rejection(changed,code):
           emit(self.current_operation,'PASS',diagnostic='AUTH_WIRE_FALLBACK_VERIFIED')
           continue
+        wire_unproven=True
       if result.returncode!=254 or observed!=code:
         diagnostic='AUTH_REQUEST_ACCEPTED' if result.returncode==0 else {'AccessDenied':'AUTH_UNEXPECTED_ACCESS_DENIED','SignatureDoesNotMatch':'AUTH_UNEXPECTED_SIGNATURE_MISMATCH','InvalidClientTokenId':'AUTH_UNEXPECTED_INVALID_TOKEN'}.get(observed,'AUTH_UNCLASSIFIED_REJECTION')
+        if wire_unproven:diagnostic='AUTH_STRUCTURED_REJECTION_UNPROVEN'
         emit(self.current_operation,'BLOCKED',exit_code=result.returncode,diagnostic=diagnostic)
         raise RuntimeFailure('AUTH_REJECTION_UNPROVEN')
       emit(self.current_operation,'PASS')
