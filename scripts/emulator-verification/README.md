@@ -127,7 +127,8 @@ Emulator shutdown loses memory but does not count as independent Destroy proof.
 
 Run `PYTHONDONTWRITEBYTECODE=1 python3 scripts/emulator-verification/tests/test_verification.py`.
 The original nineteen test methods remain, plus six preparation-diagnostic test
-methods (25 total). They execute explicit negative/mutation subcases, including real
+methods (25 before the signature fix). Nine further signature methods bring the
+current total to 34. They execute explicit negative/mutation subcases, including real
 GPG rejection of an invalid signature, actual initial consent script execution,
 route/reachability/STS/Plan/ID/evidence mutations, changed saved-plan refusal,
 strict TLS configuration, failed cleanup coordination and secret-output suppression.
@@ -177,3 +178,61 @@ command error streams and dummy credential values never appear in diagnostics.
 These tests do not resolve or replay the failed runtime run. After review/merge,
 a separately Owner-authorized fresh dispatch is needed to identify its actual
 preparation blocker with the new fixed Gate records.
+
+## GPG status-fd encoding and publisher binding correction
+
+Run [43698042624](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43698042624)
+on main `ed8fbba5c8581b49249541a93f159dfb7167e2cf` passed the official DEB
+SHA-256 and publisher gates, then blocked at `emulator-gpg-signature`. Its stored
+log does not contain GPG's status stream or exception. Reproduction using the same
+fixed DEB and its official detached signature established the following on
+GnuPG 2.4.7 (2026-11-15), without installing/starting Emulator:
+
+- DEB SHA-256 remains `5344b39e76089633f3cc2d8795e5554ff0a89f4c26bc316fa748b3909423d3f5`.
+- Detached signature SHA-256: `153a149f978b1c127ee7724d9f8afbe4de0cb94de2eb731b7ddd93068f7ee3e7`;
+  downloaded public key SHA-256: `33f40fa3b822167ba2139368242a220bf9c8d753044947fa83bb1db1fd04b9ad`.
+- Actual `gpg --verify` exit **0**, one VALIDSIG. Signer and primary are both
+  `98BCF336A3BE53B734E967C52E5BF49BD940F624`. This package is not subkey-signed.
+- NEWSIG, KEY_CONSIDERED, SIG_ID, GOODSIG, NOTATION_NAME, NOTATION_DATA,
+  VALIDSIG and TRUST_UNDEFINED were observed; no invalid/expired/revoked status.
+- stdout's NOTATION_DATA contains non-UTF-8 bytes; stderr is UTF-8. The previous
+  `subprocess.run(..., text=True)` raises UnicodeDecodeError before returning the
+  successful exit/status result. The original fingerprint predicate accepts the
+  genuine VALIDSIG record in isolation, so a subkey mismatch is not this reproducer's cause.
+
+The corrected verify call captures bytes. The parser splits protocol records on
+LF, reads status tokens and decodes only the ASCII VALIDSIG fields. It never
+lossily decodes the entire stream, prints raw status/stderr, or treats decoded
+text as cryptographic proof. Reproducing the official DEB verification now passes;
+the previously verified fixed AWS CLI 2.35.0 archive also passes the shared verifier.
+These are local verification results, not a replay of the failed Actions run.
+No package Version, URL, fingerprint or pinned hash changed.
+
+Sources: the [AWS signature procedure](https://docs.aws.amazon.com/emulator/latest/userguide/getting-started-linux.html)
+and [GnuPG DETAILS](https://github.com/gpg/gnupg/blob/master/doc/DETAILS), reviewed
+blob `91389245d44e30b7d43ac4241c522a917461d259` (VALIDSIG and NOTATION_ sections).
+VALIDSIG's first fingerprint identifies the signing key; its optional final field
+identifies the primary key, or repeats the first fingerprint. A signing subkey is
+accepted only when the **same successful GPG verification** supplies its validated
+binding to the exact pinned primary. An imported key-list match or GOODSIG UID is
+insufficient. Missing primary data can establish only a direct primary signature.
+
+Fixed BLOCKED diagnostic codes are GPG_EXIT_NONZERO, VALIDSIG_MISSING,
+VALIDSIG_MULTIPLE, VALIDSIG_MALFORMED, SIGNER_PRIMARY_MISMATCH, SIGNATURE_INVALID,
+SIGNATURE_EXPIRED_OR_REVOKED and GPG_RESULT_UNAVAILABLE. A nonzero exit is always
+rejected first. Invalid, expired/revoked and GPG error statuses remain rejected
+even with exit 0 and VALIDSIG. KEYEXPIRED is conservatively rejected as well, even
+though DETAILS notes it may concern an unused subkey. Unknown exception text and
+unapproved diagnostic values are never logged. No signature bypass is introduced.
+
+All previous 25 tests remain: their abbreviated mock VALIDSIG records are updated
+to real-format records, GPG verify mocks now return bytes, and failure assertions
+include the new fixed diagnostic. Nine new tests cover protocol mutations and
+actual ephemeral-key primary/subkey signatures, another publisher while the
+expected key is present, tampered payloads, invalid detached signatures, real
+expired/revoked keys, binary notation and diagnostic non-disclosure. Test private
+keys are generated only in private temporary directories; their agents are stopped
+and directories removed, with no key export/upload/persistence. Only public keys
+are temporarily exported for the verification test. The existing CI workflows,
+Owner/$0 checks, capacity minima, isolation/TLS/account/state and lifecycle gates
+remain unchanged. Docker/Emulator startup and Lifecycle remain NOT_TESTED here.
