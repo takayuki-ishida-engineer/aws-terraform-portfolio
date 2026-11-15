@@ -1,0 +1,108 @@
+name: AWS Emulator representative verification
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Reviewed merged main SHA (40 lowercase hex), must equal this workflow's main SHA
+        required: true
+        type: string
+      owner_billing_confirmed:
+        description: Owner just verified merged main CI success, Public/Free/standard runner, all five $0 Budgets and usage blocking; uncertainty means do not run
+        required: true
+        type: boolean
+        default: false
+      owner_checked_at:
+        description: RFC3339 timestamp with timezone of the Owner check, less than 30 minutes ago; create a fresh dispatch instead of rerunning
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: aws-emulator-representative
+  cancel-in-progress: false
+jobs:
+  representative:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RUNNER_KIND: ${{ runner.environment }}
+      ACTOR: ${{ github.actor }}
+      TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      OWNER_CHECKED_AT: ${{ inputs.owner_checked_at }}
+      OWNER: ${{ github.repository_owner }}
+      VISIBILITY: ${{ github.event.repository.visibility }}
+      TARGET_SHA: ${{ inputs.target_sha }}
+      OWNER_BILLING_CONFIRMED: ${{ inputs.owner_billing_confirmed }}
+    steps:
+      - name: Require owner cost confirmation and reviewed main SHA
+        id: consent
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          from datetime import datetime,timezone
+          e=os.environ
+          assert e['ACTOR']==e['OWNER'] and e['VISIBILITY']=='public'
+          assert e['OWNER_BILLING_CONFIRMED']=='true' and e['TRIGGERING_ACTOR']==e['OWNER'] and e['GITHUB_RUN_ATTEMPT']=='1'
+          stamp=datetime.fromisoformat(e['OWNER_CHECKED_AT'])
+          assert stamp.tzinfo is not None and 0 <= (datetime.now(timezone.utc)-stamp).total_seconds() <= 1800
+          assert e['GITHUB_REF']=='refs/heads/main' and re.fullmatch('[0-9a-f]{40}',e['TARGET_SHA'])
+          assert e['TARGET_SHA']==e['GITHUB_SHA']
+          with open(e['GITHUB_OUTPUT'],'a') as out: out.write('accepted=true\n')
+          PY
+      - name: Checkout reviewed target without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.target_sha }}
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Prepare verified packages and offline dependencies
+        run: python3 scripts/emulator-verification/prepare.py
+      - name: Build temporary image and run isolated verification
+        id: execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          context="$RUNNER_TEMP/emulator-verification"
+          container="emulator-proof-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          image_file="$RUNNER_TEMP/emulator-image-id"
+          cleanup() {
+            result=$?
+            set +e
+            cleanup_failed=0
+            if docker container inspect "$container" >/dev/null 2>&1; then docker rm -f "$container" >/dev/null || cleanup_failed=1; fi
+            if test -f "$image_file"; then docker image rm "$(cat "$image_file")" >/dev/null || cleanup_failed=1; fi
+            rm -rf -- "$context" "$image_file" || cleanup_failed=1
+            if test "$cleanup_failed" != 0; then exit 1; fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+          docker build --platform linux/amd64 --iidfile "$image_file" --tag "$container" "$context" >/dev/null
+          image="$(cat "$image_file")"
+          docker run --rm --name "$container" --network none --cap-drop ALL --security-opt no-new-privileges:true --read-only --user 1000:1000 --memory 3g --memory-swap 3g --cpus 2 --pids-limit 128 --tmpfs /work:rw,nosuid,nodev,size=2g,uid=1000,gid=1000 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000 "$image" | tee "$RUNNER_TEMP/emulator-safe-report.json"
+      - name: Nonsecret summary
+        env:
+          EXECUTION_STATUS: ${{ steps.execution.outcome }}
+          OWNER_ATTESTATION_ACCEPTED: ${{ steps.consent.outputs.accepted }}
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'emulator-safe-report.json'
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as out:
+              out.write('## Representative Emulator run\n\n')
+              out.write('Target SHA: '+(os.environ['TARGET_SHA'] if re.fullmatch('[0-9a-f]{40}',os.environ['TARGET_SHA']) else 'INVALID')+'\n\n')
+              out.write('Billing: '+('owner-attested; not API-audited' if os.environ.get('OWNER_ATTESTATION_ACCEPTED')=='true' else 'NOT VERIFIED / BLOCKED')+'\n\n')
+              if p.exists():
+                  complete=False
+                  for line in p.read_text().splitlines():
+                      r=json.loads(line)
+                      assert re.fullmatch('[A-Za-z0-9_-]{1,100}',r['gate']) and r['status'] in ['PASS','FAIL','BLOCKED','NOT_TESTED','PARTIAL-SKIP']
+                      complete |= r['gate']=='lifecycle-evidence-complete' and r['status']=='PASS'
+                      out.write('| '+r['gate']+' | '+r['status']+' |\n')
+                  out.write('\n'+('Complete measured lifecycle evidence recorded; independent review pending.' if complete and os.environ.get('EXECUTION_STATUS')=='success' else 'FAIL/BLOCKED: incomplete lifecycle or host-cleanup evidence; not demonstrated.')+'\n')
+              else: out.write('BLOCKED: no isolated run evidence; no lifecycle success claimed.\n')
+          PY

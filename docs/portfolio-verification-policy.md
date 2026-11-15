@@ -1,5 +1,17 @@
 # Portfolio verification policy — evidence and operating boundaries
 
+## Representative Emulator workflow source — execution pending
+
+[Phase 3 implementation](../scripts/emulator-verification/README.md) supplies an owner-confirmed, merged-main-only manual
+workflow, isolated single-VPC adapter and offline security contracts. Existing
+required Full CI is unchanged; a separate static-only check exercises the new
+contracts without Docker, Emulator or resource operations. Lifecycle and runtime
+cleanup are NOT_TESTED; Codex namespace is known environment BLOCKED. No AWS
+EMULATOR DEMONSTRATED or PORTFOLIO COMPLETE milestone is declared. Actual execution
+must follow independent review -> Owner approval -> workflow merge -> successful
+main CI -> fresh Owner free/Budget confirmation -> manual dispatch -> evidence review.
+
+
 Current operating requirements are the owner-authorized Master Policy v14.2
 [alignment record](policy-v14-2-alignment.md). Core Implementation and mandatory
 portfolio-level representative Emulator demonstration have separate acceptance

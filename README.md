@@ -1,5 +1,17 @@
 # AWS Terraform and Kubernetes Portfolio
 
+## Representative Emulator workflow source — execution pending
+
+[Phase 3 implementation](scripts/emulator-verification/README.md) supplies an owner-confirmed, merged-main-only manual
+workflow, isolated single-VPC adapter and offline security contracts. Existing
+required Full CI is unchanged; a separate static-only check exercises the new
+contracts without Docker, Emulator or resource operations. Lifecycle and runtime
+cleanup are NOT_TESTED; Codex namespace is known environment BLOCKED. No AWS
+EMULATOR DEMONSTRATED or PORTFOLIO COMPLETE milestone is declared. Actual execution
+must follow independent review -> Owner approval -> workflow merge -> successful
+main CI -> fresh Owner free/Budget confirmation -> manual dispatch -> evidence review.
+
+
 ## V7-A source update — runtime not demonstrated
 
 V7-A adds [api_gateway_rest](infra/modules/api_gateway_rest/README.md) and composes Regional REST core plus Cognito
