@@ -25,3 +25,16 @@ no-op/destroy plan examples were also reviewed. Update/state/API responses are
 schema-based simulation, not new real Provider lifecycle evidence. Historical
 VPC proof recorded Plan inventory/lifecycle summaries only; its raw plans/state
 were not retained under policy and cannot establish new version compatibility.
+
+`sts-1.0.385.json` is an independent source-derived service oracle, not captured
+raw response material. Pinned STS service blob `360b86ea65f621e19067df7b979dc28e9330f3a4`
+explicitly distinguishes held-key signature mismatch from unresolved-key
+InvalidClientTokenId, including an unsigned request. The namespace/envelope comes
+from that service and pre_dispatch blob `8c519d7f06dda714f8dc88227c3cd4de393f0c03`.
+CLI envelopes use ClientError's documented template; messages are synthetic.
+The separately labeled observed_run contains only allowlisted receipts read from
+Run 43715108794 at 406b468c820ed7ed7db86c9d38b578184811453d: signature PASS and
+unknown-key AUTH_UNEXPECTED_INVALID_TOKEN/254. The latter code is inferred from
+the reviewed baseline classifier, not a retained raw HTTP/CLI response. Production
+constants are not used to construct these expected results. CONTRACTS.md links
+all upstream sources and distinguishes source, simulation and historical run evidence.

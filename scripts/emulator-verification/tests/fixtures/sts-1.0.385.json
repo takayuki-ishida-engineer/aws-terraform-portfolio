@@ -1,0 +1,50 @@
+{
+  "provenance": {
+    "emulator_release": "v1.0.385",
+    "commit": "813af480bf7f16d5418b64e4f5644a74a7da11c5",
+    "sts_blob": "360b86ea65f621e19067df7b979dc28e9330f3a4",
+    "renderer_blob": "8c519d7f06dda714f8dc88227c3cd4de393f0c03",
+    "classification": "UPSTREAM_SOURCE_VERIFIED",
+    "note": "Source-derived public protocol examples; message/identity fields are synthetic. Not a captured wire response."
+  },
+  "signed": {
+    "Account": "000000000000",
+    "Arn": "arn:aws:iam::000000000000:user/emulator"
+  },
+  "wrong_secret": {
+    "exit": 254,
+    "stdout": "",
+    "stderr": "\nAn error occurred (SignatureDoesNotMatch) when calling the GetCallerIdentity operation: synthetic private message omitted\n"
+  },
+  "unknown_key": {
+    "exit": 254,
+    "stdout": "",
+    "stderr": "\nAn error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: synthetic private message omitted\n"
+  },
+  "unsigned": {
+    "status": 403,
+    "body": "<?xml version=\"1.0\"?><ErrorResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\"><Error><Type>Sender</Type><Code>InvalidClientTokenId</Code><Message>synthetic private message omitted</Message></Error></ErrorResponse>"
+  },
+  "observed_run": {
+    "run_id": "43715108794",
+    "sha": "406b468c820ed7ed7db86c9d38b578184811453d",
+    "classification": "REAL_RUN_VERIFIED",
+    "rows": [
+      {
+        "gate": "startup-ready",
+        "status": "PASS"
+      },
+      {
+        "gate": "auth-invalid-signature",
+        "status": "PASS"
+      },
+      {
+        "gate": "auth-invalid-credential",
+        "status": "BLOCKED",
+        "diagnostic": "AUTH_UNEXPECTED_INVALID_TOKEN",
+        "exit_code": 254
+      }
+    ],
+    "note": "Only allowlisted gate receipts retained; code inferred by reviewed baseline classifier, not a retained raw HTTP/CLI response."
+  }
+}

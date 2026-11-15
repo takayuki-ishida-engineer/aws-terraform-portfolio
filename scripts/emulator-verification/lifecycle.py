@@ -7,7 +7,7 @@ from pathlib import Path
 from gates import require,network_gate,unreachable_gate,identity_gate,tls_gate,plan_gate,state_id,api_owner,evidence_gate,CONTROLS,OPERATIONS,freshness_gate,refresh_gate
 HERE=Path(__file__).resolve().parent
 PRIVATE=Path('/work/private')
-from runtime_contracts import ENDPOINT,DIAGNOSTICS,RuntimeFailure,strict_json,startup_record,generated_file
+from runtime_contracts import ENDPOINT,DIAGNOSTICS,RuntimeFailure,strict_json,startup_record,generated_file,cli_error_code,unsigned_sts_rejected
 API_NAMES={'CreateVpc','DescribeVpcs','DescribeVpcAttribute','ModifyVpcAttribute','CreateTags','DeleteTags','DeleteVpc','GetCallerIdentity','GetUser','ListRoles'}
 
 def emit(gate,status,exit_code=None,api=None,resource_id=None,diagnostic=None,sha=None,run_id=None):
@@ -91,7 +91,7 @@ class Run:
     require(set(rows)==expected and all(rows[k]==v for k,v in self.baseline.items()),'preexisting-vpcs-changed')
   def absence(self):
     p=self.cmd(['aws','--no-cli-pager','--endpoint-url',ENDPOINT,'--ca-bundle',self.env['AWS_CA_BUNDLE'],'--region','ca-central-1','ec2','describe-vpcs','--vpc-ids',self.owned_id,'--output','json'],ok=(254,))
-    require(re.search(r'An error occurred \(InvalidVpcID.NotFound\) when calling the DescribeVpcs operation',p.stderr),'independent-delete-absence')
+    require(cli_error_code(p,'DescribeVpcs')=='InvalidVpcID.NotFound','independent-delete-absence')
     self.baseline_preserved(self.vpcs(),False)
   def setup(self):
     freshness_gate(self.manifest['owner_checked_at'])
@@ -200,14 +200,16 @@ class Run:
     except Exception:raise RuntimeFailure('SYNTHETIC_IDENTITY_MISMATCH') from None
     self.mark('controls','8')
     args=['aws','--no-cli-pager','--endpoint-url',ENDPOINT,'--ca-bundle',self.env['AWS_CA_BUNDLE'],'--region','ca-central-1','--cli-connect-timeout','3','--cli-read-timeout','10','sts','get-caller-identity','--output','json']
-    for field,label,code in [('aws_secret_access_key','signature','SignatureDoesNotMatch'),('aws_access_key_id','credential','AccessDenied')]:
+    # STS translates the framework's Unauthenticated refusal according to whether
+    # the presented key resolves. Its external code is not generic AccessDenied.
+    for field,label,code in [('aws_secret_access_key','signature','SignatureDoesNotMatch'),('aws_access_key_id','credential','InvalidClientTokenId')]:
       self.current_operation='auth-invalid-'+label
       changed=dict(self.credentials);value=changed[field];changed[field]=('X' if value[0]!='X' else 'Y')+value[1:]
       env=dict(self.env,AWS_ACCESS_KEY_ID=changed['aws_access_key_id'],AWS_SECRET_ACCESS_KEY=changed['aws_secret_access_key'])
       result=self.cmd(args,ok=(0,254,255),env=env)
-      if result.returncode!=254 or not re.search(r'An error occurred \('+code+r'\) when calling the GetCallerIdentity operation',result.stderr):
-        observed=re.search(r'An error occurred \((AccessDenied|SignatureDoesNotMatch|InvalidClientTokenId)\)',result.stderr)
-        diagnostic='AUTH_REQUEST_ACCEPTED' if result.returncode==0 else {'AccessDenied':'AUTH_UNEXPECTED_ACCESS_DENIED','SignatureDoesNotMatch':'AUTH_UNEXPECTED_SIGNATURE_MISMATCH','InvalidClientTokenId':'AUTH_UNEXPECTED_INVALID_TOKEN'}.get(observed.group(1) if observed else None,'AUTH_UNCLASSIFIED_REJECTION')
+      observed=cli_error_code(result,'GetCallerIdentity')
+      if result.returncode!=254 or observed!=code:
+        diagnostic='AUTH_REQUEST_ACCEPTED' if result.returncode==0 else {'AccessDenied':'AUTH_UNEXPECTED_ACCESS_DENIED','SignatureDoesNotMatch':'AUTH_UNEXPECTED_SIGNATURE_MISMATCH','InvalidClientTokenId':'AUTH_UNEXPECTED_INVALID_TOKEN'}.get(observed,'AUTH_UNCLASSIFIED_REJECTION')
         emit(self.current_operation,'BLOCKED',exit_code=result.returncode,diagnostic=diagnostic)
         raise RuntimeFailure('AUTH_REJECTION_UNPROVEN')
       emit(self.current_operation,'PASS')
@@ -218,8 +220,8 @@ class Run:
     try:
       with self.http(request,context):pass
     except urllib.error.HTTPError as error:
-      body=error.read(8192)
-      if error.code!=403 or b'<Code>InvalidClientTokenId</Code>' not in body:
+      body=error.read(8193)
+      if not unsigned_sts_rejected(error.code,body):
         emit('auth-unsigned-sts','BLOCKED',diagnostic='AUTH_UNSIGNED_UNRESOLVED' if error.code==404 else 'AUTH_UNCLASSIFIED_REJECTION')
         raise RuntimeFailure('AUTH_REJECTION_UNPROVEN') from None
     else:raise RuntimeFailure('AUTH_REJECTION_UNPROVEN')
