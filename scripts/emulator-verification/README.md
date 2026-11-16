@@ -1,5 +1,11 @@
 # Owner-dispatched representative Emulator verification
 
+Current status: owner-dispatched Run 43791639228 on merged main `5c62dba` measured
+the full lifecycle and cleanup as PASS; see the
+[evidence record](../../docs/portfolio-verification-policy.md#representative-emulator-run-43791639228).
+Statements below that Lifecycle is NOT_TESTED describe the earlier audits and PRs
+they belong to. No AWS EMULATOR DEMONSTRATED milestone is declared here.
+
 The current [STS and remaining-contract review](CONTRACTS.md) corrects the
 service-specific authentication oracle and documents source/runtime boundaries.
 The historical [comprehensive audit](AUDIT.md) records confirmed defects, historical
