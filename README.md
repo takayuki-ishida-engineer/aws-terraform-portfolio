@@ -1,6 +1,6 @@
 # AWS Terraform and Kubernetes Portfolio
 
-## Representative Emulator workflow — measured run recorded, acceptance pending
+## Representative Emulator workflow — AWS EMULATOR DEMONSTRATED for the VPC scenario
 
 [Phase 3 implementation](scripts/emulator-verification/README.md) supplies an owner-confirmed, merged-main-only manual
 workflow, isolated single-VPC adapter and offline security contracts. Existing
@@ -9,9 +9,11 @@ contracts without Docker, Emulator or resource operations. Owner-dispatched
 [Run 43791639228](docs/portfolio-verification-policy.md#representative-emulator-run-43791639228) on merged main
 `5c62dba517c7eb97394f77aaff6479a1315c524e` measured all fourteen controls, the
 disposable `aws_vpc.proof` Create/Read/Update/No-op/Destroy lifecycle, independent
-API checks and cleanup as PASS. Codex namespace remains known environment BLOCKED.
-No AWS EMULATOR DEMONSTRATED or PORTFOLIO COMPLETE milestone is declared until
-independent evidence review and Owner acceptance.
+API checks and cleanup as PASS. After independent AI evidence review (PASS) and
+Owner acceptance on 2026-11-16, AWS EMULATOR DEMONSTRATED is declared for that
+representative VPC lifecycle scenario only. Other representative scenarios remain
+NOT_TESTED; CORE PORTFOLIO COMPLETE and PORTFOLIO COMPLETE are not declared.
+Codex namespace remains known environment BLOCKED.
 
 
 ## V7-A source update — runtime not demonstrated
