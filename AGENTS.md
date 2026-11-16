@@ -246,15 +246,40 @@ remain unchanged. No Live gate is closed by emulator evidence.
   parallel work for simple tasks. Never sacrifice correctness, security or
   required verification to shorten execution.
 
-## Current phase only: representative Emulator workflow implementation
+## Completed Phase 3 and authorization for future development
 
-PR #42 merged as acdef93d07a2e8957af00199b3682d7c57066891; Phase 3 is explicitly
-approved for source/static/unit/negative/mutation checks and a separate PR only.
-Implement a manual owner-gated standard ubuntu-24.04 workflow and isolated single
-VPC adapter under scripts/emulator-verification, preserving required Full CI and
-all permanent controls. No Docker/Emulator startup, resource lifecycle, Apply or
-Destroy, manual dispatch, paid fallback or V7-B work in this PR. Report exact-HEAD
-Full CI and static-contract CI, NOT_TESTED runtime/cleanup and known Codex namespace
-BLOCKED. Stop for independent review/Owner approval; no merge or branch deletion.
-Actual dispatch requires workflow merge, main CI success and fresh Owner cost
-confirmation, followed by independent evidence review.
+Phase 3 implementation, runtime verification, independent AI evidence review
+(PASS), Owner acceptance and scoped declaration were completed on 2026-11-16
+(Asia/Tokyo). See the [accepted evidence record](docs/portfolio-verification-policy.md#representative-emulator-run-43791639228)
+and [PR #54](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/pull/54).
+Historical starting point: PR #42 merged as
+`acdef93d07a2e8957af00199b3682d7c57066891` before Phase 3 source-only authorization.
+
+The former Phase 3 implementation-PR restrictions on Docker/Emulator startup,
+Terraform lifecycle execution, manual dispatch and subsequent feature development
+are retired as current task instructions. Their expiration does not authorize a
+new Emulator run, infrastructure operation or development phase.
+
+Master Policy v14.2 and its [approved alignment](docs/policy-v14-2-alignment.md),
+all permanent rules above and all fourteen Emulator safety controls remain fully
+effective and unchanged. This includes strict isolation, TLS/authentication,
+synthetic account guards, no real AWS credentials or authenticated real AWS access
+(including real AWS Plan/Apply/Destroy/Import) in Codex Cloud, no paid fallback or
+unauthorized spending, no Terraform/repository secret values, architecture and
+Module/Root/State ownership, required Native/Mock/Negative/Security/Mutation/Evidence
+checks, existing Full CI, Branch Protection and independent review/Owner approval.
+
+Future work requires explicit Owner authorization of the next task or phase.
+For each newly authorized task, start from latest main on a new working branch,
+follow its approved scope, complete affected local validation and required CI,
+open a dedicated PR, then stop for independent review and explicit Owner merge
+approval. This update does not authorize V7-B, new infrastructure implementation,
+Live AWS testing or another Emulator execution.
+
+AWS EMULATOR DEMONSTRATED applies only to the tested disposable `aws_vpc.proof`
+lifecycle recorded above. It does not establish the complete portfolio VPC module,
+other AWS services/resources, V7 REST/Cognito runtime behavior, actual AWS deployment
+or security effectiveness, or portfolio-wide completion. CORE PORTFOLIO COMPLETE
+and PORTFOLIO COMPLETE remain undeclared. Version changes or materially different
+representative scenarios require their own applicable verification evidence before
+claiming compatibility; preserve the accepted record's limitations and residual risks.
