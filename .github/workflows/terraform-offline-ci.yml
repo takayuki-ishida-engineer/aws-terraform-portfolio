@@ -217,6 +217,13 @@ jobs:
           terraform version
           terraform fmt -check -recursive
 
+      - name: Check that local-only configuration files are not tracked
+        id: hygiene
+        run: |
+          set -euo pipefail
+          python3 scripts/repository-hygiene/check_tracked_files.py --self-test
+          python3 scripts/repository-hygiene/check_tracked_files.py
+
       - name: Validate development root with its committed lock
         id: dev
         working-directory: infra/services/dev/ca-central-1/serverless-api

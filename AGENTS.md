@@ -22,6 +22,15 @@ future implementation.
 - Prioritize maintainability and operational clarity. Keep module boundaries,
   environment differences, and operational responsibilities easy to understand.
 
+### Resource naming
+
+- Name AWS resources `<project>-<env>-<service>[-<purpose>]` in lowercase with
+  hyphens. Add `purpose` only when more than one resource of that service exists.
+- Documented exceptions only: account-ID suffixes for globally unique names such as
+  S3 buckets, abbreviations within AWS length limits, AWS-mandated prefixes and the
+  CloudWatch log group path form. See
+  [deployment configuration](docs/deployment-configuration.md#4-resource-naming).
+
 ### Effective configuration and feature flags
 
 - Module READMEs and Root READMEs must document effective configuration values and
@@ -45,8 +54,12 @@ future implementation.
 
 - Separate state by environment, region, and service, matching the root module
   boundary. Do not share a state file across those boundaries.
-- Use local state for `dev` and remote state for `stg` and `prod`. Remote backend
-  selection and setup require a later implementation phase.
+- Use local state for `dev` by default and remote state for `stg` and `prod`.
+  A DEV S3 backend is optional: it is switched on only locally through untracked
+  `backend_override.tf` and `*.tfbackend` files and uses the state bucket of a
+  dedicated DEV bootstrap root. Tracked backends stay `local`. STG/PROD backend
+  setup requires a later phase. See
+  [deployment configuration](docs/deployment-configuration.md#3-terraform-state).
 - Cross-region replication and disaster recovery orchestration are out of scope.
 
 ### Secrets and Codex Cloud boundaries
@@ -69,8 +82,16 @@ future implementation.
   real credentials, application secret values, production data or real AWS calls.
 - Never commit state, plan files, local secrets, private keys, credentials, or
   environment files. Keep `.terraform.lock.hcl` trackable.
-- Track `features.auto.tfvars` only for non-secret feature settings. Do not use
-  this exception to store credentials or secret values.
+- Track only non-secret values: `terraform.tfvars` in each root, with
+  environment-specific values as documented placeholders; `features.auto.tfvars`
+  for feature flags; and `*.example` templates. Keep real environment-specific
+  values (AWS account ID, operator IP/CIDR, notification email, domain names,
+  pre-existing IAM role ARNs) only in untracked `local.auto.tfvars`. Never put
+  credentials or secret values in any tfvars file; register secret values in
+  Secrets Manager before building their consumers. See
+  [deployment configuration](docs/deployment-configuration.md#1-where-values-live).
+- Real AWS deployment runs only from the operator's local workstation, outside
+  Codex Cloud and never through CI/CD. GitHub Actions runs offline checks only.
 
 ### Mandatory official AWS Emulator safety controls
 
@@ -283,3 +304,21 @@ or security effectiveness, or portfolio-wide completion. CORE PORTFOLIO COMPLETE
 and PORTFOLIO COMPLETE remain undeclared. Version changes or materially different
 representative scenarios require their own applicable verification evidence before
 claiming compatibility; preserve the accepted record's limitations and residual risks.
+
+## Current authorized task: Step 1 DEV deploy-ready brush-up
+
+On 2026-11-16 (Asia/Tokyo) the Owner approved the Step plan in
+[deployment configuration](docs/deployment-configuration.md#6-step-plan): make the
+existing DEV roots and a minimal Kubernetes runtime deployable from a local
+workstation without unverified errors, before any new feature work. DEV only;
+STG/PROD are deferred.
+
+Step 1 item 1 (these rules and the repository guard) is authorized. Each later
+item starts on the Owner's instruction, uses its own branch from latest main and
+its own pull request, and stops for independent review and Owner merge approval.
+Owner-approved additions needed to deploy are the SSM developer-access EC2 for
+local access to the private EKS endpoint (and later RDS) and the DEV state bucket
+bootstrap with an optional S3 backend. V7-B/C/D, NP-2B/NP-3 and other new features
+stay paused until Steps 1 and 2 are complete. Each Step 2 Emulator run needs its
+own Owner authorization. Step 3 onward is handed to Codex with a separate
+instruction. All permanent rules above remain in force.
