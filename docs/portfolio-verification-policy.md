@@ -1,15 +1,17 @@
 # Portfolio verification policy — evidence and operating boundaries
 
-## Representative Emulator workflow source — execution pending
+## Representative Emulator workflow — measured run recorded, acceptance pending
 
 [Phase 3 implementation](../scripts/emulator-verification/README.md) supplies an owner-confirmed, merged-main-only manual
 workflow, isolated single-VPC adapter and offline security contracts. Existing
 required Full CI is unchanged; a separate static-only check exercises the new
-contracts without Docker, Emulator or resource operations. Lifecycle and runtime
-cleanup are NOT_TESTED; Codex namespace is known environment BLOCKED. No AWS
-EMULATOR DEMONSTRATED or PORTFOLIO COMPLETE milestone is declared. Actual execution
-must follow independent review -> Owner approval -> workflow merge -> successful
-main CI -> fresh Owner free/Budget confirmation -> manual dispatch -> evidence review.
+contracts without Docker, Emulator or resource operations. Owner-dispatched
+[Run 43791639228](#representative-emulator-run-43791639228) on merged main
+`5c62dba517c7eb97394f77aaff6479a1315c524e` measured all fourteen controls, the
+disposable `aws_vpc.proof` Create/Read/Update/No-op/Destroy lifecycle, independent
+API checks and cleanup as PASS. Codex namespace remains known environment BLOCKED.
+No AWS EMULATOR DEMONSTRATED or PORTFOLIO COMPLETE milestone is declared until
+independent evidence review and Owner acceptance.
 
 
 Current operating requirements are the owner-authorized Master Policy v14.2
@@ -82,6 +84,117 @@ experiment evidence, not a replay or CI result from this documentation PR.
 No Subnet, NAT, EKS, IAM, Cognito, RDS, other-service or full VPC-module lifecycle
 compatibility is established. No real AWS IAM/network/cost/availability/recovery
 claim follows from it. Original historical acceptance records remain unchanged.
+
+<a id="representative-emulator-run-43791639228"></a>
+
+### Representative Emulator workflow evidence — Run 43791639228
+
+This records the measured, owner-dispatched lifecycle of the merged
+[representative workflow](../.github/workflows/aws-emulator-verification.yml) and
+its [isolated adapter](../scripts/emulator-verification/README.md). It states only
+what was actually exercised. It does not declare AWS EMULATOR DEMONSTRATED,
+CORE PORTFOLIO COMPLETE or PORTFOLIO COMPLETE; see the acceptance status below.
+
+| Item | Recorded value |
+| --- | --- |
+| Run / job | [43791639228](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43791639228) / job 133051177443, attempt 1, conclusion success |
+| Tested SHA | Merged main `5c62dba517c7eb97394f77aaff6479a1315c524e` |
+| Dispatch | `workflow_dispatch` by the repository owner; Owner check `2026-11-16T02:21:02Z`; run 02:21:12–02:23:23 UTC |
+| Runner | GitHub-hosted standard `ubuntu-24.04`, image 20261111.127.1; no Larger or self-hosted runner |
+| Billing | Owner-attested, **not API-audited** (receipt `owner-attested-not-api-audited`) |
+| Emulator | 1.0.385 (package 1.0.385-1), SHA-256 `5344b39e76089633f3cc2d8795e5554ff0a89f4c26bc316fa748b3909423d3f5`, publisher `98BCF336A3BE53B734E967C52E5BF49BD940F624` |
+| AWS CLI | 2.35.0, SHA-256 `339009d6ad0ad5d1448922ede4d07bf0ba44b6a91d9412610a8e745da9aca04b`, publisher `FB5DB77FD5C118B80511ADA8A6310ACC4672475C` |
+| Terraform / Provider | 1.17.0, SHA-256 `c168cab7c637a8769fdb90089ddd19de701bc6ff8aca64dc2e2185fe46f59f67` / hashicorp/aws 6.72.0, lock file SHA-256 `1540d34f8637649be6ff4b742df969bbf024797aa48f240e36b16f7e6644e5a3` |
+| Resource | Disposable `aws_vpc.proof` `vpc-0000000000000009b`, CIDR 10.238.0.0/16, synthetic account `000000000000`, ca-central-1 |
+
+All 97 sanitized receipts in the job log are PASS. There are no FAIL, BLOCKED,
+NOT_TESTED, PARTIAL-SKIP or `recovery-*` receipts, so the normal path ran without
+recovery. The host summary validator (`host_evidence.py`) accepted the report.
+The 70 report receipts were also re-validated offline with the same
+`host_evidence.complete()` at the tested SHA: every one of the 32 required
+receipts appears exactly once and the last receipt is `host-cleanup`.
+
+| Control | Result | Measured in this run |
+| --- | --- | --- |
+| 1 | PASS | Signed official packages, exact publishers, artifact hashes and runtime versions |
+| 2 | PASS | HTTPS endpoint bound to 127.0.0.1:9297 only |
+| 3 | PASS | Generated credentials, `--auth on`; wrong secret, unknown key and unsigned STS all refused |
+| 4 | PASS | Generated CA with strict hostname/TLS validation; system trust rejects the private CA |
+| 5 | PASS | Telemetry off |
+| 6 | PASS | Docker `--network none`; separate netns with loopback-only links and routes |
+| 7 | PASS | Pre-resolved public STS/EC2 addresses unreachable by direct TCP |
+| 8 | PASS | Signed local STS identity: account `000000000000`, `user/emulator` ARN |
+| 9 | PASS | Offline provider init/validate with loopback endpoints, account guard and CA; lock file unchanged |
+| 10 | PASS | Disposable adapter Root and temporary State on fresh tmpfs, initially empty |
+| 11 | PASS | Saved Create plan reviewed: one `aws_vpc.proof`, CIDR, run tags, hash rechecked before Apply |
+| 12 | PASS | State ID matches the independently described VPC; pre-existing VPCs preserved |
+| 13 | PASS | Independent create, update and absence checks; State empty |
+| 14 | PASS | Reviewed Destroy, separate resource/process/material/host cleanup receipts |
+
+| Operation | Result | Evidence |
+| --- | --- | --- |
+| Initial State empty | PASS | Temporary State held no resource before Plan |
+| Plan | PASS | Reviewed saved Create plan (control 11) |
+| Create | PASS | Reviewed plan applied after hash recheck |
+| Independent API create | PASS | CLI `DescribeVpcs`: ID, CIDR and tags match; baseline preserved |
+| Read / Refresh | PASS | `plan -refresh-only -detailed-exitcode` exit 0 (no drift); refreshed `prior_state` identity, CIDR and tags |
+| Update | PASS | Reviewed tag-only plan (`Phase` create → updated) applied |
+| Independent API update | PASS | CLI `DescribeVpcs` shows `Phase=updated`; baseline preserved |
+| No-op | PASS | Following plan holds a single no-op change |
+| Destroy plan | PASS | Reviewed delete plan for the owned ID only |
+| Destroy | PASS | Terraform Destroy applied |
+| State empty | PASS | State no longer holds the VPC |
+| Independent API absence | PASS | CLI `DescribeVpcs` returns `InvalidVpcID.NotFound` (exit 254) |
+| Baseline preserved | PASS | Pre-existing VPC snapshot unchanged |
+| Material cleanup | PASS | Private HOME, generated credentials/CA, State and plans removed |
+
+Directly exercised through independent checks: STS `GetCallerIdentity` (signed;
+wrong secret → `SignatureDoesNotMatch`; unknown key → `InvalidClientTokenId`;
+unsigned → HTTP 403 `InvalidClientTokenId`) and EC2 `DescribeVpcs` (baseline,
+create, update, absence). Exercised through AWS Provider 6.72.0: account guard,
+Create, Refresh, tag Update, No-op and Delete of `aws_vpc`. The individual EC2
+calls and HTTP statuses the provider issued are not retained; only Terraform exit
+codes and reviewed plan/State content are. No unsupported Emulator API was observed.
+
+These earlier merged-main runs each stopped fail-closed with host cleanup PASS.
+Runs before 43723761085 are covered by
+[CONTRACTS.md](../scripts/emulator-verification/CONTRACTS.md) and
+[AUDIT.md](../scripts/emulator-verification/AUDIT.md).
+
+| Run | Stopped at | Root cause | Fix |
+| --- | --- | --- | --- |
+| [43723761085](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43723761085), [43733987794](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43733987794) | `auth-invalid-signature` | AWS CLI 2.35.0 prefixes errors with `aws: [ERROR]: `; the envelope parser refused it | [#49](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/pull/49) |
+| [43741028022](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43741028022) | `auth-unsigned-sts` | Emulator awsQuery refusals carry no `xmlns`; the predicate required the STS namespace | [#50](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/pull/50) |
+| [43778833950](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43778833950) | `provider-init` (validate) | Docker `--tmpfs` defaults to `noexec`; the provider plugin could not execute from `/work` | [#51](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/pull/51) |
+| [43786507720](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43786507720) | `read` | Refresh-only plan JSON keeps the object in `prior_state`, not `planned_values` | [#52](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/pull/52) |
+
+PRs #49–#52 were merged on explicit Owner instruction after exact-HEAD Full CI
+and offline-contract CI passed; separate independent code review did not precede
+those merges. #51 is an Owner-accepted trade-off: `/work` is writable and
+executable, while `/tmp` stays `noexec` and every other isolation flag is unchanged.
+
+Limitations and residual risk:
+
+- Scope is one disposable `aws_vpc` through the isolated adapter. No Subnet, NAT,
+  EKS, IAM, Cognito, RDS, API Gateway, other service, the portfolio VPC module or
+  any operational Root/State lifecycle is established.
+- This is Emulator 1.0.385 behavior only, not real AWS deployment, IAM
+  enforcement, networking, cost, availability or recovery. A known divergence:
+  unsigned requests are refused `InvalidClientTokenId` where AWS answers
+  `MissingAuthenticationToken` (upstream Emulator issue); the gate accepts the
+  Emulator's documented code.
+- Only allowlisted receipts are retained by policy; no raw API response, State,
+  plan or credential exists. PASS rests on the gate logic, which is covered by the
+  67 offline contract tests and mutation checks.
+- One successful run on one runner image. A change to any pinned version or the
+  runner environment needs a new run; reproducibility is not otherwise shown.
+- The structured STS fallback path was not reached and remains unexercised.
+
+| Acceptance status | Current |
+| --- | --- |
+| Measured representative lifecycle (this run) | Recorded PASS |
+| AWS EMULATOR DEMONSTRATED | Not declared; pending independent evidence review and Owner acceptance |
+| CORE PORTFOLIO COMPLETE / PORTFOLIO COMPLETE | Not declared by this record |
 
 ### Default portfolio completion path
 
