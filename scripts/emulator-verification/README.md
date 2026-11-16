@@ -4,7 +4,8 @@ Current status: owner-dispatched Run 43791639228 on merged main `5c62dba` measur
 the full lifecycle and cleanup as PASS; see the
 [evidence record](../../docs/portfolio-verification-policy.md#representative-emulator-run-43791639228).
 Statements below that Lifecycle is NOT_TESTED describe the earlier audits and PRs
-they belong to. No AWS EMULATOR DEMONSTRATED milestone is declared here.
+they belong to. AWS EMULATOR DEMONSTRATED is declared for that representative VPC
+scenario only, as recorded there.
 
 The current [STS and remaining-contract review](CONTRACTS.md) corrects the
 service-specific authentication oracle and documents source/runtime boundaries.

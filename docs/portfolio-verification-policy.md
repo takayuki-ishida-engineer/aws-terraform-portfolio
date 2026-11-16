@@ -1,6 +1,6 @@
 # Portfolio verification policy — evidence and operating boundaries
 
-## Representative Emulator workflow — measured run recorded, acceptance pending
+## Representative Emulator workflow — AWS EMULATOR DEMONSTRATED for the VPC scenario
 
 [Phase 3 implementation](../scripts/emulator-verification/README.md) supplies an owner-confirmed, merged-main-only manual
 workflow, isolated single-VPC adapter and offline security contracts. Existing
@@ -9,9 +9,11 @@ contracts without Docker, Emulator or resource operations. Owner-dispatched
 [Run 43791639228](#representative-emulator-run-43791639228) on merged main
 `5c62dba517c7eb97394f77aaff6479a1315c524e` measured all fourteen controls, the
 disposable `aws_vpc.proof` Create/Read/Update/No-op/Destroy lifecycle, independent
-API checks and cleanup as PASS. Codex namespace remains known environment BLOCKED.
-No AWS EMULATOR DEMONSTRATED or PORTFOLIO COMPLETE milestone is declared until
-independent evidence review and Owner acceptance.
+API checks and cleanup as PASS. After independent AI evidence review (PASS) and
+Owner acceptance on 2026-11-16, AWS EMULATOR DEMONSTRATED is declared for that
+representative VPC lifecycle scenario only. Other representative scenarios remain
+NOT_TESTED; CORE PORTFOLIO COMPLETE and PORTFOLIO COMPLETE are not declared.
+Codex namespace remains known environment BLOCKED.
 
 
 Current operating requirements are the owner-authorized Master Policy v14.2
@@ -92,8 +94,10 @@ claim follows from it. Original historical acceptance records remain unchanged.
 This records the measured, owner-dispatched lifecycle of the merged
 [representative workflow](../.github/workflows/aws-emulator-verification.yml) and
 its [isolated adapter](../scripts/emulator-verification/README.md). It states only
-what was actually exercised. It does not declare AWS EMULATOR DEMONSTRATED,
-CORE PORTFOLIO COMPLETE or PORTFOLIO COMPLETE; see the acceptance status below.
+what was actually exercised. After the independent evidence review and Owner
+acceptance recorded below, AWS EMULATOR DEMONSTRATED is declared for this
+representative VPC lifecycle scenario only. CORE PORTFOLIO COMPLETE and
+PORTFOLIO COMPLETE are not declared.
 
 | Item | Recorded value |
 | --- | --- |
@@ -172,6 +176,9 @@ PRs #49–#52 were merged on explicit Owner instruction after exact-HEAD Full CI
 and offline-contract CI passed; separate independent code review did not precede
 those merges. #51 is an Owner-accepted trade-off: `/work` is writable and
 executable, while `/tmp` stays `noexec` and every other isolation flag is unchanged.
+The later evidence review below examined this run and, as reported, the code at
+the tested SHA; it does not change the fact that those merges were not
+independently reviewed beforehand.
 
 Limitations and residual risk:
 
@@ -190,11 +197,28 @@ Limitations and residual risk:
   runner environment needs a new run; reproducibility is not otherwise shown.
 - The structured STS fallback path was not reached and remains unexercised.
 
+Independent evidence review and Owner acceptance:
+
+| Item | Recorded value |
+| --- | --- |
+| Reviewer | OpenAI ChatGPT; model reported by the Owner as GPT-6 |
+| Review type | Independent AI evidence review. Not a submitted GitHub pull-request approval and not a human code review |
+| Review date | 2026-11-16 (JST) |
+| Review decision | PASS |
+| Reviewed run / tested SHA | [43791639228](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43791639228) / `5c62dba517c7eb97394f77aaff6479a1315c524e` |
+| Review scope | One disposable `aws_vpc.proof`: Create, Read/Refresh, Update, No-op, Destroy, independent API verification, all fourteen controls and full cleanup |
+| Owner acceptance | 2026-11-16, by Owner instruction in the implementation session, not a GitHub review: accepted this evidence, then approved declaring AWS EMULATOR DEMONSTRATED limited to this scenario |
+
+The review and the acceptance are recorded here as reported by the Owner. Neither
+exists as a GitHub review on the related pull requests.
+
 | Acceptance status | Current |
 | --- | --- |
-| Measured representative lifecycle (this run) | Recorded PASS |
-| AWS EMULATOR DEMONSTRATED | Not declared; pending independent evidence review and Owner acceptance |
-| CORE PORTFOLIO COMPLETE / PORTFOLIO COMPLETE | Not declared by this record |
+| Measured representative lifecycle (this run) | PASS |
+| AWS EMULATOR DEMONSTRATED — representative VPC lifecycle scenario | **Declared** 2026-11-16, limited to the review scope above |
+| Other representative scenarios (for example V7 REST/Cognito) | Not demonstrated; NOT_TESTED |
+| Portfolio-level Emulator requirement as a whole | Not settled by this record; decided when PORTFOLIO COMPLETE is assessed |
+| CORE PORTFOLIO COMPLETE / PORTFOLIO COMPLETE | Not declared |
 
 ### Default portfolio completion path
 
