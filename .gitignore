@@ -94,6 +94,13 @@ credentials.*
 *.credentials
 .netrc
 
-# Track provider dependency locks and non-secret feature settings
+# Local-only backend settings that name a real state bucket
+*.tfbackend
+
+# Track provider dependency locks, non-secret feature settings and committed
+# placeholder values. Real environment-specific values stay in the untracked
+# local.auto.tfvars (still ignored by *.tfvars above). See
+# docs/deployment-configuration.md.
 !.terraform.lock.hcl
 !features.auto.tfvars
+!terraform.tfvars
