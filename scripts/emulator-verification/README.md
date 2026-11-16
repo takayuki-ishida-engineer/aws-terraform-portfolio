@@ -65,7 +65,8 @@ uses only the image's filesystem mirror with readonly lock. No init -upgrade.
    LFS, registry push, paid add-ons/Larger/self-hosted runners or paid fallback.
 8. Run a nonroot, read-only container with network none, no port/bind/socket mounts,
    all capabilities dropped, no-new-privileges, 3 GiB memory/no swap, 2 CPUs and
-   private tmpfs (2 GiB work + 64 MiB temp). Preparation requires >=2 CPUs,
+   private tmpfs (2 GiB work with explicit `exec` for the Terraform provider plugin,
+   64 MiB noexec temp). Preparation requires >=2 CPUs,
    >=6 GiB available memory and >=10 GiB free disk; failures stop, never upgrade.
 9. Independently inspect safe logs/summary and cleanup. Formal milestone acceptance
    still requires independent review/Owner decision; only measured operations count.

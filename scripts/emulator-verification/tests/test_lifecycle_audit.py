@@ -362,7 +362,7 @@ else:sys.exit(1)
   def test_workflow_security_and_cleanup_mutations(self):
     from contracts import workflow_gate
     good=self.workflow();workflow_gate(good)
-    for name in ['write','dispatch','privileged','host-network','mount','env-forward','env-short','cap-add','network-equal','swap','pids','cleanup','summary','summary-outcome','summary-condition']:
+    for name in ['write','dispatch','privileged','host-network','mount','env-forward','env-short','cap-add','network-equal','swap','pids','work-noexec','tmp-exec','cleanup','summary','summary-outcome','summary-condition']:
       row=copy.deepcopy(good);run=row['jobs']['representative']['steps'][3]
       if name=='write':row['permissions']['contents']='write'
       if name=='dispatch':row['on']['push']={}
@@ -375,6 +375,9 @@ else:sys.exit(1)
       if name=='network-equal':run['run']=run['run'].replace('docker run ','docker run --network=host ' )
       if name=='swap':run['run']=run['run'].replace('--memory-swap 3g','')
       if name=='pids':run['run']=run['run'].replace('--pids-limit 128','')
+      # Docker tmpfs defaults to noexec: /work needs explicit exec for the provider plugin; /tmp stays noexec.
+      if name=='work-noexec':run['run']=run['run'].replace('/work:rw,exec,','/work:rw,')
+      if name=='tmp-exec':run['run']=run['run'].replace('/tmp:rw,noexec,','/tmp:rw,exec,')
       if name=='cleanup':run['run']=run['run'].replace('cleanup_failed=1','cleanup_failed=0')
       if name=='summary-outcome':row['jobs']['representative']['steps'][4]['env']['EXECUTION_STATUS']='success'
       if name=='summary-condition':row['jobs']['representative']['steps'][4]['if']='false'
