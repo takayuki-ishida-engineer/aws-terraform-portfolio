@@ -42,5 +42,5 @@ def isolated_run_gate(line):
       if key=='--tmpfs':mounts.append(value)
       else:require(value==fixed[key],'docker-option-value')
   require(seen==set(fixed)|switches|{'--tmpfs'},'docker-options-missing')
-  require(sorted(mounts)==sorted(['/work:rw,nosuid,nodev,size=2g,uid=1000,gid=1000','/tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000']),'docker-tmpfs-bounds')
+  require(sorted(mounts)==sorted(['/work:rw,exec,nosuid,nodev,size=2g,uid=1000,gid=1000','/tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000']),'docker-tmpfs-bounds')
   require(words[position:]==['$image','|','tee','$RUNNER_TEMP/emulator-safe-report.json'],'docker-image-and-report')

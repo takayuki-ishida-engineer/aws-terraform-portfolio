@@ -90,7 +90,7 @@ jobs:
           trap cleanup EXIT
           docker build --platform linux/amd64 --iidfile "$image_file" --tag "$container" "$context" >/dev/null
           image="$(cat "$image_file")"
-          docker run --rm --name "$container" --network none --cap-drop ALL --security-opt no-new-privileges:true --read-only --user 1000:1000 --memory 3g --memory-swap 3g --cpus 2 --pids-limit 128 --tmpfs /work:rw,nosuid,nodev,size=2g,uid=1000,gid=1000 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000 "$image" | tee "$RUNNER_TEMP/emulator-safe-report.json"
+          docker run --rm --name "$container" --network none --cap-drop ALL --security-opt no-new-privileges:true --read-only --user 1000:1000 --memory 3g --memory-swap 3g --cpus 2 --pids-limit 128 --tmpfs /work:rw,exec,nosuid,nodev,size=2g,uid=1000,gid=1000 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000 "$image" | tee "$RUNNER_TEMP/emulator-safe-report.json"
       - name: Nonsecret summary
         env:
           EXECUTION_STATUS: ${{ steps.execution.outcome }}

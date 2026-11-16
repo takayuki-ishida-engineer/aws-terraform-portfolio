@@ -1,5 +1,39 @@
 # STS correction and remaining runtime contract review
 
+## Follow-up: provider plugin on a noexec tmpfs (Run 43778833950)
+
+Run [43778833950](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43778833950)
+on merged main `94116617fd1c95764fa764124cd8423ae407bf67` passed every
+authentication gate in a real run (`control-3`, `authentication-enforced`). In
+`provider-init`, `terraform init` exited 0 and the next command,
+`terraform validate`, exited 1.
+
+Cause (source-verified and reproduced): Docker starts every `--tmpfs` mount from
+`noexec,nosuid,nodev` and merges the caller's options over them
+([moby v28.5.2 daemon/oci_linux.go](https://github.com/moby/moby/blob/v28.5.2/daemon/oci_linux.go),
+blob `6a584f9e733d3bc57f9c8569fa7efc190f641591`; `exec`/`noexec` share one flag in
+[moby/sys MergeTmpfsOptions](https://github.com/moby/sys/blob/main/mount/flags_unix.go),
+so only an explicit `exec` clears it). `/work` was requested without `exec`, so it
+stayed noexec. `init` only unpacks the packed mirror into
+`/work/private/root/.terraform`; `validate` is the first command that executes the
+provider plugin from there. Offline, with hash-verified Terraform 1.17.0 and AWS
+Provider 6.72.0, the same adapter, lock file, mirror layout and init flags:
+
+- on an ordinary directory, `init` and `validate` both succeed;
+- on a `noexec,nosuid,nodev` tmpfs, `init` exits 0 and `validate` exits 1 with
+  `Failed to load plugin schemas … fork/exec …terraform-provider-aws_v6.72.0_x5:
+  permission denied`;
+- after remounting that tmpfs with `exec`, `validate` succeeds.
+
+`/work` now requests `exec` explicitly. `/tmp` stays `noexec`, and every other
+isolation flag is unchanged. The static contract pins both mount strings, so a
+`/work` without `exec` or an executable `/tmp` is refused. Trade-off: `/work` is
+writable and executable. The container still has no network, no capabilities,
+no-new-privileges, a read-only root, a non-root user and pids/memory limits, and
+its image already ships `python3`, so noexec on `/work` was not preventing code
+execution inside the container. Provider, Plan, Apply, Destroy and API behavior
+against the Emulator remain unexercised in a real run.
+
 ## Follow-up: un-namespaced awsQuery refusal (Run 43741028022)
 
 Run [43741028022](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43741028022)
