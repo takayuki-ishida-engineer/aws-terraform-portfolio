@@ -35,6 +35,13 @@ def plan(action='create',phase='create',before=None):
   return result
 
 
+def refresh_plan(values):
+  # Terraform 1.17.0 `show -json` of `plan -refresh-only` (observed offline with the real
+  # binary): no resource_changes, empty planned_values, refreshed object in prior_state.
+  resource={'address':'aws_vpc.proof','mode':'managed','type':'aws_vpc','name':'proof','provider_name':'registry.terraform.io/hashicorp/aws','schema_version':1,'sensitive_values':{},'values':copy.deepcopy(values)}
+  return {'format_version':'1.2','terraform_version':'1.17.0','applyable':False,'complete':True,'errored':False,'configuration':{'root_module':{'resources':[{'address':'aws_vpc.proof','mode':'managed'}]}},'planned_values':{'root_module':{}},'prior_state':{'format_version':'1.0','terraform_version':'1.17.0','values':{'root_module':{'resources':[resource]}}}}
+
+
 class Response:
   def __init__(self,body=b'ok',status=200):self.body=io.BytesIO(body);self.status=status
   def read(self,*args):return self.body.read(*args)
@@ -129,7 +136,7 @@ class Model:
         phase=json.loads((self.run.root/'inputs.auto.tfvars.json').read_text())['phase']
         action='delete' if '-destroy' in args else 'no-op' if self.values is not None and self.values['tags']['Phase']==phase else 'update' if self.values else 'create'
         row=plan(action,phase,self.values)
-        if '-refresh-only' in args:row['resource_changes']=[]
+        if '-refresh-only' in args:row=refresh_plan(self.values)
         if action=='delete' and self.values and self.values['tags']['Phase']!=phase:
           drift=plan('update','updated',self.values)['resource_changes'][0];row['resource_drift']=[drift];row['resource_changes'][0]['change']['before']=attrs(phase)
         if self.fault=='plan-inventory' and action=='create':row['resource_changes'].append(copy.deepcopy(row['resource_changes'][0]))
@@ -254,9 +261,21 @@ class RuntimeContracts(unittest.TestCase):
       value=state(attrs());value['resources'][0]['instances'][0][key]=0
       with self.assertRaises(Blocked):state_id(value,RUN)
   def test_refresh_json_and_owned_tag_drift_recovery(self):
-    row=plan('no-op','create');row['resource_changes']=[];refresh_gate(row,ID,RUN,'create')
+    row=refresh_plan(attrs('create'));refresh_gate(row,ID,RUN,'create')
     row['resource_drift']=[{}]
     with self.assertRaises(Blocked):refresh_gate(row,ID,RUN,'create')
+    # Regression for Run 43786507720: refresh-only planned_values is empty; the old
+    # no-op-shaped expectation, changes or a foreign refreshed object stay refused.
+    old=plan('no-op','create');old['resource_changes']=[]
+    def prior(row):return row['prior_state']['values']['root_module']
+    mutations={'old-no-op-shape':lambda r:r.clear() or r.update(old),'resource-changes':lambda r:r.update(resource_changes=plan('no-op','create')['resource_changes']),
+      'planned-resource':lambda r:r.update(planned_values=old['planned_values']),'no-prior-state':lambda r:r.pop('prior_state'),
+      'prior-version':lambda r:r['prior_state'].update(terraform_version='1.16.0'),'prior-child-module':lambda r:prior(r).update(child_modules=[{}]),
+      'prior-foreign-id':lambda r:prior(r)['resources'][0]['values'].update(id='vpc-ffffffff'),'prior-phase':lambda r:prior(r)['resources'][0]['values']['tags'].update(Phase='updated'),
+      'prior-duplicate':lambda r:prior(r)['resources'].append(copy.deepcopy(prior(r)['resources'][0]))}
+    for name,mutate in mutations.items():
+      row=refresh_plan(attrs('create'));mutate(row)
+      with self.subTest(refresh=name),self.assertRaises(Blocked):refresh_gate(row,ID,RUN,'create')
     destroy=plan('delete','updated',attrs('updated'));destroy['resource_drift']=plan('update','updated')['resource_changes']
     plan_gate(destroy,'delete',RUN,'updated',ID)
     destroy['resource_drift'][0]['change']['after']['id']='vpc-ffffffff'

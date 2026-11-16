@@ -1,5 +1,42 @@
 # STS correction and remaining runtime contract review
 
+## Follow-up: refresh-only plan JSON shape (Run 43786507720)
+
+Run [43786507720](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43786507720)
+on merged main `c17048b2558908c8e21dcd7946240d36ec809397` passed provider init,
+validate, empty initial State, baseline, Plan inventory, Create and independent
+API identity (`control-12`, `vpc-0000000000000009b`) in a real run. In `read`,
+`plan -refresh-only -detailed-exitcode` and `show -json` both exited 0 (no
+drift), and `refresh_gate` then rejected the plan (`PLAN_REJECTED`). Recovery
+ran a reviewed Destroy plan and Destroy, empty State, independent
+`InvalidVpcID.NotFound` absence and baseline checks, all PASS, so this run also
+exercised the Delete plan gate and the CLI prefix fix against the real Emulator.
+
+Cause (source-verified and reproduced): Terraform 1.17.0 refuses any resource
+change in a refresh-only plan
+([context_plan.go](https://github.com/hashicorp/terraform/blob/v1.17.0/internal/terraform/context_plan.go),
+blob `4c490a048ea51f6fcf4f4b32f78c5e098aeda631`, "Invalid refresh-only plan"), and
+jsonplan builds `planned_values` from resource changes only
+([values.go](https://github.com/hashicorp/terraform/blob/v1.17.0/internal/command/jsonplan/values.go),
+blob `857a5ea11000b1c994db206f327cb07ea4587085`; plan.go blob `fbefe31e…` as cited
+below). The refreshed object is reported in `prior_state`. `refresh_gate`
+expected the VPC in `planned_values`, which can never hold for a refresh-only
+plan; the test double had encoded the same wrong shape. Offline, the real
+Terraform 1.17.0 binary's `show -json` of an exit-0 refresh-only plan has
+`planned_values` `{"root_module": {}}`, no `resource_changes` or
+`resource_drift`, and the resource in `prior_state.values.root_module`.
+
+`refresh_gate` now requires the refresh-only invariants (no `resource_changes`,
+empty `planned_values`) and checks inventory, identity, CIDR and tags on the
+`prior_state` object (Terraform 1.17.0, no child modules, exactly one
+`aws_vpc.proof`). Drift, deferred or errored plans, the old no-op shape, any
+change, a planned resource, a missing or foreign prior object, a different
+Phase or a duplicate remain refused. The test double now emits the observed
+shape; main's gate fails 5 tests and 1 error against it, including the complete
+lifecycle. As a preflight for the next stages, Terraform 1.17.0 resource changes
+for the tag Update and the following No-op (from `terraform test` with a mock AWS
+provider, so provider CustomizeDiff is not exercised) pass `plan_gate`.
+
 ## Follow-up: provider plugin on a noexec tmpfs (Run 43778833950)
 
 Run [43778833950](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43778833950)
