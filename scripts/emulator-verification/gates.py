@@ -157,13 +157,16 @@ def evidence_gate(report):
 
 
 def refresh_gate(plan, owned_id, run_id, phase):
-  # Refresh-only JSON may omit no-op resource_changes; planned_values is still exact.
+  # Terraform 1.17.0 refuses resource changes in a refresh-only plan, and jsonplan
+  # builds planned_values from changes alone, so it is empty; the refreshed object
+  # is prior_state (internal/terraform/context_plan.go, internal/command/jsonplan).
   configuration=plan.get('configuration',{}).get('root_module',{})
   require(plan.get('terraform_version')=='1.17.0' and not plan.get('resource_drift') and not plan.get('deferred_changes') and not plan.get('errored',False),'refresh-drift')
   require(not configuration.get('module_calls') and [(r.get('address'),r.get('mode')) for r in configuration.get('resources',[])]==[('aws_vpc.proof','managed')],'refresh-configuration')
-  root=plan['planned_values']['root_module'];require(not root.get('child_modules'),'refresh-modules')
+  require(not plan.get('resource_changes') and plan.get('planned_values')=={'root_module':{}},'refresh-only-plan')
+  prior=plan.get('prior_state');require(isinstance(prior,dict) and prior.get('terraform_version')=='1.17.0','refresh-prior-state')
+  root=prior.get('values',{}).get('root_module',{});require(isinstance(root,dict) and not root.get('child_modules'),'refresh-modules')
   resources=root.get('resources',[])
   require(len(resources)==1 and resources[0].get('address')=='aws_vpc.proof' and resources[0].get('mode')=='managed' and resources[0].get('type')=='aws_vpc' and resources[0].get('provider_name')=='registry.terraform.io/hashicorp/aws','refresh-inventory')
   values=resources[0]['values']
   require(values.get('id')==owned_id and values.get('cidr_block')=='10.238.0.0/16' and values.get('tags')=={'Name':'emulator-proof-'+run_id,'VerificationRun':run_id,'Phase':phase},'refresh-owner')
-  if plan.get('resource_changes'):plan_gate(plan,'no-op',run_id,phase,owned_id)
