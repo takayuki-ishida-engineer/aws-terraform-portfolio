@@ -513,6 +513,10 @@
   "role_too_many_tags": [
     "aws_cloudwatch_log_group"
   ],
+  "role_invalid_policy_name": [
+    "aws_cloudwatch_log_group",
+    "aws_iam_role"
+  ],
   "role_unsupported_partition": [],
   "role_unsupported_tag_key_character": [
     "aws_cloudwatch_log_group"

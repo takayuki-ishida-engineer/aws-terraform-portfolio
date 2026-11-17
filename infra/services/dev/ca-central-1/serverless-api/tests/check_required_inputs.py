@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
-    ("missing_artifact_bucket_name", "artifact_bucket_name", None, "missing", "artifact_bucket_name"),
+    ("missing_project", "project", None, "missing", "project"),
     ("missing_artifact_key", "artifact_key", None, "missing", "artifact_key"),
     ("missing_artifact_object_version", "artifact_object_version", None, "missing", "artifact_object_version"),
     ("missing_lambda_runtime", "lambda_runtime", None, "missing", "lambda_runtime"),
@@ -31,7 +31,7 @@ CASES = [
     ("null_version_sentinel", "artifact_object_version", "null", "invalid", "s3_object_version"),
     ("unsupported_lambda_runtime", "lambda_runtime", "python2.7", "invalid", "runtime"),
     ("invalid_runtime_handler", "lambda_handler", "app::handler", "invalid", "handler"),
-    ("unsafe_artifact_bucket_name", "artifact_bucket_name", "bad..bucket", "invalid", "bucket_name"),
+    ("reserved_word_project", "project", "aws-portal", "invalid", "project"),
 ]
 
 

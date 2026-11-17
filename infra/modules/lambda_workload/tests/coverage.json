@@ -1072,6 +1072,14 @@
     "replacement": "same behavior on four-resource workload"
   },
   {
+    "old_file": null,
+    "old_run": null,
+    "new_file": "tests/role.tftest.hcl",
+    "new_run": "role_invalid_policy_name",
+    "expect_failure": true,
+    "replacement": "new explicit inline policy name boundary"
+  },
+  {
     "old_file": "infra/modules/cloudwatch_logs/tests/cloudwatch_logs.tftest.hcl",
     "old_run": "default_log_group_configuration",
     "new_file": "tests/logging.tftest.hcl",

@@ -6,7 +6,7 @@ provider "aws" {
   # and service. The secret's project tag is also module-owned for IAM ABAC.
   default_tags {
     tags = {
-      project = local.project
+      project = var.project
       env     = local.environment
       managed = "terraform"
     }

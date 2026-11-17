@@ -5,7 +5,7 @@ resource "aws_cloudwatch_log_group" "this" {
   kms_key_id                  = var.log_kms_key_arn
   log_group_class             = "STANDARD"
   skip_destroy                = false
-  tags                        = var.log_tags
+  tags                        = merge(var.log_tags, { Name = replace(substr(var.log_group_name, 0, 256), "#", "-"), service = "lambda" })
 
   lifecycle {
     postcondition {

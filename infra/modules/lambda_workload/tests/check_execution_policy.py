@@ -27,7 +27,8 @@ POSITIVE_RUNS = {case["new_run"] for case in MANIFEST if not case["expect_failur
 EXPECTED_RUNS = {(case["new_file"], case["new_run"]) for case in MANIFEST}
 REJECTED_SHAPES = json.loads((Path(__file__).with_name("rejected_shapes.json")).read_text())
 INVENTORY = {"aws_lambda_function", "aws_iam_role", "aws_iam_role_policy", "aws_cloudwatch_log_group"}
-POLICY_NAME = "LambdaWorkloadAccess"
+# Matches the policy_name supplied by the module test files.
+POLICY_NAME = "portfolio-test-lambda-policy"
 LOG_ACTIONS = {"logs:CreateLogStream", "logs:PutLogEvents"}
 SECRET_ACTIONS = {"secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"}
 SERVICE_NAMES = {"logs": "CloudWatch Logs", "secretsmanager": "Secrets Manager", "kms": "KMS"}

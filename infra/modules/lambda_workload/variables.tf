@@ -256,16 +256,26 @@ variable "log_group_name" {
 
 
 variable "tags" {
-  description = "Optional visible, non-secret function tags, passed through without module-added keys; provider default_tags are owned by the root."
+  description = "Optional visible, non-secret function tags; the module-owned Name and service tags win, and provider default_tags are owned by the root."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition = length(var.tags) <= 50 && alltrue([for key, value in var.tags :
+    condition = length(setunion(keys(var.tags), ["Name", "service"])) <= 50 && alltrue([for key, value in var.tags :
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") && try(length(value) <= 256, false)
     ])
-    error_message = "tags must have at most 50 entries, 1-128-character non-reserved keys and non-null values of at most 256 characters."
+    error_message = "tags plus the module-owned Name and service must have at most 50 entries, 1-128-character non-reserved keys and non-null values of at most 256 characters."
+  }
+}
+
+variable "policy_name" {
+  description = "Stable explicit name of the one inline workload policy on the execution role, for example <project>-<env>-policy-lambda."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_+=,.@-]{1,128}$", var.policy_name))
+    error_message = "policy_name must contain 1-128 supported IAM policy-name characters without paths, ARNs or wildcards."
   }
 }
 
@@ -379,18 +389,18 @@ variable "secret_kms_key_arn" {
 
 
 variable "role_tags" {
-  description = "Optional visible non-secret role tags, passed through without invented Name or Project metadata; root default_tags remain root-owned."
+  description = "Optional visible non-secret role tags; the module-owned Name and service tags win, and root default_tags remain root-owned."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition = length(var.role_tags) <= 50 && alltrue([for key, value in var.role_tags :
+    condition = length(setunion(keys(var.role_tags), ["Name", "service"])) <= 50 && alltrue([for key, value in var.role_tags :
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
       can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]+$", key)) &&
       try(length(value) <= 256 && can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*$", value)), false)
     ])
-    error_message = "tags must have at most 50 non-secret entries; keys 1-128 and values 0-256 permitted Unicode characters, no null values or reserved aws: prefix."
+    error_message = "tags plus the module-owned Name and service must have at most 50 non-secret entries; keys 1-128 and values 0-256 permitted Unicode characters, no null values or reserved aws: prefix."
   }
 }
 
@@ -444,17 +454,17 @@ variable "log_kms_key_arn" {
 
 
 variable "log_tags" {
-  description = "Optional visible, non-secret tags passed through without module-owned Name or Project metadata; provider default_tags remain root-owned."
+  description = "Optional visible, non-secret log group tags; the module-owned Name and service tags win, and provider default_tags remain root-owned."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition = length(var.log_tags) <= 50 && alltrue([for key, value in var.log_tags :
+    condition = length(setunion(keys(var.log_tags), ["Name", "service"])) <= 50 && alltrue([for key, value in var.log_tags :
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
       can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]+$", key)) &&
       try(length(value) <= 256, false) && can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*$", value))
     ])
-    error_message = "tags must have at most 50 entries, 1-128-character keys without the reserved aws: prefix, and non-null values up to 256 characters; only Unicode letters, separators, numbers and _ . : / = + @ - are supported."
+    error_message = "tags plus the module-owned Name and service must have at most 50 entries, 1-128-character keys without the reserved aws: prefix, and non-null values up to 256 characters; only Unicode letters, separators, numbers and _ . : / = + @ - are supported."
   }
 }

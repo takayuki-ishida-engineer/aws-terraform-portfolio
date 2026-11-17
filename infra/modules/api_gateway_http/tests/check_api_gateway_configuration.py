@@ -257,7 +257,9 @@ def verify_log_fixture(name, log, partition, region, account):
     require(log["kms_key_id"] == key, "reviewed_log_key")
     tags = {}
     if name == "logging_caller_owned_unicode_tags":tags = {"Project":"Root-Owned", "運用:部門":"本番 構成 +:@/=", "Environment":"test"}
-    if name == "logging_maximum_tag_count_and_lengths":tags = {"K"*128:"v"*256, **{f"tag-{i:02}":"" for i in range(49)}}
+    if name == "logging_maximum_tag_count_and_lengths":tags = {"K"*128:"v"*256, **{f"tag-{i:02}":"" for i in range(47)}}
+    # Module-owned Name (bounded to the 256-character tag-value limit) and service win.
+    tags = {**tags, "Name": reviewed_log_name(name)[:256].replace("#", "-"), "service": "apigw"}
     require(log["tags"] == tags, "reviewed_log_tag_inputs")
 
 
@@ -276,12 +278,16 @@ def verify_fixture(name, resources):
     if name == "caller_owned_tags":
         expected_tags = {"Owner": "Root-Owned", "Purpose": "HTTP access", "Empty": ""}
     if name == "maximum_tag_limits":
-        expected_tags = {"K" * 128: "v" * 256, **{f"tag-{i:02}": "" for i in range(49)}}
+        expected_tags = {"K" * 128: "v" * 256, **{f"tag-{i:02}": "" for i in range(47)}}
     if name == "effective_provider_default_tags":
         expected_tags = {"Owner": "Root-Owned"}
-    expected_all = {**expected_tags, **({"CostCentre": "test-default"} if name == "effective_provider_default_tags" else {})}
-    require(all(resources[kind]["tags"] == expected_tags and resources[kind]["tags_all"] == expected_all
-        for kind in ("aws_apigatewayv2_api", "aws_apigatewayv2_stage")), "reviewed_tag_inputs")
+    # Module-owned Name and service win; the stage Name is the API name plus "-default".
+    owned = {"aws_apigatewayv2_api": {"Name": expected_name, "service": "apigw"},
+        "aws_apigatewayv2_stage": {"Name": expected_name + "-default", "service": "apigw"}}
+    default = {"CostCentre": "test-default"} if name == "effective_provider_default_tags" else {}
+    require(all(resources[kind]["tags"] == {**expected_tags, **owned[kind]}
+        and resources[kind]["tags_all"] == {**expected_tags, **owned[kind], **default}
+        for kind in owned), "reviewed_tag_inputs")
 
 
 def read_events(path):

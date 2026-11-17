@@ -17,7 +17,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_FILE = "tests/root_integration.tftest.hcl"
-PREFIX = "aws-terraform-portfolio-dev-serverless-api"
+PROJECT = "test"
+PREFIX = PROJECT + "-dev"
+PATH_PREFIX = "/" + PROJECT + "/dev"
 ACCOUNT = "000000000000"
 REGION = "ca-central-1"
 POSITIVE_RUNS = {"default_secret_read_disabled", "enabled_exact_secret_read", "node_runtime", "java_runtime"}
@@ -32,7 +34,18 @@ MODULE_TYPES = {
 INVENTORY = {f"module.{module}.{kind}.this" for module, kinds in MODULE_TYPES.items() for kind in kinds}
 LOG_FORMAT = {key: "$context." + key for key in (
     "requestId", "routeKey", "httpMethod", "status", "responseLatency", "integrationLatency", "responseLength")}
-DEFAULT_TAGS = {"project": "aws-terraform-portfolio", "env": "dev", "managed": "terraform"}
+DEFAULT_TAGS = {"project": PROJECT, "env": "dev", "managed": "terraform"}
+# Module-owned Name and service tags (docs/deployment-configuration.md sections 4 and 5).
+OWNED_TAGS = {
+    ("artifact_bucket", "aws_s3_bucket"): (PREFIX + "-s3-artifact", "s3"),
+    ("secret_metadata", "aws_secretsmanager_secret"): (PATH_PREFIX + "/secret/app", "secret"),
+    ("lambda_workload", "aws_lambda_function"): (PREFIX + "-lambda", "lambda"),
+    ("lambda_workload", "aws_iam_role"): (PREFIX + "-role-lambda", "role"),
+    ("lambda_workload", "aws_cloudwatch_log_group"): ("/aws/lambda/" + PREFIX + "-lambda", "lambda"),
+    ("http_api", "aws_apigatewayv2_api"): (PREFIX + "-apigw-http", "apigw"),
+    ("http_api", "aws_apigatewayv2_stage"): (PREFIX + "-apigw-http-default", "apigw"),
+    ("http_api", "aws_cloudwatch_log_group"): (PATH_PREFIX + "/apigw/http", "apigw"),
+}
 
 
 def require(condition, code):
@@ -119,7 +132,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
         return after
 
     bucket = read("artifact_bucket", "aws_s3_bucket", "bucket", "id", "arn", "bucket_namespace", "force_destroy", "tags_all")
-    require(bucket.get("bucket") == "portfolio-test-dev-artifacts" and bucket.get("id") == bucket["bucket"]
+    require(bucket.get("bucket") == PREFIX + "-s3-artifact" and bucket.get("id") == bucket["bucket"]
         and bucket.get("arn") == "arn:aws:s3:::" + bucket["bucket"], "artifact_bucket_identity")
     require(bucket.get("force_destroy") is False and bucket.get("bucket_namespace") == "global", "bucket_safety")
     require(all(not bucket.get(key) for key in ("acl", "grant", "policy", "replication_configuration", "website",
@@ -144,8 +157,11 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
         "Resource": [bucket["arn"], bucket["arn"] + "/*"], "Condition": {"Bool": {
             "aws:SecureTransport": "false", "aws:PrincipalIsAWSService": "false"}}}]}, "bucket_transport_policy")
 
+    for (module, kind), (name, service) in OWNED_TAGS.items():
+        tags = read(module, kind, "tags").get("tags")
+        require(isinstance(tags, dict) and tags.get("Name") == name and tags.get("service") == service, "owned_name_service_tags:" + module + "." + kind)
     logs = {}
-    for module, name in (("lambda_workload", "/aws/lambda/" + PREFIX + "-function"), ("http_api", "/aws/apigateway/" + PREFIX + "-access")):
+    for module, name in (("lambda_workload", "/aws/lambda/" + PREFIX + "-lambda"), ("http_api", PATH_PREFIX + "/apigw/http")):
         log = read(module, "aws_cloudwatch_log_group", "name", "arn", "retention_in_days", "deletion_protection_enabled", "log_group_class", "kms_key_id", "skip_destroy")
         require(log.get("name") == name and log.get("arn") == f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:{name}", "log_identity:" + module)
         require(log.get("retention_in_days") == 30 and log.get("deletion_protection_enabled") is True
@@ -154,24 +170,24 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
         logs[module] = log
     require(logs["lambda_workload"]["arn"] != logs["http_api"]["arn"], "separate_log_groups")
     secret = read("secret_metadata", "aws_secretsmanager_secret", "name", "arn", "kms_key_id", "recovery_window_in_days", "tags", "tags_all")
-    require(secret.get("name") == PREFIX + "/application" and isinstance(secret.get("arn"), str)
+    require(secret.get("name") == PATH_PREFIX + "/secret/app" and isinstance(secret.get("arn"), str)
         and re.fullmatch(f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:" + re.escape(secret["name"]) + r"-[A-Za-z0-9]{6}", secret["arn"]), "secret_metadata_identity")
     require(secret.get("kms_key_id") is None and secret.get("recovery_window_in_days") == 30
         and secret.get("tags", {}).get("project") == DEFAULT_TAGS["project"], "secret_metadata_safety")
     role = read("lambda_workload", "aws_iam_role", "name", "arn", "path", "max_session_duration", "assume_role_policy")
-    require(role.get("name") == PREFIX + "-execution" and role.get("arn") == f"arn:aws:iam::{ACCOUNT}:role/" + role["name"]
+    require(role.get("name") == PREFIX + "-role-lambda" and role.get("arn") == f"arn:aws:iam::{ACCOUNT}:role/" + role["name"]
         and role.get("path") == "/" and role.get("max_session_duration") == 3600, "execution_role_identity")
     require(parse_json(role.get("assume_role_policy")) == {"Version": "2012-10-17", "Statement": [{
         "Sid": "LambdaServiceAssumeRole", "Effect": "Allow", "Action": ["sts:AssumeRole"], "Principal": {"Service": "lambda.amazonaws.com"}}]}, "lambda_only_role_trust")
     inline = read("lambda_workload", "aws_iam_role_policy", "name", "role", "policy")
-    require(inline.get("name") == "LambdaWorkloadAccess" and inline.get("role") == role["name"], "workload_policy_role_binding")
+    require(inline.get("name") == PREFIX + "-policy-lambda" and inline.get("role") == role["name"], "workload_policy_role_binding")
     statements = [{"Sid": "WriteExistingLogStreams", "Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
         "Resource": [logs["lambda_workload"]["arn"] + ":log-stream:*"]}]
     if enabled:
         statements.append({"Sid": "ReadAuthorizedSecret", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"], "Resource": [secret["arn"]]})
     require(parse_json(inline.get("policy")) == {"Version": "2012-10-17", "Statement": statements}, "exact_workload_permissions")
     function = read("lambda_workload", "aws_lambda_function", "function_name", "arn", "invoke_arn", "role", "s3_bucket", "s3_key", "s3_object_version", "runtime", "handler", "environment", "logging_config", "vpc_config", "layers", "kms_key_arn", "publish", "architectures", "memory_size", "timeout", "ephemeral_storage", "tracing_config")
-    require(function.get("function_name") == PREFIX + "-function" and function.get("arn") == f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:" + function["function_name"], "lambda_identity")
+    require(function.get("function_name") == PREFIX + "-lambda" and function.get("arn") == f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:" + function["function_name"], "lambda_identity")
     require(function.get("invoke_arn") == f"arn:aws:apigateway:{REGION}:lambda:path/2015-03-31/functions/" + function["arn"] + "/invocations", "lambda_invoke_identity")
     require(function.get("role") == role["arn"], "lambda_execution_role_binding")
     require(function.get("s3_bucket") == bucket["bucket"] and function.get("s3_key") == "lambda/test/function.zip"
@@ -189,7 +205,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
         and block(function.get("tracing_config"), "lambda_tracing").get("mode") == "PassThrough", "lambda_safe_defaults")
 
     api = read("http_api", "aws_apigatewayv2_api", "id", "name", "execution_arn", "protocol_type", "disable_execute_api_endpoint", "cors_configuration", "body", "target", "route_key", "credentials_arn")
-    require(api.get("name") == PREFIX + "-http" and isinstance(api.get("id"), str) and re.fullmatch(r"[a-z0-9]+", api["id"])
+    require(api.get("name") == PREFIX + "-apigw-http" and isinstance(api.get("id"), str) and re.fullmatch(r"[a-z0-9]+", api["id"])
         and api.get("execution_arn") == f"arn:aws:execute-api:{REGION}:{ACCOUNT}:" + api["id"], "api_identity")
     require(api.get("protocol_type") == "HTTP" and api.get("disable_execute_api_endpoint") is False
         and all(not api.get(key) for key in ("cors_configuration", "body", "target", "route_key", "credentials_arn")), "http_api_safety")
@@ -233,6 +249,22 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
     return resources
 
 
+def verify_function_package():
+    """The committed function.zip must equal a reproducible rebuild of function/src."""
+    import importlib.util
+    import tempfile
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location("function_build", ROOT / "function" / "build.py")
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    committed = (ROOT / "function" / "function.zip").read_bytes()
+    with tempfile.TemporaryDirectory() as temporary:
+        rebuilt = builder.build(Path(temporary) / "function.zip").read_bytes()
+    require(committed == rebuilt, "function_zip_matches_source")
+    source = (ROOT / "function" / "src" / "main.py").read_text(encoding="utf-8")
+    require(re.search(r"^def handler\(event, context\):", source, re.M) is not None, "function_handler_present")
+
+
 def verify_provider_contract():
     """Static guard only: a mock never authenticates these identity restrictions."""
     provider = (ROOT / "providers.tf").read_text(encoding="utf-8")
@@ -240,10 +272,10 @@ def verify_provider_contract():
         and re.search(r'region\s*=\s*local\.region\b', provider) is not None
         and re.search(r'allowed_account_ids\s*=\s*\[var\.aws_account_id\]', provider) is not None
         and not re.search(r'\b(alias|access_key|secret_key|token|profile)\s*=', provider), "root_provider_account_guard")
-    for key, source in (("project", "local.project"), ("env", "local.environment"), ("managed", '"terraform"')):
+    for key, source in (("project", "var.project"), ("env", "local.environment"), ("managed", '"terraform"')):
         require(re.search(r"\b" + key + r"\s*=\s*" + re.escape(source), provider) is not None, "root_provider_default_tags:" + key)
     main = (ROOT / "main.tf").read_text(encoding="utf-8")
-    for name, val in (("environment", "dev"), ("region", REGION), ("service", "serverless-api"), ("project", DEFAULT_TAGS["project"])):
+    for name, val in (("environment", "dev"), ("region", REGION)):
         require(re.search(r'\b' + name + r'\s*=\s*"' + re.escape(val) + '"', main) is not None, "root_fixed_identity:" + name)
     require(set(re.findall(r'module\s+"([^"]+)"\s*\{', main)) == set(MODULE_TYPES)
         and not re.search(r'\b(resource|data)\s+"', main), "root_composition_contract")
@@ -330,6 +362,8 @@ def semantic_mutations(plan, enabled=False):
         changed = copy.deepcopy(plan)
         item = next(item for item in changed["resource_changes"] if item["address"] == f"module.{module}.{kind}.this")
         transform(item["change"]["after"])
+        # A mutation that changes nothing would pass silently; require an actual change.
+        require(changed != plan, "mutation_noop:" + identifier)
         results.append(expect_rejection(lambda: verify_plan(changed, enabled), identifier))
 
     mutate("unrelated-execution-role", "lambda_workload", "aws_lambda_function", lambda v: v.update(role=f"arn:aws:iam::{ACCOUNT}:role/other"))
@@ -339,10 +373,10 @@ def semantic_mutations(plan, enabled=False):
     mutate("unrelated-lambda-log-group", "lambda_workload", "aws_lambda_function", lambda v: v["logging_config"][0].update(log_group="/other"))
     mutate("plaintext-environment", "lambda_workload", "aws_lambda_function", lambda v: v.update(environment=[{"variables": {"PASSWORD": "synthetic-value"}}]))
     mutate("anonymous-route", "http_api", "aws_apigatewayv2_route", lambda v: v.update(authorization_type="NONE"))
-    mutate("unrelated-integration", "http_api", "aws_apigatewayv2_integration", lambda v: v.update(integration_uri=v["integration_uri"].replace("-function", "-other")))
+    mutate("unrelated-integration", "http_api", "aws_apigatewayv2_integration", lambda v: v.update(integration_uri=v["integration_uri"].replace(PREFIX + "-lambda", PREFIX + "-other")))
     mutate("broad-invoke-source", "http_api", "aws_lambda_permission", lambda v: v.update(source_arn=v["source_arn"].replace("/$default/$default", "/*/*")))
     mutate("wildcard-invoke-principal", "http_api", "aws_lambda_permission", lambda v: v.update(principal="*"))
-    mutate("reuse-lambda-access-log", "http_api", "aws_apigatewayv2_stage", lambda v: v["access_log_settings"][0].update(destination_arn=f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:/aws/lambda/{PREFIX}-function"))
+    mutate("reuse-lambda-access-log", "http_api", "aws_apigatewayv2_stage", lambda v: v["access_log_settings"][0].update(destination_arn=f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:/aws/lambda/{PREFIX}-lambda"))
     mutate("sensitive-access-log", "http_api", "aws_apigatewayv2_stage", lambda v: v["access_log_settings"][0].update(format=json.dumps({**LOG_FORMAT, "authorization": "$request.header.Authorization"})))
     mutate("disable-public-block", "artifact_bucket", "aws_s3_bucket_public_access_block", lambda v: v.update(block_public_policy=False))
     mutate("suspend-versioning", "artifact_bucket", "aws_s3_bucket_versioning", lambda v: v["versioning_configuration"][0].update(status="Suspended"))
@@ -416,6 +450,7 @@ def main():
     args = parser.parse_args()
     try:
         verify_provider_contract()
+        verify_function_package()
         events = list(read_events(args.test_events))
         plans = verify_capture(events, args.terraform_exit_code)
         mutations = []

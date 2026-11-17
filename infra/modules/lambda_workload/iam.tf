@@ -3,7 +3,7 @@ resource "aws_iam_role" "this" {
   path                 = "/"
   max_session_duration = 3600
   assume_role_policy   = local.trust_policy
-  tags                 = var.role_tags
+  tags                 = merge(var.role_tags, { Name = replace(var.role_name, ",", "-"), service = "role" })
 
   lifecycle {
     postcondition {
@@ -16,7 +16,7 @@ resource "aws_iam_role" "this" {
 }
 
 resource "aws_iam_role_policy" "this" {
-  name   = "LambdaWorkloadAccess"
+  name   = var.policy_name
   role   = aws_iam_role.this.name
   policy = local.workload_policy
 }

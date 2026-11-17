@@ -5,7 +5,7 @@ and [live-validation approval gates](../../../../../docs/dev-live-validation-rea
 These documents authorize no live AWS operations.
 
 This root describes one `dev` / `ca-central-1` / `serverless-api` workload for
-project `aws-terraform-portfolio`. R2 composes four functional module
+the project given by the `project` input. R2 composes four functional module
 instances into a 17-resource configuration. Validation uses offline mocked plans;
 no AWS infrastructure is deployed, authenticated or established as operational.
 
@@ -59,7 +59,7 @@ values that identify no verified account, bucket, artifact or deployment.
 | Input | Contract |
 | --- | --- |
 | `aws_account_id` | Required non-null 12-digit expected workload account, also used by the provider account restriction |
-| `artifact_bucket_name` | Required explicit general-purpose shared-namespace bucket name; the child module validates its conservative 3–63-character lowercase naming rules; uniqueness and ownership are external prerequisites |
+| `project` | Required project name (1–10 lowercase characters, starting with a letter, without aws/amazon/cognito; tracked placeholder `project`); every name below and the `project` tag derive from it. It replaces the former `artifact_bucket_name` input |
 | `artifact_key` | Required exact approved ZIP object key; child validation rejects blank values, URI prefixes, controls and keys exceeding 1024 UTF-8 bytes |
 | `artifact_object_version` | Required immutable S3 object version; child validation rejects null, blank/whitespace, the `null` version sentinel and invalid/oversized values; this is not a Lambda function version |
 | `lambda_runtime` | Required reviewed runtime: `nodejs22.x`, `python3.13` or `java21` |
@@ -73,18 +73,23 @@ real account, private-account bucket, actual artifact version or secrets in trac
 
 ### Stable names
 
-The fixed prefix is `aws-terraform-portfolio-dev-serverless-api` (project,
-environment and service). There is no random name or reconstructed provider ARN.
+Names follow [deployment configuration](../../../../../docs/deployment-configuration.md#4-resource-naming)
+`<project>-dev-<type>[-<purpose>]`, with the path form `/<project>/dev/<type>/<purpose>`
+for the secret and the API access log group (**Root Override**). There is no random
+name, uniqueness suffix or reconstructed provider ARN; the placeholder `project` would
+collide in real AWS, so replace it first.
 
-| Resource purpose | Name |
-| --- | --- |
-| Lambda | `aws-terraform-portfolio-dev-serverless-api-function` |
-| Execution role | `aws-terraform-portfolio-dev-serverless-api-execution` |
-| HTTP API | `aws-terraform-portfolio-dev-serverless-api-http` |
-| Lambda application logs | `/aws/lambda/aws-terraform-portfolio-dev-serverless-api-function` |
-| API access logs | `/aws/apigateway/aws-terraform-portfolio-dev-serverless-api-access` |
-| Secret metadata | `aws-terraform-portfolio-dev-serverless-api/application` |
-| S3 artifact bucket | Required `artifact_bucket_name`; no fabricated globally unique default |
+| Resource purpose | Name | `service` tag |
+| --- | --- | --- |
+| S3 artifact bucket | `<project>-dev-s3-artifact` | `s3` |
+| Secret metadata | `/<project>/dev/secret/app` | `secret` |
+| Lambda | `<project>-dev-lambda` | `lambda` |
+| Execution role / inline policy | `<project>-dev-role-lambda` / `<project>-dev-policy-lambda` | `role` |
+| Lambda application logs | `/aws/lambda/<project>-dev-lambda` (AWS-mandated prefix) | `lambda` |
+| HTTP API / `$default` stage | `<project>-dev-apigw-http` / Name tag `<project>-dev-apigw-http-default` | `apigw` |
+| API access logs | `/<project>/dev/apigw/http` | `apigw` |
+
+Each child module sets the `Name` and `service` tags (**Module Fixed**).
 
 These names fit the existing modules' distinct name constraints. A valid format
 does not establish ownership or availability in a real account.
@@ -102,9 +107,9 @@ are not mislabeled as child defaults.
 
 | Root-owned setting | Effective value/source |
 | --- | --- |
-| Identity | Fixed locals: `dev`, `ca-central-1`, `serverless-api`, `aws-terraform-portfolio` |
+| Identity | Fixed locals `dev` and `ca-central-1`; `name_prefix = <project>-dev`, `path_prefix = /<project>/dev` |
 | Provider | Root-owned default `hashicorp/aws`; fixed Region; `allowed_account_ids = [var.aws_account_id]` |
-| Provider default tags | `project = aws-terraform-portfolio`, `env = dev`, `managed = terraform` ([tag keys](../../../../../docs/deployment-configuration.md#5-tags)); per-resource `Name`/`service` follow in the naming change |
+| Provider default tags | `project = <project>`, `env = dev`, `managed = terraform` ([tag keys](../../../../../docs/deployment-configuration.md#5-tags)); modules own `Name` and `service`; the secret also carries the module-owned `project` authorization tag |
 | Terraform/provider versions | CLI `~> 1.17.0`, AWS `~> 6.72.0`; unchanged committed lock selects AWS 6.72.0 |
 | State | Explicit local backend, default root-local `terraform.tfstate`; isolated by environment/Region/service |
 
@@ -127,7 +132,7 @@ are not mislabeled as child defaults.
 | Secret metadata tags | Canonical `Name` and the module-owned `project` authorization tag | Module Fixed |
 | Extra module tags | Empty maps; root provider tags still apply | Module Default |
 | S3 | Global namespace, versioning Enabled, all four public-access blocks true, BucketOwnerEnforced, AES256/SSE-S3, `force_destroy = false`, HTTPS Deny with service-principal exception | Module Fixed |
-| Role | Lambda-only trust, path `/`, max session 3600 seconds, one inline `LambdaWorkloadAccess` policy | Module Fixed |
+| Role | Lambda-only trust, path `/`, max session 3600 seconds, one inline policy named `<project>-dev-policy-lambda` (Root Override) | Module Fixed |
 | Role logging permissions | Only `logs:CreateLogStream` and `logs:PutLogEvents` beneath the actual Lambda Log Group's `:log-stream:*` scope | Module Fixed |
 | Optional role secret permissions | Only `secretsmanager:GetSecretValue` and `secretsmanager:DescribeSecret` on the actual exact secret; no KMS statement in this root | Module Fixed policy, root-controlled flag/reference |
 | Lambda compute | x86_64, 128 MB, timeout 10 seconds, temporary storage 512 MB | Module Default |
@@ -204,8 +209,14 @@ implemented procedure or permission to execute it in Codex Cloud**:
    the corresponding reviewed runtime/handler.
 6. Review the resulting real Terraform plan before any authorized deployment.
 
-This phase adds no artifact-bypass feature flag, selective-apply script, upload
-pipeline, placeholder ZIP, source code or object-discovery data source. A future
+The function package is committed in [`function/`](function): the Owner's minimal
+handler [`src/main.py`](function/src/main.py) (`main.handler`, Python, returns HTTP 200
+`ok`) and `function.zip`, rebuilt reproducibly by `python3 function/build.py`. The root
+checker fails if the committed ZIP differs from a rebuild of the source. The local
+workflow (Step 1 item 3) uploads this ZIP to the artifact bucket and records its key
+and version before the function is created; Terraform itself uploads nothing. This
+phase adds no artifact-bypass feature flag, selective-apply script or
+object-discovery data source. A future
 bootstrap design must resolve existing-bucket state ownership without attempting
 to create a conflicting bucket or assuming objects are already present.
 

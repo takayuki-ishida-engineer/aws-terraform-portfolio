@@ -91,10 +91,13 @@ No broad CloudWatch role or REST-only aws_api_gateway_account is created here.
 | access_log_group_class | aws_cloudwatch_log_group.this.log_group_class |
 | access_log_kms_key_arn | aws_cloudwatch_log_group.this.kms_key_id |
 
-DEV root supplies its existing stable API name and /aws/apigateway/ access-log name,
+DEV root supplies the API name `<project>-dev-apigw-http` and the path-form access-log name `/<project>/dev/apigw/http`,
 plus actual lambda_workload function/invoke outputs (Root Override). Logging defaults
 remain 30/protected/null/empty caller tags (Module Default); root provider default
-Tags are unchanged and separate. All eight root operational outputs retain names,
+tags are separate. The module adds `Name` and `service = apigw` (Module Fixed,
+winning over caller tags): the API name, `<api name>-default` for the stage and the
+access log group name (first 256 characters, `#` replaced by `-`) for the log group,
+so each caller map accepts 48 other tags; see [deployment configuration](../../../docs/deployment-configuration.md#5-tags). All eight root operational outputs retain names,
 types and effective values. No output exposes secret values.
 
 ## Migration, operation and limits

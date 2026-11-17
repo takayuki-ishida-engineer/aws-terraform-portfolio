@@ -14,16 +14,16 @@ variable "bucket_name" {
 }
 
 variable "tags" {
-  description = "Optional visible non-secret bucket tags; root-owned provider default_tags also count toward the effective 50-tag limit."
+  description = "Optional visible non-secret caller tags; the module-owned Name and service tags win, and root-owned provider default_tags also count toward the effective 50-tag limit."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition = length(var.tags) <= 50 && alltrue([for key, value in var.tags :
+    condition = length(setunion(keys(var.tags), ["Name", "service"])) <= 50 && alltrue([for key, value in var.tags :
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
       try(length(value) <= 256, false)
     ])
-    error_message = "tags must contain at most 50 non-secret entries with 1-128-character non-reserved keys and non-null values up to 256 characters; the aws: prefix is reserved."
+    error_message = "tags plus the module-owned Name and service must contain at most 50 non-secret entries with 1-128-character non-reserved keys and non-null values up to 256 characters; the aws: prefix is reserved."
   }
 }

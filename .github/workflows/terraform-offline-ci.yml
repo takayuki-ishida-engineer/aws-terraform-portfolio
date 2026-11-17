@@ -778,7 +778,7 @@ jobs:
           import pathlib
 
           report = json.loads(pathlib.Path(os.environ["RUNNER_TEMP"], "lambda-workload-static.json").read_text())
-          expected = {"native_tests": 188, "positive_plans": 45, "negative_plans": 143, "matrix_cases": 2025,
+          expected = {"native_tests": 189, "positive_plans": 45, "negative_plans": 144, "matrix_cases": 2025,
               "semantic_mutation_count": 14, "capture_failure_injections": 44, "reference_failure_injections": 5,
               "workload_semantic_mutation_count": 15, "workload_capture_failure_injections": 7, "source_dependency_mutations": 3}
           if report.get("status") != "passed" or report.get("evidence_type") != "static_actual_workload_policy_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):

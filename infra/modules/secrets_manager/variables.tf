@@ -30,20 +30,20 @@ variable "project_tag" {
 }
 
 variable "tags" {
-  description = "Additional visible, non-sensitive tags; canonical Name and project inputs are overridden by module-owned values."
+  description = "Additional visible, non-sensitive tags; canonical Name, service and project inputs are overridden by module-owned values."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition     = alltrue([for key in keys(var.tags) : !contains(["name", "project"], lower(key)) || contains(["Name", "project"], key)])
-    error_message = "Use only canonical Name and project tag spelling; case variants would make authorization metadata ambiguous."
+    condition     = alltrue([for key in keys(var.tags) : !contains(["name", "project", "service"], lower(key)) || contains(["Name", "project", "service"], key)])
+    error_message = "Use only canonical Name, project and service tag spelling; case variants would make authorization metadata ambiguous."
   }
 
   validation {
     condition = alltrue([for key, value in var.tags :
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") && try(length(value) <= 256, false)
-    ]) && length(setunion(toset(keys(var.tags)), toset(["Name", "project"]))) <= 50
+    ]) && length(setunion(toset(keys(var.tags)), toset(["Name", "project", "service"]))) <= 50
     error_message = "Tags require 1-128-character keys without the reserved aws: prefix, non-null values up to 256 characters, and at most 50 merged tags."
   }
 }

@@ -1,34 +1,36 @@
 locals {
   environment = "dev"
   region      = "ca-central-1"
-  service     = "serverless-api"
-  project     = "aws-terraform-portfolio"
 
-  name_prefix = "${local.project}-${local.environment}-${local.service}"
+  # Names follow docs/deployment-configuration.md section 4: <project>-<env>-<type>[-<purpose>],
+  # with the path form for the secret and the API access log group.
+  name_prefix = "${var.project}-${local.environment}"
+  path_prefix = "/${var.project}/${local.environment}"
 }
 
 module "artifact_bucket" {
   source = "../../../../modules/s3_artifact_bucket"
 
-  bucket_name = var.artifact_bucket_name
+  bucket_name = "${local.name_prefix}-s3-artifact"
 }
 
 module "secret_metadata" {
   source = "../../../../modules/secrets_manager"
 
-  name        = "${local.name_prefix}/application"
-  project_tag = local.project
+  name        = "${local.path_prefix}/secret/app"
+  project_tag = var.project
 }
 
 module "lambda_workload" {
   source = "../../../../modules/lambda_workload"
 
-  function_name  = "${local.name_prefix}-function"
-  role_name      = "${local.name_prefix}-execution"
+  function_name  = "${local.name_prefix}-lambda"
+  role_name      = "${local.name_prefix}-role-lambda"
+  policy_name    = "${local.name_prefix}-policy-lambda"
   partition      = "aws"
   account_id     = var.aws_account_id
   region         = local.region
-  log_group_name = "/aws/lambda/${local.name_prefix}-function"
+  log_group_name = "/aws/lambda/${local.name_prefix}-lambda"
 
   s3_bucket         = module.artifact_bucket.bucket_name
   s3_key            = var.artifact_key
@@ -47,8 +49,8 @@ module "lambda_workload" {
 module "http_api" {
   source = "../../../../modules/api_gateway_http"
 
-  api_name              = "${local.name_prefix}-http"
+  api_name              = "${local.name_prefix}-apigw-http"
   lambda_function_arn   = module.lambda_workload.function_arn
   lambda_invoke_arn     = module.lambda_workload.invoke_arn
-  access_log_group_name = "/aws/apigateway/${local.name_prefix}-access"
+  access_log_group_name = "${local.path_prefix}/apigw/http"
 }
