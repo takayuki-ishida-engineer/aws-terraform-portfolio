@@ -284,7 +284,9 @@ approval. The Owner may reorder them.
    2e the audit report. 2d starts with the IAM tag-key policies, pulled forward from
    2e because the secret's `project` tag is their ABAC key (2d-1 authorization tag
    keys, 2d-2 serverless-api, 2d-3 api). Root splits may be included where
-   section 6 applies.
+   section 6 applies. Delivered: 2a–2d in PRs #57–#62; the
+   [audit report](step1-audit-report.md) (2e) lists the open findings, their owning
+   items and the Owner decisions they need.
 3. Per-root placeholder `terraform.tfvars`, `local.auto.tfvars.example`, a local
    workflow with preflight checks and CI validation using the committed values.
 4. DEV state bucket bootstrap root and the optional S3 backend override.
