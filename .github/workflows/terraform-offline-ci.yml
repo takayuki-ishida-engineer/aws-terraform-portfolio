@@ -128,12 +128,14 @@ jobs:
           if checkpoint == "after_modules":
               expected = {"infra/services/dev/ca-central-1/serverless-api",
                       "infra/services/dev/ca-central-1/network",
-                      "infra/services/dev/ca-central-1/platform", "infra/services/dev/ca-central-1/api"} | {
+                      "infra/services/dev/ca-central-1/platform", "infra/services/dev/ca-central-1/api",
+                      "infra/services/dev/ca-central-1/tfstate"} | {
                   "infra/modules/" + name for name in (
                       "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda_workload",
-                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress", "cognito_auth", "api_gateway_rest")}
+                      "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress", "cognito_auth", "api_gateway_rest",
+                      "tfstate_bucket")}
               if {row["module"] for row in initialized} != expected or references != len(expected) or len(identities) != 1:
-                  raise SystemExit("Expected sixteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+                  raise SystemExit("Expected eighteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
           if checkpoint == "job_completion":
               snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
