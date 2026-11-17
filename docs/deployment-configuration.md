@@ -290,7 +290,7 @@ complete.
 
 | Topic | Decision |
 | --- | --- |
-| Lambda package (finding F2) | A package must exist before the first deploy. The Owner has a minimal handler that returns HTTP 200 `ok`. Recommended: commit the function source and a local packaging script instead of a ZIP binary. Owner confirmation pending |
+| Lambda package (finding F2) | The function package is committed as a ZIP file, together with its source, in a folder inside the Lambda root, so the repository visibly contains a deployable function. The local workflow uploads that ZIP to the artifact bucket before the function is created. Starting point: the Owner's minimal handler, which returns HTTP 200 `ok` |
 | Kubernetes certificates (finding F4) | A local script creates DEV certificates and registers them directly in the cluster. Nothing goes into the repository or Terraform State. The current mTLS design stays |
 | Secrets Manager values and recovery (finding F5) | Terraform creates metadata only, with no value or dummy; operators register values manually. Recovery window 7 days. Rebuilding inside the window means restoring the secret and importing it into Terraform |
 | Deployment permissions and EKS bootstrap admin role (finding F6) | Prepared as prerequisites before deployment and documented in the runbook. A root that creates them is deferred to Step 3 or later |
