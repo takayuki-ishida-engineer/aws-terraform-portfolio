@@ -41,13 +41,13 @@ variable "network_reference" {
     error_message = "Network needs unique private/public IDs, complete private AZ/table maps, correct AZ Region and private tables distinct from the public table."
   }
 }
-variable "cluster_name" {
-  description = "Required approved operational cluster name; conservative <=40 characters leaves room for dedicated IAM/LT names."
+variable "project" {
+  description = "Required project name used in every resource name (<project>-dev-<type>[-<purpose>]) and the project tag. The tracked placeholder is project; replace it before a real deployment."
   type        = string
   nullable    = false
   validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$", var.cluster_name))
-    error_message = "cluster_name must be 1-40 conservative name characters starting with alphanumeric."
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,8}[a-z0-9])?$", var.project)) && !can(regex("(aws|amazon|cognito)", var.project))
+    error_message = "project must be 1-10 lowercase letters, digits or hyphens, start with a letter, end with a letter or digit and not contain aws, amazon or cognito."
   }
 }
 variable "kubernetes_version" {
@@ -82,10 +82,10 @@ variable "cluster_subnet_keys" {
 }
 variable "node_group" {
   description = "Explicit EC2 Managed Node Group allocation, AL2023 strategy/release, disk and integer capacity; no production defaults or capacity claim."
-  type        = object({ name = string, subnet_keys = set(string), instance_type = string, ami_type = string, release_version = string, disk_size_gib = number, min_size = number, desired_size = number, max_size = number })
+  type        = object({ subnet_keys = set(string), instance_type = string, ami_type = string, release_version = string, disk_size_gib = number, min_size = number, desired_size = number, max_size = number })
   nullable    = false
   validation {
-    condition = try(can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$", var.node_group.name)) && length(var.node_group.subnet_keys) > 0 &&
+    condition = try(length(var.node_group.subnet_keys) > 0 &&
       length(setsubtract(var.node_group.subnet_keys, var.cluster_subnet_keys)) == 0 &&
       alltrue([for k in var.node_group.subnet_keys : contains(keys(var.network_reference.private_subnet_ids), k)]) &&
       can(regex("^[a-z][a-z0-9-]*\\.[a-z0-9]+$", var.node_group.instance_type)) &&
@@ -109,7 +109,7 @@ variable "bootstrap_admin_role_arn" {
   validation {
     condition = (can(regex("^arn:aws:iam::${local.expected_scope.account_id}:role/([A-Za-z0-9_+=,.@-]+/)*[A-Za-z0-9_+=,.@-]{1,64}$", var.bootstrap_admin_role_arn)) &&
       !strcontains(var.bootstrap_admin_role_arn, ":role/aws-service-role/") &&
-    !contains([for suffix in ["cluster", "nodes", "cni"] : "arn:aws:iam::${local.expected_scope.account_id}:role/${var.cluster_name}-${suffix}"], var.bootstrap_admin_role_arn))
+    !contains([for role in local.machine_role_names : "arn:aws:iam::${local.expected_scope.account_id}:role/${role}"], var.bootstrap_admin_role_arn))
     error_message = "Bootstrap must be an explicit same-account non-service-linked role distinct from platform machine identities."
   }
 }
@@ -120,13 +120,13 @@ variable "namespace_access" {
   nullable    = false
   validation {
     condition = try(length(distinct([for v in values(var.namespace_access) : v.principal_arn])) == length(var.namespace_access) && alltrue([for k, v in var.namespace_access :
-      can(regex("^[A-Za-z0-9_-]+$", k)) && contains(["view", "edit"], v.policy) && length(v.namespaces) > 0 &&
+      can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", k)) && contains(["view", "edit"], v.policy) && length(v.namespaces) > 0 &&
       alltrue([for n in v.namespaces : length(n) <= 63 && can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", n)) && !startswith(n, "kube-") && n != "default"]) &&
       can(regex("^arn:aws:iam::${local.expected_scope.account_id}:role/([A-Za-z0-9_+=,.@-]+/)*[A-Za-z0-9_+=,.@-]{1,64}$", v.principal_arn)) &&
       !strcontains(v.principal_arn, ":role/aws-service-role/") && v.principal_arn != var.bootstrap_admin_role_arn &&
-      !contains([for suffix in ["cluster", "nodes", "cni"] : "arn:aws:iam::${local.expected_scope.account_id}:role/${var.cluster_name}-${suffix}"], v.principal_arn)
+      !contains([for role in local.machine_role_names : "arn:aws:iam::${local.expected_scope.account_id}:role/${role}"], v.principal_arn)
     ]), false)
-    error_message = "Additional entries need distinct same-account role identities, view/edit and explicit non-system namespaces without wildcards."
+    error_message = "Additional entries need lowercase hyphenated keys, distinct same-account role identities, view/edit and explicit non-system namespaces without wildcards."
   }
 }
 variable "api_client_cidrs" {
@@ -173,10 +173,14 @@ variable "deletion_protection" {
   nullable    = false
 }
 variable "tags" {
-  description = "Non-secret metadata; module Name and root governance tags take precedence."
+  description = "Additional non-secret tags for every resource. project, env and managed come from provider default_tags; modules own Name and service."
   type        = map(string)
   default     = {}
   nullable    = false
+  validation {
+    condition     = length(setintersection(keys(var.tags), ["project", "env", "service", "managed", "Name"])) == 0
+    error_message = "tags must not set project, env, service, managed or Name; the root and modules own those keys."
+  }
 }
 
 variable "aws_account_id" {

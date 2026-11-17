@@ -2,7 +2,7 @@ resource "aws_eks_access_entry" "bootstrap" {
   cluster_name  = aws_eks_cluster.this.name
   principal_arn = var.bootstrap_admin_role_arn
   type          = "STANDARD"
-  tags          = merge(var.tags, { Name = "${var.cluster_name}-bootstrap" })
+  tags          = merge(var.tags, { Name = "${local.cluster_name}-access-bootstrap", service = "eks" })
 }
 resource "aws_eks_access_policy_association" "bootstrap" {
   cluster_name  = aws_eks_cluster.this.name
@@ -15,7 +15,7 @@ resource "aws_eks_access_entry" "namespace" {
   cluster_name  = aws_eks_cluster.this.name
   principal_arn = each.value.principal_arn
   type          = "STANDARD"
-  tags          = merge(var.tags, { Name = "${var.cluster_name}-${each.key}" })
+  tags          = merge(var.tags, { Name = "${local.cluster_name}-access-${each.key}", service = "eks" })
 }
 resource "aws_eks_access_policy_association" "namespace" {
   for_each      = var.namespace_access

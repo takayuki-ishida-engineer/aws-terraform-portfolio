@@ -58,8 +58,47 @@ def indexed(base, key):
     return base + '[' + json.dumps(key) + ']'
 
 
+def name_prefix(v, scope):
+    """The <project>-<env> prefix every name derives from (docs/deployment-configuration.md section 4)."""
+    if scope == 'root':
+        require(re.fullmatch(r'[a-z]([a-z0-9-]{0,8}[a-z0-9])?', v['project']) and not re.search(r'aws|amazon|cognito', v['project']), 'project_name')
+        return v['project'] + '-dev'
+    require(re.fullmatch(r'[a-z][a-z0-9-]{0,18}[a-z0-9]', v['name_prefix']), 'name_prefix')
+    return v['name_prefix']
+
+
+def owned_tags(v, prefix):
+    """Exact module-owned Name and service tag of every taggable resource."""
+    p = prefix; c = p + '-eks'; sgc = p + '-sg-eks-cluster'; sgn = p + '-sg-eks-node'
+    def seq(values, value):
+        ordered = sorted(values)
+        return '-%02d' % (ordered.index(value) + 1) if len(ordered) > 1 else ''
+    owned = {'aws_eks_cluster.this': (c, 'eks'), 'aws_cloudwatch_log_group.cluster': (f'/aws/eks/{c}/cluster', 'eks'),
+        'aws_iam_role.cluster': (p + '-role-eks-cluster', 'role'), 'aws_iam_role.nodes': (p + '-role-eks-node', 'role'), 'aws_iam_role.cni': (p + '-role-cni', 'role'),
+        'aws_iam_openid_connect_provider.cluster': (p + '-oidc', 'oidc'), 'aws_security_group.cluster': (sgc, 'sg'), 'aws_security_group.nodes': (sgn, 'sg'),
+        'aws_launch_template.nodes': (p + '-lt', 'lt'), 'aws_eks_node_group.this': (p + '-ng', 'ng'),
+        'aws_eks_addon.vpc_cni': (c + '-cni', 'eks'), 'aws_eks_addon.kube_proxy': (c + '-kube-proxy', 'eks'), 'aws_eks_addon.coredns': (c + '-coredns', 'eks'),
+        'aws_eks_access_entry.bootstrap': (c + '-access-bootstrap', 'eks'),
+        'aws_vpc_security_group_ingress_rule.cluster_nodes': (sgc + '-in-node-https', 'sg'),
+        'aws_vpc_security_group_egress_rule.nodes_cluster': (sgn + '-out-cluster-https', 'sg')}
+    for key in v.get('namespace_access', {}):
+        owned[indexed('aws_eks_access_entry.namespace', key)] = (f'{c}-access-{key}', 'eks')
+    for cidr in v['api_client_cidrs']:
+        owned[indexed('aws_vpc_security_group_ingress_rule.cluster_clients', cidr)] = (sgc + '-in-client-https' + seq(v['api_client_cidrs'], cidr), 'sg')
+    for cidr in v['node_https_egress_cidrs']:
+        owned[indexed('aws_vpc_security_group_egress_rule.nodes_https', cidr)] = (sgn + '-out-https' + seq(v['node_https_egress_cidrs'], cidr), 'sg')
+    for key in ['https', 'kubelet', 'dns_tcp', 'dns_udp']:
+        owned[indexed('aws_vpc_security_group_egress_rule.cluster_nodes', key)] = (sgc + '-out-node-' + key.replace('_', '-'), 'sg')
+        owned[indexed('aws_vpc_security_group_ingress_rule.nodes_cluster', key)] = (sgn + '-in-cluster-' + key.replace('_', '-'), 'sg')
+    for protocol in ['tcp', 'udp']:
+        owned[indexed('aws_vpc_security_group_ingress_rule.nodes_dns', protocol)] = (sgn + '-in-node-dns-' + protocol, 'sg')
+        owned[indexed('aws_vpc_security_group_egress_rule.nodes_dns', protocol)] = (sgn + '-out-resolver-dns-' + protocol, 'sg')
+        owned[indexed('aws_vpc_security_group_egress_rule.nodes_peer_dns', protocol)] = (sgn + '-out-node-dns-' + protocol, 'sg')
+    return {addr: {'Name': name, 'service': service} for addr, (name, service) in owned.items()}
+
+
 def validate_inputs(v, scope):
-    expected = v['expected_scope']; network = v['network_reference']
+    expected = v['expected_scope']; network = v['network_reference']; prefix = name_prefix(v, scope)
     require(expected['partition'] == 'aws' and expected['region'] == 'ca-central-1'
         and expected['environment'] in {'dev','stg','prod'} and re.fullmatch(r'[0-9]{12}', expected['account_id']), 'expected_scope')
     require(type(network['interface_version']) is int and network['interface_version'] == 1
@@ -94,7 +133,8 @@ def validate_inputs(v, scope):
     if v.get('cluster_kms_key_arn'):
         require(re.fullmatch(r'arn:aws:kms:' + expected['region'] + ':' + expected['account_id'] + r':key/[0-9a-f-]{36}', v['cluster_kms_key_arn']), 'approved_kms_scope')
     role_pattern = r'arn:aws:iam::' + expected['account_id'] + r':role/([A-Za-z0-9_+=,.@-]+/)*[A-Za-z0-9_+=,.@-]{1,64}'
-    machine = {f"arn:aws:iam::{expected['account_id']}:role/{v['cluster_name']}-{suffix}" for suffix in ['cluster','nodes','cni']}
+    machine = {f"arn:aws:iam::{expected['account_id']}:role/{prefix}-{role}" for role in ['role-eks-cluster','role-eks-node','role-cni']}
+    require(all(re.fullmatch(r'[a-z0-9]+(-[a-z0-9]+)*', key) for key in v.get('namespace_access', {})), 'namespace_access_key')
     principals = [v['bootstrap_admin_role_arn']]
     for access in v.get('namespace_access', {}).values():
         principals.append(access['principal_arn'])
@@ -178,7 +218,7 @@ def verify_plan(plan, v, scope):
     expected |= set(rules)
     for k in v.get('namespace_access',{}):expected |= {indexed('aws_eks_access_entry.namespace',k),indexed('aws_eks_access_policy_association.namespace',k)}
     require(set(resources)==expected,'exact_resource_inventory')
-    name=v['cluster_name'];net=v['network_reference'];account=v['expected_scope']['account_id'];region=v['expected_scope']['region']
+    prefix=name_prefix(v,scope);name=prefix+'-eks';net=v['network_reference'];account=v['expected_scope']['account_id'];region=v['expected_scope']['region']
     same(cluster,'name',name);same(cluster,'version',v['kubernetes_version']);same(cluster,'arn',f'arn:aws:eks:{region}:{account}:cluster/{name}')
     same(cluster,'bootstrap_self_managed_addons',False);same(cluster,'force_update_version',False);same(cluster,'deletion_protection',v.get('deletion_protection',True))
     require(set(read(cluster,'enabled_cluster_log_types'))=={'api','audit','authenticator','controllerManager','scheduler'},'all_control_logs')
@@ -197,14 +237,14 @@ def verify_plan(plan, v, scope):
     encryption=read(cluster,'encryption_config')
     key=v.get('cluster_kms_key_arn')
     require((not encryption and key is None) or (key and len(encryption)==1 and encryption[0]['resources']==['secrets'] and one(encryption[0]['provider'])['key_arn']==key),'encryption_reference')
-    for group in ['cluster','nodes']:
-        addr='aws_security_group.'+group;same(addr,'vpc_id',net['vpc_id']);same(addr,'ingress',[]);same(addr,'egress',[])
+    for group,purpose in [('cluster','eks-cluster'),('nodes','eks-node')]:
+        addr='aws_security_group.'+group;same(addr,'vpc_id',net['vpc_id']);same(addr,'ingress',[]);same(addr,'egress',[]);same(addr,'name_prefix',f'{prefix}-sg-{purpose}-')
     for addr,fields in rules.items():
         for field,value in fields.items():same(addr,field,value)
         require(not read(addr,'cidr_ipv6') and not read(addr,'prefix_list_id'),'no_alternate_sg_destination')
     role_arns={}
-    for role,principal in [('cluster','eks.amazonaws.com'),('nodes','ec2.amazonaws.com')]:
-        addr='aws_iam_role.'+role;same(addr,'name',name+'-'+role);same(addr,'arn',f'arn:aws:iam::{account}:role/{name}-{role}');role_arns[role]=read(addr,'arn')
+    for role,principal,role_name in [('cluster','eks.amazonaws.com',prefix+'-role-eks-cluster'),('nodes','ec2.amazonaws.com',prefix+'-role-eks-node')]:
+        addr='aws_iam_role.'+role;same(addr,'name',role_name);same(addr,'arn',f'arn:aws:iam::{account}:role/{role_name}');role_arns[role]=read(addr,'arn')
         require(parse(read(addr,'assume_role_policy'))=={'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'sts:AssumeRole','Principal':{'Service':principal}}]},'service_role_trust')
         require(not read(addr,'inline_policy') and not read(addr,'managed_policy_arns'),'no_competing_iam_owner')
     same(cluster,'role_arn',role_arns['cluster'])
@@ -212,13 +252,13 @@ def verify_plan(plan, v, scope):
     require(re.fullmatch(r'https://oidc\.eks\.'+region+r'\.amazonaws\.com/id/[A-Za-z0-9]+',issuer),'regional_eks_oidc_issuer')
     same(oidc,'url',issuer);same(oidc,'client_id_list',['sts.amazonaws.com'])
     same(oidc,'arn',f'arn:aws:iam::{account}:oidc-provider/{issuer.removeprefix("https://")}')
-    cni='aws_iam_role.cni';same(cni,'name',name+'-cni');same(cni,'arn',f'arn:aws:iam::{account}:role/{name}-cni');role_arns['cni']=read(cni,'arn')
+    cni='aws_iam_role.cni';same(cni,'name',prefix+'-role-cni');same(cni,'arn',f'arn:aws:iam::{account}:role/{prefix}-role-cni');role_arns['cni']=read(cni,'arn')
     require(parse(read(cni,'assume_role_policy'))=={'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'sts:AssumeRoleWithWebIdentity','Principal':{'Federated':read(oidc,'arn')},'Condition':{'StringEquals':{issuer.removeprefix('https://')+':aud':'sts.amazonaws.com',issuer.removeprefix('https://')+':sub':'system:serviceaccount:kube-system:aws-node'}}}]},'cni_scoped_irsa_trust')
     require(not read(cni,'inline_policy') and not read(cni,'managed_policy_arns'),'no_competing_cni_iam_owner')
     statements=[{'Sid':'RegionalEC2Discovery','Effect':'Allow','Action':['ec2:DescribeInstances','ec2:DescribeNetworkInterfaces','ec2:DescribeVpcs','ec2:DescribeDhcpOptions','ec2:DescribeAvailabilityZones','ec2:DescribeInstanceTopology'],'Resource':'*','Condition':{'StringEquals':{'aws:RequestedRegion':region}}},
         {'Sid':'OwnClusterInstanceTag','Effect':'Allow','Action':['ec2:CreateTags'],'Resource':f'arn:aws:ec2:{region}:{account}:instance/*','Condition':{'ForAllValues:StringEquals':{'aws:TagKeys':[f'kubernetes.io/cluster/{name}']},'Null':{'aws:TagKeys':'false'}}}]
     if key:statements.append({'Sid':'ExplicitClusterKeyMetadata','Effect':'Allow','Action':['kms:DescribeKey'],'Resource':key})
-    same('aws_iam_role_policy.cluster','role',read('aws_iam_role.cluster','name'))
+    same('aws_iam_role_policy.cluster','role',read('aws_iam_role.cluster','name'));same('aws_iam_role_policy.cluster','name',prefix+'-policy-eks-cluster')
     require(parse(read('aws_iam_role_policy.cluster','policy'))=={'Version':'2012-10-17','Statement':statements},'minimum_control_plane_permissions')
     for policy in ['AmazonEKSWorkerNodePolicy','AmazonEC2ContainerRegistryPullOnly']:
         addr=indexed('aws_iam_role_policy_attachment.nodes',policy);same(addr,'role',read('aws_iam_role.nodes','name'));same(addr,'policy_arn','arn:aws:iam::aws:policy/'+policy)
@@ -232,9 +272,15 @@ def verify_plan(plan, v, scope):
     disk=one(read(lt,'block_device_mappings'));ebs=one(disk['ebs'])
     require(disk['device_name']=='/dev/xvda' and ebs['encrypted']=='true' and ebs['delete_on_termination']=='true'
         and ebs['volume_type']=='gp3' and ebs['volume_size']==node['disk_size_gib'] and not ebs['snapshot_id'],'encrypted_ephemeral_nodes')
+    same(lt,'name_prefix',prefix+'-lt-')
+    # Provider default_tags do not reach launched instances and volumes; the root passes them explicitly.
+    launched=dict(v.get('default_tags',{}) if scope=='child' else {'project':v['project'],'env':'dev','managed':'terraform'},**v.get('tags',{}))
+    require(sorted(read(lt,'tag_specifications'),key=lambda s:s['resource_type'])==[
+        {'resource_type':'instance','tags':dict(launched,Name=prefix+'-ec2-eks-node',service='ec2')},
+        {'resource_type':'volume','tags':dict(launched,Name=prefix+'-ec2-eks-node-vol',service='ec2')}],'launched_instance_volume_tags')
     for field in ['image_id','instance_type','iam_instance_profile','key_name','user_data','vpc_security_group_ids','security_group_names','instance_market_options','secondary_interfaces']:
         require(not read(lt,field),'no_unreviewed_launch_template_override:'+field)
-    for field,value in {'cluster_name':read(cluster,'name'),'node_group_name':node['name'],'node_role_arn':role_arns['nodes'],'ami_type':node['ami_type'],'release_version':node['release_version'],'version':v['kubernetes_version'],'instance_types':[node['instance_type']],'capacity_type':'ON_DEMAND','force_update_version':False}.items():same(ng,field,value)
+    for field,value in {'cluster_name':read(cluster,'name'),'node_group_name':prefix+'-ng','node_role_arn':role_arns['nodes'],'ami_type':node['ami_type'],'release_version':node['release_version'],'version':v['kubernetes_version'],'instance_types':[node['instance_type']],'capacity_type':'ON_DEMAND','force_update_version':False}.items():same(ng,field,value)
     require(set(read(ng,'subnet_ids'))=={net['private_subnet_ids'][k] for k in node['subnet_keys']},'node_private_subnets')
     launch=one(read(ng,'launch_template'));require(launch['id']==read(lt,'id') and launch['version']==str(read(lt,'latest_version')),'actual_numeric_launch_template')
     require(one(read(ng,'scaling_config'))=={k:node[k] for k in ['min_size','desired_size','max_size']},'explicit_node_scaling')
@@ -254,11 +300,13 @@ def verify_plan(plan, v, scope):
         same(addr,'cluster_name',read(cluster,'name'));same(addr,'principal_arn',principal);same(addr,'policy_arn','arn:aws:eks::aws:cluster-access-policy/'+policy)
         access=one(read(addr,'access_scope'));require(access['type']==('cluster' if namespaces is None else 'namespace') and set(access.get('namespaces') or [])==set(namespaces or []),'explicit_access_scope')
     for k in v.get('namespace_access',{}):entries['namespaced'][k]=read(indexed('aws_eks_access_entry.namespace',k),'access_entry_arn')
-    tags=dict(v.get('tags',{}));tags.pop('Name',None)
-    if scope=='root':tags.update(Environment='dev',Service='platform',Project='aws-terraform-portfolio',ManagedBy='Terraform')
-    for addr,change in resources.items():
-        if 'tags' in change['after']:
-            actual=read(addr,'tags');require(isinstance(actual,dict) and actual.get('Name')!='caller-must-not-win' and all(actual.get(k)==val for k,val in tags.items()),'required_tags')
+    # Names and tags: docs/deployment-configuration.md sections 4 and 5. Caller tags
+    # pass through; module-owned Name and service win. project, env and managed come
+    # from the root provider default_tags and are not repeated in resource tags.
+    owned=owned_tags(v,prefix)
+    require({addr for addr,change in resources.items() if 'tags' in change['after']}==set(owned),'tagged_resource_inventory')
+    for addr,tags in owned.items():
+        actual=read(addr,'tags');require(actual=={**v.get('tags',{}),**tags},'resource_name_and_service_tags:'+addr)
     outputs={'cluster_name':read(cluster,'name'),'cluster_arn':read(cluster,'arn'),'endpoint':read(cluster,'endpoint'),'certificate_authority_data':one(read(cluster,'certificate_authority'))['data'],'oidc_issuer':issuer,'oidc_provider_arn':read(oidc,'arn'),'node_group_arn':read(ng,'arn'),'security_group_ids':dict(cluster=sg_control,nodes=sg_nodes,eks_managed=sg_managed),'role_arns':role_arns,'access_entry_arns':entries,'addon_arns':{key:read('aws_eks_addon.'+key,'arn') for key in ['vpc_cni','kube_proxy','coredns']},'log_group_arn':read(log,'arn')}
     if scope=='root':outputs={'platform':dict(outputs,scope=v['expected_scope'])}
     changes=plan.get('output_changes');require(isinstance(changes,dict) and set(changes)==set(outputs),'output_inventory')
@@ -365,6 +413,7 @@ def rejected(call,name):
 def self_test(events,scope,plans):
     positives,_=definitions(scope);name='private_dev';plan=plans[name];v=positives[name]
     prefix='module.eks_platform.' if scope=='root' else ''
+    node_role=name_prefix(v,scope)+'-role-eks-node';node_role_arn='arn:aws:iam::'+v['expected_scope']['account_id']+':role/'+node_role
     def edit(addr,path,value,base=plan):
         changed=copy.deepcopy(base);row=next(r for r in changed['resource_changes'] if r['address']==prefix+addr)
         d=row['change']['after']
@@ -413,8 +462,8 @@ def self_test(events,scope,plans):
         ('wrong_bootstrap','aws_eks_access_entry.bootstrap',['principal_arn'],'arn:aws:iam::111111111111:role/test-bootstrap'),
         ('system_masters','aws_eks_access_entry.bootstrap',['kubernetes_groups'],['system:masters']),
         ('wrong_access_policy','aws_eks_access_policy_association.bootstrap',['policy_arn'],'arn:aws:iam::aws:policy/AdministratorAccess'),
-        ('wrong_access_principal','aws_eks_access_policy_association.bootstrap',['principal_arn'],'arn:aws:iam::000000000000:role/test-eks-nodes'),
-        ('wrong_cni_role','aws_eks_addon.vpc_cni',['service_account_role_arn'],'arn:aws:iam::000000000000:role/test-eks-nodes'),
+        ('wrong_access_principal','aws_eks_access_policy_association.bootstrap',['principal_arn'],node_role_arn),
+        ('wrong_cni_role','aws_eks_addon.vpc_cni',['service_account_role_arn'],node_role_arn),
         ('unpinned_addon','aws_eks_addon.vpc_cni',['addon_version'],'latest'),
         ('addon_adoption','aws_eks_addon.vpc_cni',['resolve_conflicts_on_create'],'OVERWRITE'),
         ('addon_retention','aws_eks_addon.vpc_cni',['preserve'],True),
@@ -424,7 +473,10 @@ def self_test(events,scope,plans):
         ('weak_log_retention','aws_cloudwatch_log_group.cluster',['retention_in_days'],1),
         ('retained_logs','aws_cloudwatch_log_group.cluster',['skip_destroy'],True),
         ('node_admin_policy',indexed('aws_iam_role_policy_attachment.nodes','AmazonEKSWorkerNodePolicy'),['policy_arn'],'arn:aws:iam::aws:policy/AdministratorAccess'),
-        ('cni_policy_on_node','aws_iam_role_policy_attachment.cni',['role'],'test-eks-nodes'),
+        ('cni_policy_on_node','aws_iam_role_policy_attachment.cni',['role'],node_role),
+        ('wrong_name_tag','aws_eks_cluster.this',['tags','Name'],'unapproved'),
+        ('wrong_service_tag','aws_iam_role.cluster',['tags','service'],'iam'),
+        ('wrong_instance_name_tag','aws_launch_template.nodes',['tag_specifications',0,'tags','Name'],'unapproved'),
     ]
     detected=[rejected(lambda addr=addr,path=path,value=value:verify_plan(edit(addr,path,value),v,scope),name) for name,addr,path,value in mutations]
     # Policy mutations alter actual generated JSON; no source substring is used

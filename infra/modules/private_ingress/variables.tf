@@ -15,12 +15,13 @@ variable "network_reference" {
     error_message = "Network v1 scope, VPC, private/public unique IDs and complete Region-matching private AZ map are required."
   }
 }
-variable "name" {
-  type     = string
-  nullable = false
+variable "name_prefix" {
+  description = "Required <project>-<env> naming prefix (docs/deployment-configuration.md section 4). Names are derived from it, for example <prefix>-nlb and <prefix>-tg-gw."
+  type        = string
+  nullable    = false
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{0,19}$", var.name)) && !startswith(var.name, "internal-") && !endswith(var.name, "-")
-    error_message = "Approved name must be 1-20 lowercase name characters, not internal-* or ending with a hyphen."
+    condition     = can(regex("^[a-z][a-z0-9-]{0,18}[a-z0-9]$", var.name_prefix)) && !startswith(var.name_prefix, "internal-")
+    error_message = "name_prefix must be 2-20 lowercase letters, digits or hyphens, starting with a letter, ending with a letter or digit and not internal-*."
   }
 }
 variable "subnet_keys" {
@@ -60,9 +61,10 @@ variable "deletion_protection" {
   nullable = false
 }
 variable "tags" {
-  type     = map(string)
-  default  = {}
-  nullable = false
+  description = "Additional non-secret caller tags. The module-owned Name and service tags take precedence."
+  type        = map(string)
+  default     = {}
+  nullable    = false
 }
 
 variable "controller_oidc" {

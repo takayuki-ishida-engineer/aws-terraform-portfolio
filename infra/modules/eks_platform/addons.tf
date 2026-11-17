@@ -7,7 +7,7 @@ resource "aws_eks_addon" "vpc_cni" {
   resolve_conflicts_on_update = "NONE"
   configuration_values        = jsonencode({})
   preserve                    = false
-  tags                        = merge(var.tags, { Name = "${var.cluster_name}-vpc-cni" })
+  tags                        = merge(var.tags, { Name = "${local.cluster_name}-cni", service = "eks" })
   depends_on                  = [aws_iam_role_policy_attachment.cni]
 }
 resource "aws_eks_addon" "kube_proxy" {
@@ -18,7 +18,7 @@ resource "aws_eks_addon" "kube_proxy" {
   resolve_conflicts_on_update = "NONE"
   configuration_values        = jsonencode({})
   preserve                    = false
-  tags                        = merge(var.tags, { Name = "${var.cluster_name}-kube-proxy" })
+  tags                        = merge(var.tags, { Name = "${local.cluster_name}-kube-proxy", service = "eks" })
 }
 resource "aws_eks_addon" "coredns" {
   cluster_name                = aws_eks_cluster.this.name
@@ -28,6 +28,6 @@ resource "aws_eks_addon" "coredns" {
   resolve_conflicts_on_update = "NONE"
   configuration_values        = jsonencode({})
   preserve                    = false
-  tags                        = merge(var.tags, { Name = "${var.cluster_name}-coredns" })
+  tags                        = merge(var.tags, { Name = "${local.cluster_name}-coredns", service = "eks" })
   depends_on                  = [aws_eks_node_group.this]
 }

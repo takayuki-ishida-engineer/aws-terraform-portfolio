@@ -24,7 +24,29 @@ authenticity, live identity, CA/Secrets, capacity, connectivity and effective
 admission remain OPEN. See that README for deployment/teardown ordering and
 fail-closed external dependencies.
 
-Affected local native results are Root38, ingress Child36, EKS Child52; independent
+## Current names, tags and naming inputs (Step 1)
+
+Names and tags follow [deployment configuration](../../../../../docs/deployment-configuration.md#4-resource-naming)
+sections 4 and 5. Required `project` (1–10 lowercase characters, starting with a
+letter, without aws/amazon/cognito; tracked placeholder `project`) replaces the
+former `cluster_name` and `ingress_name` inputs, and `node_group` no longer carries
+a name. The root derives `name_prefix = <project>-dev` (**Root Override**) and both
+children derive every name from it, for example `<project>-dev-eks`,
+`<project>-dev-ng`, `<project>-dev-role-eks-cluster`, `<project>-dev-nlb` and
+`<project>-dev-tg-gw` (**Module Fixed**; full tables in the
+[eks_platform](../../../../modules/eks_platform/README.md#names-and-tags) and
+[private_ingress](../../../../modules/private_ingress/README.md#names-and-tags-module-fixed)
+READMEs). Provider `default_tags` set only `project`, `env = dev` and
+`managed = terraform` (**Root Override**); the root also passes them to
+eks_platform `default_tags` because provider default tags do not reach instances
+and volumes launched by the node group. Modules set `Name` and `service`. Optional
+`tags` adds caller tags and may not set `project`, `env`, `service`, `managed` or
+`Name`. The bootstrap and namespace roles may not be any of the derived
+`role-eks-cluster`, `role-eks-node` or `role-cni` machine roles. Namespace access
+keys are lowercase hyphenated words. The former Environment/Service/Project/
+ManagedBy tags are removed.
+
+Affected local native results are Root39, ingress Child36, EKS Child54; independent
 IAM/SG/security/input/evidence/mutations pass as recorded in child/runtime READMEs.
 Expected full CI is686 native/153 toolkit/13 configurations, requiring exact-HEAD
 independent review. Historical V3/V4 sections below retain their scoped counts;
@@ -150,7 +172,7 @@ Platform Root must never write network state or claim NAT existence proves egres
 | Source | Effective configuration |
 | --- | --- |
 | Root Fixed | AWS ca-central-1, account guard from required aws_account_id, local state, reviewed provider lock, scope dev/aws/ca-central-1 |
-| Root Override | Required operational selections, one active worker AZ and matching declared NAT; tags Environment=dev, Service=platform, Project=aws-terraform-portfolio, ManagedBy=Terraform |
+| Root Override | Required operational selections, one active worker AZ and matching declared NAT; name_prefix `<project>-dev`; provider default_tags project=`<project>`, env=dev, managed=terraform, also passed to eks_platform default_tags; child `tags` = caller extra tags only |
 | Module Default | No extra namespace roles/customer key unless selected; deletion protection on; caller tags empty |
 | Module Fixed | Private API only, API access entries, creator admin off, IPv4, EC2 ON_DEMAND MNG with explicit AL2023 release; IMDSv2 hop1/no public IP/SSH; separate Cluster/Node/CNI roles, IRSA and three managed add-ons; all five control-plane logs |
 

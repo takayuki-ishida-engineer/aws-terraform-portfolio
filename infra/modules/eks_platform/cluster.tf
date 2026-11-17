@@ -1,13 +1,13 @@
 resource "aws_cloudwatch_log_group" "cluster" {
-  name                        = "/aws/eks/${var.cluster_name}/cluster"
+  name                        = "/aws/eks/${local.cluster_name}/cluster"
   retention_in_days           = 30
   log_group_class             = "STANDARD"
   deletion_protection_enabled = var.deletion_protection
   skip_destroy                = false
-  tags                        = merge(var.tags, { Name = "${var.cluster_name}-control-plane" })
+  tags                        = merge(var.tags, { Name = "/aws/eks/${local.cluster_name}/cluster", service = "eks" })
 }
 resource "aws_eks_cluster" "this" {
-  name                          = var.cluster_name
+  name                          = local.cluster_name
   version                       = var.kubernetes_version
   role_arn                      = aws_iam_role.cluster.arn
   bootstrap_self_managed_addons = false
@@ -42,11 +42,11 @@ resource "aws_eks_cluster" "this" {
       provider { key_arn = encryption_config.value }
     }
   }
-  tags       = merge(var.tags, { Name = var.cluster_name })
+  tags       = merge(var.tags, { Name = local.cluster_name, service = "eks" })
   depends_on = [aws_iam_role_policy.cluster, aws_cloudwatch_log_group.cluster, aws_vpc_security_group_ingress_rule.cluster_nodes, aws_vpc_security_group_ingress_rule.cluster_clients, aws_vpc_security_group_egress_rule.cluster_nodes]
   lifecycle {
     postcondition {
-      condition     = self.arn == "arn:${var.expected_scope.partition}:eks:${var.expected_scope.region}:${var.expected_scope.account_id}:cluster/${var.cluster_name}" && self.vpc_config[0].vpc_id == var.network_reference.vpc_id
+      condition     = self.arn == "arn:${var.expected_scope.partition}:eks:${var.expected_scope.region}:${var.expected_scope.account_id}:cluster/${local.cluster_name}" && self.vpc_config[0].vpc_id == var.network_reference.vpc_id
       error_message = "Actual cluster ARN/account/Region/VPC must match the explicit network scope."
     }
   }

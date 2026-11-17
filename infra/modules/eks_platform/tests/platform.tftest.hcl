@@ -27,7 +27,7 @@ override_resource {
 override_resource {
   target          = aws_eks_node_group.this
   override_during = plan
-  values          = { "arn" : "arn:aws:eks:ca-central-1:000000000000:nodegroup/test-eks/test-workers/00000000-0000-0000-0000-000000000001" }
+  values          = { "arn" : "arn:aws:eks:ca-central-1:000000000000:nodegroup/test-eks/test-ng/00000000-0000-0000-0000-000000000001" }
 }
 override_resource {
   target          = aws_cloudwatch_log_group.cluster
@@ -42,17 +42,17 @@ override_resource {
 override_resource {
   target          = aws_iam_role.cluster
   override_during = plan
-  values          = { "arn" : "arn:aws:iam::000000000000:role/test-eks-cluster" }
+  values          = { "arn" : "arn:aws:iam::000000000000:role/test-role-eks-cluster" }
 }
 override_resource {
   target          = aws_iam_role.nodes
   override_during = plan
-  values          = { "arn" : "arn:aws:iam::000000000000:role/test-eks-nodes" }
+  values          = { "arn" : "arn:aws:iam::000000000000:role/test-role-eks-node" }
 }
 override_resource {
   target          = aws_iam_role.cni
   override_during = plan
-  values          = { "arn" : "arn:aws:iam::000000000000:role/test-eks-cni" }
+  values          = { "arn" : "arn:aws:iam::000000000000:role/test-role-cni" }
 }
 override_resource {
   target          = aws_eks_addon.vpc_cni
@@ -85,11 +85,11 @@ run "private_dev" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -106,11 +106,11 @@ run "namespace_access" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -128,11 +128,11 @@ run "arm_nodes" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m7g.large", "ami_type" : "AL2023_ARM_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m7g.large", "ami_type" : "AL2023_ARM_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -149,11 +149,11 @@ run "customer_kms" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -171,11 +171,11 @@ run "future_two_az_nodes" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-b", "private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-b", "private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -192,16 +192,17 @@ run "extra_reviewed_flows" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24", "10.70.21.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24", "198.51.100.0/24"]
     addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
     tags                     = { "Team" : "test-platform", "Name" : "caller-must-not-win" }
+    default_tags             = { "project" : "test", "env" : "dev", "managed" : "terraform" }
   }
   assert {
     condition     = aws_eks_cluster.this.vpc_config[0].endpoint_private_access && !aws_eks_cluster.this.vpc_config[0].endpoint_public_access && aws_eks_cluster.this.access_config[0].authentication_mode == "API" && !aws_eks_cluster.this.access_config[0].bootstrap_cluster_creator_admin_permissions
@@ -214,11 +215,11 @@ run "reviewed_teardown_setting" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -236,11 +237,11 @@ run "wrong_network_version" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 2, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -254,11 +255,11 @@ run "wrong_network_account" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "111111111111" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -272,11 +273,11 @@ run "wrong_network_region" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "us-east-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -290,11 +291,11 @@ run "wrong_network_environment" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "prod", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -308,11 +309,11 @@ run "wrong_network_partition" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws-cn", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -326,11 +327,11 @@ run "legacy_network_mode" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "legacy_shared", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -344,11 +345,11 @@ run "invalid_vpc_id" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-invented", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -362,11 +363,11 @@ run "empty_private_subnets" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : {}, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -380,11 +381,11 @@ run "duplicate_private_subnet" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000001" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -398,11 +399,11 @@ run "public_subnet_masquerade" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000003", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -416,11 +417,11 @@ run "missing_subnet_az" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -434,11 +435,11 @@ run "wrong_subnet_region" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "us-east-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -452,11 +453,11 @@ run "public_table_masquerade" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000003", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -470,11 +471,11 @@ run "shared_table_in_per_az" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000001" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -488,11 +489,11 @@ run "invalid_nat_id" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-invalid" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -506,11 +507,11 @@ run "one_cluster_subnet" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -524,11 +525,11 @@ run "public_cluster_selection" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "public-a"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -542,11 +543,11 @@ run "one_cluster_az" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1a" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000001" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -560,11 +561,11 @@ run "public_node_selection" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["public-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["public-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -578,11 +579,11 @@ run "empty_node_selection" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : [], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : [], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -596,11 +597,11 @@ run "zero_minimum" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 0, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 0, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -614,11 +615,11 @@ run "desired_below_minimum" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 0, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 0, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -632,11 +633,11 @@ run "maximum_below_desired" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 0 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 0 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -650,11 +651,11 @@ run "fractional_capacity" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2.5 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2.5 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -668,11 +669,11 @@ run "unreviewed_ami" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "CUSTOM", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "CUSTOM", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -686,11 +687,11 @@ run "wrong_release_version" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.33.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.33.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -704,11 +705,11 @@ run "missing_instance_selection" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -722,11 +723,11 @@ run "too_small_disk" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 1, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 1, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -740,11 +741,11 @@ run "invalid_kubernetes_version" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "latest"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -758,11 +759,11 @@ run "public_service_range" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "203.0.113.0/24"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -776,11 +777,11 @@ run "overlapping_service_range" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "10.70.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -794,11 +795,11 @@ run "foreign_bootstrap" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::111111111111:role/test-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -812,11 +813,11 @@ run "wildcard_bootstrap" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/*"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -830,11 +831,11 @@ run "session_bootstrap" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:sts::000000000000:assumed-role/test/session"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -848,12 +849,12 @@ run "machine_role_as_admin" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
-    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-eks-nodes"
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-role-eks-node"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
     addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
@@ -866,11 +867,11 @@ run "service_linked_admin" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/aws-service-role/eks.amazonaws.com/AWSServiceRoleForAmazonEKS"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -884,11 +885,11 @@ run "namespace_admin_policy" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -903,11 +904,11 @@ run "namespace_wildcard" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -922,11 +923,11 @@ run "system_namespace" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -941,11 +942,11 @@ run "namespace_bootstrap_reuse" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -960,11 +961,11 @@ run "unselected_addon_version" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -978,11 +979,11 @@ run "wrong_kms_account" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -997,11 +998,11 @@ run "world_api_ingress" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["0.0.0.0/0"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -1015,11 +1016,11 @@ run "public_api_client" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["203.0.113.0/24"]
     node_https_egress_cidrs  = ["203.0.113.0/24"]
@@ -1033,15 +1034,52 @@ run "world_https_egress" {
   variables {
     expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
-    cluster_name             = "test-eks"
+    name_prefix              = "test"
     kubernetes_version       = "1.34"
     service_ipv4_cidr        = "172.20.0.0/16"
     cluster_subnet_keys      = ["private-a", "private-b"]
-    node_group               = { "name" : "test-workers", "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
     bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
     api_client_cidrs         = ["10.70.20.0/24"]
     node_https_egress_cidrs  = ["0.0.0.0/0"]
     addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
   }
   expect_failures = [var.node_https_egress_cidrs]
+}
+
+run "invalid_name_prefix" {
+  command = plan
+  variables {
+    expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    name_prefix              = "Test_Prefix"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+  }
+  expect_failures = [var.name_prefix]
+}
+
+run "invalid_access_key" {
+  command = plan
+  variables {
+    expected_scope           = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference        = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    name_prefix              = "test"
+    kubernetes_version       = "1.34"
+    service_ipv4_cidr        = "172.20.0.0/16"
+    cluster_subnet_keys      = ["private-a", "private-b"]
+    node_group               = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs         = ["10.70.20.0/24"]
+    node_https_egress_cidrs  = ["203.0.113.0/24"]
+    addon_versions           = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    namespace_access         = { "Reader_1" : { "principal_arn" : "arn:aws:iam::000000000000:role/test-reader", "policy" : "view", "namespaces" : ["team-a"] } }
+  }
+  expect_failures = [var.namespace_access]
 }

@@ -1,5 +1,5 @@
 resource "aws_lb" "this" {
-  name                                                         = var.name
+  name                                                         = "${var.name_prefix}-nlb"
   load_balancer_type                                           = "network"
   internal                                                     = true
   ip_address_type                                              = "ipv4"
@@ -8,7 +8,7 @@ resource "aws_lb" "this" {
   enable_cross_zone_load_balancing                             = var.cross_zone_enabled
   enable_deletion_protection                                   = var.deletion_protection
   enforce_security_group_inbound_rules_on_private_link_traffic = "on"
-  tags                                                         = merge(var.tags, { Name = var.name })
+  tags                                                         = merge(var.tags, { Name = "${var.name_prefix}-nlb", service = "nlb" })
   depends_on                                                   = [aws_vpc_security_group_ingress_rule.nlb_clients, aws_vpc_security_group_egress_rule.client_nlb, aws_vpc_security_group_egress_rule.nlb_targets, aws_vpc_security_group_ingress_rule.nodes_targets]
   lifecycle {
     postcondition {
@@ -18,7 +18,7 @@ resource "aws_lb" "this" {
   }
 }
 resource "aws_lb_target_group" "gateway" {
-  name                              = "${var.name}-gateway"
+  name                              = "${var.name_prefix}-tg-gw"
   port                              = var.backend_target_port
   protocol                          = "TCP"
   target_type                       = "ip"
@@ -37,7 +37,7 @@ resource "aws_lb_target_group" "gateway" {
     healthy_threshold   = 3
     unhealthy_threshold = 3
   }
-  tags = merge(var.tags, { Name = "${var.name}-gateway" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-tg-gw", service = "tg" })
 }
 resource "aws_lb_listener" "https_passthrough" {
   load_balancer_arn = aws_lb.this.arn
@@ -47,5 +47,5 @@ resource "aws_lb_listener" "https_passthrough" {
     type             = "forward"
     target_group_arn = aws_lb_target_group.gateway.arn
   }
-  tags = merge(var.tags, { Name = "${var.name}-tcp443" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-nlb-tcp443", service = "nlb" })
 }
