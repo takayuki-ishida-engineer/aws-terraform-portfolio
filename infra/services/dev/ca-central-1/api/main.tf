@@ -1,20 +1,26 @@
 locals {
-  required_tags = { Environment = "dev", Service = "api", Project = "aws-terraform-portfolio", ManagedBy = "Terraform" }
+  environment = "dev"
+  # Names and tags follow docs/deployment-configuration.md sections 4 and 5.
+  name_prefix = "${var.project}-${local.environment}"
+  default_tags = {
+    project = var.project
+    env     = local.environment
+    managed = "terraform"
+  }
 }
 module "api_gateway_rest" {
   source         = "../../../../modules/api_gateway_rest"
   providers      = { aws = aws }
   expected_scope = { environment = "dev", partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
-  name           = "${var.pool_name}-rest"
+  name_prefix    = local.name_prefix
   authentication = module.cognito_auth.authentication
-  tags           = merge(var.tags, local.required_tags)
+  tags           = var.tags
 }
 module "cognito_auth" {
   source                     = "../../../../modules/cognito_auth"
   providers                  = { aws = aws }
   expected_scope             = { environment = "dev", partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
-  pool_name                  = var.pool_name
-  domain_prefix              = var.domain_prefix
+  name_prefix                = local.name_prefix
   feature_plan               = var.feature_plan
   allow_dev_loopback         = var.allow_dev_loopback
   callback_urls              = var.callback_urls
@@ -28,5 +34,5 @@ module "cognito_auth" {
   access_token_minutes       = var.access_token_minutes
   id_token_minutes           = var.id_token_minutes
   refresh_token_hours        = var.refresh_token_hours
-  tags                       = merge(var.tags, local.required_tags)
+  tags                       = var.tags
 }

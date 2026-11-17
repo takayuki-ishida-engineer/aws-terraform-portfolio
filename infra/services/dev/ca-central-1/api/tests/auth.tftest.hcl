@@ -27,8 +27,7 @@ override_resource {
 run "standard" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -48,12 +47,15 @@ run "standard" {
     condition     = output.authentication.interface_version == 1 && output.authentication.app_client_id == "testclient123"
     error_message = "Computed authentication contract failed."
   }
+  assert {
+    condition     = local.name_prefix == "test-dev" && local.default_tags == { project = "test", env = "dev", managed = "terraform" }
+    error_message = "Names derive from <project>-dev; project, env and managed come from provider default_tags."
+  }
 }
 run "alternate_names" {
   command = plan
   variables {
-    pool_name                  = "dev-alternate-auth"
-    domain_prefix              = "test-alternate-auth"
+    project                    = "alt"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -77,8 +79,7 @@ run "alternate_names" {
 run "plus" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "PLUS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -102,8 +103,7 @@ run "plus" {
 run "write_scope" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -127,8 +127,7 @@ run "write_scope" {
 run "loopback" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = true
     callback_urls              = ["http://localhost:8080/callback"]
@@ -152,8 +151,7 @@ run "loopback" {
 run "reject_feature_plan_0" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "LITE"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -174,8 +172,7 @@ run "reject_feature_plan_0" {
 run "reject_feature_plan_1" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "UNKNOWN"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -193,11 +190,10 @@ run "reject_feature_plan_1" {
   }
   expect_failures = [var.feature_plan]
 }
-run "reject_pool_name_2" {
+run "reject_name_prefix_2" {
   command = plan
   variables {
-    pool_name                  = "prod-wrong"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "Test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -213,13 +209,12 @@ run "reject_pool_name_2" {
     refresh_token_hours        = 8
     aws_account_id             = "000000000000"
   }
-  expect_failures = [var.pool_name]
+  expect_failures = [var.project]
 }
-run "reject_pool_name_3" {
+run "reject_name_prefix_3" {
   command = plan
   variables {
-    pool_name                  = ""
-    domain_prefix              = "test-portfolio-auth"
+    project                    = ""
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -235,13 +230,12 @@ run "reject_pool_name_3" {
     refresh_token_hours        = 8
     aws_account_id             = "000000000000"
   }
-  expect_failures = [var.pool_name]
+  expect_failures = [var.project]
 }
-run "reject_domain_prefix_4" {
+run "reject_name_prefix_4" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "-bad"
+    project                    = "-bad"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -257,13 +251,12 @@ run "reject_domain_prefix_4" {
     refresh_token_hours        = 8
     aws_account_id             = "000000000000"
   }
-  expect_failures = [var.domain_prefix]
+  expect_failures = [var.project]
 }
-run "reject_domain_prefix_5" {
+run "reject_name_prefix_5" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "with.dot"
+    project                    = "with.dot"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -279,13 +272,12 @@ run "reject_domain_prefix_5" {
     refresh_token_hours        = 8
     aws_account_id             = "000000000000"
   }
-  expect_failures = [var.domain_prefix]
+  expect_failures = [var.project]
 }
-run "reject_domain_prefix_6" {
+run "reject_name_prefix_6" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "amazon-name"
+    project                    = "amazon"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -301,13 +293,12 @@ run "reject_domain_prefix_6" {
     refresh_token_hours        = 8
     aws_account_id             = "000000000000"
   }
-  expect_failures = [var.domain_prefix]
+  expect_failures = [var.project]
 }
 run "reject_resource_server_identifier_7" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -328,8 +319,7 @@ run "reject_resource_server_identifier_7" {
 run "reject_resource_server_identifier_8" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -350,8 +340,7 @@ run "reject_resource_server_identifier_8" {
 run "reject_scopes_9" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -372,8 +361,7 @@ run "reject_scopes_9" {
 run "reject_scopes_10" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -394,8 +382,7 @@ run "reject_scopes_10" {
 run "reject_scopes_11" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -416,8 +403,7 @@ run "reject_scopes_11" {
 run "reject_approved_scope_names_12" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -438,8 +424,7 @@ run "reject_approved_scope_names_12" {
 run "reject_approved_scope_names_13" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -460,8 +445,7 @@ run "reject_approved_scope_names_13" {
 run "reject_mfa_configuration_14" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -482,8 +466,7 @@ run "reject_mfa_configuration_14" {
 run "reject_mfa_configuration_15" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -504,8 +487,7 @@ run "reject_mfa_configuration_15" {
 run "reject_password_minimum_length_16" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -526,8 +508,7 @@ run "reject_password_minimum_length_16" {
 run "reject_password_minimum_length_17" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -548,8 +529,7 @@ run "reject_password_minimum_length_17" {
 run "reject_access_token_minutes_18" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -570,8 +550,7 @@ run "reject_access_token_minutes_18" {
 run "reject_access_token_minutes_19" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -592,8 +571,7 @@ run "reject_access_token_minutes_19" {
 run "reject_id_token_minutes_20" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -614,8 +592,7 @@ run "reject_id_token_minutes_20" {
 run "reject_refresh_token_hours_21" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -636,8 +613,7 @@ run "reject_refresh_token_hours_21" {
 run "reject_default_redirect_uri_22" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -658,8 +634,7 @@ run "reject_default_redirect_uri_22" {
 run "reject_callback_urls_23" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = [""]
@@ -680,8 +655,7 @@ run "reject_callback_urls_23" {
 run "reject_callback_urls_24" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://*.example.invalid/callback"]
@@ -702,8 +676,7 @@ run "reject_callback_urls_24" {
 run "reject_callback_urls_25" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/#token"]
@@ -724,8 +697,7 @@ run "reject_callback_urls_25" {
 run "reject_callback_urls_26" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://user:pass@client.example.invalid/callback"]
@@ -746,8 +718,7 @@ run "reject_callback_urls_26" {
 run "reject_callback_urls_27" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["http://client.example.invalid/callback"]
@@ -768,8 +739,7 @@ run "reject_callback_urls_27" {
 run "reject_callback_urls_28" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["http://localhost:8080/callback"]
@@ -790,8 +760,7 @@ run "reject_callback_urls_28" {
 run "reject_callback_urls_29" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/$${unresolved}"]
@@ -812,8 +781,7 @@ run "reject_callback_urls_29" {
 run "reject_callback_urls_30" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback", "https://client.example.invalid/callback"]
@@ -834,8 +802,7 @@ run "reject_callback_urls_30" {
 run "reject_logout_urls_31" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -856,8 +823,7 @@ run "reject_logout_urls_31" {
 run "reject_logout_urls_32" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -878,8 +844,7 @@ run "reject_logout_urls_32" {
 run "reject_logout_urls_33" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -900,8 +865,7 @@ run "reject_logout_urls_33" {
 run "reject_logout_urls_34" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -922,8 +886,7 @@ run "reject_logout_urls_34" {
 run "reject_logout_urls_35" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -944,8 +907,7 @@ run "reject_logout_urls_35" {
 run "reject_logout_urls_36" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -966,8 +928,7 @@ run "reject_logout_urls_36" {
 run "reject_logout_urls_37" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -988,8 +949,7 @@ run "reject_logout_urls_37" {
 run "reject_logout_urls_38" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -1010,8 +970,7 @@ run "reject_logout_urls_38" {
 run "reject_scope_account_id" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -1033,8 +992,7 @@ run "reject_scope_account_id" {
 run "reject_invalid_port" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    project                    = "test"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid:65536/callback"]
@@ -1051,4 +1009,26 @@ run "reject_invalid_port" {
     aws_account_id             = "000000000000"
   }
   expect_failures = [var.callback_urls]
+}
+run "reject_reserved_tag_keys" {
+  command = plan
+  variables {
+    project                    = "test"
+    feature_plan               = "ESSENTIALS"
+    allow_dev_loopback         = false
+    callback_urls              = ["https://client.example.invalid/callback"]
+    logout_urls                = ["https://client.example.invalid/logout"]
+    default_redirect_uri       = "https://client.example.invalid/callback"
+    resource_server_identifier = "portfolio-api"
+    scopes                     = { "read" : "Read approved records", "write" : "Write approved records" }
+    approved_scope_names       = ["read"]
+    mfa_configuration          = "ON"
+    password_minimum_length    = 14
+    access_token_minutes       = 15
+    id_token_minutes           = 15
+    refresh_token_hours        = 8
+    aws_account_id             = "000000000000"
+    tags                       = { "service" : "api" }
+  }
+  expect_failures = [var.tags]
 }

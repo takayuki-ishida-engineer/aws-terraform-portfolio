@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='rest-source-',dir=os.environ.get('RUNNE
  p=d/'variables.tf';s=p.read_text();start=s.index('  validation {',s.index('variable "authentication"'));end=s.index('\n}\nvariable "tags"',start);p.write_text(s[:start]+s[end:])
  run=subprocess.run([TF,'-chdir='+str(d),'test','-json','-no-color'],env=dict(env,TF_DATA_DIR=str(HERE.parent/'.terraform')),capture_output=True,text=True)
  need(run.returncode!=0 and 'Missing expected failure' in run.stdout,'validation removal rejected');mutations.append('validation_removed')
- for key in ['expected_scope','name','authentication']:
+ for key in ['expected_scope','name_prefix','authentication']:
   d=Path(td)/('missing-'+key);d.mkdir();(d/'tests').mkdir()
   for f in HERE.parent.glob('*.tf'):shutil.copy2(f,d/f.name)
   shutil.copy2(REPO/'infra/services/dev/ca-central-1/api/.terraform.lock.hcl',d/'.terraform.lock.hcl')

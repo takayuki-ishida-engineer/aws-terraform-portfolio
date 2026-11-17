@@ -6,20 +6,13 @@ variable "aws_account_id" {
     error_message = "Supply the approved workload account ID."
   }
 }
-variable "pool_name" {
-  type     = string
-  nullable = false
+variable "project" {
+  description = "Required project name used in every resource name (<project>-dev-<type>[-<purpose>]) and the project tag. The tracked placeholder is project; replace it before a real deployment."
+  type        = string
+  nullable    = false
   validation {
-    condition     = try(can(regex("^[a-z][a-z0-9-]{2,50}$", var.pool_name)) && startswith(var.pool_name, "${"dev"}-"), false)
-    error_message = "Invalid or unsafe pool_name; provide explicitly reviewed configuration."
-  }
-}
-variable "domain_prefix" {
-  type     = string
-  nullable = false
-  validation {
-    condition     = try(can(regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", var.domain_prefix)) && !can(regex("(aws|amazon|cognito)", var.domain_prefix)), false)
-    error_message = "Invalid or unsafe domain_prefix; provide explicitly reviewed configuration."
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,8}[a-z0-9])?$", var.project)) && !can(regex("(aws|amazon|cognito)", var.project))
+    error_message = "project must be 1-10 lowercase letters, digits or hyphens, start with a letter, end with a letter or digit and not contain aws, amazon or cognito."
   }
 }
 variable "feature_plan" {
@@ -127,7 +120,12 @@ variable "refresh_token_hours" {
   }
 }
 variable "tags" {
-  type     = map(string)
-  default  = {}
-  nullable = false
+  description = "Additional non-secret tags. project, env and managed come from provider default_tags; modules own Name and service."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  validation {
+    condition     = length(setintersection(keys(var.tags), ["project", "env", "service", "managed", "Name"])) == 0
+    error_message = "tags must not set project, env, service, managed or Name; the root and modules own those keys."
+  }
 }

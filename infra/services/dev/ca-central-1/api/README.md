@@ -6,9 +6,10 @@ module.cognito_auth.authentication directly; existing five Cognito addresses and
 the authentication Output remain unchanged. rest_core is a separate public Output.
 
 REST Module Fixed: REGIONAL, disable_execute_api_endpoint=true,
-COGNITO_USER_POOLS, Authorization header identity source and required tags.
-Root Override: name=${pool_name}-rest, expected dev/aws/ca-central-1/account scope,
-actual authentication contract and tags. Module Default: tags={} only.
+COGNITO_USER_POOLS, Authorization header identity source and module-owned
+Name/service tags. Root Override: name_prefix `<project>-dev` (giving
+`<project>-dev-apigw-rest`), expected dev/aws/ca-central-1/account scope, actual
+authentication contract and caller tags. Module Default: tags={} only.
 No Method, path Resource, Integration, Deployment/Stage, VPC Link, Backend or Custom
 Domain exists here; no invoke path or runtime token enforcement is demonstrated.
 Emulator Lifecycle NOT_TESTED; namespace isolation environment BLOCKED. P0-01–04,
@@ -33,8 +34,16 @@ Root Override: required aws_account_id plus every child input except expected_sc
 which is fixed dev/aws/ca-central-1/account. Required pool name/domain/feature plan,
 callback/logout lists/default redirect, explicit DEV loopback approval, Resource
 Server/scopes/approved subset, TOTP MFA/password and token lifetimes have no defaults.
-Tags defaults to{}; required Environment=dev, Service=api, Project and ManagedBy
-values override caller collisions. Module Default: child tags={} only. Module
+Names follow [deployment configuration](../../../../../docs/deployment-configuration.md#4-resource-naming):
+required `project` (1–10 lowercase characters, starting with a letter, without
+aws/amazon/cognito; tracked placeholder `project`) replaces `pool_name` and
+`domain_prefix`; the root derives `name_prefix = <project>-dev` (**Root Override**),
+giving user pool `<project>-dev-cognito`, app client `<project>-dev-client`, Cognito
+domain prefix `<project>-dev-auth` and REST API `<project>-dev-apigw-rest`. The
+Cognito domain prefix is globally unique and the placeholder `project` would
+collide, so replace it first. Provider `default_tags` set only `project`, `env = dev`
+and `managed = terraform` (**Root Override**); modules set `Name` and `service`.
+Tags defaults to {} and may not set project, env, service, managed or Name. Module Default: child tags={} only. Module
 Fixed: protected admin-managed email pool, TOTP, public code-only Cognito client,
 revocation, managed-login2/default branding and no secret/Google IdP. See child
 README for exact validation, operational responsibilities and all five addresses.
@@ -48,9 +57,10 @@ domain or callback allocations. Domain control, email identity verification,
 Google secret ownership, browser S256/state/nonce, backend owner/tenant checks,
 IAM effectiveness/cost and full teardown remain OPEN.
 
-Root46 native:5 complete positive plans/41 expected validation rejections; independent
-plan/security/evidence checks supplement child49. Required-input omission tests must
-reject every16 required Root input without accepting positive partial plans. No
+Root47 native: 5 complete positive plans/42 expected validation rejections (including
+the root-only reserved-tag-key case); independent plan/security/evidence checks
+supplement child49. Required-input omission tests must reject every one of the 15
+required Root inputs without accepting positive partial plans. No
 unrelated local suite is rerun; historical full781 native/153 toolkit/15 configurations is
 for independent GitHub Actions review, not claimed completed here.
 

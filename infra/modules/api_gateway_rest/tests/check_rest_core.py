@@ -40,7 +40,11 @@ def verify_plan(p,root=False):
         need(value['approved_custom_scopes']==out['authentication']['after']['approved_custom_scopes'],'scope provenance')
     need(auth['provider_arns']==[arn] and value['user_pool_arn']==arn,'exact ARN provenance')
     need(value==dict(interface_version=1,scope=scope,rest_api_id=api['id'],authorizer_id=auth['id'],user_pool_arn=arn,approved_custom_scopes=value['approved_custom_scopes']),'resource-derived outputs')
-    need(all(api['tags'][k]==v for k,v in dict(Environment='dev',Service='api',Project='aws-terraform-portfolio',ManagedBy='Terraform').items()),'required tags')
+    # Names and module-owned Name/service tags (docs/deployment-configuration.md sections 4 and 5);
+    # project, env and managed come from the root provider default_tags, not resource tags.
+    prefix_name=by['module.cognito_auth.aws_cognito_user_pool.this']['change']['after']['name'].removesuffix('-cognito') if root else 'test-dev'
+    need(api['name']==prefix_name+'-apigw-rest' and auth['name']==api['name']+'-cognito','derived names')
+    need(api['tags']=={'Name':api['name'],'service':'apigw'},'exact name and service tags')
     return a,z
 
 def source_guard():
@@ -83,7 +87,7 @@ def main():
         if mode in ['extra','duplicate']:q['resource_changes'].append(copy.deepcopy(q['resource_changes'][0]))
         if mode=='output':q['output_changes']['rest_core']['after']['authorizer_id']='invented'
         if mode=='unknown':q['output_changes']['rest_core']['after_unknown']=True
-        if mode=='tags':next(r for r in q['resource_changes'] if r['address']==prefix+'aws_api_gateway_rest_api.this')['change']['after']['tags']['ManagedBy']='other'
+        if mode=='tags':next(r for r in q['resource_changes'] if r['address']==prefix+'aws_api_gateway_rest_api.this')['change']['after']['tags']['service']='other'
         reject(lambda:verify_plan(q,a.root),mode)
     report['security_mutations']=len(failures);failures=[]
     for typ in ['version','test_summary','test_run','test_plan','test_file','test_abstract']:reject(lambda typ=typ:capture([e for e in events if e['type']!=typ],a.root),typ)
