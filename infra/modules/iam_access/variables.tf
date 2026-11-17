@@ -59,7 +59,7 @@ variable "target_region" {
 }
 
 variable "project_tag" {
-  description = "Reviewed Project tag value used for EC2 and Operator secret-metadata conditions and Permission Set inventory; per-account managed policies must use the same project contract."
+  description = "Reviewed project tag value used for EC2 and Operator secret-metadata conditions and Permission Set inventory; per-account managed policies must use the same project contract."
   type        = string
   nullable    = false
 
@@ -70,7 +70,7 @@ variable "project_tag" {
 }
 
 variable "tags" {
-  description = "Additional Permission Set tags; module-owned Name and Project tags take precedence."
+  description = "Additional Permission Set tags; module-owned Name and project tags take precedence."
   type        = map(string)
   default     = {}
   nullable    = false

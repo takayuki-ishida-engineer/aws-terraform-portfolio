@@ -3,7 +3,7 @@ resource "aws_ssoadmin_permission_set" "access_admin" {
   description      = "Delegated assignment of the preapproved Developer and Operator profiles to approved member accounts."
   instance_arn     = var.instance_arn
   session_duration = "PT1H"
-  tags             = merge(var.tags, { Name = "${var.name_prefix}-access-admin", Project = var.project_tag })
+  tags             = merge(var.tags, { Name = "${var.name_prefix}-access-admin", project = var.project_tag })
 }
 
 resource "aws_ssoadmin_permission_set" "developer" {
@@ -11,7 +11,7 @@ resource "aws_ssoadmin_permission_set" "developer" {
   description      = "Reviewed VPC and secret-container operations; CreateSecret can initialize values. No value retrieval, policy editing, IAM or workload-role administration."
   instance_arn     = var.instance_arn
   session_duration = "PT1H"
-  tags             = merge(var.tags, { Name = "${var.name_prefix}-developer", Project = var.project_tag })
+  tags             = merge(var.tags, { Name = "${var.name_prefix}-developer", project = var.project_tag })
 }
 
 resource "aws_ssoadmin_permission_set" "operator" {
@@ -19,7 +19,7 @@ resource "aws_ssoadmin_permission_set" "operator" {
   description      = "Portfolio VPC and scoped Secrets Manager metadata only; no mutations, secret values or general data-plane content access."
   instance_arn     = var.instance_arn
   session_duration = "PT1H"
-  tags             = merge(var.tags, { Name = "${var.name_prefix}-operator", Project = var.project_tag })
+  tags             = merge(var.tags, { Name = "${var.name_prefix}-operator", project = var.project_tag })
 }
 
 resource "aws_ssoadmin_permission_set_inline_policy" "access_admin" {

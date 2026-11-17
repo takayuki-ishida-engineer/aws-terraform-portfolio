@@ -15,6 +15,8 @@ from unittest import mock
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import policy_validation as toolkit
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "infra/modules/iam_access/tests"))
+import check_authorization_equivalence as equivalence
 
 
 def document(action, resources, condition):
@@ -33,7 +35,9 @@ def fixture_plans():
   # Do not substitute a tiny hand-authored policy whose absent real actions
   # would make the new action-inventory checks meaningless.
   baseline_file = Path(__file__).resolve().parents[3] / "infra/modules/iam_access/tests/fixtures/phase_3_3_policies.json"
-  approved = json.loads(baseline_file.read_text(encoding="utf-8"))["policies"]
+  # Project it through the Owner-approved tag key rename exactly as the IAM
+  # equivalence checker does; the frozen baseline file itself is unchanged.
+  approved = equivalence.renamed_tag_keys(json.loads(baseline_file.read_text(encoding="utf-8"))["policies"])
   policies = copy.deepcopy(approved)
   policies["developer"]["Statement"] = [copy.deepcopy(statement)
     for statement in approved["developer"]["Statement"]
@@ -221,14 +225,14 @@ class TransportAndCliTests(ToolkitFixture):
 
   def test_unexpected_complete_allow_fails_even_with_missing_context(self):
     case = {"supported": True, "action": "ec2:DeleteVpc", "resources": ["arn:aws:ec2:ca-central-1:000000000000:vpc/vpc-00000000000000000"], "expected": "deny"}
-    pages = [{"EvaluationResults": [{"EvalActionName": case["action"], "EvalDecision": "allowed", "MissingContextValues": ["aws:ResourceTag/Project"]}]}]
+    pages = [{"EvaluationResults": [{"EvalActionName": case["action"], "EvalDecision": "allowed", "MissingContextValues": ["aws:ResourceTag/project"]}]}]
     result = toolkit.simulation_result(case, pages)
     self.assertEqual(result["status"], "failed")
     self.assertEqual(result["reason"], "unexpected_allow")
 
   def test_negative_multi_resource_allow_requires_complete_resource_coverage(self):
     case = {"supported": True, "action": "ec2:AttachInternetGateway", "resources": ["synthetic-gateway", "synthetic-vpc"], "expected": "deny"}
-    result = {"EvalActionName": case["action"], "EvalDecision": "allowed", "MissingContextValues": ["aws:ResourceTag/Project"],
+    result = {"EvalActionName": case["action"], "EvalDecision": "allowed", "MissingContextValues": ["aws:ResourceTag/project"],
       "ResourceSpecificResults": [{"EvalResourceName": "synthetic-gateway", "EvalResourceDecision": "allowed"}]}
     self.assertEqual(toolkit.simulation_result(case, [{"EvaluationResults": [result]}])["status"], "inconclusive")
     result["ResourceSpecificResults"].append({"EvalResourceName": "synthetic-vpc", "EvalResourceDecision": "allowed"})

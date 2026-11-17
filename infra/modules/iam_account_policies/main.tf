@@ -3,7 +3,7 @@ resource "aws_iam_policy" "developer_secrets_manager" {
   path        = local.policy_path
   description = "Reviewed account-specific secret-container permissions; CreateSecret can initialize values. No value retrieval, UpdateSecret, policy editing or KMS grants."
   policy      = local.developer_secrets_manager_policy
-  tags        = merge(var.tags, { Name = local.policy_name, Project = var.project_tag })
+  tags        = merge(var.tags, { Name = local.policy_name, project = var.project_tag })
 
   lifecycle {
     precondition {

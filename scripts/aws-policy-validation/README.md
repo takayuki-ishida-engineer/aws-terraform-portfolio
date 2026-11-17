@@ -91,11 +91,11 @@ are not a deployment or actual workforce session.
 The current generator produces **54 cases**: 50 supported synthetic policy-context
 expectations and four explicitly unverified desired protections. Coverage includes:
 
-- Developer EC2 allow/deny checks for account, region, Project, protected tags,
+- Developer EC2 allow/deny checks for account, region, project, protected tags,
   parent VPC/new subnet and both IGW/VPC resources, plus unrelated-service denial.
-- All six Secrets Manager actions, creation and dependent tagging, Project
+- All six Secrets Manager actions, creation and dependent tagging, project
   adoption prevention, ordinary tag edits/removal, recovery windows and force
-  deletion, replication guards, account/region/Project rejection, and forbidden
+  deletion, replication guards, account/region/project rejection, and forbidden
   values, UpdateSecret, RestoreSecret, KMS and policy edits.
 - Operator VPC/secret metadata visibility and denied value, mutation and
   administration actions.
@@ -178,7 +178,7 @@ no per-case resolution of that historical capture is inferred here.
 Static absence means only `not_granted_by_reviewed_policy_set`. It is separate
 from AWS-simulated evidence and does not exclude grants from other policies.
 A positive case whose action disappeared fails rather than passing statically.
-Missing account, region, Project/tag, recovery or other context from potentially
+Missing account, region, project/tag, recovery or other context from potentially
 applicable statements remains inconclusive; malformed/paginated/multi-resource
 checks and unexpected-Allow/deny protections remain strict.
 
@@ -229,8 +229,8 @@ The proof is intentionally limited to these properties and condition operators:
 
 | Property | Independent check |
 | --- | --- |
-| Existing-resource Project tag | A direct `ec2:CreateTags` request lacks `ec2:CreateAction`. Every applicable creation-only statement must reject that absence; `EditNonAuthorizationTags` excludes Project keys case-insensitively and requires nonempty TagKeys. Test `Project`, `project`, `pRoJeCt` and mixed tag sets. |
-| Legitimate tags | An ordinary tag edit on a matching project resource and supported resource-creation tagging with correct CreateAction/Project context remain eligible within the reviewed set. |
+| Existing-resource project tag | A direct `ec2:CreateTags` request lacks `ec2:CreateAction`. Every applicable creation-only statement must reject that absence; `EditNonAuthorizationTags` excludes project keys case-insensitively and requires nonempty TagKeys. Test `project`, `project`, `pRoJeCt` and mixed tag sets. |
+| Legitimate tags | An ordinary tag edit on a matching project resource and supported resource-creation tagging with correct CreateAction/project context remain eligible within the reviewed set. |
 | Replica absence | `Null` true for AddReplicaRegions requires its absence/null semantics. A nonempty replica list is rejected independently of overwrite. |
 | Overwrite prevention | `BoolIfExists` false accepts absent or false overwrite context and rejects true, independently of replica absence. Both unsafe inputs are also tested together. |
 | Scope restrictions | Resource, caller account, requested region and project conditions remain meaningful; isolated negative contexts and guard mutations test these boundaries. |
@@ -238,7 +238,7 @@ The proof is intentionally limited to these properties and condition operators:
 For each guard-removal/weakening mutation, the oracle supplies a synthetic witness
 whose other relevant conditions match. In particular, removing a creation-action
 guard must expose direct adoption of another project's resource with a matching
-requested Project tag; replica tests keep overwrite false, and overwrite tests
+requested project tag; replica tests keep overwrite false, and overwrite tests
 keep replica context absent. A detected mutation must expose the unsafe static
 authorization change, rather than merely differ from a fixed checksum. Finite
 scenarios supplement conservative inspection of every relevant statement; they

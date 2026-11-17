@@ -32,7 +32,7 @@ MODULE_TYPES = {
 INVENTORY = {f"module.{module}.{kind}.this" for module, kinds in MODULE_TYPES.items() for kind in kinds}
 LOG_FORMAT = {key: "$context." + key for key in (
     "requestId", "routeKey", "httpMethod", "status", "responseLatency", "integrationLatency", "responseLength")}
-DEFAULT_TAGS = {"Environment": "dev", "Service": "serverless-api", "Project": "aws-terraform-portfolio", "ManagedBy": "Terraform"}
+DEFAULT_TAGS = {"project": "aws-terraform-portfolio", "env": "dev", "managed": "terraform"}
 
 
 def require(condition, code):
@@ -157,7 +157,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
     require(secret.get("name") == PREFIX + "/application" and isinstance(secret.get("arn"), str)
         and re.fullmatch(f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:" + re.escape(secret["name"]) + r"-[A-Za-z0-9]{6}", secret["arn"]), "secret_metadata_identity")
     require(secret.get("kms_key_id") is None and secret.get("recovery_window_in_days") == 30
-        and secret.get("tags", {}).get("Project") == DEFAULT_TAGS["Project"], "secret_metadata_safety")
+        and secret.get("tags", {}).get("project") == DEFAULT_TAGS["project"], "secret_metadata_safety")
     role = read("lambda_workload", "aws_iam_role", "name", "arn", "path", "max_session_duration", "assume_role_policy")
     require(role.get("name") == PREFIX + "-execution" and role.get("arn") == f"arn:aws:iam::{ACCOUNT}:role/" + role["name"]
         and role.get("path") == "/" and role.get("max_session_duration") == 3600, "execution_role_identity")
@@ -240,10 +240,10 @@ def verify_provider_contract():
         and re.search(r'region\s*=\s*local\.region\b', provider) is not None
         and re.search(r'allowed_account_ids\s*=\s*\[var\.aws_account_id\]', provider) is not None
         and not re.search(r'\b(alias|access_key|secret_key|token|profile)\s*=', provider), "root_provider_account_guard")
-    for key, source in (("Environment", "local.environment"), ("Service", "local.service"), ("Project", "local.project"), ("ManagedBy", '"Terraform"')):
+    for key, source in (("project", "local.project"), ("env", "local.environment"), ("managed", '"terraform"')):
         require(re.search(r"\b" + key + r"\s*=\s*" + re.escape(source), provider) is not None, "root_provider_default_tags:" + key)
     main = (ROOT / "main.tf").read_text(encoding="utf-8")
-    for name, val in (("environment", "dev"), ("region", REGION), ("service", "serverless-api"), ("project", DEFAULT_TAGS["Project"])):
+    for name, val in (("environment", "dev"), ("region", REGION), ("service", "serverless-api"), ("project", DEFAULT_TAGS["project"])):
         require(re.search(r'\b' + name + r'\s*=\s*"' + re.escape(val) + '"', main) is not None, "root_fixed_identity:" + name)
     require(set(re.findall(r'module\s+"([^"]+)"\s*\{', main)) == set(MODULE_TYPES)
         and not re.search(r'\b(resource|data)\s+"', main), "root_composition_contract")

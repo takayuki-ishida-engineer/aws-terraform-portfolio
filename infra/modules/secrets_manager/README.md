@@ -36,7 +36,7 @@ confidential connection information or secret values in them.
 
 `name` and `project_tag` reject null through their custom input validation. The
 optional tags/recovery inputs use their defaults when null is supplied.
-Module-owned canonical `Name` and `Project` tags override the same caller keys.
+Module-owned canonical `Name` and `project` tags override the same caller keys.
 Noncanonical case variants such as `name`, `NAME` or `project` are rejected to
 avoid ambiguous authorization/inventory metadata. Other service tag restrictions
 and organization tagging policies still require external verification.
@@ -72,9 +72,9 @@ pass it to a workload module.
 
 | Category | Configuration |
 | --- | --- |
-| Root Override | Required stable name and Project identity; optional description, tags, 7-30-day recovery choice and existing CMK ARN |
+| Root Override | Required stable name and project identity; optional description, tags, 7-30-day recovery choice and existing CMK ARN |
 | Module Default | No description, additional tags `{}`, recovery 30 days, no explicit KMS reference (service-managed default selection) |
-| Module Fixed | One metadata container; module-owned canonical Name/Project tags; Name inventory value bounded to 256 characters; no values, replicas, resource policy, KMS resources, rotation or execution roles |
+| Module Fixed | One metadata container; module-owned canonical Name/project tags; Name inventory value bounded to 256 characters; no values, replicas, resource policy, KMS resources, rotation or execution roles |
 
 There are no arbitrary JSON policy inputs, secret-value options, generic feature
 flags or caller-selected Terraform resources. Adding a supported capability
@@ -119,8 +119,8 @@ policies, SCPs and other identity policies still affect effective access.
 
 The [human-access module](../iam_access/README.md) documents the exact permissions
 and residual capabilities. The module accepts other valid non-sensitive tags,
-but the human Developer creation policy allows only canonical Environment,
-ManagedBy, Name, Project and Service keys. Other creation tags require a
+but the human Developer creation policy allows only canonical Name, env,
+managed, project and service keys. Other creation tags require a
 separately reviewed execution identity rather than weakening that policy. AWS Provider 6.72.0 reads `GetResourcePolicy` while
 refreshing this metadata resource even when this module owns no policy. That
 read does not require granting human policy-editing rights.
@@ -167,10 +167,10 @@ module "application_secret" {
   # null selects the AWS-managed default; verify an existing CMK externally.
   kms_key_arn = var.existing_kms_key_arn
 
+  # env and managed come from the root's provider default_tags; the module owns
+  # Name and the project authorization tag.
   tags = {
-    Environment = var.environment
-    Service     = var.service
-    ManagedBy   = "Terraform"
+    Team = var.team
   }
 }
 ```

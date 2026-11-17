@@ -22,7 +22,7 @@ run "default_metadata_and_references" {
     condition = (
       aws_secretsmanager_secret.this.name == "portfolio/test/metadata" &&
       aws_secretsmanager_secret.this.description == null &&
-      aws_secretsmanager_secret.this.tags == tomap({ Name = "portfolio/test/metadata", Project = "test-portfolio" }) &&
+      aws_secretsmanager_secret.this.tags == tomap({ Name = "portfolio/test/metadata", project = "test-portfolio" }) &&
       aws_secretsmanager_secret.this.recovery_window_in_days == 30
     )
     error_message = "The container must preserve its explicit name, module tags, absent description and 30-day recovery default."
@@ -53,15 +53,15 @@ run "description_and_module_tag_ownership" {
   command = plan
   variables {
     description = "Non-sensitive application configuration metadata"
-    tags        = { Name = "ignored", Project = "ignored", Environment = "test", ManagedBy = "Terraform" }
+    tags        = { Name = "ignored", project = "ignored", Environment = "test", ManagedBy = "Terraform" }
   }
 
   assert {
     condition = (
       aws_secretsmanager_secret.this.description == "Non-sensitive application configuration metadata" &&
-      aws_secretsmanager_secret.this.tags == tomap({ Name = "portfolio/test/metadata", Project = "test-portfolio", Environment = "test", ManagedBy = "Terraform" })
+      aws_secretsmanager_secret.this.tags == tomap({ Name = "portfolio/test/metadata", project = "test-portfolio", Environment = "test", ManagedBy = "Terraform" })
     )
-    error_message = "Module-owned Name/Project must win while preserving the caller's other metadata tags and description."
+    error_message = "Module-owned Name/project must win while preserving the caller's other metadata tags and description."
   }
 }
 
@@ -236,7 +236,7 @@ run "description_length_limit" {
 
 run "noncanonical_project_tag_rejected" {
   command = plan
-  variables { tags = { project = "other-project" } }
+  variables { tags = { Project = "other-project" } }
   expect_failures = [var.tags]
 }
 

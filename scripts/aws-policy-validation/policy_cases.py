@@ -34,8 +34,8 @@ def build_cases(scope):
     return {"ContextKeyName": key, "ContextKeyValues": values if isinstance(values, list) else [values], "ContextKeyType": kind}
 
   regional = [entry("aws:PrincipalAccount", account), entry("aws:RequestedRegion", region)]
-  existing = regional + [entry("aws:ResourceTag/Project", project)]
-  creation = regional + [entry("aws:RequestTag/Project", project), entry("aws:TagKeys", ["Environment", "ManagedBy", "Name", "Project", "Service"], "stringList")]
+  existing = regional + [entry("aws:ResourceTag/project", project)]
+  creation = regional + [entry("aws:RequestTag/project", project), entry("aws:TagKeys", ["Name", "env", "managed", "project", "service"], "stringList")]
   admin_context = [entry("aws:PrincipalAccount", scope["administration_account_id"])]
 
   def change(context, key, value, kind=None):
@@ -67,15 +67,15 @@ def build_cases(scope):
   case("developer-vpc-delete", "developer", "ec2:DeleteVpc", [resources["vpc"]], existing)
   case("developer-igw-attachment-both-resources", "developer", "ec2:AttachInternetGateway", [resources["gateway"], resources["vpc"]], existing,
        notes="Both required IGW and VPC resources must be allowed; one isolated Allow is insufficient.")
-  subnet_creation = creation + [entry("aws:ResourceTag/Project", project)]
+  subnet_creation = creation + [entry("aws:ResourceTag/project", project)]
   case("developer-subnet-create-parent-and-new-resource", "developer", "ec2:CreateSubnet", [resources["subnet"], resources["vpc"]], subnet_creation,
-       notes="Models request tags on the new subnet and matching existing-parent Project context. Actual service-supplied context and dependent CreateTags require external verification.")
+       notes="Models request tags on the new subnet and matching existing-parent project context. Actual service-supplied context and dependent CreateTags require external verification.")
   case("developer-subnet-create-tags", "developer", "ec2:CreateTags", [resources["subnet"]], creation + [entry("ec2:CreateAction", "CreateSubnet")],
        notes="The dependent tagging authorization is evaluated separately; this does not prove a live CreateSubnet request succeeds.")
   case("developer-vpc-unapproved-principal-account", "developer", "ec2:DeleteVpc", [resources["vpc"]], change(existing, "aws:PrincipalAccount", other_account), "deny")
   case("developer-vpc-unapproved-resource-account", "developer", "ec2:DeleteVpc", [resources["vpc"].replace(f":{account}:", f":{other_account}:")], existing, "deny")
   case("developer-vpc-unapproved-region", "developer", "ec2:DeleteVpc", [resources["vpc"]], change(existing, "aws:RequestedRegion", other_region), "deny")
-  case("developer-vpc-project-mismatch", "developer", "ec2:DeleteVpc", [resources["vpc"]], change(existing, "aws:ResourceTag/Project", other_project), "deny")
+  case("developer-vpc-project-mismatch", "developer", "ec2:DeleteVpc", [resources["vpc"]], change(existing, "aws:ResourceTag/project", other_project), "deny")
   case("developer-vpc-project-tag-change", "developer", "ec2:CreateTags", [resources["vpc"]], existing + [entry("aws:TagKeys", ["pRoJeCt"], "stringList")], "deny")
   case("developer-unrelated-ec2-write", "developer", "ec2:DeleteSecurityGroup", [resources["security_group"]], existing, "deny")
   case("developer-iam-administration", "developer", "iam:CreateRole", [resources["role"]], existing, "deny")
@@ -83,7 +83,7 @@ def build_cases(scope):
   # CreateSecret and its dependent TagResource authorization are separate cases.
   # Absence of AddReplicaRegions is intentional for its Null condition.
   secret_create = creation + [entry("secretsmanager:ForceOverwriteReplicaSecret", "false", "boolean")]
-  secret_tag_identity = creation + [entry("aws:ResourceTag/Project", project)]
+  secret_tag_identity = creation + [entry("aws:ResourceTag/project", project)]
   secret_tag_edit = existing + [entry("aws:TagKeys", ["Name"], "stringList")]
   deletion = existing + [entry("secretsmanager:RecoveryWindowInDays", "30", "numeric"), entry("secretsmanager:ForceDeleteWithoutRecovery", "false", "boolean")]
   case("developer-secret-create", "developer", "secretsmanager:CreateSecret", [resources["secret"]], secret_create,
@@ -91,7 +91,7 @@ def build_cases(scope):
   case("developer-secret-describe", "developer", "secretsmanager:DescribeSecret", [resources["secret"]], existing)
   case("developer-secret-resource-policy-metadata", "developer", "secretsmanager:GetResourcePolicy", [resources["secret"]], existing)
   case("developer-secret-tag-matching-project", "developer", "secretsmanager:TagResource", [resources["secret"]], secret_tag_identity,
-       notes="Both requested and resource Project values match. Synthetic supplied context does not prove AWS creation-time context behavior.")
+       notes="Both requested and resource project values match. Synthetic supplied context does not prove AWS creation-time context behavior.")
   case("developer-secret-edit-non-project-tag", "developer", "secretsmanager:TagResource", [resources["secret"]], secret_tag_edit)
   case("developer-secret-remove-non-project-tag", "developer", "secretsmanager:UntagResource", [resources["secret"]], secret_tag_edit)
   case("developer-secret-delete-30-days", "developer", "secretsmanager:DeleteSecret", [resources["secret"]], deletion)
@@ -104,9 +104,9 @@ def build_cases(scope):
   case("developer-secret-unapproved-principal-account", "developer", "secretsmanager:DescribeSecret", [resources["secret"]], change(existing, "aws:PrincipalAccount", other_account), "deny")
   case("developer-secret-unapproved-resource-account", "developer", "secretsmanager:DescribeSecret", [resources["secret"].replace(f":{account}:", f":{other_account}:")], existing, "deny")
   case("developer-secret-unapproved-region", "developer", "secretsmanager:DescribeSecret", [resources["secret"]], change(existing, "aws:RequestedRegion", other_region), "deny")
-  case("developer-secret-project-mismatch", "developer", "secretsmanager:DescribeSecret", [resources["secret"]], change(existing, "aws:ResourceTag/Project", other_project), "deny")
-  case("developer-secret-project-adoption", "developer", "secretsmanager:TagResource", [resources["secret"]], change(secret_tag_identity, "aws:ResourceTag/Project", other_project), "deny")
-  case("developer-secret-project-change", "developer", "secretsmanager:TagResource", [resources["secret"]], change(secret_tag_identity, "aws:RequestTag/Project", other_project), "deny")
+  case("developer-secret-project-mismatch", "developer", "secretsmanager:DescribeSecret", [resources["secret"]], change(existing, "aws:ResourceTag/project", other_project), "deny")
+  case("developer-secret-project-adoption", "developer", "secretsmanager:TagResource", [resources["secret"]], change(secret_tag_identity, "aws:ResourceTag/project", other_project), "deny")
+  case("developer-secret-project-change", "developer", "secretsmanager:TagResource", [resources["secret"]], change(secret_tag_identity, "aws:RequestTag/project", other_project), "deny")
   case("developer-secret-project-removal", "developer", "secretsmanager:UntagResource", [resources["secret"]], change(secret_tag_edit, "aws:TagKeys", ["pRoJeCt"]), "deny")
   for identifier, action, arn in [
     ("get-value", "secretsmanager:GetSecretValue", resources["secret"]),

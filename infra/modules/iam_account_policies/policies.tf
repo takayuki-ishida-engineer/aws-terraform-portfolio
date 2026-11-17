@@ -7,11 +7,11 @@ locals {
     "aws:PrincipalAccount" = var.account_id
   }
   project_condition = {
-    StringEquals = merge(local.regional_equals, { "aws:ResourceTag/Project" = var.project_tag })
+    StringEquals = merge(local.regional_equals, { "aws:ResourceTag/project" = var.project_tag })
   }
   creation_condition = {
-    StringEquals                = merge(local.regional_equals, { "aws:RequestTag/Project" = var.project_tag })
-    "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
+    StringEquals                = merge(local.regional_equals, { "aws:RequestTag/project" = var.project_tag })
+    "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Name", "env", "managed", "project", "service"] }
   }
   developer_secrets_manager_policy = jsonencode({
     Version = "2012-10-17"
@@ -33,7 +33,7 @@ locals {
         Action   = ["secretsmanager:TagResource"]
         Resource = local.secret_arns
         Condition = merge(local.creation_condition, {
-          StringEquals = merge(local.creation_condition.StringEquals, { "aws:ResourceTag/Project" = var.project_tag })
+          StringEquals = merge(local.creation_condition.StringEquals, { "aws:ResourceTag/project" = var.project_tag })
         })
       },
       {
@@ -49,7 +49,7 @@ locals {
         Action   = ["secretsmanager:TagResource", "secretsmanager:UntagResource"]
         Resource = local.secret_arns
         Condition = merge(local.project_condition, {
-          "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
+          "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["project"] }
           Null                                     = { "aws:TagKeys" = "false" }
         })
       },

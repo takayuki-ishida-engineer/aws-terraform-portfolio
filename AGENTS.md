@@ -324,8 +324,9 @@ workstation without unverified errors, before any new feature work. DEV only;
 STG/PROD are deferred.
 
 Step 1 items 1 and 2 are authorized. Item 2 is delivered as several pull requests
-(2a rules, 2b network, 2c platform, 2d api and serverless-api, 2e IAM tag keys and
-the audit report); roots may be split where real-project practice favors it. Each
+(2a rules, 2b network, 2c platform, 2d api and serverless-api, 2e the audit report;
+2d starts with the IAM tag keys, pulled forward from 2e because the secret's project
+tag is their ABAC key); roots may be split where real-project practice favors it. Each
 later item starts on the Owner's instruction, uses its own branch from latest main
 and its own pull request, and stops for independent review and Owner merge approval.
 Owner-approved additions needed to deploy are the SSM developer-access EC2 for

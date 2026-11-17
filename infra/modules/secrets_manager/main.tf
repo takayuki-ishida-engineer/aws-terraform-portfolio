@@ -5,8 +5,10 @@ resource "aws_secretsmanager_secret" "this" {
   recovery_window_in_days = var.recovery_window_in_days
 
   # Secret names can exceed AWS's 256-character tag-value limit.
+  # project is the authorization tag; it is module-owned so that IAM ABAC does
+  # not depend on provider default_tags (docs/deployment-configuration.md section 5).
   tags = merge(var.tags, {
     Name    = try(substr(var.name, 0, 256), "")
-    Project = var.project_tag
+    project = var.project_tag
   })
 }

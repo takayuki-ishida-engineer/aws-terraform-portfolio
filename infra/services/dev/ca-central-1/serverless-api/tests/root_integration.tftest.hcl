@@ -13,10 +13,9 @@ override_resource {
     policy        = ""
     bucket_prefix = ""
     tags_all = {
-      Environment = "dev"
-      Service     = "serverless-api"
-      Project     = "aws-terraform-portfolio"
-      ManagedBy   = "Terraform"
+      project = "aws-terraform-portfolio"
+      env     = "dev"
+      managed = "terraform"
     }
   }
 }
@@ -77,10 +76,9 @@ override_resource {
     region          = "ca-central-1"
     ip_address_type = "ipv4"
     tags_all = {
-      Environment = "dev"
-      Service     = "serverless-api"
-      Project     = "aws-terraform-portfolio"
-      ManagedBy   = "Terraform"
+      project = "aws-terraform-portfolio"
+      env     = "dev"
+      managed = "terraform"
     }
   }
 }
@@ -119,10 +117,9 @@ override_resource {
     # configured HTTP throttling values, which the actual-plan checker checks.
     default_route_settings = { logging_level = "OFF" }
     tags_all = {
-      Environment = "dev"
-      Service     = "serverless-api"
-      Project     = "aws-terraform-portfolio"
-      ManagedBy   = "Terraform"
+      project = "aws-terraform-portfolio"
+      env     = "dev"
+      managed = "terraform"
     }
   }
 }

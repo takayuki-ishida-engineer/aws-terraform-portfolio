@@ -17,7 +17,7 @@ from test_toolkit import ToolkitFixture
 def statement(action, effect="Allow"):
   return {"Sid": "SyntheticStructure", "Effect": effect, "Action": action,
       "Resource": ["arn:aws:ec2:ca-central-1:000000000000:vpc/*"],
-      "Condition": {"StringEquals": {"aws:ResourceTag/Project": "test-portfolio"}}}
+      "Condition": {"StringEquals": {"aws:ResourceTag/project": "test-portfolio"}}}
 
 
 def documents(*statements):
@@ -167,13 +167,13 @@ class ActualPolicyProjectionTests(ToolkitFixture):
     self.assert_condition_mutation_rejected("ec2:DeleteVpc", "ManageExistingProjectNetwork", "StringEquals", "aws:RequestedRegion")
 
   def test_resource_project_restriction_removal_cannot_pass_certificate(self):
-    self.assert_condition_mutation_rejected("ec2:DeleteVpc", "ManageExistingProjectNetwork", "StringEquals", "aws:ResourceTag/Project")
+    self.assert_condition_mutation_rejected("ec2:DeleteVpc", "ManageExistingProjectNetwork", "StringEquals", "aws:ResourceTag/project")
 
   def test_request_project_restriction_removal_cannot_pass_certificate(self):
-    self.assert_condition_mutation_rejected("secretsmanager:CreateSecret", "CreateProjectSecret", "StringEquals", "aws:RequestTag/Project")
+    self.assert_condition_mutation_rejected("secretsmanager:CreateSecret", "CreateProjectSecret", "StringEquals", "aws:RequestTag/project")
 
   def test_tag_adoption_guard_removal_cannot_pass_certificate(self):
-    self.assert_condition_mutation_rejected("secretsmanager:TagResource", "TagProjectSecretIdentity", "StringEquals", "aws:ResourceTag/Project")
+    self.assert_condition_mutation_rejected("secretsmanager:TagResource", "TagProjectSecretIdentity", "StringEquals", "aws:ResourceTag/project")
 
   def test_tag_key_protection_removal_cannot_pass_certificate(self):
     self.assert_condition_mutation_rejected("secretsmanager:UntagResource", "EditProjectSecretTags", "ForAllValues:StringNotEqualsIgnoreCase", "aws:TagKeys")
@@ -216,13 +216,13 @@ class ActualPolicyProjectionTests(ToolkitFixture):
 
   def test_new_projected_response_with_missing_context_is_still_inconclusive(self):
     case = self.current("developer-vpc-unapproved-region")
-    capture = self.capture(case, "implicitDeny", ["aws:ResourceTag/Project"])
+    capture = self.capture(case, "implicitDeny", ["aws:ResourceTag/project"])
     result = toolkit.parse_capture(self.manifest, self.policies, self.cases, capture)["simulations"][case["id"]]
     self.assertEqual((result["status"], result["reason"]), ("inconclusive", "missing_context"))
 
   def test_unexpected_allow_with_matching_projection_still_fails(self):
     case = self.current("developer-vpc-unapproved-region")
-    capture = self.capture(case, "allowed", ["aws:ResourceTag/Project"])
+    capture = self.capture(case, "allowed", ["aws:ResourceTag/project"])
     result = toolkit.parse_capture(self.manifest, self.policies, self.cases, capture)["simulations"][case["id"]]
     self.assertEqual((result["status"], result["reason"]), ("failed", "unexpected_allow"))
 
