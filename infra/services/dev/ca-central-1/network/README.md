@@ -18,29 +18,27 @@ OPEN and unimplemented.
 | Input | Type / default | Requirement |
 | --- | --- | --- |
 | aws_account_id | string, required | Exactly 12 digits; separately approve a dedicated non-management workload account. Syntax/account guard is not evidence that an account exists or is authorized |
-| name_prefix | string, required | Approved operational naming; child validates 1–63 conservative characters |
+| project | string, required | Project token for names and the `project` tag; placeholder `project`. 1–10 lowercase letters, digits or `-`, starts with a letter, no `aws`, `amazon` or `cognito`. Names use `<project>-dev` |
 | vpc_cidr | string, required | Approved canonical IPv4 /16–/28; no allocation chosen in production source |
-| private_subnets | map(object({cidr_block=string, availability_zone=string})), required | Nonempty, stable keys and validated contained/nonoverlapping subnets |
-| public_subnets | Same object map, required nonempty | Explicit NAT hosting public subnet allocation; automatic public IP assignment stays false |
+| private_subnets | map(object({cidr_block=string, availability_zone=string})), required | Nonempty; keys `private1`, `private2`, ... (the tier number in names); validated contained/nonoverlapping subnets |
+| public_subnets | Same object map, required nonempty | Keys `public1`, `public2`, ...; explicit NAT hosting public subnet allocation; automatic public IP assignment stays false |
 | active_workload_az | string, required | One configured private ca-central-1 AZ; real enabled AZ/quota support must be verified externally |
 | nat | object({public_subnet_key_by_nat_az=map(string), nat_az_by_private_az=map(string)}), required | Exactly one NAT in the active workload AZ and an explicit same-AZ route for it; every additional cross-AZ consumer is visible in the map |
 | gateway_endpoints | Child S3 map/object contract, default {} | Only actual reviewed S3 traffic, selected private AZ tables and explicit read-only endpoint policy; no enabled endpoint by default |
-| tags | map(string), default {} | Root-owned Environment/Service/Project/ManagedBy and child Name take precedence |
+| tags | map(string), default {} | Optional extra tags; must not set `project`, `env`, `service`, `managed` or `Name`, which provider `default_tags` and the child own |
 
 | Effective configuration source | Values |
 | --- | --- |
-| Root Override | per_az mode; required naming/account/subnet/AZ/NAT inputs; expected_scope aws/ca-central-1/required account; root tags Environment=dev, Service=network, Project=aws-terraform-portfolio, ManagedBy=Terraform |
+| Root Override | per_az mode; `name_prefix = <project>-dev`; required account/subnet/AZ/NAT inputs; expected_scope aws/ca-central-1/required account; provider `default_tags` project=`<project>`, env=dev, managed=terraform; child `tags` = caller extra tags only |
 | Module Default | No S3 endpoint when gateway_endpoints is omitted; caller tags empty |
 | Module Fixed | DNS support/hostnames true, IPv6/automatic public IPs false; retained legacy empty table, per-AZ selected tables, zonal/public NAT, explicit NAT-only private defaults and IGW public default |
 | Root Fixed | Local backend, Terraform ~>1.17.0, AWS ~>6.72.0, lock selects 6.72.0; no provider credential or assume-role configuration |
 
-A complete **non-secret** separately reviewed DEV input file can assign all seven
-required inputs and optional tags/gateway_endpoints. Terraform accepts a reviewed
-`-var-file=/approved/path/dev.network.tfvars` or JSON equivalent in the future
-separately authorized workflow. The repository intentionally supplies no operational
-CIDRs, account IDs, EIPs, enabled-AZ assumptions or operational names. Do not put
-credentials or secret values in that file. Local tfvars remain ignored; do not
-force-add environment configuration. Synthetic complete fixtures in
+Input values follow the [deployment configuration](../../../../../docs/deployment-configuration.md#1-where-values-live):
+a committed `terraform.tfvars` with placeholders and an untracked
+`local.auto.tfvars` for real environment values, delivered by Step 1 item 3. Names
+and tags follow sections 4 and 5 of that document. Never put credentials or secret
+values in any tfvars file. Synthetic complete fixtures in
 [tests](tests/network.tftest.hcl) are mock-only, not approved deployment allocation.
 
 The optional S3 Gateway policy requires `Principal="*"` with mandatory

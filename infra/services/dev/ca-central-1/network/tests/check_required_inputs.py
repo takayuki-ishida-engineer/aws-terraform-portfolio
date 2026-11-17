@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parents[3] / "modules/vpc/tests"))
 from check_network_configuration import parse, require  # noqa: E402
 
-REQUIRED = ("aws_account_id", "name_prefix", "vpc_cidr", "private_subnets",
+REQUIRED = ("aws_account_id", "project", "vpc_cidr", "private_subnets",
             "public_subnets", "active_workload_az", "nat")
 
 
@@ -54,9 +54,9 @@ def main():
                 results.append({"missing_input": missing, "rejected": True, "terraform_exit": 1, "successful_plans": 0})
             security = []
             wrong_public = copy.deepcopy(inputs)
-            wrong_public["nat"]["public_subnet_key_by_nat_az"]["ca-central-1a"] = "public-b"
+            wrong_public["nat"]["public_subnet_key_by_nat_az"]["ca-central-1a"] = "public2"
             wrong_region = copy.deepcopy(inputs)
-            wrong_region["private_subnets"]["app-b"]["availability_zone"] = "us-east-1b"
+            wrong_region["private_subnets"]["private2"]["availability_zone"] = "us-east-1b"
             unsafe_policy = copy.deepcopy(cases["root_positive"]["dev_network_s3"])
             policy = parse(unsafe_policy["gateway_endpoints"]["s3"]["policy_json"])
             policy["Statement"][0]["Action"] = ["s3:*"]

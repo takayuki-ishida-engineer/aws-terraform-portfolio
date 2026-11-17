@@ -6,6 +6,8 @@ locals {
   )
   # Syntax errors belong to variable validation, rather than duplicate preconditions.
   valid_ipv4_cidrs = alltrue([for cidr in concat([var.vpc_cidr], local.subnet_cidrs) : can(cidrnetmask(cidr))])
+  # Names follow docs/deployment-configuration.md section 4: <prefix>[-<az>]-<type>[-<purpose>].
+  az_letter = { for az in toset(concat([for subnet in var.private_subnets : subnet.availability_zone], [for subnet in var.public_subnets : subnet.availability_zone])) : az => substr(az, length(az) - 1, 1) }
 }
 
 resource "aws_vpc" "this" {
@@ -13,7 +15,7 @@ resource "aws_vpc" "this" {
   enable_dns_support               = true
   enable_dns_hostnames             = true
   assign_generated_ipv6_cidr_block = false
-  tags                             = merge(var.tags, { Name = "${var.name_prefix}-vpc" })
+  tags                             = merge(var.tags, { Name = "${var.name_prefix}-vpc", service = "vpc" })
 
   lifecycle {
     precondition {
@@ -87,7 +89,7 @@ resource "aws_subnet" "private" {
   availability_zone               = each.value.availability_zone
   map_public_ip_on_launch         = false
   assign_ipv6_address_on_creation = false
-  tags                            = merge(var.tags, { Name = "${var.name_prefix}-private-${each.key}" })
+  tags                            = merge(var.tags, { Name = "${var.name_prefix}-${local.az_letter[each.value.availability_zone]}-subnet-${each.key}", service = "subnet" })
 }
 
 resource "aws_subnet" "public" {
@@ -98,20 +100,20 @@ resource "aws_subnet" "public" {
   availability_zone               = each.value.availability_zone
   map_public_ip_on_launch         = false
   assign_ipv6_address_on_creation = false
-  tags                            = merge(var.tags, { Name = "${var.name_prefix}-public-${each.key}" })
+  tags                            = merge(var.tags, { Name = "${var.name_prefix}-${local.az_letter[each.value.availability_zone]}-subnet-${each.key}", service = "subnet" })
 }
 
 resource "aws_internet_gateway" "this" {
   count = local.public_enabled ? 1 : 0
 
   vpc_id = aws_vpc.this.id
-  tags   = merge(var.tags, { Name = "${var.name_prefix}-igw" })
+  tags   = merge(var.tags, { Name = "${var.name_prefix}-igw", service = "igw" })
 }
 
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
   route  = []
-  tags   = merge(var.tags, { Name = "${var.name_prefix}-private-rt" })
+  tags   = merge(var.tags, { Name = "${var.name_prefix}-rtb-private", service = "rtb" })
 }
 
 resource "aws_route_table" "public" {
@@ -122,7 +124,7 @@ resource "aws_route_table" "public" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.this[0].id
   }
-  tags = merge(var.tags, { Name = "${var.name_prefix}-public-rt" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-rtb-public", service = "rtb" })
 }
 
 resource "aws_route_table_association" "private" {

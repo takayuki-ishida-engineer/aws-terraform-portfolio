@@ -38,11 +38,11 @@ null. Subnet objects require both fields.
 
 | Input | Type | Default | Validation / responsibility |
 | --- | --- | --- | --- |
-| `name_prefix` | `string` | Required | 1-63 letters, digits, `_` or `-`; first character alphanumeric |
+| `name_prefix` | `string` | Required | `<project>-<env>`: 2-63 lowercase letters, digits or `-`; starts with a letter; no trailing `-` |
 | `vpc_cidr` | `string` | Required | Canonical IPv4 network CIDR, `/16` through `/28` |
 | `private_subnets` | `map(object({ cidr_block = string, availability_zone = string }))` | Required | At least one entry; nonblank keys; canonical IPv4 `/16`-`/28`; explicit AZ name |
 | `public_subnets` | Same map/object type | `{}` | Same entry validations; empty map omits all public networking |
-| `tags` | `map(string)` | `{}` | Caller tags; module-owned `Name` wins on each taggable resource |
+| `tags` | `map(string)` | `{}` | Caller tags; module-owned `Name` and `service` win on each taggable resource |
 
 AZ names must match `^[a-z]{2}(-[a-z0-9]+)+-[0-9]+[a-z]$`. Empty, null, or malformed
 AZ fields fail validation. This is a syntax check, not discovery or proof that a
@@ -61,18 +61,31 @@ VPC-sized maps, not a general IP address management system.
 | --- | --- |
 | Root Override | The calling root supplies required naming/CIDR/private subnet inputs and may supply public subnets and caller tags |
 | Module Default | `public_subnets = {}`, `tags = {}`, `private_routing = {mode="legacy_shared", nat=null}`, `expected_scope = null`, `gateway_endpoints = {}` |
-| Module Fixed | DNS support/hostnames enabled; generated IPv6 disabled; subnet public IPv4 and IPv6 assignment disabled; one shared private table without configured routes; module-owned `Name` tags |
+| Module Fixed | DNS support/hostnames enabled; generated IPv6 disabled; subnet public IPv4 and IPv6 assignment disabled; one shared private table without configured routes; module-owned `Name` and `service` tags |
 
 Public subnets select only the public/IGW path. The structured `private_routing`
 selector and explicit endpoint map select genuine optional extensions; public
 subnet existence never silently enables private internet egress.
 
-Tag merging is `merge(var.tags, { Name = ... })`: arbitrary caller tags are
-preserved, but callers cannot replace `Name`. Names are `<prefix>-vpc`,
-`<prefix>-private-<key>`, `<prefix>-public-<key>`, `<prefix>-private-rt`,
-`<prefix>-public-rt`, and `<prefix>-igw`. Associations have no tag support.
-Provider default tags, if any, belong to the root; the module defines no provider.
-Callers must keep final tag lengths within AWS limits, including long subnet keys.
+Tag merging is `merge(var.tags, { Name = ..., service = ... })`: arbitrary caller
+tags are preserved, but callers cannot replace `Name` or `service`. Names follow the
+[naming rules](../../../docs/deployment-configuration.md#4-resource-naming); `<az>`
+is the last letter of the Availability Zone and `service` is the type token.
+
+| Resource | `Name` | `service` |
+| --- | --- | --- |
+| VPC | `<prefix>-vpc` | `vpc` |
+| Subnet | `<prefix>-<az>-subnet-<key>`, for example `project-dev-a-subnet-private1` | `subnet` |
+| Internet gateway | `<prefix>-igw` | `igw` |
+| Shared private route table | `<prefix>-rtb-private` | `rtb` |
+| Public route table | `<prefix>-rtb-public` | `rtb` |
+| Per-AZ private route table | `<prefix>-<az>-rtb-<first private key in that AZ>` | `rtb` |
+| NAT gateway / its EIP | `<prefix>-<az>-nat` / `<prefix>-<az>-eip-nat` | `nat` / `eip` |
+| S3 gateway endpoint | `<prefix>-vpce`, or `<prefix>-vpce-<key>` when several exist | `vpce` |
+
+Associations and routes have no tag support. Provider default tags (`project`,
+`env`, `managed`) belong to the root; the module defines no provider. Callers must
+keep final tag lengths within AWS limits, including long subnet keys.
 
 ## Outputs
 
@@ -275,13 +288,13 @@ Private-only example:
 ```hcl
 module "network" {
   source      = "../../../../modules/vpc"
-  name_prefix = "example-dev-network"
+  name_prefix = "project-dev"
   vpc_cidr    = "10.40.0.0/16"
   private_subnets = {
-    app-a = { cidr_block = "10.40.1.0/24", availability_zone = "ca-central-1a" }
-    app-b = { cidr_block = "10.40.2.0/24", availability_zone = "ca-central-1b" }
+    private1 = { cidr_block = "10.40.1.0/24", availability_zone = "ca-central-1a" }
+    private2 = { cidr_block = "10.40.2.0/24", availability_zone = "ca-central-1b" }
   }
-  tags = { Environment = "dev", Project = "example" }
+  tags = { Team = "platform" }
 }
 ```
 
@@ -290,17 +303,17 @@ Public and private example, as an alternative to the previous call:
 ```hcl
 module "network" {
   source      = "../../../../modules/vpc"
-  name_prefix = "example-dev-network"
+  name_prefix = "project-dev"
   vpc_cidr    = "10.40.0.0/16"
   private_subnets = {
-    app-a = { cidr_block = "10.40.1.0/24", availability_zone = "ca-central-1a" }
-    app-b = { cidr_block = "10.40.2.0/24", availability_zone = "ca-central-1b" }
+    private1 = { cidr_block = "10.40.1.0/24", availability_zone = "ca-central-1a" }
+    private2 = { cidr_block = "10.40.2.0/24", availability_zone = "ca-central-1b" }
   }
   public_subnets = {
-    web-a = { cidr_block = "10.40.10.0/24", availability_zone = "ca-central-1a" }
-    web-b = { cidr_block = "10.40.11.0/24", availability_zone = "ca-central-1b" }
+    public1 = { cidr_block = "10.40.10.0/24", availability_zone = "ca-central-1a" }
+    public2 = { cidr_block = "10.40.11.0/24", availability_zone = "ca-central-1b" }
   }
-  tags = { Environment = "dev", Project = "example" }
+  tags = { Team = "platform" }
 }
 ```
 

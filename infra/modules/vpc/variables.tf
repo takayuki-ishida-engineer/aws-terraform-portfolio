@@ -1,11 +1,11 @@
 variable "name_prefix" {
-  description = "Resource Name tag prefix: 1-63 letters, digits, underscores or hyphens, starting with a letter or digit."
+  description = "Name prefix <project>-<env>: 2-63 lowercase letters, digits or hyphens, starting with a letter and not ending with a hyphen."
   type        = string
   nullable    = false
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$", var.name_prefix))
-    error_message = "name_prefix must be 1-63 letters, digits, underscores or hyphens and start with a letter or digit."
+    condition     = can(regex("^[a-z][a-z0-9-]{0,61}[a-z0-9]$", var.name_prefix))
+    error_message = "name_prefix must be 2-63 lowercase letters, digits or hyphens, start with a letter and not end with a hyphen."
   }
 }
 
@@ -88,7 +88,7 @@ variable "public_subnets" {
 }
 
 variable "tags" {
-  description = "Caller tags; the module-owned Name tag takes precedence on every resource."
+  description = "Caller tags; the module-owned Name and service tags take precedence on every resource."
   type        = map(string)
   default     = {}
   nullable    = false
