@@ -7,11 +7,15 @@ same State. No fixture ARN, authenticated discovery or second Cognito writer.
 
 Module Fixed: REGIONAL; disable_execute_api_endpoint=true; COGNITO_USER_POOLS;
 rest_api_id derived from this API; provider_arns from authentication.user_pool_arn;
-method.request.header.Authorization; required Environment/Service/Project/ManagedBy
-values override caller tags. Module Default: tags={} only. Root Override: name,
-expected_scope, actual authentication and tags. All other inputs are mandatory.
+method.request.header.Authorization; names `<prefix>-apigw-rest` (REST API) and
+`<prefix>-apigw-rest-cognito` (authorizer, not taggable) and the REST API's `Name`
+and `service = apigw` tags, which win over caller tags. The former
+Environment/Service/Project/ManagedBy tags are removed; `project`, `env` and
+`managed` come from the root's provider `default_tags`. Module Default: tags={}
+only. Root Override: name_prefix `<project>-dev`, expected_scope, actual
+authentication and caller tags. All other inputs are mandatory.
 Version 1, exact scope and Cognito ARN/ID, nonempty unique approved custom scopes,
-and bounded environment-prefixed name are validated. Only aws/ca-central-1 and
+and a bounded `<project>-<environment>` name_prefix ending with the expected environment are validated. Only aws/ca-central-1 and
 reviewed dev/stg/prod scopes are accepted; this does not select provider identity.
 
 rest_core version 1 exports actual API/Authorizer IDs, authorizer pool ARN, scope
@@ -37,9 +41,9 @@ checks remain active; the root verifier checks all seven resources before projec
 its original five-resource Cognito security contract. Full CI adds these REST
 checks without removing prior coverage. Actual results belong to the PR HEAD.
 
-Local V7-A results: Child20 native (1 positive/19 rejected), Root46 existing native
-(5 positive/41 rejected), REST security mutations13 and evidence faults9 per scope,
+Local V7-A results: Child20 native (1 positive/19 rejected), Root47 native
+(5 positive/42 rejected), REST security mutations13 and evidence faults9 per scope,
 source mutations6 and missing required inputs3 rejected. Existing Cognito Child49,
 security32/evidence13 per Cognito scope, source mutations10 and Root required-input
-rejections16 retained. Full CI on the new PR HEAD must independently confirm these
+rejections15 (project replaces pool_name and domain_prefix). Full CI on the new PR HEAD must independently confirm these
 results; they are not real AWS, runtime or Emulator evidence.

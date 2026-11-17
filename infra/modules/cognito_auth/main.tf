@@ -1,6 +1,6 @@
 resource "aws_cognito_user_pool" "this" {
   region                   = var.expected_scope.region
-  name                     = var.pool_name
+  name                     = "${var.name_prefix}-cognito"
   user_pool_tier           = var.feature_plan
   deletion_protection      = "ACTIVE"
   username_attributes      = ["email"]
@@ -33,11 +33,12 @@ resource "aws_cognito_user_pool" "this" {
       max_length = "2048"
     }
   }
-  tags = var.tags
+  # Names and tags follow docs/deployment-configuration.md sections 4 and 5.
+  tags = merge(var.tags, { Name = "${var.name_prefix}-cognito", service = "cognito" })
 }
 resource "aws_cognito_user_pool_domain" "this" {
   region                = var.expected_scope.region
-  domain                = var.domain_prefix
+  domain                = "${var.name_prefix}-auth"
   user_pool_id          = aws_cognito_user_pool.this.id
   managed_login_version = 2
 }
@@ -56,7 +57,7 @@ resource "aws_cognito_resource_server" "this" {
 }
 resource "aws_cognito_user_pool_client" "this" {
   region                               = var.expected_scope.region
-  name                                 = "${var.pool_name}-browser"
+  name                                 = "${var.name_prefix}-client"
   user_pool_id                         = aws_cognito_user_pool.this.id
   generate_secret                      = false
   allowed_oauth_flows_user_pool_client = true

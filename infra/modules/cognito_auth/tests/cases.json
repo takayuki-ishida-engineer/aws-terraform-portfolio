@@ -7,8 +7,7 @@
         "region": "ca-central-1",
         "account_id": "000000000000"
       },
-      "pool_name": "dev-test-auth",
-      "domain_prefix": "test-portfolio-auth",
+      "name_prefix": "test-dev",
       "feature_plan": "ESSENTIALS",
       "allow_dev_loopback": false,
       "callback_urls": [
@@ -39,8 +38,7 @@
         "region": "ca-central-1",
         "account_id": "000000000000"
       },
-      "pool_name": "dev-alternate-auth",
-      "domain_prefix": "test-alternate-auth",
+      "name_prefix": "alt-dev",
       "feature_plan": "ESSENTIALS",
       "allow_dev_loopback": false,
       "callback_urls": [
@@ -71,8 +69,7 @@
         "region": "ca-central-1",
         "account_id": "000000000000"
       },
-      "pool_name": "dev-test-auth",
-      "domain_prefix": "test-portfolio-auth",
+      "name_prefix": "test-dev",
       "feature_plan": "PLUS",
       "allow_dev_loopback": false,
       "callback_urls": [
@@ -103,8 +100,7 @@
         "region": "ca-central-1",
         "account_id": "000000000000"
       },
-      "pool_name": "dev-test-auth",
-      "domain_prefix": "test-portfolio-auth",
+      "name_prefix": "test-dev",
       "feature_plan": "ESSENTIALS",
       "allow_dev_loopback": false,
       "callback_urls": [
@@ -136,8 +132,7 @@
         "region": "ca-central-1",
         "account_id": "000000000000"
       },
-      "pool_name": "dev-test-auth",
-      "domain_prefix": "test-portfolio-auth",
+      "name_prefix": "test-dev",
       "feature_plan": "ESSENTIALS",
       "allow_dev_loopback": true,
       "callback_urls": [
@@ -171,8 +166,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "LITE",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -206,8 +200,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "UNKNOWN",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -233,7 +226,7 @@
       },
       "failure": "feature_plan"
     },
-    "pool_name_2": {
+    "name_prefix_2": {
       "values": {
         "expected_scope": {
           "environment": "dev",
@@ -241,8 +234,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "prod-wrong",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-prod",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -266,9 +258,9 @@
         "id_token_minutes": 15,
         "refresh_token_hours": 8
       },
-      "failure": "pool_name"
+      "failure": "name_prefix"
     },
-    "pool_name_3": {
+    "name_prefix_3": {
       "values": {
         "expected_scope": {
           "environment": "dev",
@@ -276,8 +268,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -301,9 +292,9 @@
         "id_token_minutes": 15,
         "refresh_token_hours": 8
       },
-      "failure": "pool_name"
+      "failure": "name_prefix"
     },
-    "domain_prefix_4": {
+    "name_prefix_4": {
       "values": {
         "expected_scope": {
           "environment": "dev",
@@ -311,8 +302,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "-bad",
+        "name_prefix": "-bad-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -336,9 +326,9 @@
         "id_token_minutes": 15,
         "refresh_token_hours": 8
       },
-      "failure": "domain_prefix"
+      "failure": "name_prefix"
     },
-    "domain_prefix_5": {
+    "name_prefix_5": {
       "values": {
         "expected_scope": {
           "environment": "dev",
@@ -346,8 +336,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "with.dot",
+        "name_prefix": "with.dot-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -371,9 +360,9 @@
         "id_token_minutes": 15,
         "refresh_token_hours": 8
       },
-      "failure": "domain_prefix"
+      "failure": "name_prefix"
     },
-    "domain_prefix_6": {
+    "name_prefix_6": {
       "values": {
         "expected_scope": {
           "environment": "dev",
@@ -381,8 +370,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "amazon-name",
+        "name_prefix": "amazon-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -406,7 +394,7 @@
         "id_token_minutes": 15,
         "refresh_token_hours": 8
       },
-      "failure": "domain_prefix"
+      "failure": "name_prefix"
     },
     "resource_server_identifier_7": {
       "values": {
@@ -416,8 +404,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -451,8 +438,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -486,8 +472,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -518,8 +503,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -552,8 +536,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -586,8 +569,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -619,8 +601,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -654,8 +635,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -689,8 +669,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -724,8 +703,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -759,8 +737,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -794,8 +771,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -829,8 +805,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -864,8 +839,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -899,8 +873,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -934,8 +907,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -969,8 +941,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1004,8 +975,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1039,8 +1009,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1074,8 +1043,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1109,8 +1077,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1144,8 +1111,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1179,8 +1145,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1214,8 +1179,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1250,8 +1214,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1285,8 +1248,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1320,8 +1282,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1355,8 +1316,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1390,8 +1350,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1425,8 +1384,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1460,8 +1418,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1495,8 +1452,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1531,8 +1487,7 @@
           "region": "ca-central-1",
           "account_id": "bad"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1566,8 +1521,7 @@
           "region": "us-east-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1601,8 +1555,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1636,8 +1589,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "qa-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-qa",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [
@@ -1671,8 +1623,7 @@
           "region": "ca-central-1",
           "account_id": "000000000000"
         },
-        "pool_name": "dev-test-auth",
-        "domain_prefix": "test-portfolio-auth",
+        "name_prefix": "test-dev",
         "feature_plan": "ESSENTIALS",
         "allow_dev_loopback": false,
         "callback_urls": [

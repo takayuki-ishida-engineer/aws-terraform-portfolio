@@ -6,12 +6,13 @@ variable "expected_scope" {
     error_message = "Provide an approved AWS scope in ca-central-1."
   }
 }
-variable "name" {
-  type     = string
-  nullable = false
+variable "name_prefix" {
+  description = "Required <project>-<env> naming prefix (docs/deployment-configuration.md section 4); it must end with the expected environment. Names are derived from it: REST API <prefix>-apigw-rest and authorizer <prefix>-apigw-rest-cognito."
+  type        = string
+  nullable    = false
   validation {
-    condition     = try(can(regex("^[a-z][a-z0-9-]{2,100}$", var.name)) && startswith(var.name, "${var.expected_scope.environment}-"), false)
-    error_message = "Provide a bounded environment-prefixed API name."
+    condition     = try(can(regex("^[a-z][a-z0-9-]{0,18}[a-z0-9]$", var.name_prefix)) && endswith(var.name_prefix, "-${var.expected_scope.environment}"), false)
+    error_message = "Provide a bounded <project>-<environment> naming prefix: 2-20 lowercase letters, digits or hyphens ending with -<environment>."
   }
 }
 variable "authentication" {
@@ -38,7 +39,8 @@ variable "authentication" {
   }
 }
 variable "tags" {
-  type     = map(string)
-  default  = {}
-  nullable = false
+  description = "Additional non-secret caller tags for the REST API; the module-owned Name and service tags win."
+  type        = map(string)
+  default     = {}
+  nullable    = false
 }

@@ -24,15 +24,24 @@ No existing serverless-api/HTTP API, Platform or Network resource changes owner.
 ## Inputs and effective settings
 
 Every security/deployment input is required and non-null: expected_scope (environment,
-partition, Region, account_id), pool_name, domain_prefix, feature_plan,
+partition, Region, account_id), name_prefix, feature_plan,
 allow_dev_loopback, callback_urls, logout_urls, default_redirect_uri,
 resource_server_identifier, scopes (name→description), approved_scope_names,
 mfa_configuration, password_minimum_length, access_token_minutes,
 id_token_minutes and refresh_token_hours. tags alone defaults to {}.
 
+`name_prefix` is `<project>-<env>` (2–20 lowercase letters, digits or hyphens). It
+must end with `-<expected_scope.environment>`, which keeps the former
+environment-binding guard, and must not contain aws, amazon or cognito, which are
+reserved in Cognito domain prefixes. Names follow [deployment configuration](../../../docs/deployment-configuration.md#4-resource-naming) (**Module Fixed**):
+user pool `<prefix>-cognito` (Name tag and `service = cognito`, winning over caller
+tags), app client `<prefix>-client` and domain prefix `<prefix>-auth`. The client,
+domain, resource server and branding are not taggable. `project`, `env` and
+`managed` come from the root's provider `default_tags`.
+
 | Source | Effective contract |
 | --- | --- |
-| Root Override | All required inputs; DEV scope aws/ca-central-1 and required account; governance tags override caller collisions |
+| Root Override | All required inputs, including name_prefix `<project>-dev`; DEV scope aws/ca-central-1 and required account; caller tags only (reserved keys rejected by the root) |
 | Module Default | tags={} only; no guessed paid plan, names, callbacks or token lifetime |
 | Module Fixed | ACTIVE deletion protection; email username, case-insensitive; admin-only user creation/recovery; no automatic verification/delivery; mutable required email; TOTP enabled; code-only public client; Cognito-only IdP; revocation; default branding/domain v2 |
 
@@ -115,7 +124,7 @@ drift. No Google sign-in is claimed.
 
 ## Verification and operations
 
-Child49 native (5 positive/44 rejection), API Root46 (5/41). Actual full mock plans
+Child49 native (5 positive/44 rejection), API Root47 (5/42, including the root-only reserved-tag-key rejection). Actual full mock plans
 are checked independently for exact ownership, resource-linked IDs/scopes,
 password/TOTP/admin policy, private-secret boundary, OAuth/lifetimes/URLs and output
 inventory. Per scope32 unsafe plan mutations and13 evidence faults rejected.

@@ -6,20 +6,13 @@ variable "expected_scope" {
     error_message = "Invalid or unsafe expected_scope; provide explicitly reviewed configuration."
   }
 }
-variable "pool_name" {
-  type     = string
-  nullable = false
+variable "name_prefix" {
+  description = "Required <project>-<env> naming prefix (docs/deployment-configuration.md section 4); it must end with the expected environment. Names are derived from it: user pool <prefix>-cognito, app client <prefix>-client and Cognito domain prefix <prefix>-auth."
+  type        = string
+  nullable    = false
   validation {
-    condition     = try(can(regex("^[a-z][a-z0-9-]{2,50}$", var.pool_name)) && startswith(var.pool_name, "${var.expected_scope.environment}-"), false)
-    error_message = "Invalid or unsafe pool_name; provide explicitly reviewed configuration."
-  }
-}
-variable "domain_prefix" {
-  type     = string
-  nullable = false
-  validation {
-    condition     = try(can(regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", var.domain_prefix)) && !can(regex("(aws|amazon|cognito)", var.domain_prefix)), false)
-    error_message = "Invalid or unsafe domain_prefix; provide explicitly reviewed configuration."
+    condition     = try(can(regex("^[a-z][a-z0-9-]{0,18}[a-z0-9]$", var.name_prefix)) && endswith(var.name_prefix, "-${var.expected_scope.environment}") && !can(regex("(aws|amazon|cognito)", var.name_prefix)), false)
+    error_message = "Invalid or unsafe name_prefix: use 2-20 lowercase letters, digits or hyphens ending with -<environment>, without aws, amazon or cognito (reserved in Cognito domain prefixes)."
   }
 }
 variable "feature_plan" {
@@ -127,7 +120,8 @@ variable "refresh_token_hours" {
   }
 }
 variable "tags" {
-  type     = map(string)
-  default  = {}
-  nullable = false
+  description = "Additional non-secret caller tags for the user pool; the module-owned Name and service tags win."
+  type        = map(string)
+  default     = {}
+  nullable    = false
 }

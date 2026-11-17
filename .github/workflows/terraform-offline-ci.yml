@@ -954,7 +954,7 @@ jobs:
           r=json.loads(Path(os.environ['RUNNER_TEMP'],"cognito-verification.json").read_text())
           assert r==dict(status='passed',native_tests=49,positive_plans=5,negative_tests=44,security_mutations=32,evidence_faults=13),r
           extra=json.loads(Path(os.environ['RUNNER_TEMP'],'cognito-rejections.json').read_text())
-          assert extra['status']=='passed' and extra['source_mutations']==10 and extra['required_root_inputs']==16,extra
+          assert extra['status']=='passed' and extra['source_mutations']==10 and extra['required_root_inputs']==15,extra
           print("Actual V6 offline verification:",r)
           with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write(f"passed={r['native_tests']}\n")
           PYAUTH
@@ -972,7 +972,7 @@ jobs:
           import json,os
           from pathlib import Path
           r=json.loads(Path(os.environ['RUNNER_TEMP'],"api-verification.json").read_text())
-          assert r==dict(status='passed',native_tests=46,positive_plans=5,negative_tests=41,security_mutations=32,evidence_faults=13),r
+          assert r==dict(status='passed',native_tests=47,positive_plans=5,negative_tests=42,security_mutations=32,evidence_faults=13),r
           print("Actual V6 offline verification:",r)
           with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write(f"passed={r['native_tests']}\n")
           PYAUTH
@@ -993,7 +993,7 @@ jobs:
           import json,os
           from pathlib import Path
           p=Path(os.environ['RUNNER_TEMP'])
-          for f,n,positive in [('rest-child-verification.json',20,1),('rest-root-verification.json',46,5)]:
+          for f,n,positive in [('rest-child-verification.json',20,1),('rest-root-verification.json',47,5)]:
               r=json.loads((p/f).read_text())
               assert r==dict(status='passed',native_tests=n,positive_plans=positive,negative_tests=n-positive,security_mutations=13,evidence_faults=9),r
               print(f,r)

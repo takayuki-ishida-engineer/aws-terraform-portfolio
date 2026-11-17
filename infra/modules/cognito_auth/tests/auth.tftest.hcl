@@ -18,8 +18,7 @@ run "standard" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -43,8 +42,7 @@ run "alternate_names" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-alternate-auth"
-    domain_prefix              = "test-alternate-auth"
+    name_prefix                = "alt-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -68,8 +66,7 @@ run "plus" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "PLUS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -93,8 +90,7 @@ run "write_scope" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -118,8 +114,7 @@ run "loopback" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = true
     callback_urls              = ["http://localhost:8080/callback"]
@@ -143,8 +138,7 @@ run "reject_feature_plan_0" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "LITE"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -165,8 +159,7 @@ run "reject_feature_plan_1" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "UNKNOWN"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -183,12 +176,11 @@ run "reject_feature_plan_1" {
   }
   expect_failures = [var.feature_plan]
 }
-run "reject_pool_name_2" {
+run "reject_name_prefix_2" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "prod-wrong"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-prod"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -203,14 +195,13 @@ run "reject_pool_name_2" {
     id_token_minutes           = 15
     refresh_token_hours        = 8
   }
-  expect_failures = [var.pool_name]
+  expect_failures = [var.name_prefix]
 }
-run "reject_pool_name_3" {
+run "reject_name_prefix_3" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = ""
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = ""
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -225,14 +216,13 @@ run "reject_pool_name_3" {
     id_token_minutes           = 15
     refresh_token_hours        = 8
   }
-  expect_failures = [var.pool_name]
+  expect_failures = [var.name_prefix]
 }
-run "reject_domain_prefix_4" {
+run "reject_name_prefix_4" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "-bad"
+    name_prefix                = "-bad-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -247,14 +237,13 @@ run "reject_domain_prefix_4" {
     id_token_minutes           = 15
     refresh_token_hours        = 8
   }
-  expect_failures = [var.domain_prefix]
+  expect_failures = [var.name_prefix]
 }
-run "reject_domain_prefix_5" {
+run "reject_name_prefix_5" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "with.dot"
+    name_prefix                = "with.dot-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -269,14 +258,13 @@ run "reject_domain_prefix_5" {
     id_token_minutes           = 15
     refresh_token_hours        = 8
   }
-  expect_failures = [var.domain_prefix]
+  expect_failures = [var.name_prefix]
 }
-run "reject_domain_prefix_6" {
+run "reject_name_prefix_6" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "amazon-name"
+    name_prefix                = "amazon-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -291,14 +279,13 @@ run "reject_domain_prefix_6" {
     id_token_minutes           = 15
     refresh_token_hours        = 8
   }
-  expect_failures = [var.domain_prefix]
+  expect_failures = [var.name_prefix]
 }
 run "reject_resource_server_identifier_7" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -319,8 +306,7 @@ run "reject_resource_server_identifier_8" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -341,8 +327,7 @@ run "reject_scopes_9" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -363,8 +348,7 @@ run "reject_scopes_10" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -385,8 +369,7 @@ run "reject_scopes_11" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -407,8 +390,7 @@ run "reject_approved_scope_names_12" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -429,8 +411,7 @@ run "reject_approved_scope_names_13" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -451,8 +432,7 @@ run "reject_mfa_configuration_14" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -473,8 +453,7 @@ run "reject_mfa_configuration_15" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -495,8 +474,7 @@ run "reject_password_minimum_length_16" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -517,8 +495,7 @@ run "reject_password_minimum_length_17" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -539,8 +516,7 @@ run "reject_access_token_minutes_18" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -561,8 +537,7 @@ run "reject_access_token_minutes_19" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -583,8 +558,7 @@ run "reject_id_token_minutes_20" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -605,8 +579,7 @@ run "reject_refresh_token_hours_21" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -627,8 +600,7 @@ run "reject_default_redirect_uri_22" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -649,8 +621,7 @@ run "reject_callback_urls_23" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = [""]
@@ -671,8 +642,7 @@ run "reject_callback_urls_24" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://*.example.invalid/callback"]
@@ -693,8 +663,7 @@ run "reject_callback_urls_25" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/#token"]
@@ -715,8 +684,7 @@ run "reject_callback_urls_26" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://user:pass@client.example.invalid/callback"]
@@ -737,8 +705,7 @@ run "reject_callback_urls_27" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["http://client.example.invalid/callback"]
@@ -759,8 +726,7 @@ run "reject_callback_urls_28" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["http://localhost:8080/callback"]
@@ -781,8 +747,7 @@ run "reject_callback_urls_29" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/$${unresolved}"]
@@ -803,8 +768,7 @@ run "reject_callback_urls_30" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback", "https://client.example.invalid/callback"]
@@ -825,8 +789,7 @@ run "reject_logout_urls_31" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -847,8 +810,7 @@ run "reject_logout_urls_32" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -869,8 +831,7 @@ run "reject_logout_urls_33" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -891,8 +852,7 @@ run "reject_logout_urls_34" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -913,8 +873,7 @@ run "reject_logout_urls_35" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -935,8 +894,7 @@ run "reject_logout_urls_36" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -957,8 +915,7 @@ run "reject_logout_urls_37" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -979,8 +936,7 @@ run "reject_logout_urls_38" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -1001,8 +957,7 @@ run "reject_scope_account_id" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "bad" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -1023,8 +978,7 @@ run "reject_scope_region" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "us-east-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -1045,8 +999,7 @@ run "reject_scope_partition" {
   command = plan
   variables {
     expected_scope             = { "environment" : "dev", "partition" : "aws-cn", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -1067,8 +1020,7 @@ run "reject_scope_environment" {
   command = plan
   variables {
     expected_scope             = { "environment" : "qa", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
-    pool_name                  = "qa-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-qa"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid/callback"]
@@ -1089,8 +1041,7 @@ run "reject_scope_environment" {
 run "reject_invalid_port" {
   command = plan
   variables {
-    pool_name                  = "dev-test-auth"
-    domain_prefix              = "test-portfolio-auth"
+    name_prefix                = "test-dev"
     feature_plan               = "ESSENTIALS"
     allow_dev_loopback         = false
     callback_urls              = ["https://client.example.invalid:65536/callback"]
