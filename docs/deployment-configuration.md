@@ -126,7 +126,7 @@ several resource types uses the type. New tokens follow the same principle.
 | --- | --- |
 | Network | `vpc` VPC, `subnet` subnet, `rtb` route table, `igw` internet gateway, `nat` NAT gateway, `eip` Elastic IP, `vpce` VPC endpoint, `sg` security group |
 | Compute | `ec2` instance, `lt` launch template, `eks` EKS cluster, `ng` EKS node group, `lambda` function |
-| IAM | `role` role, `policy` managed policy, `profile` instance profile |
+| IAM | `role` role, `policy` managed or inline policy, `profile` instance profile, `oidc` OIDC identity provider |
 | Load balancing and API | `nlb` Network Load Balancer, `alb` Application Load Balancer, `tg` target group, `apigw` API Gateway API |
 | Identity | `cognito` user pool, `client` app client, `auth` Cognito domain prefix |
 | Secrets, keys, certificates | `secret` secret, `kms` key, `acm` certificate |
@@ -134,7 +134,11 @@ several resource types uses the type. New tokens follow the same principle.
 | Edge and monitoring | `cloudfront` distribution, `waf` web ACL, `r53` hosted zone, `alarm` CloudWatch alarm, `trail` CloudTrail trail |
 
 Sub-resources without a name of their own (listeners, add-ons, associations, rules
-inside a web ACL) need no name.
+inside a web ACL) need no name. When such a sub-resource is taggable (security group
+rules, EKS add-ons and access entries, listeners), its `Name` tag is the parent's
+name plus a purpose and its `service` tag is the parent's token, for example
+`project-dev-sg-eks-node-in-cluster-kubelet` (service `sg`) or `project-dev-eks-cni`
+(service `eks`). Security group rule purposes read `<in or out>-<peer>-<flow>`.
 
 ### Purposes
 
@@ -229,7 +233,11 @@ get a `Name` tag that follows the same pattern.
   Modules set `service` and `Name` on each resource, because those differ per resource.
 - Resources that `default_tags` does not reach, such as EC2 instances and volumes
   launched by EKS managed node groups, get the tags through launch template tag
-  specifications.
+  specifications; the root passes its default tags to the module for this. Instances
+  launched by one Auto Scaling group share one `Name`, for example
+  `project-dev-ec2-eks-node`.
+- Log groups take the token in their path as `service`, for example `eks` for
+  `/aws/eks/project-dev-eks/cluster`.
 - These keys replace the previous `Environment`, `Service`, `Project` and `ManagedBy`.
 - IAM policies that restrict tag keys at resource creation (`iam_access`,
   `iam_account_policies`) must allow exactly these keys.

@@ -2,19 +2,19 @@ mock_provider "aws" { override_during = plan }
 override_resource {
   target          = aws_lb.this
   override_during = plan
-  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:loadbalancer/net/test-ingress/0123456789abcdef", "dns_name" : "test-ingress.example.elb.amazonaws.com", "zone_id" : "ZTESTZONE", "vpc_id" : "vpc-0123456789abcdef0" }
+  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:loadbalancer/net/test-nlb/0123456789abcdef", "dns_name" : "test-nlb.example.elb.amazonaws.com", "zone_id" : "ZTESTZONE", "vpc_id" : "vpc-0123456789abcdef0" }
 }
 
 override_resource {
   target          = aws_lb_target_group.gateway
   override_during = plan
-  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:targetgroup/test-ingress-gateway/0123456789abcdef" }
+  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:targetgroup/test-tg-gw/0123456789abcdef" }
 }
 
 override_resource {
   target          = aws_lb_listener.https_passthrough
   override_during = plan
-  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:listener/net/test-ingress/0123456789abcdef/0123456789abcdef" }
+  values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:listener/net/test-nlb/0123456789abcdef/0123456789abcdef" }
 }
 
 override_resource {
@@ -32,7 +32,7 @@ variables { controller_oidc = { "issuer" : "https://oidc.eks.ca-central-1.amazon
 override_resource {
   target          = aws_iam_role.controller
   override_during = plan
-  values          = { arn = "arn:aws:iam::000000000000:role/test-ingress-lbc" }
+  values          = { arn = "arn:aws:iam::000000000000:role/test-role-lbc" }
 }
 
 run "private_dev" {
@@ -40,7 +40,7 @@ run "private_dev" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -56,7 +56,7 @@ run "multi_az" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a", "private-b"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -72,7 +72,7 @@ run "cross_zone" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a", "private-b"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -88,7 +88,7 @@ run "backend_443" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -104,7 +104,7 @@ run "backend_max" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 65535
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -120,7 +120,7 @@ run "wrong_version" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 2, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -133,7 +133,7 @@ run "wrong_account" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "111111111111" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -146,7 +146,7 @@ run "wrong_region" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "us-east-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -159,7 +159,7 @@ run "wrong_env" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "prod", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -172,7 +172,7 @@ run "wrong_partition" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws-cn", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -185,7 +185,7 @@ run "wrong_vpc" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "bad", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -198,7 +198,7 @@ run "empty_private" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : {}, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -211,7 +211,7 @@ run "duplicate_subnet" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000001" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -224,7 +224,7 @@ run "public_masquerade" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000003", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -237,7 +237,7 @@ run "missing_az" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -250,7 +250,7 @@ run "invalid_az" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "us-east-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -263,7 +263,7 @@ run "empty_selection" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = []
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -276,7 +276,7 @@ run "unknown_selection" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["missing"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -289,7 +289,7 @@ run "public_selection" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["public-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -302,7 +302,7 @@ run "duplicate_az" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1a" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a", "private-b"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -315,7 +315,7 @@ run "zero_port" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 0
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -328,7 +328,7 @@ run "large_port" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 65536
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -341,7 +341,7 @@ run "fractional_port" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 443.5
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -354,7 +354,7 @@ run "same_sg" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000001" }
@@ -367,7 +367,7 @@ run "invalid_sg" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "bad" }
@@ -380,26 +380,26 @@ run "reserved_name" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "internal-test"
+    name_prefix         = "internal-test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
     cross_zone_enabled  = false
   }
-  expect_failures = [var.name]
+  expect_failures = [var.name_prefix]
 }
 run "invalid_name" {
   command = plan
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "Unsafe_Name"
+    name_prefix         = "Unsafe_Name"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
     cross_zone_enabled  = false
   }
-  expect_failures = [var.name]
+  expect_failures = [var.name_prefix]
 }
 
 run "alternate_computed" {
@@ -407,17 +407,17 @@ run "alternate_computed" {
   override_resource {
     target          = aws_lb.this
     override_during = plan
-    values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:loadbalancer/net/test-ingress/fedcba9876543210", "dns_name" : "alternate-ingress.example.elb.amazonaws.com", "zone_id" : "ZALTERNATE", "vpc_id" : "vpc-0123456789abcdef0" }
+    values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:loadbalancer/net/test-nlb/fedcba9876543210", "dns_name" : "alternate-ingress.example.elb.amazonaws.com", "zone_id" : "ZALTERNATE", "vpc_id" : "vpc-0123456789abcdef0" }
   }
   override_resource {
     target          = aws_lb_target_group.gateway
     override_during = plan
-    values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:targetgroup/test-ingress-gateway/fedcba9876543210" }
+    values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:targetgroup/test-tg-gw/fedcba9876543210" }
   }
   override_resource {
     target          = aws_lb_listener.https_passthrough
     override_during = plan
-    values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:listener/net/test-ingress/fedcba9876543210/fedcba9876543210" }
+    values          = { "arn" : "arn:aws:elasticloadbalancing:ca-central-1:000000000000:listener/net/test-nlb/fedcba9876543210/fedcba9876543210" }
   }
   override_resource {
     target          = aws_security_group.nlb
@@ -432,7 +432,7 @@ run "alternate_computed" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -449,7 +449,7 @@ run "alternate_oidc" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -467,7 +467,7 @@ run "oidc_cross_account" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -482,7 +482,7 @@ run "oidc_wrong_region" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -497,7 +497,7 @@ run "oidc_wrong_issuer" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -512,7 +512,7 @@ run "oidc_mismatch" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -527,7 +527,7 @@ run "oidc_empty" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -542,7 +542,7 @@ run "oidc_wildcard" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }
@@ -557,7 +557,7 @@ run "oidc_wrong_provider" {
   variables {
     expected_scope      = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     network_reference   = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "vpc_id" : "vpc-0123456789abcdef0", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } } }
-    name                = "test-ingress"
+    name_prefix         = "test"
     subnet_keys         = ["private-a"]
     backend_target_port = 8443
     eks_security_groups = { "cluster" : "sg-00000000000000001", "nodes" : "sg-00000000000000002" }

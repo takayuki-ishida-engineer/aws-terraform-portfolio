@@ -1,14 +1,14 @@
 resource "aws_security_group" "nlb" {
-  name_prefix = "${var.name}-nlb-"
+  name_prefix = "${var.name_prefix}-sg-nlb-"
   description = "Internal TCP passthrough NLB only"
   vpc_id      = var.network_reference.vpc_id
-  tags        = merge(var.tags, { Name = "${var.name}-nlb" })
+  tags        = merge(var.tags, { Name = "${var.name_prefix}-sg-nlb", service = "sg" })
 }
 resource "aws_security_group" "vpc_link_client" {
-  name_prefix = "${var.name}-vpc-link-client-"
+  name_prefix = "${var.name_prefix}-sg-vpc-link-"
   description = "Future VPC Link V2 ENIs only; API Root attaches this group, does not own it"
   vpc_id      = var.network_reference.vpc_id
-  tags        = merge(var.tags, { Name = "${var.name}-vpc_link_client" })
+  tags        = merge(var.tags, { Name = "${var.name_prefix}-sg-vpc-link", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "client_nlb" {
   security_group_id            = aws_security_group.vpc_link_client.id
@@ -16,7 +16,7 @@ resource "aws_vpc_security_group_egress_rule" "client_nlb" {
   ip_protocol                  = "tcp"
   from_port                    = 443
   to_port                      = 443
-  tags                         = merge(var.tags, { Name = "${var.name}-client_nlb" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-vpc-link-out-nlb-https", service = "sg" })
 }
 resource "aws_vpc_security_group_ingress_rule" "nlb_clients" {
   security_group_id            = aws_security_group.nlb.id
@@ -24,7 +24,7 @@ resource "aws_vpc_security_group_ingress_rule" "nlb_clients" {
   ip_protocol                  = "tcp"
   from_port                    = 443
   to_port                      = 443
-  tags                         = merge(var.tags, { Name = "${var.name}-nlb_clients" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-nlb-in-vpc-link-https", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "nlb_targets" {
   security_group_id            = aws_security_group.nlb.id
@@ -32,7 +32,7 @@ resource "aws_vpc_security_group_egress_rule" "nlb_targets" {
   ip_protocol                  = "tcp"
   from_port                    = var.backend_target_port
   to_port                      = var.backend_target_port
-  tags                         = merge(var.tags, { Name = "${var.name}-nlb_targets" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-nlb-out-node-gw", service = "sg" })
 }
 resource "aws_vpc_security_group_ingress_rule" "nodes_targets" {
   security_group_id            = var.eks_security_groups.nodes
@@ -40,7 +40,7 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_targets" {
   ip_protocol                  = "tcp"
   from_port                    = var.backend_target_port
   to_port                      = var.backend_target_port
-  tags                         = merge(var.tags, { Name = "${var.name}-nodes_targets" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-eks-node-in-nlb-gw", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "cluster_webhook" {
   security_group_id            = var.eks_security_groups.cluster
@@ -48,7 +48,7 @@ resource "aws_vpc_security_group_egress_rule" "cluster_webhook" {
   ip_protocol                  = "tcp"
   from_port                    = 9443
   to_port                      = 9443
-  tags                         = merge(var.tags, { Name = "${var.name}-cluster_webhook" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-eks-cluster-out-node-lbc-webhook", service = "sg" })
 }
 resource "aws_vpc_security_group_ingress_rule" "nodes_webhook" {
   security_group_id            = var.eks_security_groups.nodes
@@ -56,7 +56,7 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_webhook" {
   ip_protocol                  = "tcp"
   from_port                    = 9443
   to_port                      = 9443
-  tags                         = merge(var.tags, { Name = "${var.name}-nodes_webhook" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-eks-node-in-cluster-lbc-webhook", service = "sg" })
 }
 
 resource "aws_vpc_security_group_egress_rule" "cluster_istio_webhook" {
@@ -65,7 +65,7 @@ resource "aws_vpc_security_group_egress_rule" "cluster_istio_webhook" {
   ip_protocol                  = "tcp"
   from_port                    = 15017
   to_port                      = 15017
-  tags                         = merge(var.tags, { Name = "${var.name}-cluster_istio_webhook" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-eks-cluster-out-node-istio-webhook", service = "sg" })
 }
 
 resource "aws_vpc_security_group_ingress_rule" "nodes_istio_webhook" {
@@ -74,7 +74,7 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_istio_webhook" {
   ip_protocol                  = "tcp"
   from_port                    = 15017
   to_port                      = 15017
-  tags                         = merge(var.tags, { Name = "${var.name}-nodes_istio_webhook" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-eks-node-in-cluster-istio-webhook", service = "sg" })
 }
 
 resource "aws_vpc_security_group_egress_rule" "nodes_istiod" {
@@ -83,7 +83,7 @@ resource "aws_vpc_security_group_egress_rule" "nodes_istiod" {
   ip_protocol                  = "tcp"
   from_port                    = 15012
   to_port                      = 15012
-  tags                         = merge(var.tags, { Name = "${var.name}-nodes_istiod" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-eks-node-out-node-istiod", service = "sg" })
 }
 
 resource "aws_vpc_security_group_ingress_rule" "nodes_istiod" {
@@ -92,5 +92,5 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_istiod" {
   ip_protocol                  = "tcp"
   from_port                    = 15012
   to_port                      = 15012
-  tags                         = merge(var.tags, { Name = "${var.name}-nodes_istiod" })
+  tags                         = merge(var.tags, { Name = "${var.name_prefix}-sg-eks-node-in-node-istiod", service = "sg" })
 }

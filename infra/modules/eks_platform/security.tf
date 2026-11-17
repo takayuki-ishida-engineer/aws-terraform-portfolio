@@ -1,14 +1,14 @@
 resource "aws_security_group" "cluster" {
-  name_prefix = "${var.cluster_name}-control-"
+  name_prefix = "${local.sg_name.cluster}-"
   description = "Explicit private API clients and managed nodes; AWS also attaches its own cluster SG."
   vpc_id      = var.network_reference.vpc_id
-  tags        = merge(var.tags, { Name = "${var.cluster_name}-control" })
+  tags        = merge(var.tags, { Name = local.sg_name.cluster, service = "sg" })
 }
 resource "aws_security_group" "nodes" {
-  name_prefix = "${var.cluster_name}-nodes-"
+  name_prefix = "${local.sg_name.nodes}-"
   description = "Only reviewed EKS system flows and explicit HTTPS destinations. No SSH/NodePort/application ingress."
   vpc_id      = var.network_reference.vpc_id
-  tags        = merge(var.tags, { Name = "${var.cluster_name}-nodes" })
+  tags        = merge(var.tags, { Name = local.sg_name.nodes, service = "sg" })
 }
 resource "aws_vpc_security_group_ingress_rule" "cluster_nodes" {
   security_group_id            = aws_security_group.cluster.id
@@ -16,7 +16,7 @@ resource "aws_vpc_security_group_ingress_rule" "cluster_nodes" {
   ip_protocol                  = "tcp"
   from_port                    = 443
   to_port                      = 443
-  tags                         = merge(var.tags, { Name = "${var.cluster_name}-cluster_nodes" })
+  tags                         = merge(var.tags, { Name = "${local.sg_name.cluster}-in-node-https", service = "sg" })
 }
 resource "aws_vpc_security_group_ingress_rule" "cluster_clients" {
   for_each          = var.api_client_cidrs
@@ -25,7 +25,7 @@ resource "aws_vpc_security_group_ingress_rule" "cluster_clients" {
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-  tags              = merge(var.tags, { Name = "${var.cluster_name}-cluster_clients" })
+  tags              = merge(var.tags, { Name = "${local.sg_name.cluster}-in-client-https${local.client_rule_suffix[each.value]}", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "cluster_nodes" {
   for_each                     = { https = { protocol = "tcp", port = 443 }, kubelet = { protocol = "tcp", port = 10250 }, dns_tcp = { protocol = "tcp", port = 53 }, dns_udp = { protocol = "udp", port = 53 } }
@@ -34,7 +34,7 @@ resource "aws_vpc_security_group_egress_rule" "cluster_nodes" {
   ip_protocol                  = each.value.protocol
   from_port                    = each.value.port
   to_port                      = each.value.port
-  tags                         = merge(var.tags, { Name = "${var.cluster_name}-cluster_nodes" })
+  tags                         = merge(var.tags, { Name = "${local.sg_name.cluster}-out-node-${replace(each.key, "_", "-")}", service = "sg" })
 }
 resource "aws_vpc_security_group_ingress_rule" "nodes_cluster" {
   for_each                     = { https = { protocol = "tcp", port = 443 }, kubelet = { protocol = "tcp", port = 10250 }, dns_tcp = { protocol = "tcp", port = 53 }, dns_udp = { protocol = "udp", port = 53 } }
@@ -43,7 +43,7 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_cluster" {
   ip_protocol                  = each.value.protocol
   from_port                    = each.value.port
   to_port                      = each.value.port
-  tags                         = merge(var.tags, { Name = "${var.cluster_name}-nodes_cluster" })
+  tags                         = merge(var.tags, { Name = "${local.sg_name.nodes}-in-cluster-${replace(each.key, "_", "-")}", service = "sg" })
 }
 resource "aws_vpc_security_group_ingress_rule" "nodes_dns" {
   for_each                     = toset(["tcp", "udp"])
@@ -52,7 +52,7 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_dns" {
   ip_protocol                  = each.value
   from_port                    = 53
   to_port                      = 53
-  tags                         = merge(var.tags, { Name = "${var.cluster_name}-nodes_dns" })
+  tags                         = merge(var.tags, { Name = "${local.sg_name.nodes}-in-node-dns-${each.value}", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "nodes_cluster" {
   security_group_id            = aws_security_group.nodes.id
@@ -60,7 +60,7 @@ resource "aws_vpc_security_group_egress_rule" "nodes_cluster" {
   ip_protocol                  = "tcp"
   from_port                    = 443
   to_port                      = 443
-  tags                         = merge(var.tags, { Name = "${var.cluster_name}-nodes_cluster" })
+  tags                         = merge(var.tags, { Name = "${local.sg_name.nodes}-out-cluster-https", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "nodes_dns" {
   for_each          = toset(["tcp", "udp"])
@@ -69,7 +69,7 @@ resource "aws_vpc_security_group_egress_rule" "nodes_dns" {
   ip_protocol       = each.value
   from_port         = 53
   to_port           = 53
-  tags              = merge(var.tags, { Name = "${var.cluster_name}-nodes_dns" })
+  tags              = merge(var.tags, { Name = "${local.sg_name.nodes}-out-resolver-dns-${each.value}", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "nodes_https" {
   for_each          = var.node_https_egress_cidrs
@@ -78,7 +78,7 @@ resource "aws_vpc_security_group_egress_rule" "nodes_https" {
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-  tags              = merge(var.tags, { Name = "${var.cluster_name}-nodes_https" })
+  tags              = merge(var.tags, { Name = "${local.sg_name.nodes}-out-https${local.https_rule_suffix[each.value]}", service = "sg" })
 }
 resource "aws_vpc_security_group_egress_rule" "nodes_peer_dns" {
   for_each                     = toset(["tcp", "udp"])
@@ -87,5 +87,5 @@ resource "aws_vpc_security_group_egress_rule" "nodes_peer_dns" {
   ip_protocol                  = each.value
   from_port                    = 53
   to_port                      = 53
-  tags                         = merge(var.tags, { Name = "${var.cluster_name}-nodes-peer-dns" })
+  tags                         = merge(var.tags, { Name = "${local.sg_name.nodes}-out-node-dns-${each.value}", service = "sg" })
 }

@@ -46,8 +46,18 @@ def root_values(plan,v):
     oidc=rows['module.eks_platform.aws_iam_openid_connect_provider.cluster']['change'];cluster=rows['module.eks_platform.aws_eks_cluster.this']['change']
     require(not unknown(oidc['after_unknown'].get('arn',False)) and not unknown(cluster['after_unknown'].get('identity',False)),'known_actual_oidc')
     issuer=cluster['after']['identity'][0]['oidc'][0]['issuer']
-    return dict(controller_oidc=dict(issuer=issuer,provider_arn=oidc['after']['arn']),expected_scope=net['scope'],network_reference=net,name=v['ingress_name'],subnet_keys=[v['ingress_subnet_key']],backend_target_port=v['gateway_target_port'],eks_security_groups=dict(cluster=sg('cluster'),nodes=sg('nodes')),cross_zone_enabled=False,deletion_protection=v.get('deletion_protection',True),tags=dict(v.get('tags',{}),Environment='dev',Service='platform',Project='aws-terraform-portfolio',ManagedBy='Terraform'))
+    return dict(controller_oidc=dict(issuer=issuer,provider_arn=oidc['after']['arn']),expected_scope=net['scope'],network_reference=net,name_prefix=v['project']+'-dev',subnet_keys=[v['ingress_subnet_key']],backend_target_port=v['gateway_target_port'],eks_security_groups=dict(cluster=sg('cluster'),nodes=sg('nodes')),cross_zone_enabled=False,deletion_protection=v.get('deletion_protection',True),tags=dict(v.get('tags',{})))
 def verify_root_ingress(plan,v):return verify_plan(plan,root_values(plan,v),'root')
+def owned_tags(p):
+    """Exact module-owned Name and service tags (docs/deployment-configuration.md sections 4 and 5)."""
+    owned={'aws_lb.this':(p+'-nlb','nlb'),'aws_lb_listener.https_passthrough':(p+'-nlb-tcp443','nlb'),'aws_lb_target_group.gateway':(p+'-tg-gw','tg'),
+        'aws_iam_role.controller':(p+'-role-lbc','role'),'aws_security_group.nlb':(p+'-sg-nlb','sg'),'aws_security_group.vpc_link_client':(p+'-sg-vpc-link','sg'),
+        'aws_vpc_security_group_egress_rule.client_nlb':(p+'-sg-vpc-link-out-nlb-https','sg'),'aws_vpc_security_group_ingress_rule.nlb_clients':(p+'-sg-nlb-in-vpc-link-https','sg'),
+        'aws_vpc_security_group_egress_rule.nlb_targets':(p+'-sg-nlb-out-node-gw','sg'),'aws_vpc_security_group_ingress_rule.nodes_targets':(p+'-sg-eks-node-in-nlb-gw','sg'),
+        'aws_vpc_security_group_egress_rule.cluster_webhook':(p+'-sg-eks-cluster-out-node-lbc-webhook','sg'),'aws_vpc_security_group_ingress_rule.nodes_webhook':(p+'-sg-eks-node-in-cluster-lbc-webhook','sg'),
+        'aws_vpc_security_group_egress_rule.cluster_istio_webhook':(p+'-sg-eks-cluster-out-node-istio-webhook','sg'),'aws_vpc_security_group_ingress_rule.nodes_istio_webhook':(p+'-sg-eks-node-in-cluster-istio-webhook','sg'),
+        'aws_vpc_security_group_egress_rule.nodes_istiod':(p+'-sg-eks-node-out-node-istiod','sg'),'aws_vpc_security_group_ingress_rule.nodes_istiod':(p+'-sg-eks-node-in-node-istiod','sg')}
+    return {a:{'Name':n,'service':s} for a,(n,s) in owned.items()}
 def verify_plan(plan,v,scope):
     n=v['network_reference'];s=v['expected_scope'];keys=v['subnet_keys'];port=v['backend_target_port'];eks=v['eks_security_groups']
     require(s['partition']=='aws' and s['region']=='ca-central-1' and s['environment'] in {'dev','stg','prod'} and re.fullmatch(r'\d{12}',s['account_id']),'scope')
@@ -59,7 +69,7 @@ def verify_plan(plan,v,scope):
     require(all(re.fullmatch(s['region']+'[a-z]',x) for x in az.values()),'az_region')
     require(keys and set(keys)<=set(private) and len({az[k] for k in keys})==len(keys),'private_subnet_selection')
     require(type(port) is int and 1<=port<=65535,'backend_port')
-    require(re.fullmatch(r'[a-z][a-z0-9-]{0,19}',v['name']) and not v['name'].startswith('internal-') and not v['name'].endswith('-'),'name')
+    pre=v['name_prefix'];require(re.fullmatch(r'[a-z][a-z0-9-]{0,18}[a-z0-9]',pre) and not pre.startswith('internal-'),'name_prefix')
     require(len(set(eks.values()))==2 and all(re.fullmatch(r'sg-([0-9a-f]{8}|[0-9a-f]{17})',x) for x in eks.values()),'custom_eks_groups')
     require(plan.get('plan_format_version')=='1.2','plan_format')
     prefix='module.private_ingress.' if scope=='root' else '';rows={}
@@ -79,12 +89,13 @@ def verify_plan(plan,v,scope):
     nlb=value('aws_security_group.nlb','id');client=value('aws_security_group.vpc_link_client','id');require(len({nlb,client,*eks.values()})==4,'distinct_groups')
     for a in ['aws_security_group.nlb','aws_security_group.vpc_link_client']:
         same(a,'vpc_id',n['vpc_id']);same(a,'ingress',[]);same(a,'egress',[])
-    for k,x in dict(name=v['name'],internal=True,load_balancer_type='network',ip_address_type='ipv4',security_groups=[nlb],subnets=sorted(private[k] for k in keys),enable_cross_zone_load_balancing=v['cross_zone_enabled'],enable_deletion_protection=v.get('deletion_protection',True),enforce_security_group_inbound_rules_on_private_link_traffic='on',vpc_id=n['vpc_id'],subnet_mapping=[]).items():same(lb,k,x)
+    same('aws_security_group.nlb','name_prefix',pre+'-sg-nlb-');same('aws_security_group.vpc_link_client','name_prefix',pre+'-sg-vpc-link-')
+    for k,x in dict(name=pre+'-nlb',internal=True,load_balancer_type='network',ip_address_type='ipv4',security_groups=[nlb],subnets=sorted(private[k] for k in keys),enable_cross_zone_load_balancing=v['cross_zone_enabled'],enable_deletion_protection=v.get('deletion_protection',True),enforce_security_group_inbound_rules_on_private_link_traffic='on',vpc_id=n['vpc_id'],subnet_mapping=[]).items():same(lb,k,x)
     arnbase='arn:aws:elasticloadbalancing:'+s['region']+':'+s['account_id']+':'
     for a,kind in [(lb,'loadbalancer/net/'),(tg,'targetgroup/'),(li,'listener/net/')]:
         require(value(a,'arn').startswith(arnbase+kind),'arn_scope:'+a)
     require(value(lb,'dns_name') and value(lb,'zone_id'),'computed_dns_zone')
-    for k,x in dict(name=v['name']+'-gateway',port=port,protocol='TCP',target_type='ip',ip_address_type='ipv4',vpc_id=n['vpc_id'],preserve_client_ip='false',proxy_protocol_v2=False,load_balancing_cross_zone_enabled='use_load_balancer_configuration',connection_termination=True,deregistration_delay='300').items():same(tg,k,x)
+    for k,x in dict(name=pre+'-tg-gw',port=port,protocol='TCP',target_type='ip',ip_address_type='ipv4',vpc_id=n['vpc_id'],preserve_client_ip='false',proxy_protocol_v2=False,load_balancing_cross_zone_enabled='use_load_balancer_configuration',connection_termination=True,deregistration_delay='300').items():same(tg,k,x)
     hc=value(tg,'health_check');require(len(hc)==1,'single_health_check')
     for k,x in dict(enabled=True,port='traffic-port',protocol='TCP',interval=30,healthy_threshold=3,unhealthy_threshold=3).items():require(hc[0][k]==x,'health:'+k)
     same(li,'load_balancer_arn',value(lb,'arn'));same(li,'port',443);same(li,'protocol','TCP');same(li,'certificate_arn',None);same(li,'alpn_policy',None);same(li,'mutual_authentication',[])
@@ -93,11 +104,14 @@ def verify_plan(plan,v,scope):
     for direction,label,owner,peer,p in flows:
         a='aws_vpc_security_group_'+direction+'_rule.'+label
         for k,x in dict(security_group_id=owner,referenced_security_group_id=peer,ip_protocol='tcp',from_port=p,to_port=p,cidr_ipv4=None,cidr_ipv6=None,prefix_list_id=None).items():same(a,k,x)
-    for a in names-{'aws_iam_role_policy.controller'}:require(all(value(a,'tags').get(k)==x for k,x in v.get('tags',{}).items() if k!='Name'),'governance_tags')
+    # Caller tags pass through; module-owned Name and service win. project, env and
+    # managed come from the root provider default_tags, not resource tags.
+    owned=owned_tags(pre);require(set(owned)==names-{'aws_iam_role_policy.controller'},'tagged_resource_inventory')
+    for a,tags in owned.items():require(value(a,'tags')=={**v.get('tags',{}),**tags},'resource_name_and_service_tags:'+a)
     oidc=v['controller_oidc'];issuer=oidc['issuer'];provider=oidc['provider_arn']
     require(re.fullmatch(r'https://oidc[.]eks[.]'+s['region']+r'[.]amazonaws[.]com/id/[A-Za-z0-9]+',issuer) and provider=='arn:aws:iam::'+s['account_id']+':oidc-provider/'+issuer.removeprefix('https://'),'exact_oidc_scope')
     role='aws_iam_role.controller';policy='aws_iam_role_policy.controller';subject='system:serviceaccount:kube-system:aws-load-balancer-controller'
-    same(role,'name',v['name']+'-lbc');same(role,'arn','arn:aws:iam::'+s['account_id']+':role/'+v['name']+'-lbc')
+    same(role,'name',pre+'-role-lbc');same(role,'arn','arn:aws:iam::'+s['account_id']+':role/'+pre+'-role-lbc');same(policy,'name',pre+'-policy-lbc')
     expected_trust={'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'sts:AssumeRoleWithWebIdentity','Principal':{'Federated':provider},'Condition':{'StringEquals':{issuer.removeprefix('https://')+':aud':'sts.amazonaws.com',issuer.removeprefix('https://')+':sub':subject}}}]}
     require(parse(value(role,'assume_role_policy'))==expected_trust,'exact_irsa_trust_no_human_ec2_wildcards')
     same(role,'inline_policy',[]);same(role,'managed_policy_arns',[]);same(policy,'role',value(role,'name'))
@@ -173,6 +187,7 @@ def self_test(events,scope,plans):
     variants=[('aws_lb.this',['internal'],False),('aws_lb.this',['load_balancer_type'],'application'),('aws_lb.this',['security_groups'],[]),('aws_lb.this',['subnets'],['subnet-00000000000000003']),('aws_lb.this',['enforce_security_group_inbound_rules_on_private_link_traffic'],'off'),('aws_lb.this',['enable_cross_zone_load_balancing'],True),('aws_lb_listener.https_passthrough',['protocol'],'TLS'),('aws_lb_listener.https_passthrough',['port'],80),('aws_lb_listener.https_passthrough',['certificate_arn'],'unapproved'),('aws_lb_listener.https_passthrough',['default_action',0,'target_group_arn'],'fabricated'),('aws_lb_target_group.gateway',['target_type'],'instance'),('aws_lb_target_group.gateway',['port'],443),('aws_lb_target_group.gateway',['preserve_client_ip'],'true'),('aws_lb_target_group.gateway',['proxy_protocol_v2'],True),('aws_lb_target_group.gateway',['health_check',0,'port'],'443'),('aws_lb_target_group.gateway',['health_check',0,'protocol'],'HTTPS')]
     for a in ['aws_vpc_security_group_egress_rule.client_nlb','aws_vpc_security_group_ingress_rule.nlb_clients','aws_vpc_security_group_egress_rule.nlb_targets','aws_vpc_security_group_ingress_rule.nodes_targets','aws_vpc_security_group_egress_rule.cluster_webhook','aws_vpc_security_group_ingress_rule.nodes_webhook','aws_vpc_security_group_egress_rule.cluster_istio_webhook','aws_vpc_security_group_ingress_rule.nodes_istio_webhook','aws_vpc_security_group_egress_rule.nodes_istiod','aws_vpc_security_group_ingress_rule.nodes_istiod']:
         variants.extend([(a,['cidr_ipv4'],'0.0.0.0/0'),(a,['ip_protocol'],'-1'),(a,['referenced_security_group_id'],'sg-11111111111111111'),(a,['from_port'],0)])
+    variants.extend([('aws_lb.this',['tags','Name'],'unapproved'),('aws_vpc_security_group_ingress_rule.nodes_targets',['tags','service'],'iam')])
     detections=[reject(lambda a=a,path=path,x=x:verify(edit(a,path,x)),a+str(path)) for a,path,x in variants]
     for label,fn in [('missing_node_ingress',lambda q:q['resource_changes'].__setitem__(slice(None),[r for r in q['resource_changes'] if r['address']!=prefix+'aws_vpc_security_group_ingress_rule.nodes_targets'])),('duplicate_resource',lambda q:q['resource_changes'].append(copy.deepcopy(q['resource_changes'][-1]))),('dynamic_registration',lambda q:q['resource_changes'].append(dict(address=prefix+'aws_lb_target_group_attachment.forbidden',type='aws_lb_target_group_attachment',name='forbidden',module_address=prefix.rstrip('.'),mode='managed',provider_name=PROVIDER,change={'actions':['create'],'before':None,'after':{},'after_unknown':{}}))),('unknown_nlb_arn',lambda q:next(r for r in q['resource_changes'] if r['address']==prefix+'aws_lb.this')['change']['after_unknown'].update(arn=True)),('output_corruption',lambda q:q['output_changes']['private_ingress']['after'].update(target_group_arn='fabricated'))]:
         q=copy.deepcopy(p);fn(q);detections.append(reject(lambda q=q:verify(q),label))

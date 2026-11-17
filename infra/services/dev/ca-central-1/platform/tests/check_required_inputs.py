@@ -15,7 +15,7 @@ sys.dont_write_bytecode=True
 sys.path.insert(0,str(ROOT.parents[3]/'modules/eks_platform/tests'))
 from check_platform_configuration import parse,require
 
-REQUIRED=['aws_account_id','active_workload_az','network_reference','cluster_name','kubernetes_version','service_ipv4_cidr','cluster_subnet_keys','node_group','bootstrap_admin_role_arn','api_client_cidrs','node_https_egress_cidrs','addon_versions','ingress_name','ingress_subnet_key','gateway_target_port']
+REQUIRED=['aws_account_id','active_workload_az','network_reference','project','kubernetes_version','service_ipv4_cidr','cluster_subnet_keys','node_group','bootstrap_admin_role_arn','api_client_cidrs','node_https_egress_cidrs','addon_versions','ingress_subnet_key','gateway_target_port']
 NETWORK=['interface_version','scope','vpc_id','vpc_cidr','private_subnet_ids','public_subnet_ids','subnet_azs','private_route_table_ids_by_subnet','public_route_table_id','nat_gateway_ids_by_az','routing_mode']
 
 

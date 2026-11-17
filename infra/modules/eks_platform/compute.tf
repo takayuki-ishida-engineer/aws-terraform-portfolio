@@ -1,5 +1,5 @@
 resource "aws_launch_template" "nodes" {
-  name_prefix            = "${var.cluster_name}-"
+  name_prefix            = "${var.name_prefix}-lt-"
   update_default_version = false
   network_interfaces {
     device_index                = 0
@@ -23,18 +23,20 @@ resource "aws_launch_template" "nodes" {
       volume_type           = "gp3"
     }
   }
+  # Provider default_tags do not reach instances and volumes launched by the
+  # managed node group, so the root's default_tags are applied here explicitly.
   dynamic "tag_specifications" {
-    for_each = toset(["instance", "volume"])
+    for_each = { instance = local.node_instance_name, volume = "${local.node_instance_name}-vol" }
     content {
-      resource_type = tag_specifications.value
-      tags          = merge(var.tags, { Name = "${var.cluster_name}-nodes" })
+      resource_type = tag_specifications.key
+      tags          = merge(var.default_tags, var.tags, { Name = tag_specifications.value, service = "ec2" })
     }
   }
-  tags = merge(var.tags, { Name = "${var.cluster_name}-nodes" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-lt", service = "lt" })
 }
 resource "aws_eks_node_group" "this" {
   cluster_name         = aws_eks_cluster.this.name
-  node_group_name      = var.node_group.name
+  node_group_name      = "${var.name_prefix}-ng"
   node_role_arn        = aws_iam_role.nodes.arn
   subnet_ids           = [for k in sort(tolist(var.node_group.subnet_keys)) : var.network_reference.private_subnet_ids[k]]
   ami_type             = var.node_group.ami_type
@@ -54,6 +56,6 @@ resource "aws_eks_node_group" "this" {
   }
   update_config { max_unavailable = 1 }
   node_repair_config { enabled = false }
-  tags       = merge(var.tags, { Name = var.node_group.name })
+  tags       = merge(var.tags, { Name = "${var.name_prefix}-ng", service = "ng" })
   depends_on = [aws_iam_role_policy_attachment.nodes, aws_eks_addon.vpc_cni, aws_eks_addon.kube_proxy, aws_eks_access_policy_association.bootstrap, aws_vpc_security_group_ingress_rule.nodes_cluster, aws_vpc_security_group_ingress_rule.nodes_dns, aws_vpc_security_group_egress_rule.nodes_cluster, aws_vpc_security_group_egress_rule.nodes_dns, aws_vpc_security_group_egress_rule.nodes_peer_dns, aws_vpc_security_group_egress_rule.nodes_https]
 }

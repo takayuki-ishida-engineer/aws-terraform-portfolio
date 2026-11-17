@@ -37,11 +37,11 @@ not unrestricted connectivity or AWS-managed SG hardening. No Kubernetes provide
 new Root/backend/lock or double owner is added.
 
 Current affected local results: Child36 native (7 complete positive plans,
-29 rejections); Root38 native (6/32), EKS Child52. Independent ingress validation
-per Child/Root:61 semantic,12 IAM policy mutations,21 capture faults,8 dependency
-checks. Twelve actual unsafe source re-plans were detected; Root15 required inputs
+29 rejections); Root39 native (6/33), EKS Child54. Independent ingress validation
+per Child/Root:63 semantic,12 IAM policy mutations,21 capture faults,8 dependency
+checks. Twelve actual unsafe source re-plans were detected; Root14 required inputs
 and11 Network fields rejected. Root basic inventory54=EKS37+ingress17, or58 with
-two namespace access pairs. EKS73/21/10 checks remain. Full independent CI expected
+two namespace access pairs. EKS76/21/10 checks remain. Full independent CI expected
 686 native/153 toolkit/13 configurations, not claimed passed locally.
 
 ## Inputs and effective configuration
@@ -50,14 +50,14 @@ two namespace access pairs. EKS73/21/10 checks remain. Full independent CI expec
 | --- | --- | --- |
 | expected_scope | required object(environment, partition, region, account_id strings) | dev/stg/prod, aws, ca-central-1, explicit 12-digit account; Root owns provider guard |
 | network_reference | required typed object, described below | Version 1, matching scope, VPC ID, complete keyed private subnet/AZ map, distinct private/public IDs, Region-matching AZ syntax |
-| name | required string | Reviewed 1–20 lowercase name characters; no internal-* prefix or trailing hyphen; deterministic resource suffixes |
+| name_prefix | required string | `<project>-<env>`, 2–20 lowercase letters, digits or hyphens, starting with a letter, not internal-*; names below derive from it |
 | subnet_keys | required set(string) | Nonempty subset of private keys, at most one subnet per AZ; public/unknown/duplicate-AZ selections rejected |
 | backend_target_port | required number | Integer 1–65535; reviewed actual Gateway Pod port, not assumed equal to Service/listener 443 |
 | controller_oidc | required object(issuer, provider_arn strings) | Exact ca-central-1 EKS issuer/provider, matching expected_scope.account_id; actual EKS outputs from Root |
 | eks_security_groups | required object(cluster, nodes strings) | Distinct valid custom SG IDs; Root supplies actual attached EKS outputs, never managed Cluster SG |
 | cross_zone_enabled | required bool | Explicit NLB behavior; DEV fixes false; multi-AZ callers review capacity, transfer and failure behavior |
 | deletion_protection | bool, true | NLB protection; disabling is configuration, not teardown authorization |
-| tags | map(string), {} | Non-secret metadata; child Name and DEV governance tags take precedence |
+| tags | map(string), {} | Additional non-secret caller tags; the module-owned Name and service tags win |
 
 The minimal network object contains interface_version, scope, vpc_id,
 private_subnet_ids, public_subnet_ids and subnet_azs.private. Public IDs are only
@@ -68,9 +68,28 @@ No whole State, remote-state reader or publication service is introduced.
 
 | Effective source | Value |
 | --- | --- |
-| Root Override | Scope, minimal network references, required ingress name/subnet/backend port, actual custom EKS SGs, governance tags; DEV cross-zone false and existing deletion-protection selection |
+| Root Override | Scope, minimal network references, name_prefix `<project>-dev`, required subnet/backend port, actual custom EKS SGs; DEV cross-zone false and existing deletion-protection selection |
 | Module Default | deletion_protection=true, tags={} |
-| Module Fixed | Internal network LB, IPv4, TCP:443 passthrough, TCP/IP target group, client-IP preservation=false, Proxy Protocol v2=false, target cross-zone inherits NLB, PrivateLink inbound SG evaluation=on, TCP traffic-port health checks, drain 300 seconds with connection termination, webhook TCP9443 |
+| Module Fixed | Internal network LB, IPv4, TCP:443 passthrough, TCP/IP target group, client-IP preservation=false, Proxy Protocol v2=false, target cross-zone inherits NLB, PrivateLink inbound SG evaluation=on, TCP traffic-port health checks, drain 300 seconds with connection termination, webhook TCP9443; names and Name/service tags below |
+
+### Names and tags (Module Fixed)
+
+Names follow [deployment configuration](../../../docs/deployment-configuration.md#4-resource-naming)
+with `<prefix>` = `<project>-<env>`. Every taggable resource gets `Name` and
+`service`; caller `tags` pass through and the module-owned keys win. `project`,
+`env` and `managed` come from the root's provider `default_tags`.
+
+| Resource | Name | service |
+| --- | --- | --- |
+| Network Load Balancer | `<prefix>-nlb` | `nlb` |
+| Listener (sub-resource) | Name tag `<prefix>-nlb-tcp443` | `nlb` |
+| Target group | `<prefix>-tg-gw` | `tg` |
+| Controller IAM role / inline policy | `<prefix>-role-lbc` / `<prefix>-policy-lbc` (policy not taggable) | `role` |
+| Security groups | `name_prefix` `<prefix>-sg-nlb-` / `<prefix>-sg-vpc-link-` (create-before-destroy), Name tags without the trailing hyphen | `sg` |
+| Security group rules | `<security group Name>-<in or out>-<peer>-<flow>`, for example `<prefix>-sg-nlb-out-node-gw`; rules on the EKS groups use the `eks_platform` group names `<prefix>-sg-eks-cluster` / `<prefix>-sg-eks-node` | `sg` |
+
+With the 10-character project limit the longest names stay within the 32-character
+load balancer and target group limit.
 
 Client-IP preservation is deliberately disabled and Proxy Protocol v2 is not
 injected into the future TLS stream. No original-client-IP or authorization claim

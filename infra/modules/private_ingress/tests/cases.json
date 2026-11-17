@@ -30,7 +30,7 @@
           }
         }
       },
-      "name": "test-ingress",
+      "name_prefix": "test",
       "subnet_keys": [
         "private-a"
       ],
@@ -75,7 +75,7 @@
           }
         }
       },
-      "name": "test-ingress",
+      "name_prefix": "test",
       "subnet_keys": [
         "private-a",
         "private-b"
@@ -121,7 +121,7 @@
           }
         }
       },
-      "name": "test-ingress",
+      "name_prefix": "test",
       "subnet_keys": [
         "private-a",
         "private-b"
@@ -167,7 +167,7 @@
           }
         }
       },
-      "name": "test-ingress",
+      "name_prefix": "test",
       "subnet_keys": [
         "private-a"
       ],
@@ -212,7 +212,7 @@
           }
         }
       },
-      "name": "test-ingress",
+      "name_prefix": "test",
       "subnet_keys": [
         "private-a"
       ],
@@ -257,7 +257,7 @@
           }
         }
       },
-      "name": "test-ingress",
+      "name_prefix": "test",
       "subnet_keys": [
         "private-a"
       ],
@@ -302,7 +302,7 @@
           }
         }
       },
-      "name": "test-ingress",
+      "name_prefix": "test",
       "subnet_keys": [
         "private-a"
       ],
@@ -339,8 +339,8 @@
     "fractional_port": "var.backend_target_port",
     "same_sg": "var.eks_security_groups",
     "invalid_sg": "var.eks_security_groups",
-    "reserved_name": "var.name",
-    "invalid_name": "var.name",
+    "reserved_name": "var.name_prefix",
+    "invalid_name": "var.name_prefix",
     "oidc_cross_account": "var.controller_oidc",
     "oidc_wrong_region": "var.controller_oidc",
     "oidc_wrong_issuer": "var.controller_oidc",

@@ -1,11 +1,3 @@
-variable "ingress_name" {
-  type     = string
-  nullable = false
-  validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{0,19}$", var.ingress_name)) && !startswith(var.ingress_name, "internal-") && !endswith(var.ingress_name, "-")
-    error_message = "Supply a reviewed valid ingress name (1-20 lowercase characters, not internal-* or ending hyphen)."
-  }
-}
 variable "ingress_subnet_key" {
   type     = string
   nullable = false

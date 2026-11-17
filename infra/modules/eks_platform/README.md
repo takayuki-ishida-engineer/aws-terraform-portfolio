@@ -31,19 +31,20 @@ cannot be established by these syntax/relationship validations.
 | --- | --- | --- |
 | expected_scope | object({environment, partition, region, account_id}=strings), required | dev/stg/prod, aws, ca-central-1, twelve-digit expected account; root still owns provider restrictions |
 | network_reference | Typed object, required; schema below | Reviewed minimal Network interface v1 values; no discovery/remote state/provenance service |
-| cluster_name | string, required | Conservative 1–40 characters; derived machine-role/LT/SG/log names have room within service limits |
+| name_prefix | string, required | `<project>-<env>`, 2–20 lowercase letters, digits or hyphens, starting with a letter; every name below derives from it |
 | kubernetes_version | string, required | Initial AL2023/API catalog requires explicit 1.xx >=1.30; no default/current-support assumption |
 | service_ipv4_cidr | string, required | Canonical RFC1918 /12–/24, disjoint from supplied VPC; connected network/IP allocation review remains external |
 | cluster_subnet_keys | set(string), required | Private reference keys in at least two distinct AZs |
-| node_group | object, required | name, subnet_keys, instance_type, ami_type, release_version, disk_size_gib, min_size, desired_size, max_size |
+| node_group | object, required | subnet_keys, instance_type, ami_type, release_version, disk_size_gib, min_size, desired_size, max_size; the name is derived (`<prefix>-ng`) |
 | bootstrap_admin_role_arn | string, required | Approved existing same-account IAM role, not user/session/service-linked/machine role; initial explicit cluster administrator |
-| namespace_access | map(object({principal_arn=string, policy=string, namespaces=set(string)})), {} | Optional distinct approved view/edit roles, explicit non-system namespaces; no extra cluster administrators or groups |
+| namespace_access | map(object({principal_arn=string, policy=string, namespaces=set(string)})), {} | Optional distinct approved view/edit roles, explicit non-system namespaces; no extra cluster administrators or groups; keys are lowercase hyphenated words because they appear in the access entry Name tag |
 | api_client_cidrs | set(string), required | Canonical private source CIDRs, no world/public API client ranges; not an installed VPN/admin host |
 | node_https_egress_cidrs | set(string), required | Explicit reviewed IPv4 /8–/32 destinations for actual AWS HTTPS flows, no world default |
 | addon_versions | object({vpc_cni,coredns,kube_proxy}=strings), required | Exact vX.Y.Z-eksbuild.N, compatibility with Cluster/AMI/architecture externally verified; no most_recent discovery |
 | cluster_kms_key_arn | string or null, null | Optional same-account/Region approved external customer key; no key/grant owner is created |
 | deletion_protection | bool, true | Cluster and log group protected; disabling is configuration, not teardown/Live approval |
-| tags | map(string), {} | Non-secret caller metadata; module Name wins; root governance tags win in DEV |
+| tags | map(string), {} | Additional non-secret caller tags; the module-owned Name and service tags win |
+| default_tags | map(string), {} | The root's provider default_tags (project, env, managed), applied only to instances and volumes launched from the node launch template, which provider default_tags do not reach |
 
 Node capacity must be integers 1 <= min <= desired <= max, disk >=20 GiB. The
 initial AMI catalog is AL2023_x86_64_STANDARD or AL2023_ARM_64_STANDARD, with explicit
@@ -118,10 +119,38 @@ two egress CIDRs have 39. These counts exclude AWS-created subordinate resources
 | aws_vpc_security_group_egress_rule.nodes_dns[protocol] | 2, VPC resolver TCP+UDP53 |
 | aws_vpc_security_group_egress_rule.nodes_peer_dns[protocol] | 2, Node SG -> Node/Pod TCP+UDP53 |
 | aws_vpc_security_group_egress_rule.nodes_https[CIDR] | h, explicit reviewed HTTPS destinations |
-| aws_cloudwatch_log_group.cluster | 1, /aws/eks/{name}/cluster, 30 days, STANDARD, skip_destroy=false |
+| aws_cloudwatch_log_group.cluster | 1, /aws/eks/<prefix>-eks/cluster, 30 days, STANDARD, skip_destroy=false |
 | aws_eks_access_entry.bootstrap / aws_eks_access_policy_association.bootstrap | 1 each, explicit required bootstrap role and cluster-scoped ClusterAdmin policy |
 | aws_eks_access_entry.namespace[key] / aws_eks_access_policy_association.namespace[key] | n each, only selected view/edit namespace scope |
 | aws_eks_addon.vpc_cni / kube_proxy / coredns | 1 each, pinned versions, no self-managed duplicate owner |
+
+## Names and tags
+
+Names follow [deployment configuration](../../../docs/deployment-configuration.md#4-resource-naming)
+`<prefix>-<type>[-<purpose>]` with `<prefix>` = `<project>-<env>`. Every taggable
+resource gets a `Name` tag and a `service` tag (the resource-type token); caller
+`tags` pass through and the module-owned `Name` and `service` win. `project`, `env`
+and `managed` come from the root's provider `default_tags` and are not repeated in
+resource tags. Taggable sub-resources take their parent's name plus a purpose and
+the parent's `service` token. These are **Module Fixed**.
+
+| Resource | Name | service |
+| --- | --- | --- |
+| EKS cluster | `<prefix>-eks` | `eks` |
+| Cluster log group | `/aws/eks/<prefix>-eks/cluster` (AWS-mandated path) | `eks` |
+| Node group | `<prefix>-ng` | `ng` |
+| Launch template | `name_prefix` `<prefix>-lt-` (create-before-destroy), Name tag `<prefix>-lt` | `lt` |
+| Launched instances / volumes (via launch template tag specifications) | `<prefix>-ec2-eks-node` / `<prefix>-ec2-eks-node-vol`, plus `default_tags`; instances of one node group share the Name | `ec2` |
+| IAM roles | `<prefix>-role-eks-cluster`, `<prefix>-role-eks-node`, `<prefix>-role-cni` | `role` |
+| Inline control-plane policy | `<prefix>-policy-eks-cluster` (not taggable) | — |
+| OIDC provider | Name tag `<prefix>-oidc` | `oidc` |
+| Security groups | `name_prefix` `<prefix>-sg-eks-cluster-` / `<prefix>-sg-eks-node-` (create-before-destroy), Name tags without the trailing hyphen | `sg` |
+| Security group rules | `<security group Name>-<in or out>-<peer>-<flow>`, for example `<prefix>-sg-eks-node-in-cluster-kubelet`; a CIDR set with more than one entry adds `-01`, `-02` in sorted order | `sg` |
+| Add-ons | `<prefix>-eks-cni`, `<prefix>-eks-kube-proxy`, `<prefix>-eks-coredns` | `eks` |
+| Access entries | `<prefix>-eks-access-bootstrap`, `<prefix>-eks-access-<key>` | `eks` |
+
+The `private_ingress` module derives the Name tags of the rules it adds to these
+two security groups from the same prefix.
 
 AWS owns the managed Cluster SG, control-plane ENIs, MNG ASG/instances and automatic
 MNG node access entry. They are not extra Terraform definitions or imported into
@@ -240,16 +269,16 @@ No kubeconfig, bearer token, secret or full-state publication is output.
 
 | Source | Effective values |
 | --- | --- |
-| Root Override | Actual scope/network/name/version/subnet/Node/capacity/bootstrap/add-on/flow inputs; DEV active AZ guard and governance tags |
-| Module Default | namespace_access={}, cluster_kms_key_arn=null, deletion_protection=true, tags={} |
-| Module Fixed | Private IPv4/API auth, creator admin and Auto/Fargate off; EC2 ON_DEMAND AL2023 catalog, IMDSv2 hop1, no SSH/public IP, encrypted disposable gp3; explicit core add-ons and IRSA; 30-day STANDARD logs; no forced update/drain or floating versions |
+| Root Override | Actual scope/network/version/subnet/Node/capacity/bootstrap/add-on/flow inputs; name_prefix `<project>-dev`; default_tags project/env/managed; DEV active AZ guard |
+| Module Default | namespace_access={}, cluster_kms_key_arn=null, deletion_protection=true, tags={}, default_tags={} |
+| Module Fixed | Private IPv4/API auth, creator admin and Auto/Fargate off; EC2 ON_DEMAND AL2023 catalog, IMDSv2 hop1, no SSH/public IP, encrypted disposable gp3; explicit core add-ons and IRSA; 30-day STANDARD logs; no forced update/drain or floating versions; names and Name/service tags above |
 
 ## Actual offline verification and execution boundary
 
-Terraform 1.17.0 / locked AWS 6.72.0: 52 native passes, seven complete positive
-plans and 45 intentional native rejection cases. Independent actual-plan checks
+Terraform 1.17.0 / locked AWS 6.72.0: 54 native passes, seven complete positive
+plans and 47 intentional native rejection cases. Independent actual-plan checks
 exercise exact ownership/resource inventory, known critical computed values,
-relationships, IAM/Trust/SG/access/add-on contracts and all outputs. There are 73
+relationships, IAM/Trust/SG/access/add-on contracts, exact Name/service tags and all outputs. There are 76
 semantic mutations, 21 capture-failure injections and ten source dependency/guard
 mutations per scope. Ten additional actual unsafe Terraform source copies are
 re-planned: private-profile violations fail native assertions and independent
@@ -257,7 +286,7 @@ checks; other unsafe IAM/SG/add-on variants fail actual-plan checks. Failed nati
 assertions can emit a plan; this is rejected evidence, not a successful topology.
 Required-input/partial-plan evidence is explicitly distinguished from full plans.
 
-The 73 detected semantic cases per scope comprise 53 generated-resource contracts,
+The 76 detected semantic cases per scope comprise 56 generated-resource contracts,
 nine IAM/Trust JSON mutations, two namespace privilege escalations and nine
 ownership/computed-value/output faults. The 21 capture rejections comprise seven
 missing-event types, six duplicate-event types, three failed/errored/skipped

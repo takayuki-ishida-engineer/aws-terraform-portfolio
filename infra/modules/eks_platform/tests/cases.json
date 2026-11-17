@@ -40,7 +40,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "name_prefix": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -48,7 +48,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -113,7 +112,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "name_prefix": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -121,7 +120,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -203,7 +201,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "name_prefix": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -211,7 +209,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -276,7 +273,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "name_prefix": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -284,7 +281,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -350,7 +346,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "name_prefix": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -358,7 +354,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-b",
           "private-a"
@@ -424,7 +419,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "name_prefix": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -432,7 +427,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -461,6 +455,11 @@
       "tags": {
         "Team": "test-platform",
         "Name": "caller-must-not-win"
+      },
+      "default_tags": {
+        "project": "test",
+        "env": "dev",
+        "managed": "terraform"
       }
     },
     "reviewed_teardown_setting": {
@@ -503,7 +502,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "name_prefix": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -511,7 +510,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -583,7 +581,9 @@
     "wrong_kms_account": "var.cluster_kms_key_arn",
     "world_api_ingress": "var.api_client_cidrs",
     "public_api_client": "var.api_client_cidrs",
-    "world_https_egress": "var.node_https_egress_cidrs"
+    "world_https_egress": "var.node_https_egress_cidrs",
+    "invalid_name_prefix": "var.name_prefix",
+    "invalid_access_key": "var.namespace_access"
   },
   "root_positive": {
     "private_dev": {
@@ -620,7 +620,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "project": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -628,7 +628,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -654,7 +653,6 @@
       },
       "aws_account_id": "000000000000",
       "active_workload_az": "ca-central-1a",
-      "ingress_name": "test-ingress",
       "ingress_subnet_key": "private-a",
       "gateway_target_port": 8443
     },
@@ -692,7 +690,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "project": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -700,7 +698,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -743,7 +740,6 @@
       },
       "aws_account_id": "000000000000",
       "active_workload_az": "ca-central-1a",
-      "ingress_name": "test-ingress",
       "ingress_subnet_key": "private-a",
       "gateway_target_port": 8443
     },
@@ -781,7 +777,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "project": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -789,7 +785,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -816,7 +811,6 @@
       "cluster_kms_key_arn": "arn:aws:kms:ca-central-1:000000000000:key/00000000-0000-0000-0000-000000000001",
       "aws_account_id": "000000000000",
       "active_workload_az": "ca-central-1a",
-      "ingress_name": "test-ingress",
       "ingress_subnet_key": "private-a",
       "gateway_target_port": 8443
     },
@@ -854,7 +848,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "project": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -862,7 +856,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -888,7 +881,6 @@
       },
       "aws_account_id": "000000000000",
       "active_workload_az": "ca-central-1a",
-      "ingress_name": "test-ingress",
       "ingress_subnet_key": "private-a",
       "gateway_target_port": 8443
     },
@@ -926,7 +918,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "project": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -934,7 +926,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -960,7 +951,6 @@
       },
       "aws_account_id": "000000000000",
       "active_workload_az": "ca-central-1a",
-      "ingress_name": "test-ingress",
       "ingress_subnet_key": "private-a",
       "gateway_target_port": 8443
     },
@@ -998,7 +988,7 @@
           "ca-central-1a": "nat-00000000000000001"
         }
       },
-      "cluster_name": "test-eks",
+      "project": "test",
       "kubernetes_version": "1.34",
       "service_ipv4_cidr": "172.20.0.0/16",
       "cluster_subnet_keys": [
@@ -1006,7 +996,6 @@
         "private-b"
       ],
       "node_group": {
-        "name": "test-workers",
         "subnet_keys": [
           "private-a"
         ],
@@ -1032,7 +1021,6 @@
       },
       "aws_account_id": "000000000000",
       "active_workload_az": "ca-central-1a",
-      "ingress_name": "test-ingress",
       "ingress_subnet_key": "private-a",
       "gateway_target_port": 443
     }
@@ -1069,6 +1057,7 @@
     "ingress_zero_port": "var.gateway_target_port",
     "ingress_large_port": "var.gateway_target_port",
     "ingress_fractional_port": "var.gateway_target_port",
-    "ingress_bad_name": "var.ingress_name"
+    "invalid_project": "var.project",
+    "reserved_tag_keys": "var.tags"
   }
 }
