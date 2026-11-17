@@ -13,7 +13,7 @@ override_resource {
     api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
     region          = "ca-central-1"
     ip_address_type = "ipv4"
-    tags_all        = {}
+    tags_all        = { Name = "test-http-api", service = "apigw" }
   }
 }
 
@@ -50,7 +50,7 @@ override_resource {
     region                 = "ca-central-1"
     deployment_id          = "mock-deployment"
     default_route_settings = { logging_level = "OFF" }
-    tags_all               = {}
+    tags_all               = { Name = "test-http-api-default", service = "apigw" }
   }
 }
 
@@ -161,7 +161,7 @@ run "govcloud_reference_scope" {
       api_endpoint    = "https://gov1234567.execute-api.us-gov-west-1.amazonaws.com"
       region          = "us-gov-west-1"
       ip_address_type = "ipv4"
-      tags_all        = {}
+      tags_all        = { Name = "test-http-api", service = "apigw" }
     }
   }
   override_resource {
@@ -193,7 +193,7 @@ run "govcloud_reference_scope" {
       region                 = "us-gov-west-1"
       deployment_id          = "mock-deployment"
       default_route_settings = { logging_level = "OFF" }
-      tags_all               = {}
+      tags_all               = { Name = "test-http-api-default", service = "apigw" }
     }
   }
   override_resource {
@@ -229,6 +229,35 @@ run "minimum_api_name" {
     api_name = "a"
   }
 
+  override_resource {
+    target          = aws_apigatewayv2_api.this
+    override_during = plan
+    values = {
+      id              = "a1b2c3d4e5"
+      arn             = "arn:aws:apigateway:ca-central-1::/apis/a1b2c3d4e5"
+      execution_arn   = "arn:aws:execute-api:ca-central-1:111111111111:a1b2c3d4e5"
+      api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
+      region          = "ca-central-1"
+      ip_address_type = "ipv4"
+      tags_all        = { Name = "a", service = "apigw" }
+    }
+  }
+
+  override_resource {
+    target          = aws_apigatewayv2_stage.this
+    override_during = plan
+    values = {
+      id                     = "$default"
+      arn                    = "arn:aws:apigateway:ca-central-1::/apis/a1b2c3d4e5/stages/$default"
+      execution_arn          = "arn:aws:execute-api:ca-central-1:111111111111:a1b2c3d4e5/$default"
+      invoke_url             = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com/"
+      region                 = "ca-central-1"
+      deployment_id          = "mock-deployment"
+      default_route_settings = { logging_level = "OFF" }
+      tags_all               = { Name = "a-default", service = "apigw" }
+    }
+  }
+
   assert {
     condition     = (aws_apigatewayv2_api.this.name == "a")
     error_message = "The inclusive one-character API name boundary must remain supported."
@@ -240,6 +269,35 @@ run "maximum_api_name" {
   command = plan
   variables {
     api_name = join("", [for i in range(128) : "a"])
+  }
+
+  override_resource {
+    target          = aws_apigatewayv2_api.this
+    override_during = plan
+    values = {
+      id              = "a1b2c3d4e5"
+      arn             = "arn:aws:apigateway:ca-central-1::/apis/a1b2c3d4e5"
+      execution_arn   = "arn:aws:execute-api:ca-central-1:111111111111:a1b2c3d4e5"
+      api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
+      region          = "ca-central-1"
+      ip_address_type = "ipv4"
+      tags_all        = { Name = join("", [for i in range(128) : "a"]), service = "apigw" }
+    }
+  }
+
+  override_resource {
+    target          = aws_apigatewayv2_stage.this
+    override_during = plan
+    values = {
+      id                     = "$default"
+      arn                    = "arn:aws:apigateway:ca-central-1::/apis/a1b2c3d4e5/stages/$default"
+      execution_arn          = "arn:aws:execute-api:ca-central-1:111111111111:a1b2c3d4e5/$default"
+      invoke_url             = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com/"
+      region                 = "ca-central-1"
+      deployment_id          = "mock-deployment"
+      default_route_settings = { logging_level = "OFF" }
+      tags_all               = { Name = "${join("", [for i in range(128) : "a"])}-default", service = "apigw" }
+    }
   }
 
   assert {
@@ -265,7 +323,7 @@ run "caller_owned_tags" {
       api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
       region          = "ca-central-1"
       ip_address_type = "ipv4"
-      tags_all        = { "Owner" : "Root-Owned", "Purpose" : "HTTP access", "Empty" : "" }
+      tags_all        = { "Owner" : "Root-Owned", "Purpose" : "HTTP access", "Empty" : "", Name = "test-http-api", service = "apigw" }
     }
   }
   override_resource {
@@ -279,13 +337,13 @@ run "caller_owned_tags" {
       region                 = "ca-central-1"
       deployment_id          = "mock-deployment"
       default_route_settings = { logging_level = "OFF" }
-      tags_all               = { "Owner" : "Root-Owned", "Purpose" : "HTTP access", "Empty" : "" }
+      tags_all               = { "Owner" : "Root-Owned", "Purpose" : "HTTP access", "Empty" : "", Name = "test-http-api-default", service = "apigw" }
     }
   }
 
   assert {
-    condition     = (aws_apigatewayv2_api.this.tags == var.tags && aws_apigatewayv2_stage.this.tags == var.tags)
-    error_message = "Caller tags must pass through to both resources without invented project/environment metadata."
+    condition     = (aws_apigatewayv2_api.this.tags == tomap(merge(var.tags, { Name = var.api_name, service = "apigw" })) && aws_apigatewayv2_stage.this.tags == tomap(merge(var.tags, { Name = "${var.api_name}-default", service = "apigw" })))
+    error_message = "Caller tags must pass through to both resources beside the module-owned Name and service tags."
   }
 }
 
@@ -293,7 +351,7 @@ run "caller_owned_tags" {
 run "maximum_tag_limits" {
   command = plan
   variables {
-    tags = merge({ (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) }, { for i in range(49) : format("tag-%02d", i) => "" })
+    tags = merge({ (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) }, { for i in range(47) : format("tag-%02d", i) => "" })
   }
 
   override_resource {
@@ -306,7 +364,7 @@ run "maximum_tag_limits" {
       api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
       region          = "ca-central-1"
       ip_address_type = "ipv4"
-      tags_all        = merge({ (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) }, { for i in range(49) : format("tag-%02d", i) => "" })
+      tags_all        = merge({ (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) }, { for i in range(47) : format("tag-%02d", i) => "" }, { Name = "test-http-api", service = "apigw" })
     }
   }
   override_resource {
@@ -320,13 +378,13 @@ run "maximum_tag_limits" {
       region                 = "ca-central-1"
       deployment_id          = "mock-deployment"
       default_route_settings = { logging_level = "OFF" }
-      tags_all               = merge({ (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) }, { for i in range(49) : format("tag-%02d", i) => "" })
+      tags_all               = merge({ (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) }, { for i in range(47) : format("tag-%02d", i) => "" }, { Name = "test-http-api-default", service = "apigw" })
     }
   }
 
   assert {
-    condition     = (length(aws_apigatewayv2_api.this.tags) == 50 && aws_apigatewayv2_api.this.tags == var.tags && aws_apigatewayv2_stage.this.tags == var.tags)
-    error_message = "Fifty tags with inclusive 128-character keys and 256-character values must remain accepted."
+    condition     = (length(aws_apigatewayv2_api.this.tags) == 50 && aws_apigatewayv2_api.this.tags == tomap(merge(var.tags, { Name = var.api_name, service = "apigw" })) && aws_apigatewayv2_stage.this.tags == tomap(merge(var.tags, { Name = "${var.api_name}-default", service = "apigw" })))
+    error_message = "Fifty tags (48 caller tags plus Name and service) with inclusive 128-character keys and 256-character values must remain accepted."
   }
 }
 
@@ -349,7 +407,7 @@ run "effective_provider_default_tags" {
       api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
       region          = "ca-central-1"
       ip_address_type = "ipv4"
-      tags_all        = { "Owner" : "Root-Owned", "CostCentre" : "test-default" }
+      tags_all        = { "Owner" : "Root-Owned", "CostCentre" : "test-default", Name = "test-http-api", service = "apigw" }
     }
   }
   override_resource {
@@ -363,12 +421,12 @@ run "effective_provider_default_tags" {
       region                 = "ca-central-1"
       deployment_id          = "mock-deployment"
       default_route_settings = { logging_level = "OFF" }
-      tags_all               = { "Owner" : "Root-Owned", "CostCentre" : "test-default" }
+      tags_all               = { "Owner" : "Root-Owned", "CostCentre" : "test-default", Name = "test-http-api-default", service = "apigw" }
     }
   }
 
   assert {
-    condition     = (aws_apigatewayv2_api.this.tags_all == tomap({ "Owner" : "Root-Owned", "CostCentre" : "test-default" }) && aws_apigatewayv2_stage.this.tags_all == tomap({ "Owner" : "Root-Owned", "CostCentre" : "test-default" }))
+    condition     = (aws_apigatewayv2_api.this.tags_all == tomap({ "Owner" : "Root-Owned", "CostCentre" : "test-default", Name = "test-http-api", service = "apigw" }) && aws_apigatewayv2_stage.this.tags_all == tomap({ "Owner" : "Root-Owned", "CostCentre" : "test-default", Name = "test-http-api-default", service = "apigw" }))
     error_message = "Valid known effective default/caller tag sets must satisfy both resource postconditions."
   }
 }
@@ -696,7 +754,7 @@ run "actual_api_wrong_account" {
       api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
       region          = "ca-central-1"
       ip_address_type = "ipv4"
-      tags_all        = {}
+      tags_all        = { Name = "test-http-api", service = "apigw" }
     }
   }
   expect_failures = [aws_apigatewayv2_api.this]
@@ -716,7 +774,7 @@ run "actual_api_wrong_region" {
       api_endpoint    = "https://a1b2c3d4e5.execute-api.us-east-1.amazonaws.com"
       region          = "us-east-1"
       ip_address_type = "ipv4"
-      tags_all        = {}
+      tags_all        = { Name = "test-http-api", service = "apigw" }
     }
   }
   expect_failures = [aws_apigatewayv2_api.this]
@@ -736,7 +794,7 @@ run "actual_api_wrong_partition" {
       api_endpoint    = "https://a1b2c3d4e5.execute-api.ca-central-1.amazonaws.com"
       region          = "ca-central-1"
       ip_address_type = "ipv4"
-      tags_all        = {}
+      tags_all        = { Name = "test-http-api", service = "apigw" }
     }
   }
   expect_failures = [aws_apigatewayv2_api.this]
@@ -822,9 +880,9 @@ run "logging_default_log_group_configuration" {
       aws_cloudwatch_log_group.this.log_group_class == "STANDARD" &&
       aws_cloudwatch_log_group.this.kms_key_id == null &&
       !aws_cloudwatch_log_group.this.skip_destroy &&
-      length(aws_cloudwatch_log_group.this.tags) == 0
+      aws_cloudwatch_log_group.this.tags == tomap({ Name = var.access_log_group_name, service = "apigw" })
     )
-    error_message = "Defaults must preserve the supplied name, finite 30-day retention, deletion protection, STANDARD class, ordinary service encryption and no added tags or skip-destroy orphaning."
+    error_message = "Defaults must preserve the supplied name, finite 30-day retention, deletion protection, STANDARD class, ordinary service encryption, only the module-owned Name/service tags and no skip-destroy orphaning."
   }
 }
 
@@ -1182,11 +1240,10 @@ run "logging_caller_owned_unicode_tags" {
 
   assert {
     condition = (
-      aws_cloudwatch_log_group.this.tags == var.access_log_tags &&
-      aws_cloudwatch_log_group.this.tags.Project == "Root-Owned" &&
-      !contains(keys(aws_cloudwatch_log_group.this.tags), "Name")
+      aws_cloudwatch_log_group.this.tags == tomap(merge(var.access_log_tags, { Name = var.access_log_group_name, service = "apigw" })) &&
+      aws_cloudwatch_log_group.this.tags.Project == "Root-Owned"
     )
-    error_message = "Caller Project metadata and API-supported Unicode/colon tags must pass through without invented Name or Project values."
+    error_message = "Caller metadata and API-supported Unicode/colon tags must pass through; only the module-owned Name and service win."
   }
 }
 
@@ -1196,7 +1253,7 @@ run "logging_maximum_tag_count_and_lengths" {
   variables {
     access_log_tags = merge(
       { (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) },
-      { for i in range(49) : format("tag-%02d", i) => "" }
+      { for i in range(47) : format("tag-%02d", i) => "" }
     )
   }
 
@@ -1212,7 +1269,7 @@ run "logging_maximum_tag_count_and_lengths" {
 
   assert {
     condition = (
-      aws_cloudwatch_log_group.this.tags == var.access_log_tags &&
+      aws_cloudwatch_log_group.this.tags == tomap(merge(var.access_log_tags, { Name = var.access_log_group_name, service = "apigw" })) &&
       length(aws_cloudwatch_log_group.this.tags) == 50 &&
       length(aws_cloudwatch_log_group.this.tags[join("", [for i in range(128) : "K"])]) == 256
     )

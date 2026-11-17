@@ -5,6 +5,7 @@ mock_provider "aws" {}
 variables {
   function_name     = "portfolio-test-lambda"
   role_name         = "portfolio-test-lambda-execution"
+  policy_name       = "portfolio-test-lambda-policy"
   partition         = "aws"
   account_id        = "000000000000"
   region            = "ca-central-1"
@@ -48,11 +49,11 @@ run "role_default_logging_only_role" {
       aws_iam_role.this.name == var.role_name &&
       aws_iam_role.this.path == "/" &&
       aws_iam_role.this.max_session_duration == 3600 &&
-      length(aws_iam_role.this.tags) == 0 &&
-      aws_iam_role_policy.this.name == "LambdaWorkloadAccess" &&
+      aws_iam_role.this.tags == tomap({ Name = var.role_name, service = "role" }) &&
+      aws_iam_role_policy.this.name == var.policy_name &&
       aws_iam_role_policy.this.role == aws_iam_role.this.name
     )
-    error_message = "The default module must own the named role and its one fixed, correctly bound inline policy without inventing tags."
+    error_message = "The default module must own the named role and its one explicitly named, correctly bound inline policy with only the module-owned Name/service tags."
   }
 
   assert {
@@ -358,8 +359,8 @@ run "role_caller_owned_unicode_tags" {
   command = plan
   variables { role_tags = { Project = "explicit-project", Name = "caller-owned", "環境:分類" = "検証 @ team" } }
   assert {
-    condition     = length(aws_iam_role.this.tags) == length(var.role_tags) && alltrue([for key, value in var.role_tags : aws_iam_role.this.tags[key] == value])
-    error_message = "The role must preserve caller-owned non-secret tags without inventing or replacing Project metadata."
+    condition     = aws_iam_role.this.tags == tomap(merge(var.role_tags, { Name = var.role_name, service = "role" }))
+    error_message = "The role must preserve caller-owned non-secret tags; only the module-owned Name and service win."
   }
 }
 
@@ -368,13 +369,13 @@ run "role_maximum_tag_count_and_lengths" {
   command = plan
   variables {
     role_tags = merge(
-      { for i in range(49) : "Tag${i}" => "test" },
+      { for i in range(47) : "Tag${i}" => "test" },
       { (join("", [for i in range(128) : "k"])) = join("", [for i in range(256) : "v"]) }
     )
   }
   assert {
     condition     = length(aws_iam_role.this.tags) == 50 && length(aws_iam_role.this.tags[join("", [for i in range(128) : "k"])]) == 256
-    error_message = "The supported 50-tag, 128-character key and 256-character value boundaries must remain usable."
+    error_message = "The supported 50-tag (48 caller tags plus Name and service), 128-character key and 256-character value boundaries must remain usable."
   }
 }
 
@@ -892,4 +893,10 @@ run "role_too_many_tags" {
   command = plan
   variables { role_tags = { for i in range(51) : "Tag${i}" => "test" } }
   expect_failures = [var.role_tags]
+}
+
+run "role_invalid_policy_name" {
+  command = plan
+  variables { policy_name = "portfolio/policy*" }
+  expect_failures = [var.policy_name]
 }

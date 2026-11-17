@@ -45,7 +45,7 @@ resource "aws_lambda_function" "this" {
   }
 
   layers = var.layers
-  tags   = var.tags
+  tags   = merge(var.tags, { Name = var.function_name, service = "lambda" })
 
   # Role ARN alone does not order the inline policy. No propagation claim.
   depends_on = [aws_iam_role_policy.this]

@@ -9,6 +9,7 @@ resource "aws_secretsmanager_secret" "this" {
   # not depend on provider default_tags (docs/deployment-configuration.md section 5).
   tags = merge(var.tags, {
     Name    = try(substr(var.name, 0, 256), "")
+    service = "secret"
     project = var.project_tag
   })
 }

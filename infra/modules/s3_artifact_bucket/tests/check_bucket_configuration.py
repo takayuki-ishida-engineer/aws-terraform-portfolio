@@ -225,9 +225,11 @@ def verify_fixture(name, resources):
     if name == "caller_owned_tags":
         expected_tags = {"Owner": "Root-Owned", "Purpose": "artifact storage", "Empty": ""}
     if name == "maximum_tag_limits":
-        expected_tags = {"K" * 128: "v" * 256, **{f"tag-{i:02}": "" for i in range(49)}}
+        expected_tags = {"K" * 128: "v" * 256, **{f"tag-{i:02}": "" for i in range(47)}}
     if name == "effective_provider_default_tags":
         expected_tags = {"Owner": "Root-Owned"}
+    # Module-owned Name and service win over caller tags (docs/deployment-configuration.md section 5).
+    expected_tags = {**expected_tags, "Name": expected_name, "service": "s3"}
     expected_all = {**expected_tags, **({"CostCentre": "test-default"} if name == "effective_provider_default_tags" else {})}
     bucket = resources["aws_s3_bucket"]
     require(bucket["bucket"] == expected_name and bucket["tags"] == expected_tags

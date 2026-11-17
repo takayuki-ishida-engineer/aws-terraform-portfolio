@@ -36,7 +36,7 @@ confidential connection information or secret values in them.
 
 `name` and `project_tag` reject null through their custom input validation. The
 optional tags/recovery inputs use their defaults when null is supplied.
-Module-owned canonical `Name` and `project` tags override the same caller keys.
+Module-owned canonical `Name`, `service = secret` and `project` tags override the same caller keys.
 Noncanonical case variants such as `name`, `NAME` or `project` are rejected to
 avoid ambiguous authorization/inventory metadata. Other service tag restrictions
 and organization tagging policies still require external verification.
@@ -74,7 +74,7 @@ pass it to a workload module.
 | --- | --- |
 | Root Override | Required stable name and project identity; optional description, tags, 7-30-day recovery choice and existing CMK ARN |
 | Module Default | No description, additional tags `{}`, recovery 30 days, no explicit KMS reference (service-managed default selection) |
-| Module Fixed | One metadata container; module-owned canonical Name/project tags; Name inventory value bounded to 256 characters; no values, replicas, resource policy, KMS resources, rotation or execution roles |
+| Module Fixed | One metadata container; module-owned canonical Name/service/project tags; Name inventory value bounded to 256 characters; no values, replicas, resource policy, KMS resources, rotation or execution roles |
 
 There are no arbitrary JSON policy inputs, secret-value options, generic feature
 flags or caller-selected Terraform resources. Adding a supported capability

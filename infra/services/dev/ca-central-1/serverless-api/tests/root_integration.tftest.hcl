@@ -7,15 +7,17 @@ override_resource {
   target          = module.artifact_bucket.aws_s3_bucket.this
   override_during = plan
   values = {
-    id            = "portfolio-test-dev-artifacts"
-    arn           = "arn:aws:s3:::portfolio-test-dev-artifacts"
+    id            = "test-dev-s3-artifact"
+    arn           = "arn:aws:s3:::test-dev-s3-artifact"
     acl           = ""
     policy        = ""
     bucket_prefix = ""
     tags_all = {
-      project = "aws-terraform-portfolio"
+      project = "test"
       env     = "dev"
       managed = "terraform"
+      Name    = "test-dev-s3-artifact"
+      service = "s3"
     }
   }
 }
@@ -24,8 +26,8 @@ override_resource {
   target          = module.secret_metadata.aws_secretsmanager_secret.this
   override_during = plan
   values = {
-    arn = "arn:aws:secretsmanager:ca-central-1:000000000000:secret:aws-terraform-portfolio-dev-serverless-api/application-ABC123"
-    id  = "arn:aws:secretsmanager:ca-central-1:000000000000:secret:aws-terraform-portfolio-dev-serverless-api/application-ABC123"
+    arn = "arn:aws:secretsmanager:ca-central-1:000000000000:secret:/test/dev/secret/app-ABC123"
+    id  = "arn:aws:secretsmanager:ca-central-1:000000000000:secret:/test/dev/secret/app-ABC123"
   }
 }
 
@@ -33,8 +35,8 @@ override_resource {
   target          = module.lambda_workload.aws_cloudwatch_log_group.this
   override_during = plan
   values = {
-    arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/aws/lambda/aws-terraform-portfolio-dev-serverless-api-function"
-    id  = "/aws/lambda/aws-terraform-portfolio-dev-serverless-api-function"
+    arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/aws/lambda/test-dev-lambda"
+    id  = "/aws/lambda/test-dev-lambda"
   }
 }
 
@@ -42,8 +44,8 @@ override_resource {
   target          = module.http_api.aws_cloudwatch_log_group.this
   override_during = plan
   values = {
-    arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/aws/apigateway/aws-terraform-portfolio-dev-serverless-api-access"
-    id  = "/aws/apigateway/aws-terraform-portfolio-dev-serverless-api-access"
+    arn = "arn:aws:logs:ca-central-1:000000000000:log-group:/test/dev/apigw/http"
+    id  = "/test/dev/apigw/http"
   }
 }
 
@@ -51,7 +53,7 @@ override_resource {
   target          = module.lambda_workload.aws_iam_role.this
   override_during = plan
   values = {
-    arn = "arn:aws:iam::000000000000:role/aws-terraform-portfolio-dev-serverless-api-execution"
+    arn = "arn:aws:iam::000000000000:role/test-dev-role-lambda"
   }
 }
 
@@ -59,8 +61,8 @@ override_resource {
   target          = module.lambda_workload.aws_lambda_function.this
   override_during = plan
   values = {
-    arn        = "arn:aws:lambda:ca-central-1:000000000000:function:aws-terraform-portfolio-dev-serverless-api-function"
-    invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:aws-terraform-portfolio-dev-serverless-api-function/invocations"
+    arn        = "arn:aws:lambda:ca-central-1:000000000000:function:test-dev-lambda"
+    invoke_arn = "arn:aws:apigateway:ca-central-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ca-central-1:000000000000:function:test-dev-lambda/invocations"
     version    = "$LATEST"
   }
 }
@@ -76,9 +78,11 @@ override_resource {
     region          = "ca-central-1"
     ip_address_type = "ipv4"
     tags_all = {
-      project = "aws-terraform-portfolio"
+      project = "test"
       env     = "dev"
       managed = "terraform"
+      Name    = "test-dev-apigw-http"
+      service = "apigw"
     }
   }
 }
@@ -117,9 +121,11 @@ override_resource {
     # configured HTTP throttling values, which the actual-plan checker checks.
     default_route_settings = { logging_level = "OFF" }
     tags_all = {
-      project = "aws-terraform-portfolio"
+      project = "test"
       env     = "dev"
       managed = "terraform"
+      Name    = "test-dev-apigw-http-default"
+      service = "apigw"
     }
   }
 }
@@ -136,7 +142,7 @@ override_resource {
 
 variables {
   aws_account_id          = "000000000000"
-  artifact_bucket_name    = "portfolio-test-dev-artifacts"
+  project                 = "test"
   artifact_key            = "lambda/test/function.zip"
   artifact_object_version = "synthetic-version-001"
   lambda_runtime          = "python3.13"
@@ -150,10 +156,10 @@ run "default_secret_read_disabled" {
     condition = (
       local.environment == "dev" &&
       local.region == "ca-central-1" &&
-      local.service == "serverless-api" &&
-      local.project == "aws-terraform-portfolio"
+      local.name_prefix == "test-dev" &&
+      local.path_prefix == "/test/dev"
     )
-    error_message = "Root workload identity must remain dev/ca-central-1/serverless-api under the approved project; mocks do not verify a live provider identity."
+    error_message = "Root workload identity must remain dev/ca-central-1 and derive names from <project>-dev; mocks do not verify a live provider identity."
   }
 
   assert {
@@ -171,18 +177,18 @@ run "default_secret_read_disabled" {
 
   assert {
     condition = (
-      module.lambda_workload.execution_role_name == "${local.name_prefix}-execution" &&
-      module.lambda_workload.execution_role_arn == "arn:aws:iam::${var.aws_account_id}:role/${local.name_prefix}-execution" &&
+      module.lambda_workload.execution_role_name == "${local.name_prefix}-role-lambda" &&
+      module.lambda_workload.execution_role_arn == "arn:aws:iam::${var.aws_account_id}:role/${local.name_prefix}-role-lambda" &&
       module.lambda_workload.permission_scope.role_name == module.lambda_workload.execution_role_name &&
-      module.lambda_workload.inline_policy_name == "LambdaWorkloadAccess" &&
-      module.lambda_workload.log_group_name == "/aws/lambda/${local.name_prefix}-function" &&
-      module.lambda_workload.log_group_arn == "arn:aws:logs:${local.region}:${var.aws_account_id}:log-group:/aws/lambda/${local.name_prefix}-function" &&
+      module.lambda_workload.inline_policy_name == "${local.name_prefix}-policy-lambda" &&
+      module.lambda_workload.log_group_name == "/aws/lambda/${local.name_prefix}-lambda" &&
+      module.lambda_workload.log_group_arn == "arn:aws:logs:${local.region}:${var.aws_account_id}:log-group:/aws/lambda/${local.name_prefix}-lambda" &&
       module.lambda_workload.permission_scope.log_group_arn == module.lambda_workload.log_group_arn &&
       module.lambda_workload.runtime == var.lambda_runtime &&
       module.lambda_workload.architecture == "x86_64" &&
       length(module.lambda_workload.vpc_configuration.subnet_ids) == 0 &&
       length(module.lambda_workload.vpc_configuration.security_group_ids) == 0 &&
-      module.artifact_bucket.bucket_name == var.artifact_bucket_name &&
+      module.artifact_bucket.bucket_name == "${local.name_prefix}-s3-artifact" &&
       module.artifact_bucket.versioning_status == "Enabled"
     )
     error_message = "Provider-backed role/log outputs must match the root workload identity and permission scope, with the explicit artifact bucket and no VPC integration."
@@ -190,8 +196,8 @@ run "default_secret_read_disabled" {
 
   assert {
     condition = (
-      module.http_api.access_log_group_name == "/aws/apigateway/${local.name_prefix}-access" &&
-      module.http_api.access_log_group_arn == "arn:aws:logs:${local.region}:${var.aws_account_id}:log-group:/aws/apigateway/${local.name_prefix}-access" &&
+      module.http_api.access_log_group_name == "${local.path_prefix}/apigw/http" &&
+      module.http_api.access_log_group_arn == "arn:aws:logs:${local.region}:${var.aws_account_id}:log-group:${local.path_prefix}/apigw/http" &&
       module.lambda_workload.log_group_name != module.http_api.access_log_group_name &&
       module.lambda_workload.log_group_arn != module.http_api.access_log_group_arn &&
       module.lambda_workload.log_retention_in_days == 30 &&
@@ -235,8 +241,8 @@ run "enabled_exact_secret_read" {
       module.lambda_workload.secret_read_enabled &&
       module.lambda_workload.permission_scope.secret_arn == module.secret_metadata.secret_arn &&
       module.lambda_workload.permission_scope.secret_kms_key_arn == null &&
-      module.lambda_workload.execution_role_name == "${local.name_prefix}-execution" &&
-      module.lambda_workload.execution_role_arn == "arn:aws:iam::${var.aws_account_id}:role/${local.name_prefix}-execution" &&
+      module.lambda_workload.execution_role_name == "${local.name_prefix}-role-lambda" &&
+      module.lambda_workload.execution_role_arn == "arn:aws:iam::${var.aws_account_id}:role/${local.name_prefix}-role-lambda" &&
       output.secret_metadata_arn == module.secret_metadata.secret_arn
     )
     error_message = "Opt-in secret reading must pass the actual full secret ARN to the existing role contract without enabling customer-managed KMS access."

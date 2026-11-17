@@ -2,7 +2,7 @@ resource "aws_apigatewayv2_api" "this" {
   name                         = var.api_name
   protocol_type                = "HTTP"
   disable_execute_api_endpoint = false
-  tags                         = var.tags
+  tags                         = merge(var.tags, { Name = var.api_name, service = "apigw" })
 
   lifecycle {
     postcondition {
@@ -51,7 +51,7 @@ resource "aws_apigatewayv2_stage" "this" {
   api_id      = aws_apigatewayv2_api.this.id
   name        = "$default"
   auto_deploy = true
-  tags        = var.tags
+  tags        = merge(var.tags, { Name = "${var.api_name}-default", service = "apigw" })
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.this.arn

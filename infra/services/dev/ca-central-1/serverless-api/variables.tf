@@ -9,10 +9,15 @@ variable "aws_account_id" {
   }
 }
 
-variable "artifact_bucket_name" {
-  description = "Explicit non-secret artifact bucket name; verify global uniqueness and approved ownership outside Terraform."
+variable "project" {
+  description = "Required project name used in every resource name (<project>-dev-<type>[-<purpose>]) and the project tag. The tracked placeholder is project; replace it before a real deployment."
   type        = string
   nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,8}[a-z0-9])?$", var.project)) && !can(regex("(aws|amazon|cognito)", var.project))
+    error_message = "project must be 1-10 lowercase letters, digits or hyphens, start with a letter, end with a letter or digit and not contain aws, amazon or cognito."
+  }
 }
 
 variable "artifact_key" {

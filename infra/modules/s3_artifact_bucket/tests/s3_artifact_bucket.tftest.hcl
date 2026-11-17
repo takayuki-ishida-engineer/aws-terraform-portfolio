@@ -10,7 +10,7 @@ override_resource {
     bucket_prefix = ""
     id            = "test-lambda-artifacts"
     arn           = "arn:aws:s3:::test-lambda-artifacts"
-    tags_all      = {}
+    tags_all      = { Name = "test-lambda-artifacts", service = "s3" }
   }
 }
 
@@ -26,7 +26,7 @@ run "default_private_bucket" {
       aws_s3_bucket.this.bucket == var.bucket_name &&
       aws_s3_bucket.this.bucket_namespace == "global" &&
       !aws_s3_bucket.this.force_destroy &&
-      length(aws_s3_bucket.this.tags) == 0 &&
+      aws_s3_bucket.this.tags == tomap({ Name = var.bucket_name, service = "s3" }) &&
       aws_s3_bucket_versioning.this.bucket == aws_s3_bucket.this.id &&
       aws_s3_bucket_versioning.this.versioning_configuration[0].status == "Enabled" &&
       aws_s3_bucket_public_access_block.this.bucket == aws_s3_bucket.this.id &&
@@ -78,7 +78,7 @@ run "resource_attribute_outputs" {
       bucket_prefix = ""
       id            = "test-lambda-artifacts"
       arn           = "arn:aws-us-gov:s3:::test-lambda-artifacts"
-      tags_all      = {}
+      tags_all      = { Name = "test-lambda-artifacts", service = "s3" }
     }
   }
 
@@ -108,7 +108,7 @@ run "minimum_name_length" {
       bucket_prefix = ""
       id            = "0a0"
       arn           = "arn:aws:s3:::0a0"
-      tags_all      = {}
+      tags_all      = { Name = "0a0", service = "s3" }
     }
   }
 
@@ -131,7 +131,7 @@ run "maximum_name_length" {
       bucket_prefix = ""
       id            = join("", [for i in range(63) : "a"])
       arn           = "arn:aws:s3:::${join("", [for i in range(63) : "a"])}"
-      tags_all      = {}
+      tags_all      = { Name = join("", [for i in range(63) : "a"]), service = "s3" }
     }
   }
 
@@ -154,13 +154,13 @@ run "caller_owned_tags" {
       bucket_prefix = ""
       id            = "test-lambda-artifacts"
       arn           = "arn:aws:s3:::test-lambda-artifacts"
-      tags_all      = { Owner = "Root-Owned", Purpose = "artifact storage", Empty = "" }
+      tags_all      = { Owner = "Root-Owned", Purpose = "artifact storage", Empty = "", Name = "test-lambda-artifacts", service = "s3" }
     }
   }
 
   assert {
-    condition     = aws_s3_bucket.this.tags == var.tags && !contains(keys(aws_s3_bucket.this.tags), "Name")
-    error_message = "Caller-owned non-secret tags, including an empty value, must pass through without invented module metadata."
+    condition     = aws_s3_bucket.this.tags == tomap(merge(var.tags, { Name = var.bucket_name, service = "s3" }))
+    error_message = "Caller-owned non-secret tags, including an empty value, must pass through beside the module-owned Name and service tags."
   }
 }
 
@@ -169,7 +169,7 @@ run "maximum_tag_limits" {
   variables {
     tags = merge(
       { (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) },
-      { for i in range(49) : format("tag-%02d", i) => "" }
+      { for i in range(47) : format("tag-%02d", i) => "" }
     )
   }
 
@@ -184,14 +184,15 @@ run "maximum_tag_limits" {
       arn           = "arn:aws:s3:::test-lambda-artifacts"
       tags_all = merge(
         { (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) },
-        { for i in range(49) : format("tag-%02d", i) => "" }
+        { for i in range(47) : format("tag-%02d", i) => "" },
+        { Name = "test-lambda-artifacts", service = "s3" }
       )
     }
   }
 
   assert {
-    condition     = aws_s3_bucket.this.tags == var.tags && length(aws_s3_bucket.this.tags) == 50
-    error_message = "Exactly 50 non-secret tags, 128-character keys and 256-character values must remain accepted."
+    condition     = aws_s3_bucket.this.tags == tomap(merge(var.tags, { Name = var.bucket_name, service = "s3" })) && length(aws_s3_bucket.this.tags) == 50
+    error_message = "Exactly 50 non-secret tags (48 caller tags plus Name and service), 128-character keys and 256-character values must remain accepted."
   }
 }
 
@@ -210,14 +211,14 @@ run "effective_provider_default_tags" {
       bucket_prefix = ""
       id            = "test-lambda-artifacts"
       arn           = "arn:aws:s3:::test-lambda-artifacts"
-      tags_all      = { Owner = "Root-Owned", CostCentre = "test-default" }
+      tags_all      = { Owner = "Root-Owned", CostCentre = "test-default", Name = "test-lambda-artifacts", service = "s3" }
     }
   }
 
   assert {
     condition = (
-      aws_s3_bucket.this.tags == var.tags &&
-      aws_s3_bucket.this.tags_all == tomap({ Owner = "Root-Owned", CostCentre = "test-default" })
+      aws_s3_bucket.this.tags == tomap(merge(var.tags, { Name = var.bucket_name, service = "s3" })) &&
+      aws_s3_bucket.this.tags_all == tomap({ Owner = "Root-Owned", CostCentre = "test-default", Name = "test-lambda-artifacts", service = "s3" })
     )
     error_message = "Caller tags and a valid mocked provider-default merge must both satisfy the effective tag contract."
   }

@@ -5,6 +5,7 @@ mock_provider "aws" {}
 variables {
   function_name     = "portfolio-test-lambda"
   role_name         = "portfolio-test-lambda-execution"
+  policy_name       = "portfolio-test-lambda-policy"
   partition         = "aws"
   account_id        = "000000000000"
   region            = "ca-central-1"
@@ -51,9 +52,9 @@ run "logging_default_log_group_configuration" {
       aws_cloudwatch_log_group.this.log_group_class == "STANDARD" &&
       aws_cloudwatch_log_group.this.kms_key_id == null &&
       !aws_cloudwatch_log_group.this.skip_destroy &&
-      length(aws_cloudwatch_log_group.this.tags) == 0
+      aws_cloudwatch_log_group.this.tags == tomap({ Name = var.log_group_name, service = "lambda" })
     )
-    error_message = "Defaults must preserve the supplied name, finite 30-day retention, deletion protection, STANDARD class, ordinary service encryption and no added tags or skip-destroy orphaning."
+    error_message = "Defaults must preserve the supplied name, finite 30-day retention, deletion protection, STANDARD class, ordinary service encryption, only the module-owned Name/service tags and no skip-destroy orphaning."
   }
 }
 
@@ -300,11 +301,10 @@ run "logging_caller_owned_unicode_tags" {
 
   assert {
     condition = (
-      aws_cloudwatch_log_group.this.tags == var.log_tags &&
-      aws_cloudwatch_log_group.this.tags.Project == "Root-Owned" &&
-      !contains(keys(aws_cloudwatch_log_group.this.tags), "Name")
+      aws_cloudwatch_log_group.this.tags == tomap(merge(var.log_tags, { Name = var.log_group_name, service = "lambda" })) &&
+      aws_cloudwatch_log_group.this.tags.Project == "Root-Owned"
     )
-    error_message = "Caller Project metadata and API-supported Unicode/colon tags must pass through without invented Name or Project values."
+    error_message = "Caller metadata and API-supported Unicode/colon tags must pass through; only the module-owned Name and service win."
   }
 }
 
@@ -314,13 +314,13 @@ run "logging_maximum_tag_count_and_lengths" {
   variables {
     log_tags = merge(
       { (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) },
-      { for i in range(49) : format("tag-%02d", i) => "" }
+      { for i in range(47) : format("tag-%02d", i) => "" }
     )
   }
 
   assert {
     condition = (
-      aws_cloudwatch_log_group.this.tags == var.log_tags &&
+      aws_cloudwatch_log_group.this.tags == tomap(merge(var.log_tags, { Name = var.log_group_name, service = "lambda" })) &&
       length(aws_cloudwatch_log_group.this.tags) == 50 &&
       length(aws_cloudwatch_log_group.this.tags[join("", [for i in range(128) : "K"])]) == 256
     )

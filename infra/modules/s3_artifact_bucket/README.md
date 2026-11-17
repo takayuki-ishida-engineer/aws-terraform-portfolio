@@ -22,7 +22,7 @@ The complete managed inventory is exactly:
 | Configuration | Source | Effective behavior |
 | --- | --- | --- |
 | `bucket_name` | Root Override, required | Caller-supplied stable name; no generated suffix |
-| `tags` | Module Default `{}` / Root Override | Visible, non-secret caller tags; no module-added keys |
+| `tags` | Module Default `{}` / Root Override | Visible, non-secret caller tags; the module adds `Name` (the bucket name) and `service = s3`, which win (Module Fixed) |
 | Provider, Region, account and provider `default_tags` | Root Override, outside this interface | Root selects and restricts the provider; Region is not a module input |
 | Namespace and every security setting above | Module Fixed | No public-access, versioning, encryption, ACL or deletion override |
 
@@ -46,8 +46,10 @@ partition. Bucket name and Region cannot be changed in place.
 `tags` is `map(string)`, defaults to `{}` and has `nullable = false`. Terraform
 uses the default for an explicitly null map. Values must be non-null and at most
 256 characters; keys must contain 1–128 characters and cannot use the reserved
-`aws:` prefix (checked without case sensitivity). At most 50 entries are allowed.
-Tags and names are not suitable for sensitive information.
+`aws:` prefix (checked without case sensitivity). Together with the module-owned
+`Name` and `service` keys at most 50 entries are allowed, so callers can supply 48
+other tags. Tags and names are not suitable for sensitive information. Tag keys and
+the module-owned tags follow [deployment configuration](../../../docs/deployment-configuration.md#5-tags).
 
 The bucket's `tags_all` postcondition also checks the effective tag set, including
 root-owned provider `default_tags`. Resource tags override matching provider

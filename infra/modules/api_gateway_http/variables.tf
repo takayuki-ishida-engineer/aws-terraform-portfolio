@@ -107,33 +107,33 @@ variable "access_log_kms_key_arn" {
 }
 
 variable "access_log_tags" {
-  description = "Optional visible, non-secret tags passed through without module-owned Name or Project metadata; provider default_tags remain root-owned."
+  description = "Optional visible, non-secret access log group tags; the module-owned Name and service tags win, and provider default_tags remain root-owned."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition = length(var.access_log_tags) <= 50 && alltrue([for key, value in var.access_log_tags :
+    condition = length(setunion(keys(var.access_log_tags), ["Name", "service"])) <= 50 && alltrue([for key, value in var.access_log_tags :
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
       can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]+$", key)) &&
       try(length(value) <= 256, false) && can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*$", value))
     ])
-    error_message = "tags must have at most 50 entries, 1-128-character keys without the reserved aws: prefix, and non-null values up to 256 characters; only Unicode letters, separators, numbers and _ . : / = + @ - are supported."
+    error_message = "tags plus the module-owned Name and service must have at most 50 entries, 1-128-character keys without the reserved aws: prefix, and non-null values up to 256 characters; only Unicode letters, separators, numbers and _ . : / = + @ - are supported."
   }
 }
 
 variable "tags" {
-  description = "Optional visible non-secret tags on the API and stage; provider default_tags remain root-owned and count toward each effective tag limit."
+  description = "Optional visible non-secret tags on the API and stage; the module-owned Name and service tags win, and provider default_tags remain root-owned and count toward each effective tag limit."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition = length(var.tags) <= 50 && alltrue([for key, value in var.tags :
+    condition = length(setunion(keys(var.tags), ["Name", "service"])) <= 50 && alltrue([for key, value in var.tags :
       length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
       can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]+$", key)) &&
       try(length(value) <= 256 && can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*$", value)), false)
     ])
-    error_message = "tags must have at most 50 non-secret entries, 1-128-character non-reserved keys and non-null values of at most 256 characters; use Unicode letters, separators, numbers and _ . : / = + @ - only, without the reserved aws: prefix."
+    error_message = "tags plus the module-owned Name and service must have at most 50 non-secret entries, 1-128-character non-reserved keys and non-null values of at most 256 characters; use Unicode letters, separators, numbers and _ . : / = + @ - only, without the reserved aws: prefix."
   }
 }

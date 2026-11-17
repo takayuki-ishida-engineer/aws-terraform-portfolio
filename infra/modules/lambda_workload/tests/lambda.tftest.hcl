@@ -5,6 +5,7 @@ mock_provider "aws" {}
 variables {
   function_name     = "portfolio-test-lambda"
   role_name         = "portfolio-test-lambda-execution"
+  policy_name       = "portfolio-test-lambda-policy"
   partition         = "aws"
   account_id        = "000000000000"
   region            = "ca-central-1"
@@ -78,9 +79,9 @@ run "lambda_default_function_configuration" {
       length(aws_lambda_function.this.environment) == 0 &&
       length(aws_lambda_function.this.layers) == 0 &&
       aws_lambda_function.this.reserved_concurrent_executions == null &&
-      length(aws_lambda_function.this.tags) == 0
+      aws_lambda_function.this.tags == tomap({ Name = var.function_name, service = "lambda" })
     )
-    error_message = "Defaults must add no VPC/environment/layers/tags and no reserved concurrency override."
+    error_message = "Defaults must add no VPC/environment/layers, only the module-owned Name/service tags and no reserved concurrency override."
   }
 }
 
@@ -299,8 +300,8 @@ run "lambda_caller_owned_tags" {
     tags = { Name = "test-function", Project = "test-portfolio", Environment = "test" }
   }
   assert {
-    condition     = aws_lambda_function.this.tags == var.tags
-    error_message = "Caller-owned non-sensitive tags must pass through without hidden additional tags."
+    condition     = aws_lambda_function.this.tags == tomap(merge(var.tags, { Name = var.function_name, service = "lambda" }))
+    error_message = "Caller-owned non-sensitive tags must pass through; only the module-owned Name and service win."
   }
 }
 

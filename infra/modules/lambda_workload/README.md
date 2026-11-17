@@ -37,6 +37,7 @@ The root must select/restrict the provider; mocks authenticate no AWS account.
 | `security_group_ids` | `[]` |
 | `log_group_name` | Required non-secret input |
 | `tags` | `{}` |
+| `policy_name` | Required non-secret input; name of the one inline workload policy, for example `<project>-<env>-policy-lambda` |
 | `role_name` | Required non-secret input |
 | `partition` | Required non-secret input |
 | `account_id` | Required non-secret input |
@@ -57,7 +58,9 @@ not China/isolated partitions. Shape/range checks do not establish enabled Regio
 account ownership or service access. Layers remain same-partition version references.
 
 Separate `tags` (function), `role_tags` and `log_tags` preserve each former caller
-contract/validation; all default to empty maps. Root provider default_tags remain
+contract/validation; all default to empty maps. The module adds `Name` and `service`
+(see [deployment configuration](../../../docs/deployment-configuration.md#5-tags)), so each map accepts 48 other
+tags within the 50-tag limit. Root provider default_tags remain
 separate and are not synthesized or replaced. Owned log CMK references must match
 expected workload partition/Region/account. This integrated scope is deliberately
 different from generic logging's broader independently tested aws-cn syntax; do not
@@ -69,7 +72,9 @@ claim of cross-account/partition key usability. No KMS resources are created.
 | Explicit names, expected account/Region/partition, approved S3 key/version, runtime/handler | Root Override; no invented production artifact/account defaults |
 | Compute, architecture, layers, environment/VPC/concurrency, log retention/protection/CMK and per-resource tags | Module Default unless caller explicitly overrides; preserve each variable's validation |
 | ZIP, publish=false, Text logging, PassThrough tracing | Module Fixed |
-| IAM role path=/, max session=3600, Lambda-only trust and LambdaWorkloadAccess policy name | Module Fixed |
+| IAM role path=/, max session=3600 and Lambda-only trust | Module Fixed |
+| Inline policy name | Root Override through required `policy_name` |
+| `Name` and `service` tags: function `function_name`/`lambda`, role `role_name` (`,` replaced by `-`)/`role`, log group `log_group_name` (first 256 characters, `#` replaced by `-`)/`lambda` | Module Fixed, winning over caller tags |
 | STANDARD log class, skip_destroy=false, owned-resource bindings, log→policy→function readiness | Module Fixed |
 | Optional secret/CMK grants | Fixed exact least-privilege policy construction controlled by genuine enable_secret_read and exact reference inputs |
 
@@ -148,8 +153,9 @@ and recreation avoidance need a separately authorized external real plan review.
 one-to-one to the actual integrated module, including replaced external-reference
 cases as owned ARN/identity/postcondition checks. The unchanged generic 51 logging
 cases remain in their module; 51 additional integrated adaptations plus three new
-log-key scope negatives give **188 local passing native cases**, 45 complete
-four-resource positives and 143 intentionally rejected partial plans. Generic China
+log-key scope negatives and one invalid `policy_name` negative give **189 local
+passing native cases**, 45 complete four-resource positives and 144 intentionally
+rejected partial plans. Generic China
 key acceptance remains independent; integrated China rejection is intentional.
 These new counts do not rewrite historical 384/153 baseline evidence.
 
