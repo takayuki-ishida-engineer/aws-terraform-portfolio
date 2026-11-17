@@ -15,6 +15,12 @@ For each DEV root, offline and credential-free:
 3. Preflight acceptance. A synthetic, non-placeholder ``local.auto.tfvars`` is
    added to the copy; the preflight must pass and Terraform must report the
    local values as effective, proving the override order.
+4. Backend examples. For each root that may use the optional S3 backend, the
+   tracked ``backend_override.tf.example`` and ``backend.s3.tfbackend.example``
+   are installed in the copy with the synthetic project: Terraform must accept
+   the override (fmt and validate, no backend initialization) and the preflight
+   must accept the settings, while the unedited example must be refused. The
+   tfstate bootstrap root must have no backend example at all.
 
 The live preflight is never run here. No AWS API is called; the synthetic
 account and identifiers are not real.
@@ -39,6 +45,7 @@ HEADERS = {
     "platform": "platform.tftest.hcl",
     "serverless-api": "root_integration.tftest.hcl",
     "api": "auth.tftest.hcl",
+    "tfstate": "tfstate.tftest.hcl",
 }
 NETWORK_REFERENCE = """{
   interface_version = 1
@@ -59,6 +66,7 @@ SYNTHETIC_LOCAL = {
     "serverless-api": {"artifact_object_version": '"Ci3HL4kqtJlcpXroDTDmJrmSpXd3dIbrHY"'},
     "api": {"callback_urls": '["https://app.ci-check.dev/callback"]', "logout_urls": '["https://app.ci-check.dev/logout"]',
             "default_redirect_uri": '"https://app.ci-check.dev/callback"'},
+    "tfstate": {},
 }
 
 
@@ -130,7 +138,32 @@ def preflight_copy(name, root, terraform):
                 "synthetic_values_refused:" + name + ":" + ",".join(accepted["findings"]))
         values = preflight.effective_values(copy, terraform, env)
         require(values["project"] == "ciproj" and values["aws_account_id"] == ACCOUNT, "local_override_not_effective:" + name)
-    return {"committed_values_refused": expected, "synthetic_local_values": "passed", "local_override_effective": True}
+        backend = backend_examples(name, root, copy, terraform, env)
+    return {"committed_values_refused": expected, "synthetic_local_values": "passed", "local_override_effective": True,
+            "backend_examples": backend}
+
+
+def backend_examples(name, root, copy, terraform, env):
+    """Install the tracked backend examples in the copy and check them offline."""
+    override, config = root / (preflight.BACKEND_OVERRIDE + ".example"), root / (preflight.BACKEND_CONFIG + ".example")
+    if name not in preflight.BACKEND_ROOTS:
+        require(not override.exists() and not config.exists(), "bootstrap_backend_example:" + name)
+        return "none (bootstrap root stays local)"
+    shutil.copy2(override, copy / preflight.BACKEND_OVERRIDE)
+    (copy / preflight.BACKEND_CONFIG).write_text(config.read_text(encoding="utf-8"), encoding="utf-8")
+    _settings, unedited = preflight.backend_state(name, copy, "ciproj")
+    require(unedited == ["backend_bucket_mismatch", "backend_key_mismatch"], "unedited_backend_example_accepted:" + name)
+    filled = config.read_text(encoding="utf-8").replace('"project-dev-s3-tfstate"', '"ciproj-dev-s3-tfstate"').replace(
+        '"project/dev/', '"ciproj/dev/')
+    (copy / preflight.BACKEND_CONFIG).write_text(filled, encoding="utf-8")
+    settings, findings = preflight.backend_state(name, copy, "ciproj")
+    require(findings == [] and settings == {"bucket": "ciproj-dev-s3-tfstate", "key": f"ciproj/dev/ca-central-1/{name}/terraform.tfstate",
+                                            "region": "ca-central-1", "use_lockfile": True, "encrypt": True},
+            "backend_example_refused:" + name + ":" + ",".join(findings))
+    for arguments in (["fmt", "-check", "-no-color", preflight.BACKEND_OVERRIDE], ["validate", "-no-color"]):
+        process = subprocess.run([terraform] + arguments, cwd=copy, env=env, capture_output=True, text=True, check=False)
+        require(process.returncode == 0, "backend_override_" + arguments[0] + ":" + name + ":" + process.stderr.strip()[:300])
+    return "valid"
 
 
 def main():

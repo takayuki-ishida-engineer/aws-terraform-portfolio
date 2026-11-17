@@ -2,9 +2,9 @@
 
 Status: conventions approved by the Owner on 2026-11-16 for Step 1, the DEV
 deploy-ready brush-up. This document defines the rules. Names and tags (item 2),
-the per-root value files and the local workflow (item 3) are implemented; the
-state bucket bootstrap and the remaining items follow in later Step 1 pull
-requests. Nothing here authorizes real AWS access in Codex Cloud or through CI/CD.
+the per-root value files and the local workflow (item 3) and the State bucket
+bootstrap with the optional S3 backend (item 4) are implemented; the remaining
+items follow in later Step 1 pull requests. Nothing here authorizes real AWS access in Codex Cloud or through CI/CD.
 
 ## 1. Where values live
 
@@ -75,10 +75,12 @@ It checks paths only, never file contents, and makes no AWS call.
   DEV limit and complete verified teardown within 72 hours.
 - The [local workflow](../scripts/local-workflow/README.md) runs `init`, the offline
   and live preflight, a saved plan, a typed confirmation and the apply of exactly
-  that plan, for one root at a time. Apply `network`, `platform`, then
-  `serverless-api` and `api`; destroy in the reverse order. The live preflight makes
-  only read-only calls (caller account, EKS add-on catalog, node AMI parameter) and
-  is refused in CI.
+  that plan, for one root at a time. Apply `tfstate` (only for the optional S3
+  backend), `network`, `platform`, then `serverless-api` and `api`; destroy in the
+  reverse order. The live preflight makes
+  only read-only calls (caller account, State bucket versioning and public access
+  block, EKS add-on catalog, node AMI parameter) and is refused in CI, in Claude
+  Code or Codex cloud sessions and with the cloud session's placeholder credentials.
 - Full CI plans every root with its committed values under mocks and proves the
   preflight refuses them and accepts synthetic local values. It never runs the live
   preflight.
@@ -89,19 +91,29 @@ It checks paths only, never file contents, and makes no AWS call.
 
 - **Default for DEV:** local State per root. Tracked `backend.tf` files keep
   `backend "local" {}`, so CI and default use never need a bucket.
-- **Optional DEV S3 backend for handover:** a dedicated bootstrap root (a later
-  Step 1 pull request) creates one state bucket with versioning, server-side
-  encryption with AWS managed keys (no customer managed KMS keys), all public
-  access blocked and a TLS-only bucket policy. Locking uses the S3 native lock file
-  (`use_lockfile = true`); no DynamoDB table is needed. The bootstrap root itself
-  keeps local State.
+- **Optional DEV S3 backend for handover:** the bootstrap root
+  `infra/services/dev/ca-central-1/tfstate/` (module `tfstate_bucket`) creates one
+  State bucket with versioning, server-side encryption with Amazon S3 managed keys
+  (SSE-S3, no customer managed KMS key), all public access blocked, ACLs disabled,
+  a bucket policy that denies non-TLS and pre-TLS-1.2 requests, `force_destroy =
+  false` and a lifecycle rule that expires noncurrent State versions after 90 days.
+  Locking uses the S3 native lock file (`use_lockfile = true`); no DynamoDB table is
+  needed. The bootstrap root itself keeps local State.
 - **Switching a root to S3 is local-only:** copy the tracked
   `backend_override.tf.example` to an untracked `backend_override.tf`, which declares
-  `backend "s3" {}`; put the bucket, key and region in an untracked
-  `backend.s3.tfbackend`; then run
+  an empty `backend "s3" {}`; copy `backend.s3.tfbackend.example` to an untracked
+  `backend.s3.tfbackend` and fill in the project (bucket, key, region,
+  `use_lockfile = true`, `encrypt = true`, nothing else); then run
+  `python3 scripts/local-workflow/run.py <root> migrate-state`, which checks the
+  files, the caller account and the bucket before running
   `terraform init -backend-config=backend.s3.tfbackend -migrate-state`. Terraform
   replaces the tracked backend with the override file's backend (verified offline
-  with Terraform 1.17.0).
+  with Terraform 1.17.0). Afterwards `run.py` passes the backend settings on every
+  init.
+- **Back to local State or teardown:** delete both untracked files and run
+  `terraform init -migrate-state` in the root. Before destroying the bootstrap root,
+  every root must be back on local State (or destroyed) and every object version
+  removed, because `force_destroy` is `false`.
 - **Bucket name:** `<project>-<env>-s3-tfstate`, following section 4 without a
   uniqueness suffix.
 - **State keys:** one per root, `<project>/<env>/<region>/<service>/terraform.tfstate`.
@@ -303,6 +315,8 @@ approval. The Owner may reorder them.
    workflow with preflight checks and CI validation using the committed values.
    Delivered, together with audit findings F1, F12 and F14.
 4. DEV state bucket bootstrap root and the optional S3 backend override.
+   Delivered: the `tfstate` root, the `tfstate_bucket` module, per-root backend
+   examples and `run.py migrate-state`.
 5. SSM developer-access EC2: local workstation → Session Manager port forwarding →
    private EKS endpoint (443), and later private RDS (5432). No SSH and no public IP.
 6. Cross-root hand-off automation and the local apply/destroy runbook, including

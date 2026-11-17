@@ -9,10 +9,17 @@ Run from the operator's workstation before any real AWS operation
   effective value is still a documented placeholder or example value. The
   effective values come from ``terraform console`` in the initialized root, so
   Terraform's own tfvars precedence applies. No AWS API is called.
+- Optional S3 backend (offline): when a root has an untracked
+  ``backend_override.tf``, its untracked ``backend.s3.tfbackend`` must hold
+  exactly the bucket, key, Region, native locking and encryption settings that
+  docs/deployment-configuration.md section 3 defines, and nothing else (no
+  profile, role or credential). The tfstate bootstrap root always stays local.
 - Live (``--live``, workstation only): read-only AWS calls with the operator's
-  own CLI credentials confirm the caller account and, for the platform root,
-  that the pinned EKS add-on versions and node AMI release exist. Refused in CI
-  and whenever an AWS endpoint override is set.
+  own CLI credentials confirm the caller account, the State bucket's versioning
+  and public access block when the S3 backend is used and, for the platform
+  root, that the pinned EKS add-on versions and node AMI release exist. Refused
+  in CI, in Claude Code or Codex cloud sessions, with the cloud session's
+  placeholder credentials and whenever an AWS endpoint override is set.
 
 The script never reads, prints or writes a credential or secret value.
 """
@@ -37,7 +44,21 @@ ENVIRONMENT_INPUTS = {
     "platform": ("project", "aws_account_id", "bootstrap_admin_role_arn", "network_reference"),
     "serverless-api": ("project", "aws_account_id", "artifact_object_version"),
     "api": ("project", "aws_account_id", "callback_urls", "logout_urls", "default_redirect_uri"),
+    "tfstate": ("project", "aws_account_id"),
 }
+BACKEND_OVERRIDE = "backend_override.tf"
+BACKEND_CONFIG = "backend.s3.tfbackend"
+# Roots that may use the optional S3 backend; the tfstate bootstrap root may not.
+BACKEND_ROOTS = ("network", "platform", "serverless-api", "api")
+BACKEND_SETTINGS = ("bucket", "key", "region", "use_lockfile", "encrypt")
+EMPTY_S3_BACKEND = 'terraform{backend"s3"{}}'
+# Signals that the process runs in automation or an agent cloud session, where
+# real AWS access is prohibited (AGENTS.md). The cloud session also exposes the
+# placeholder value below in AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+CI_MARKERS = ("CI", "GITHUB_ACTIONS")
+CLOUD_SESSION_MARKERS = ("CLAUDE_CODE_REMOTE", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED")
+PLACEHOLDER_CREDENTIAL = "proxy-injected"
+CREDENTIAL_VARIABLES = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")
 
 # Documented placeholders (section 1), values from the local.auto.tfvars.example
 # templates and the Emulator's synthetic account. Any of them in an effective
@@ -56,7 +77,8 @@ PLACEHOLDER_PATTERNS = [
 # Account IDs inside ARNs, and bare 12-digit values such as scope.account_id.
 ARN_ACCOUNT = re.compile(r"arn:aws[a-z-]*:[a-z0-9-]*:[a-z0-9-]*:([0-9]{12}):")
 BARE_ACCOUNT = re.compile(r"^([0-9]{12})$")
-READ_ONLY_AWS = {("sts", "get-caller-identity"), ("eks", "describe-addon-versions"), ("ssm", "get-parameter")}
+READ_ONLY_AWS = {("sts", "get-caller-identity"), ("eks", "describe-addon-versions"), ("ssm", "get-parameter"),
+                 ("s3api", "get-bucket-versioning"), ("s3api", "get-public-access-block")}
 ADDON_NAMES = {"vpc_cni": "vpc-cni", "coredns": "coredns", "kube_proxy": "kube-proxy"}
 
 
@@ -100,14 +122,7 @@ def local_file_findings(root_name, root):
     path = Path(root) / LOCAL_FILE
     if not path.is_file():
         return ["local_tfvars_missing"]
-    findings = []
-    work_tree = git_work_tree(root)
-    relative = os.path.relpath(path, work_tree)
-    git = ["git", "-C", str(work_tree)]
-    if subprocess.run(git + ["ls-files", "--error-unmatch", "--", relative], capture_output=True, check=False).returncode == 0:
-        findings.append("local_tfvars_tracked")
-    if subprocess.run(git + ["check-ignore", "-q", "--", relative], capture_output=True, check=False).returncode != 0:
-        findings.append("local_tfvars_not_ignored")
+    findings = git_state_findings(root, path, "local_tfvars")
     text = path.read_text(encoding="utf-8")
     for key in ENVIRONMENT_INPUTS[root_name]:
         if not re.search(r"(?m)^\s*" + re.escape(key) + r"\s*=", text):
@@ -121,6 +136,78 @@ def git_work_tree(root):
     if process.returncode != 0:
         raise PreflightError("root_not_in_git_work_tree")
     return Path(process.stdout.strip())
+
+
+def git_state_findings(root, path, label):
+    """Findings when an untracked local file is tracked or not ignored by Git."""
+    work_tree = git_work_tree(root)
+    relative = os.path.relpath(path, work_tree)
+    git = ["git", "-C", str(work_tree)]
+    if subprocess.run(git + ["ls-files", "--error-unmatch", "--", relative], capture_output=True, check=False).returncode == 0:
+        return [label + "_tracked"]
+    if subprocess.run(git + ["check-ignore", "-q", "--", relative], capture_output=True, check=False).returncode != 0:
+        return [label + "_not_ignored"]
+    return []
+
+
+def local_value(root, key):
+    """A plain string assignment from local.auto.tfvars, read without Terraform."""
+    path = Path(root) / LOCAL_FILE
+    if not path.is_file():
+        return None
+    match = re.search(r'(?m)^\s*' + re.escape(key) + r'\s*=\s*"([^"]*)"\s*(#.*)?$', path.read_text(encoding="utf-8"))
+    return match.group(1) if match else None
+
+
+def parse_backend_config(path):
+    """Parse a .tfbackend file of plain `name = "string"` / `name = true|false` lines."""
+    settings = {}
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith(("#", "//")):
+            continue
+        match = re.fullmatch(r'([a-z_]+)\s*=\s*("([^"\\]*)"|true|false)', line)
+        if not match or match.group(1) in settings:
+            raise ValueError("backend_config_unparsable")
+        settings[match.group(1)] = match.group(3) if match.group(3) is not None else match.group(2) == "true"
+    return settings
+
+
+def backend_state(root_name, root, project):
+    """Return (settings or None, findings) for the optional local S3 backend."""
+    root = Path(root)
+    override, config = root / BACKEND_OVERRIDE, root / BACKEND_CONFIG
+    if not override.exists() and not config.exists():
+        return None, []
+    if root_name not in BACKEND_ROOTS:
+        return None, ["bootstrap_backend_must_stay_local"]
+    if not override.is_file():
+        return None, ["backend_config_without_override"]
+    if not config.is_file():
+        return None, ["backend_config_missing"]
+    findings = git_state_findings(root, override, "backend_override") + git_state_findings(root, config, "backend_config")
+    source = re.sub(r"(?m)(#|//).*$", "", override.read_text(encoding="utf-8"))
+    if re.sub(r"\s+", "", source) != EMPTY_S3_BACKEND:
+        findings.append("backend_override_unexpected_content")
+    try:
+        settings = parse_backend_config(config)
+    except ValueError as error:
+        return None, findings + [str(error)]
+    if set(settings) != set(BACKEND_SETTINGS):
+        return None, findings + ["backend_config_settings"]
+    if project in PLACEHOLDER_PROJECTS or project is None:
+        findings.append("placeholder:backend")
+    if settings["bucket"] != f"{project}-dev-s3-tfstate":
+        findings.append("backend_bucket_mismatch")
+    if settings["key"] != f"{project}/dev/{REGION}/{root_name}/terraform.tfstate":
+        findings.append("backend_key_mismatch")
+    if settings["region"] != REGION:
+        findings.append("backend_region_mismatch")
+    if settings["use_lockfile"] is not True:
+        findings.append("backend_lockfile_disabled")
+    if settings["encrypt"] is not True:
+        findings.append("backend_encryption_disabled")
+    return settings, findings
 
 
 def strings_in(value):
@@ -169,21 +256,54 @@ def run_aws(aws, arguments, env):
     return json.loads(process.stdout)
 
 
-def live_findings(root_name, values, aws="aws", env=None):
-    """Read-only checks against the operator's AWS account. Never run in CI."""
-    environment = os.environ if env is None else env
-    if environment.get("CI") or environment.get("GITHUB_ACTIONS"):
-        return ["live_refused_in_ci"]
-    if any(key == "AWS_ENDPOINT_URL" or key.startswith("AWS_ENDPOINT_URL_") for key in environment):
-        return ["live_refused_endpoint_override"]
-    identity = run_aws(aws, ["sts", "get-caller-identity"], environment)
+def automation_refusal(env):
+    """The refusal code when real AWS access must not happen here, else None."""
+    if any(env.get(key) for key in CI_MARKERS):
+        return "live_refused_in_ci"
+    if any(env.get(key) for key in CLOUD_SESSION_MARKERS):
+        return "live_refused_in_cloud_session"
+    if any(env.get(key) == PLACEHOLDER_CREDENTIAL for key in CREDENTIAL_VARIABLES):
+        return "live_refused_placeholder_credentials"
+    if any(key == "AWS_ENDPOINT_URL" or key.startswith("AWS_ENDPOINT_URL_") for key in env):
+        return "live_refused_endpoint_override"
+    return None
+
+
+def caller_findings(account, aws, env):
+    identity = run_aws(aws, ["sts", "get-caller-identity"], env)
     if not isinstance(identity, dict) or not isinstance(identity.get("Account"), str):
         return ["caller_identity_unavailable"]
     if identity["Account"] in PLACEHOLDER_ACCOUNTS:
         return ["caller_account_synthetic"]
-    if identity["Account"] != values.get("aws_account_id"):
+    if identity["Account"] != account:
         return ["caller_account_mismatch"]
-    findings = []
+    return []
+
+
+def state_bucket_findings(bucket, aws, env):
+    """Read-only checks that the State bucket exists, is versioned and private."""
+    versioning = run_aws(aws, ["s3api", "get-bucket-versioning", "--bucket", bucket], env)
+    if not isinstance(versioning, dict):
+        return ["state_bucket_unavailable"]
+    findings = [] if versioning.get("Status") == "Enabled" else ["state_bucket_versioning_not_enabled"]
+    block = run_aws(aws, ["s3api", "get-public-access-block", "--bucket", bucket], env)
+    settings = (block or {}).get("PublicAccessBlockConfiguration", {}) if isinstance(block, dict) else {}
+    if not all(settings.get(key) is True for key in ("BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets")):
+        findings.append("state_bucket_public_access_not_blocked")
+    return findings
+
+
+def live_findings(root_name, values, aws="aws", env=None, backend=None):
+    """Read-only checks against the operator's AWS account. Never run in CI or a cloud session."""
+    environment = os.environ if env is None else env
+    refusal = automation_refusal(environment)
+    if refusal:
+        return [refusal]
+    findings = caller_findings(values.get("aws_account_id"), aws, environment)
+    if findings:
+        return findings
+    if backend:
+        findings += state_bucket_findings(backend["bucket"], aws, environment)
     if root_name == "platform":
         version = values["kubernetes_version"]
         for key, addon in ADDON_NAMES.items():
@@ -214,10 +334,38 @@ def preflight(root_name, terraform="terraform", aws="aws", live=False, services=
     findings = local_file_findings(root_name, root)
     values = effective_values(root, terraform, env)
     findings += value_findings(root_name, values)
+    backend, backend_issues = backend_state(root_name, root, values.get("project"))
+    findings += backend_issues
     if live:
-        findings += ["live_skipped_offline_findings"] if findings else live_findings(root_name, values, aws, env)
+        findings += ["live_skipped_offline_findings"] if findings else live_findings(root_name, values, aws, env, backend)
     return {"root": root_name, "mode": "live" if live else "offline", "status": "failed" if findings else "passed",
             "findings": findings}
+
+
+def migration_findings(root_name, root, aws="aws", env=None):
+    """Checks before moving a root's local State into the S3 backend.
+
+    The root is not yet initialized for S3, so values come from
+    local.auto.tfvars directly instead of terraform console.
+    """
+    environment = os.environ if env is None else env
+    root = Path(root)
+    findings = local_file_findings(root_name, root)
+    project, account = local_value(root, "project"), local_value(root, "aws_account_id")
+    if project is None or account is None:
+        findings.append("local_identity_unreadable")
+    elif account in PLACEHOLDER_ACCOUNTS:
+        findings.append("placeholder:aws_account_id")
+    backend, issues = backend_state(root_name, root, project)
+    findings += issues
+    if backend is None and not issues:
+        findings.append("backend_override_missing")
+    if findings:
+        return findings
+    refusal = automation_refusal(environment)
+    if refusal:
+        return [refusal]
+    return caller_findings(account, aws, environment) or state_bucket_findings(backend["bucket"], aws, environment)
 
 
 def main(argv=None):
