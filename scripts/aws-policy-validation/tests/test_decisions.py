@@ -71,9 +71,9 @@ class SimulationDecisionTests(unittest.TestCase):
 
   def test_missing_aggregate_context_is_inconclusive(self):
     current = case()
-    result = simulation_result(current, pages_for(current, missing=["aws:ResourceTag/Project"]))
+    result = simulation_result(current, pages_for(current, missing=["aws:ResourceTag/project"]))
     self.assertEqual((result["status"], result["reason"]), ("inconclusive", "missing_context"))
-    self.assertEqual(result["keys"], ["aws:ResourceTag/Project"])
+    self.assertEqual(result["keys"], ["aws:ResourceTag/project"])
 
   def test_missing_resource_context_is_inconclusive(self):
     current = case()

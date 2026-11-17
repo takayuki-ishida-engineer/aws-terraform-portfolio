@@ -84,9 +84,9 @@ class GuardrailTests(ToolkitFixture):
     self.assertEqual(len(rows), 8)
     for row in rows:
       self.assertNotIn("ec2:CreateAction", row["context"])
-      self.assertEqual(row["context"]["aws:ResourceTag/Project"], "another-project")
-      self.assertEqual(row["context"]["aws:RequestTag/Project"], self.scope["project_tag"])
-      self.assertEqual(row["context"]["aws:TagKeys"], ["Project"])
+      self.assertEqual(row["context"]["aws:ResourceTag/project"], "another-project")
+      self.assertEqual(row["context"]["aws:RequestTag/project"], self.scope["project_tag"])
+      self.assertEqual(row["context"]["aws:TagKeys"], ["project"])
       self.assertEqual(row["baseline"]["actual"], "implicit_deny")
       self.assertEqual(row["mutated"]["actual"], "allowed")
       self.assertTrue(row["regression_exposed"])
@@ -98,8 +98,8 @@ class GuardrailTests(ToolkitFixture):
     self.assertEqual({row["resource_type"] for row in rows}, set(oracle.CREATE))
     for row in rows:
       self.assertIn("ec2:CreateAction", row["context"])
-      self.assertNotIn("aws:ResourceTag/Project", row["context"])
-      self.assertEqual(row["context"]["aws:RequestTag/Project"], self.scope["project_tag"])
+      self.assertNotIn("aws:ResourceTag/project", row["context"])
+      self.assertEqual(row["context"]["aws:RequestTag/project"], self.scope["project_tag"])
       self.assertEqual(row["baseline"]["actual"], "implicit_deny")
       self.assertEqual(row["mutated"]["actual"], "allowed")
 
@@ -114,7 +114,7 @@ class GuardrailTests(ToolkitFixture):
     scope = {**self.scope, "project_tag": "another-project"}
     report = self.report(policies, scope)
     self.assertEqual(report["status"], "passed")
-    self.assertEqual(self.scenario(report, "ec2-0-vpc-direct-adoption")["context"]["aws:ResourceTag/Project"], "different-project")
+    self.assertEqual(self.scenario(report, "ec2-0-vpc-direct-adoption")["context"]["aws:ResourceTag/project"], "different-project")
 
   def test_secret_guards_have_separate_and_combined_truth_scenarios(self):
     report = self.report()
@@ -190,7 +190,7 @@ class GuardrailTests(ToolkitFixture):
         extra["Sid"] = "UnreviewedSecretAllow"
         del extra["Condition"][operator]
         # Make the sample scenario inapplicable while preserving a potential grant.
-        extra["Condition"]["StringEquals"]["aws:RequestTag/Project"] = "another-project"
+        extra["Condition"]["StringEquals"]["aws:RequestTag/project"] = "another-project"
         policies["developer_inline"]["Statement"].append(extra)
         report = self.report(policies)
         self.assertEqual(report["status"], "failed")
@@ -212,7 +212,7 @@ class GuardrailTests(ToolkitFixture):
       for statement in document["Statement"]:
         statement["Action"] = [action.upper() for action in statement["Action"]]
     self.assertEqual(self.report(policies)["status"], "passed")
-    report = self.changed("EditNonAuthorizationTags", lambda s: s["Condition"]["StringEquals"].update({"aws:ResourceTag/Project": self.scope["project_tag"].upper()}))
+    report = self.changed("EditNonAuthorizationTags", lambda s: s["Condition"]["StringEquals"].update({"aws:ResourceTag/project": self.scope["project_tag"].upper()}))
     self.assertEqual(report["status"], "failed")
 
   def test_condition_key_case_is_insensitive(self):

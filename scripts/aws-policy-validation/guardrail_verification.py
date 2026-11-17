@@ -15,7 +15,8 @@ POLICIES = ("developer_inline", "developer_secrets_manager")
 ACTIONS = ("ec2:CreateTags", "secretsmanager:CreateSecret")
 CREATE = {"vpc": "CreateVpc", "subnet": "CreateSubnet",
           "internet-gateway": "CreateInternetGateway", "route-table": "CreateRouteTable"}
-TAGS = {"Environment", "ManagedBy", "Name", "Project", "Service"}
+# Exactly the approved tag keys (docs/deployment-configuration.md section 5).
+TAGS = {"Name", "env", "managed", "project", "service"}
 OPERATORS = {"StringEquals", "StringEqualsIfExists", "ForAllValues:StringEquals",
              "ForAllValues:StringNotEqualsIgnoreCase", "ForAnyValue:StringNotEqualsIgnoreCase",
              "Null", "BoolIfExists", "NumericGreaterThanEquals", "NumericLessThanEquals"}
@@ -173,7 +174,7 @@ def _structural(item, action, scope):
     part["region"] == scope["region"] and part["account"] in approved_accounts for part in resources)
   base = bounded and _has(item, "StringEquals", "aws:PrincipalAccount", approved_accounts, subset=True) and _has(item, "StringEquals", "aws:RequestedRegion", [scope["region"]])
   if secret:
-    form = (_has(item, "StringEquals", "aws:RequestTag/Project", [scope["project"]]) and
+    form = (_has(item, "StringEquals", "aws:RequestTag/project", [scope["project"]]) and
       _has(item, "ForAllValues:StringEquals", "aws:TagKeys", TAGS) and
       _has(item, "Null", "secretsmanager:AddReplicaRegions", ["true"]) and
       _has(item, "BoolIfExists", "secretsmanager:ForceOverwriteReplicaSecret", ["false"]))
@@ -181,11 +182,11 @@ def _structural(item, action, scope):
   else:
     protected = (any(value.casefold() == "project" for value in item["conditions"].get("ForAllValues:StringNotEqualsIgnoreCase", {}).get("aws:tagkeys", [])) and
       _has(item, "Null", "aws:TagKeys", ["false"]) and
-      _has(item, "StringEquals", "aws:ResourceTag/Project", [scope["project"]]))
+      _has(item, "StringEquals", "aws:ResourceTag/project", [scope["project"]]))
     create = item["conditions"].get("StringEquals", {}).get("ec2:createaction", [])
     creation = (len(create) == 1 and create[0] in CREATE.values() and
       all(part is not None and CREATE.get(part["type"]) == create[0] for part in resources) and
-      _has(item, "StringEquals", "aws:RequestTag/Project", [scope["project"]]) and
+      _has(item, "StringEquals", "aws:RequestTag/project", [scope["project"]]) and
       _has(item, "ForAllValues:StringEquals", "aws:TagKeys", TAGS))
     form = protected or creation
     certificate = "case_insensitive_protected_key_exclusion_and_existing_project" if protected else "required_create_action_and_canonical_request_tags"
@@ -264,18 +265,18 @@ def _scenarios(scope):
     for kind, create in CREATE.items():
       resource = _arn(scope, "ec2", kind, account)
       base = {"aws:PrincipalAccount": account, "aws:RequestedRegion": scope["region"],
-              "aws:ResourceTag/Project": scope["project"], "aws:TagKeys": ["Name"]}
+              "aws:ResourceTag/project": scope["project"], "aws:TagKeys": ["Name"]}
       prefix = f"ec2-{index}-{kind}-"
       add(prefix + "ordinary-edit", ACTIONS[0], kind, resource, base, True)
       for variant in ("Project", "project", "pRoJeCt"):
-        context = {**base, "aws:TagKeys": [variant], "aws:RequestTag/Project": scope["project"]}
+        context = {**base, "aws:TagKeys": [variant], "aws:RequestTag/project": scope["project"]}
         add(prefix + "overwrite-" + variant, ACTIONS[0], kind, resource, context, False)
       add(prefix + "mixed-protected-keys", ACTIONS[0], kind, resource,
-          {**base, "aws:TagKeys": ["Name", "pRoJeCt"], "aws:RequestTag/Project": scope["project"]}, False)
+          {**base, "aws:TagKeys": ["Name", "pRoJeCt"], "aws:RequestTag/project": scope["project"]}, False)
       add(prefix + "direct-adoption", ACTIONS[0], kind, resource,
-          {**base, "aws:ResourceTag/Project": foreign_project, "aws:RequestTag/Project": scope["project"], "aws:TagKeys": ["Project"]}, False)
+          {**base, "aws:ResourceTag/project": foreign_project, "aws:RequestTag/project": scope["project"], "aws:TagKeys": ["project"]}, False)
       creation = {"aws:PrincipalAccount": account, "aws:RequestedRegion": scope["region"],
-                  "aws:RequestTag/Project": scope["project"], "aws:TagKeys": sorted(TAGS), "ec2:CreateAction": create}
+                  "aws:RequestTag/project": scope["project"], "aws:TagKeys": sorted(TAGS), "ec2:CreateAction": create}
       add(prefix + "create-tagging", ACTIONS[0], kind, resource, creation, True)
       wrong_action = "CreateSubnet" if create == "CreateVpc" else "CreateVpc"
       for label, change in (("create-wrong-action", {"ec2:CreateAction": wrong_action}),
@@ -286,7 +287,7 @@ def _scenarios(scope):
       add(prefix + "create-wrong-resource-region", ACTIONS[0], kind, _arn(scope, "ec2", kind, account, other_region), creation, False)
       for label, change in (("wrong-principal", {"aws:PrincipalAccount": outside}),
                             ("wrong-requested-region", {"aws:RequestedRegion": other_region}),
-                            ("foreign-project-edit", {"aws:ResourceTag/Project": foreign_project}),
+                            ("foreign-project-edit", {"aws:ResourceTag/project": foreign_project}),
                             ("empty-tag-keys", {"aws:TagKeys": []})):
         add(prefix + label, ACTIONS[0], kind, resource, {**base, **change}, False)
       for key in ("aws:PrincipalAccount", "aws:RequestedRegion", "aws:TagKeys"):
@@ -295,7 +296,7 @@ def _scenarios(scope):
       add(prefix + "wrong-resource-account", ACTIONS[0], kind, _arn(scope, "ec2", kind, outside), base, False)
       add(prefix + "wrong-resource-region", ACTIONS[0], kind, _arn(scope, "ec2", kind, account, other_region), base, False)
   base = {"aws:PrincipalAccount": scope["account"], "aws:RequestedRegion": scope["region"],
-          "aws:RequestTag/Project": scope["project"], "aws:TagKeys": sorted(TAGS)}
+          "aws:RequestTag/project": scope["project"], "aws:TagKeys": sorted(TAGS)}
   resource = _arn(scope, "secretsmanager", "secret")
   add("secret-no-replica-overwrite-absent", ACTIONS[1], "secret", resource, base, True)
   add("secret-no-replica-overwrite-false", ACTIONS[1], "secret", resource,
@@ -307,9 +308,9 @@ def _scenarios(scope):
     add("secret-" + label, ACTIONS[1], "secret", resource, context, False)
   for label, change in (("wrong-principal", {"aws:PrincipalAccount": outside}),
                         ("wrong-requested-region", {"aws:RequestedRegion": other_region}),
-                        ("foreign-project", {"aws:RequestTag/Project": foreign_project})):
+                        ("foreign-project", {"aws:RequestTag/project": foreign_project})):
     add("secret-" + label, ACTIONS[1], "secret", resource, {**base, **change}, False)
-  for key in ("aws:PrincipalAccount", "aws:RequestedRegion", "aws:RequestTag/Project"):
+  for key in ("aws:PrincipalAccount", "aws:RequestedRegion", "aws:RequestTag/project"):
     add("secret-missing-" + key.split(":")[-1], ACTIONS[1], "secret", resource,
         {key2: value for key2, value in base.items() if key2 != key}, False)
   add("secret-wrong-resource-account", ACTIONS[1], "secret", _arn(scope, "secretsmanager", "secret", outside), base, False)
@@ -373,7 +374,7 @@ def _mutations(policies, items, scope, scenarios):
           entries = statement["Condition"].pop("ForAllValues:StringNotEqualsIgnoreCase")
           statement["Condition"]["ForAnyValue:StringNotEqualsIgnoreCase"] = entries
         run(item, "any-instead-of-all-keys", "mixed-protected-keys", weaken_keys)
-        run(item, "remove-existing-project", "foreign-project-edit", remove("StringEquals", "aws:ResourceTag/Project"))
+        run(item, "remove-existing-project", "foreign-project-edit", remove("StringEquals", "aws:ResourceTag/project"))
         run(item, "remove-nonnull-tag-keys", "missing-TagKeys", remove("Null", "aws:TagKeys"))
         run(item, "remove-principal-account", "wrong-principal", remove("StringEquals", "aws:PrincipalAccount"))
         run(item, "remove-requested-region", "wrong-requested-region", remove("StringEquals", "aws:RequestedRegion"))

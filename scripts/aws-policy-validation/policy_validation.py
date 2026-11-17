@@ -185,8 +185,8 @@ def scope_from_policies(policies, permission_sets):
   account, region = match[3], match[2]
   require(equals.get("aws:PrincipalAccount") in (account, [account]) and equals.get("aws:RequestedRegion") == region,
       "Managed policy caller account/region does not match its resource ARN.")
-  project = equals.get("aws:RequestTag/Project")
-  require(isinstance(project, str) and re.fullmatch(r"[a-z][a-z0-9-]{0,62}", project), "Missing reviewed Project identity.")
+  project = equals.get("aws:RequestTag/project")
+  require(isinstance(project, str) and re.fullmatch(r"[a-z][a-z0-9-]{0,62}", project), "Missing reviewed project identity.")
   inline_equals = policies["developer_inline"]["Statement"][0]["Condition"]["StringEquals"]
   targets = inline_equals.get("aws:PrincipalAccount")
   targets = [targets] if isinstance(targets, str) else targets
