@@ -18,10 +18,12 @@ real AWS access in Codex Cloud or through CI/CD.
 Environment-specific values are not credentials, but a public repository should
 not disclose them: they identify a person or an account and help reconnaissance.
 
-Secret values follow Secrets Manager approach A. Terraform manages secret metadata
-only; the value is set outside Terraform. No secret value may appear in any tfvars
-file, variable, output, plan or State, including `local.auto.tfvars`. Where AWS can
-own a credential itself, prefer that, for example RDS-managed master passwords.
+Secret values follow Secrets Manager approach A. Terraform creates secret metadata
+only, with no value and no dummy value; operators register the value manually from
+a local CLI or the console before a consumer uses it. No secret value may appear in
+any tfvars file, variable, output, plan or State, including `local.auto.tfvars`.
+Where AWS can own a credential itself, prefer that, for example RDS-managed master
+passwords.
 
 ### Placeholders
 
@@ -88,38 +90,161 @@ It checks paths only, never file contents, and makes no AWS call.
   `terraform init -backend-config=backend.s3.tfbackend -migrate-state`. Terraform
   replaces the tracked backend with the override file's backend (verified offline
   with Terraform 1.17.0).
+- **Bucket name:** `<project>-<env>-s3-tfstate`, following section 4 without a
+  uniqueness suffix.
 - **State keys:** one per root, `<project>/<env>/<region>/<service>/terraform.tfstate`.
 - **STG/PROD:** remote backends remain a later phase.
 
 ## 4. Resource naming
 
-Pattern: `<project>-<env>-<service>[-<purpose>]`, lowercase, hyphen-separated.
+Applies to every AWS resource, and with the adaptation under "Names outside AWS"
+to Kubernetes and other tool objects.
 
-| Part | Rule |
+### Pattern
+
+| Case | Pattern | Example |
+| --- | --- | --- |
+| General | `<project>-<env>-<type>[-<purpose>]` | `project-dev-role-eks-cluster` |
+| Per-AZ resource | `<project>-<env>-<az>-<type>[-<purpose>]` | `project-dev-a-subnet-private1` |
+
+- Lowercase letters, digits and hyphens only.
+- `project`: the placeholder is `project`, which makes the value to replace obvious.
+  A real value has at most 10 characters, starts with a letter and contains none of
+  `aws`, `amazon` or `cognito` (reserved words of Cognito domains). This keeps load
+  balancer and target group names within 32 characters.
+- `env`: `dev` (`stg` and `prod` later).
+- `az`: the Availability Zone letter (`a`, `b`, ...), placed right after `env`.
+- `type`: the resource-type token below.
+- `purpose`: see "Purposes".
+
+### Resource-type tokens
+
+A service's main resource uses the service's common AWS abbreviation; a service with
+several resource types uses the type. New tokens follow the same principle.
+
+| Area | Tokens |
 | --- | --- |
-| `project` | Short project identifier; a committed, non-secret value |
-| `env` | `dev` (STG/PROD later) |
-| `service` | Short AWS service token, for example `vpc`, `eks`, `ec2`, `rds`, `s3`, `lambda`, `apigw`, `cognito`, `nlb`, `sqs`, `sns` |
-| `purpose` | Only when more than one resource of that service exists, for example `ingress`, `tfstate`, `artifacts`, `devaccess` |
+| Network | `vpc` VPC, `subnet` subnet, `rtb` route table, `igw` internet gateway, `nat` NAT gateway, `eip` Elastic IP, `vpce` VPC endpoint, `sg` security group |
+| Compute | `ec2` instance, `lt` launch template, `eks` EKS cluster, `ng` EKS node group, `lambda` function |
+| IAM | `role` role, `policy` managed policy, `profile` instance profile |
+| Load balancing and API | `nlb` Network Load Balancer, `alb` Application Load Balancer, `tg` target group, `apigw` API Gateway API |
+| Identity | `cognito` user pool, `client` app client, `auth` Cognito domain prefix |
+| Secrets, keys, certificates | `secret` secret, `kms` key, `acm` certificate |
+| Data and messaging | `s3` bucket, `rds` DB instance or cluster, `sqs` queue, `sns` topic, `rule` EventBridge rule |
+| Edge and monitoring | `cloudfront` distribution, `waf` web ACL, `r53` hosted zone, `alarm` CloudWatch alarm, `trail` CloudTrail trail |
 
-Examples with project `acme`: `acme-dev-eks`, `acme-dev-nlb-ingress`,
-`acme-dev-ec2-devaccess`, `acme-dev-subnet-private-a`.
+Sub-resources without a name of their own (listeners, add-ons, associations, rules
+inside a web ACL) need no name.
 
-Exceptions, kept minimal and documented where used:
+### Purposes
 
-- **Globally unique names** such as S3 buckets append the AWS account ID, for
-  example `acme-dev-s3-tfstate-123456789012`. The account ID is a local value.
-- **Length limits:** load balancer and target group names allow 32 characters;
-  IAM role and Lambda function names 64; S3 bucket names 3–63. Keep `project`
-  short and abbreviate `purpose` where needed.
-- **AWS-mandated names** keep the AWS prefix, for example `/aws/lambda/<function>`
-  or `/aws/eks/<cluster>/cluster`. Other CloudWatch log groups use the path form
-  `/<project>/<env>/<service>/<purpose>`.
-- **Renaming existing resources** happens in a later Step 1 pull request. Nothing is
-  deployed, so no migration is needed, but tests and move guards must be updated
-  deliberately.
+- Add a purpose only when the environment holds more than one resource of a type;
+  then every resource of that type gets one, never a bare name next to purposed ones.
+- Per-AZ copies of the same resource are told apart by the AZ letter, not by a purpose.
+- Join multi-word purposes with hyphens: `eks-cluster`.
+- Always abbreviate a purpose as far as a person still understands it.
+- A repeated identical purpose takes a two-digit sequence: `-01`, `-02`.
+- Subnet tiers carry a number that counts that tier across the VPC, as the AWS VPC
+  console does: AZ `a` holds `private1` and `public1`, AZ `b` holds `private2` and
+  `public2`.
 
-## 5. Target portfolio scope (Owner, 2026-11-16)
+| Word | Abbreviation |
+| --- | --- |
+| application | `app` |
+| gateway | `gw` |
+| controller | `ctrl` |
+| database | `db` |
+| management | `mgmt` |
+| operations | `ops` |
+| AWS Load Balancer Controller | `lbc` |
+| Amazon VPC CNI | `cni` |
+| Terraform state | `tfstate` |
+
+Words that are already short or have no widely understood abbreviation stay as
+they are, for example `private`, `public`, `node`, `cluster`, `artifact`, `bastion`.
+
+### Examples
+
+| Resource | Name |
+| --- | --- |
+| VPC | `project-dev-vpc` |
+| Subnets | `project-dev-a-subnet-private1`, `project-dev-a-subnet-public1`, `project-dev-b-subnet-private2`, `project-dev-b-subnet-public2` |
+| NAT gateways and their EIPs | `project-dev-a-nat`, `project-dev-a-eip-nat` |
+| Route tables | `project-dev-a-rtb-private1`, `project-dev-b-rtb-private2`, `project-dev-rtb-public` |
+| EKS cluster and node group | `project-dev-eks`, `project-dev-ng` |
+| IAM roles | `project-dev-role-eks-cluster`, `project-dev-role-eks-node`, `project-dev-role-lbc`, `project-dev-role-lambda` |
+| NLB and target group | `project-dev-nlb`, `project-dev-tg-gw` |
+| Lambda function | `project-dev-lambda` |
+| API Gateway APIs | `project-dev-apigw-http`, `project-dev-apigw-rest` |
+| Cognito | user pool `project-dev-cognito`, app client `project-dev-client`, domain `project-dev-auth` |
+| S3 buckets | `project-dev-s3-artifact`, `project-dev-s3-tfstate` |
+| Secret | `/project/dev/secret/app` |
+| Log groups | `/aws/lambda/project-dev-lambda`, `/aws/eks/project-dev-eks/cluster`, `/project/dev/apigw/http` |
+
+### Exceptions
+
+- **AWS-mandated prefixes stay**, for example `/aws/lambda/<function>` and
+  `/aws/eks/<cluster>/cluster`.
+- **Path form** for CloudWatch log groups and Secrets Manager secrets:
+  `/<project>/<env>/<type>/<purpose>`.
+- **Generated suffixes** (`name_prefix`) only where a resource must be replaced
+  create-before-destroy to stay low risk, currently security groups and launch
+  templates. The prefix still follows the pattern, for example `project-dev-sg-nlb-`.
+  Each use is documented in the module README.
+- **Underscores** where hyphens are invalid, for example database names
+  `project_dev_app`.
+- **No uniqueness suffix** for globally unique names such as S3 buckets and the
+  Cognito domain prefix. Name collisions are handled case by case at deployment.
+  The placeholder `project` will collide in real AWS, so replace it first.
+- **Length limits:** load balancer and target group names 32 characters, IAM role
+  and Lambda function names 64, S3 bucket names 3–63.
+
+### Names outside AWS
+
+- Kubernetes namespaces, workloads, service accounts and project-created ConfigMaps
+  and Secrets, Helm releases and other tool objects (for example Ansible groups and
+  Packer builds) use `<project>-<purpose>` with an abbreviated purpose, for example
+  `project-app`.
+- Names that upstream tools mandate stay unchanged, for example `kube-system`,
+  `istio-system`, the Istio CA Secret `cacerts`, `aws-load-balancer-controller` and
+  its webhook Secret `aws-load-balancer-controller-tls`.
+
+### Name tag
+
+Resources without a name attribute (VPC, subnets, route tables, NAT gateways, EIPs)
+get a `Name` tag that follows the same pattern.
+
+## 5. Tags
+
+| Key | Value |
+| --- | --- |
+| `project` | Project name; placeholder `project` |
+| `env` | `dev` |
+| `service` | The resource-type token used in the resource's name, for example `role` or `subnet` |
+| `managed` | How the resource was built: `terraform`, `cloudformation` or `hands-on` (manual). Everything in this repository uses `terraform` |
+| `Name` | The resource name, used by the AWS console |
+
+- Tag keys are case-sensitive; use exactly these lowercase keys and `Name`.
+- Each root sets `project`, `env` and `managed` through provider `default_tags`.
+  Modules set `service` and `Name` on each resource, because those differ per resource.
+- Resources that `default_tags` does not reach, such as EC2 instances and volumes
+  launched by EKS managed node groups, get the tags through launch template tag
+  specifications.
+- These keys replace the previous `Environment`, `Service`, `Project` and `ManagedBy`.
+- IAM policies that restrict tag keys at resource creation (`iam_access`,
+  `iam_account_policies`) must allow exactly these keys.
+
+## 6. Root granularity
+
+Roots may be split further where real projects would: separate lifecycles,
+ownership or blast radius, so that independently buildable parts can be applied
+first instead of waiting for a whole design to settle. Each split keeps one State
+per root under `infra/services/<env>/<region>/<service>/`. Concrete splits are
+proposed in the consistency audit. Example: a Lambda function needs its package in
+the artifact bucket before it can be created (finding F2), so the bucket can live in
+a root that is built first.
+
+## 7. Target portfolio scope (Owner, 2026-11-16)
 
 The finished DEV portfolio should present a realistic project configuration that a
 recruiter can evaluate. Target services:
@@ -133,7 +258,7 @@ Shield Standard is automatic and free. Terraform resources exist only for the pa
 Shield Advanced, so Shield is documented rather than provisioned. The Kubernetes
 runtime is in scope at a minimal development level.
 
-## 6. Step plan
+## 8. Step plan
 
 | Step | Work | Executor |
 | --- | --- | --- |
@@ -146,7 +271,10 @@ Step 1 items, each as its own pull request that stops for review and Owner merge
 approval. The Owner may reorder them.
 
 1. These rules and the repository guard (this document).
-2. Naming alignment and a consistency audit of the existing code.
+2. Naming and tag alignment and a consistency audit of the existing code, delivered
+   as 2a rules (this document), 2b network, 2c platform, 2d api and serverless-api,
+   2e IAM tag-key policies and the audit report. Root splits may be included where
+   section 6 applies.
 3. Per-root placeholder `terraform.tfvars`, `local.auto.tfvars.example`, a local
    workflow with preflight checks and CI validation using the committed values.
 4. DEV state bucket bootstrap root and the optional S3 backend override.
@@ -157,3 +285,12 @@ approval. The Owner may reorder them.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
+
+## 9. Step 1 operational decisions (Owner, 2026-11-16)
+
+| Topic | Decision |
+| --- | --- |
+| Lambda package (finding F2) | The function package is committed as a ZIP file, together with its source, in a folder inside the Lambda root, so the repository visibly contains a deployable function. The local workflow uploads that ZIP to the artifact bucket before the function is created. Starting point: the Owner's minimal handler, which returns HTTP 200 `ok` |
+| Kubernetes certificates (finding F4) | A local script creates DEV certificates and registers them directly in the cluster. Nothing goes into the repository or Terraform State. The current mTLS design stays |
+| Secrets Manager values and recovery (finding F5) | Terraform creates metadata only, with no value or dummy; operators register values manually. Recovery window 7 days. Rebuilding inside the window means restoring the secret and importing it into Terraform |
+| Deployment permissions and EKS bootstrap admin role (finding F6) | Prepared as prerequisites before deployment and documented in the runbook. A root that creates them is deferred to Step 3 or later |

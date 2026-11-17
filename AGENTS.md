@@ -22,14 +22,23 @@ future implementation.
 - Prioritize maintainability and operational clarity. Keep module boundaries,
   environment differences, and operational responsibilities easy to understand.
 
-### Resource naming
+### Resource naming and tags
 
-- Name AWS resources `<project>-<env>-<service>[-<purpose>]` in lowercase with
-  hyphens. Add `purpose` only when more than one resource of that service exists.
-- Documented exceptions only: account-ID suffixes for globally unique names such as
-  S3 buckets, abbreviations within AWS length limits, AWS-mandated prefixes and the
-  CloudWatch log group path form. See
+- Name AWS resources `<project>-<env>-<type>[-<purpose>]`, or
+  `<project>-<env>-<az>-<type>[-<purpose>]` for per-AZ resources, in lowercase with
+  hyphens. `type` is the documented resource-type token. When more than one resource
+  of a type exists, every one gets an abbreviated `purpose`.
+- Exceptions only as documented: AWS-mandated prefixes, the path form for log groups
+  and secrets, underscores where hyphens are invalid, and generated `name_prefix`
+  suffixes only where low-risk create-before-destroy replacement needs them. Globally
+  unique names get no uniqueness suffix. See
   [deployment configuration](docs/deployment-configuration.md#4-resource-naming).
+- Name objects outside AWS (Kubernetes, Helm and other tools) `<project>-<purpose>`,
+  keeping names that upstream tools mandate.
+- Tag every taggable resource with `project`, `env`, `service` (the resource-type
+  token) and `managed` (`terraform` here), plus `Name`. Roots set `project`, `env` and
+  `managed` through provider `default_tags`; modules set `service` and `Name`. See
+  [tags](docs/deployment-configuration.md#5-tags).
 
 ### Effective configuration and feature flags
 
@@ -87,8 +96,9 @@ future implementation.
   for feature flags; and `*.example` templates. Keep real environment-specific
   values (AWS account ID, operator IP/CIDR, notification email, domain names,
   pre-existing IAM role ARNs) only in untracked `local.auto.tfvars`. Never put
-  credentials or secret values in any tfvars file; register secret values in
-  Secrets Manager before building their consumers. See
+  credentials or secret values in any tfvars file. Terraform creates secret metadata
+  only, with no value or dummy; operators register values manually from a local CLI
+  or the console before consumers use them. See
   [deployment configuration](docs/deployment-configuration.md#1-where-values-live).
 - Real AWS deployment runs only from the operator's local workstation, outside
   Codex Cloud and never through CI/CD. GitHub Actions runs offline checks only.
@@ -308,14 +318,16 @@ claiming compatibility; preserve the accepted record's limitations and residual 
 ## Current authorized task: Step 1 DEV deploy-ready brush-up
 
 On 2026-11-16 (Asia/Tokyo) the Owner approved the Step plan in
-[deployment configuration](docs/deployment-configuration.md#6-step-plan): make the
+[deployment configuration](docs/deployment-configuration.md#8-step-plan): make the
 existing DEV roots and a minimal Kubernetes runtime deployable from a local
 workstation without unverified errors, before any new feature work. DEV only;
 STG/PROD are deferred.
 
-Step 1 item 1 (these rules and the repository guard) is authorized. Each later
-item starts on the Owner's instruction, uses its own branch from latest main and
-its own pull request, and stops for independent review and Owner merge approval.
+Step 1 items 1 and 2 are authorized. Item 2 is delivered as several pull requests
+(2a rules, 2b network, 2c platform, 2d api and serverless-api, 2e IAM tag keys and
+the audit report); roots may be split where real-project practice favors it. Each
+later item starts on the Owner's instruction, uses its own branch from latest main
+and its own pull request, and stops for independent review and Owner merge approval.
 Owner-approved additions needed to deploy are the SSM developer-access EC2 for
 local access to the private EKS endpoint (and later RDS) and the DEV state bucket
 bootstrap with an optional S3 backend. V7-B/C/D, NP-2B/NP-3 and other new features
