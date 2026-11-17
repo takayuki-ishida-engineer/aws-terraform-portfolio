@@ -1,5 +1,24 @@
 # DEV EKS and private ingress platform — V4 candidate
 
+## Input values (Step 1 item 3)
+
+Values follow the [deployment configuration](../../../../../docs/deployment-configuration.md#1-where-values-live). The committed
+`terraform.tfvars` holds every required input; environment-specific inputs there
+are documented placeholders. Copy `local.auto.tfvars.example` to the untracked
+`local.auto.tfvars` and set the real values: `project`, `aws_account_id`, `bootstrap_admin_role_arn` and `network_reference` (the network root output). The
+[local workflow](../../../../../scripts/local-workflow/README.md) preflight refuses a plan or apply while any of them is
+missing locally or still a placeholder. Full CI plans this root with the committed
+values under mocks. Never put a credential or secret value in any tfvars file.
+
+| Committed value | Setting |
+| --- | --- |
+| Kubernetes | `1.35`; add-ons vpc-cni `v1.23.1-eksbuild.1`, coredns `v1.14.3-eksbuild.16`, kube-proxy `v1.35.3-eksbuild.25` (EKS User Guide source, read 2026-11-17) |
+| Node group | `private1`, `m6i.large`, `AL2023_x86_64_STANDARD` release `1.35.9-20261112`, 30 GiB, 1/1/2 |
+| Cluster subnets and service CIDR | `private1`, `private2`; `172.20.0.0/16` |
+| Private API clients | `10.40.1.0/24` (subnet of the item 5 developer-access EC2) |
+| Node HTTPS egress | `10.40.0.0/16`; nodes still need AWS service reachability (audit finding F16) |
+| Private ingress | `private1`, Gateway target port `8443` |
+
 ## Current V5 runtime identity extension
 
 [private_ingress](../../../../modules/private_ingress/README.md) now owns17 resources:

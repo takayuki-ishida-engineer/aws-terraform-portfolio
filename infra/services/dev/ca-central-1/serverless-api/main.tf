@@ -19,6 +19,9 @@ module "secret_metadata" {
 
   name        = "${local.path_prefix}/secret/app"
   project_tag = var.project
+  # Seven days lets a destroyed DEV secret be restored and re-imported within a
+  # short window (docs/deployment-configuration.md section 9).
+  recovery_window_in_days = 7
 }
 
 module "lambda_workload" {

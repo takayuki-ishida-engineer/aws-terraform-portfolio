@@ -1003,6 +1003,30 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"],"a") as out: out.write("passed=20\n")
           PYREST
 
+      - name: Validate committed DEV values and the local workflow preflight
+        id: committed_values
+        run: |
+          set -euo pipefail
+          umask 077
+          # Offline only: fake terraform/aws self-tests, then mock plans of every DEV
+          # root with its committed values and the offline preflight in temporary
+          # copies. The live preflight is never run in CI.
+          python3 scripts/local-workflow/test_local_workflow.py
+          python3 scripts/local-workflow/check_committed_values.py --terraform terraform > "$RUNNER_TEMP/committed-values.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["RUNNER_TEMP"], "committed-values.json").read_text())
+          roots = {item["root"]: item for item in report.get("roots", [])}
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or sorted(roots) != ["api", "network", "platform", "serverless-api"] \
+              or any(item.get("mock_plan") != "pass" or item.get("synthetic_local_values") != "passed" or item.get("local_override_effective") is not True for item in roots.values()):
+              raise SystemExit("Committed DEV values or local workflow preflight evidence failed.")
+          print("Committed DEV values and preflight:", json.dumps(roots, sort_keys=True))
+          PY
+          git status --porcelain --ignored -- infra/services/dev/ca-central-1 | { ! grep -E 'committed|no-tfvars|local\.auto\.tfvars$|\.tfplan'; }
+
       - name: Measure shared provider storage after all modules
         run: |
           set -euo pipefail
@@ -1079,6 +1103,7 @@ jobs:
           HTTP_API_PASSED: ${{ steps.http_api.outputs.passed }}
           REFERENCE_RESULT: ${{ steps.reference.outcome }}
           SELF_TEST_RESULT: ${{ steps.self_tests.outcome }}
+          COMMITTED_VALUES_RESULT: ${{ steps.committed_values.outcome }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -1107,6 +1132,7 @@ jobs:
             ("HTTP API init/validate/permission fields/logging/mutations", "HTTP_API_RESULT", os.environ.get("HTTP_API_PASSED", "")),
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
+            ("Committed DEV values mock plans/local workflow preflight", "COMMITTED_VALUES_RESULT", ""),
             ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
           ]
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:

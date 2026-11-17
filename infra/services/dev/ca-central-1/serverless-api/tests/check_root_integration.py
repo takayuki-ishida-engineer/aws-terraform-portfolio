@@ -172,7 +172,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
     secret = read("secret_metadata", "aws_secretsmanager_secret", "name", "arn", "kms_key_id", "recovery_window_in_days", "tags", "tags_all")
     require(secret.get("name") == PATH_PREFIX + "/secret/app" and isinstance(secret.get("arn"), str)
         and re.fullmatch(f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:" + re.escape(secret["name"]) + r"-[A-Za-z0-9]{6}", secret["arn"]), "secret_metadata_identity")
-    require(secret.get("kms_key_id") is None and secret.get("recovery_window_in_days") == 30
+    require(secret.get("kms_key_id") is None and secret.get("recovery_window_in_days") == 7
         and secret.get("tags", {}).get("project") == DEFAULT_TAGS["project"], "secret_metadata_safety")
     role = read("lambda_workload", "aws_iam_role", "name", "arn", "path", "max_session_duration", "assume_role_policy")
     require(role.get("name") == PREFIX + "-role-lambda" and role.get("arn") == f"arn:aws:iam::{ACCOUNT}:role/" + role["name"]

@@ -14,6 +14,21 @@ requires an approved ZIP that has already been published to the versioned artifa
 bucket. The configuration does not package, upload, discover or inspect artifacts.
 It is not production-ready or a deployment procedure.
 
+## Input values (Step 1 item 3)
+
+Values follow the [deployment configuration](../../../../../docs/deployment-configuration.md#1-where-values-live). The committed
+`terraform.tfvars` holds every required input; environment-specific inputs there
+are documented placeholders. Copy `local.auto.tfvars.example` to the untracked
+`local.auto.tfvars` and set the real values: `project`, `aws_account_id` and `artifact_object_version` (the uploaded ZIP version). The
+[local workflow](../../../../../scripts/local-workflow/README.md) preflight refuses a plan or apply while any of them is
+missing locally or still a placeholder. Full CI plans this root with the committed
+values under mocks. Never put a credential or secret value in any tfvars file.
+
+| Committed value | Setting |
+| --- | --- |
+| Lambda | `python3.13`, handler `main.handler`, artifact key `lambda/function.zip` |
+| Secret read | Disabled (`features.auto.tfvars`) |
+
 ## Architecture and ownership
 
 ```mermaid
@@ -128,7 +143,8 @@ are not mislabeled as child defaults.
 | API log destination | Actual internally owned API Log Group's bare ARN | Module Fixed |
 | Both Log Groups | 30-day retention; deletion protection true; CMK null (`log_*` workload inputs versus access_log_* HTTP API inputs) | Module Default |
 | Both Log Groups | `STANDARD`, `skip_destroy = false` | Module Fixed |
-| Secret lifecycle/encryption | 30-day recovery; no explicit CMK; optional description null | Module Default |
+| Secret recovery window | 7 days (decision in [deployment configuration §9](../../../../../docs/deployment-configuration.md#9-step-1-operational-decisions-owner-2026-11-16)) | Root Override |
+| Secret encryption/description | No explicit CMK; optional description null | Module Default |
 | Secret metadata tags | Canonical `Name` and the module-owned `project` authorization tag | Module Fixed |
 | Extra module tags | Empty maps; root provider tags still apply | Module Default |
 | S3 | Global namespace, versioning Enabled, all four public-access blocks true, BucketOwnerEnforced, AES256/SSE-S3, `force_destroy = false`, HTTPS Deny with service-principal exception | Module Fixed |
@@ -324,7 +340,7 @@ deletion protection and `skip_destroy = false`; an authorized change must first
 disable protection and take effect before later deletion. S3 fixes
 `force_destroy = false`, so objects and versions require separate reviewed
 handling before bucket deletion. That setting alone does not prevent partial
-removal of other security configuration. Secret deletion uses the 30-day recovery
+removal of other security configuration. Secret deletion uses the 7-day recovery
 window and does not immediately erase the name or recovery obligations. Review
 artifact rollback versions, secret recovery and access to retained logs before
 changing or removing anything. This phase executes no teardown.

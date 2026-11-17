@@ -1,10 +1,10 @@
 # DEV deployment configuration, values, state and naming
 
 Status: conventions approved by the Owner on 2026-11-16 for Step 1, the DEV
-deploy-ready brush-up. This document defines the rules. Per-root value files,
-the local workflow, the state bucket bootstrap and the renaming of existing
-resources are implemented by later Step 1 pull requests. Nothing here authorizes
-real AWS access in Codex Cloud or through CI/CD.
+deploy-ready brush-up. This document defines the rules. Names and tags (item 2),
+the per-root value files and the local workflow (item 3) are implemented; the
+state bucket bootstrap and the remaining items follow in later Step 1 pull
+requests. Nothing here authorizes real AWS access in Codex Cloud or through CI/CD.
 
 ## 1. Where values live
 
@@ -38,8 +38,11 @@ can see every input while no real environment is disclosed:
 | Domain name | `example.com` |
 | IAM role ARN | `arn:aws:iam::123456789012:role/example-role` |
 
-The local workflow must refuse to plan or apply against real AWS while any
-placeholder remains (implemented in a later Step 1 pull request).
+The local workflow refuses to plan or apply against real AWS while any
+placeholder remains: [`scripts/local-workflow/preflight.py`](../scripts/local-workflow/README.md)
+also rejects unedited `local.auto.tfvars.example` values (project `myproj`, account
+`111122223333`, `your-domain.test`) and the Emulator's synthetic account
+`000000000000`.
 
 ### Load order
 
@@ -70,8 +73,17 @@ It checks paths only, never file contents, and makes no AWS call.
   security checks and the repository guard. It holds no AWS credentials.
 - An optional real deployment remains subject to G01–G07, the cumulative JPY 10,000
   DEV limit and complete verified teardown within 72 hours.
-- The apply/destroy order, cross-root hand-off and preflight checks are delivered
-  by later Step 1 pull requests.
+- The [local workflow](../scripts/local-workflow/README.md) runs `init`, the offline
+  and live preflight, a saved plan, a typed confirmation and the apply of exactly
+  that plan, for one root at a time. Apply `network`, `platform`, then
+  `serverless-api` and `api`; destroy in the reverse order. The live preflight makes
+  only read-only calls (caller account, EKS add-on catalog, node AMI parameter) and
+  is refused in CI.
+- Full CI plans every root with its committed values under mocks and proves the
+  preflight refuses them and accepts synthetic local values. It never runs the live
+  preflight.
+- Cross-root hand-off automation, the serverless-api artifact upload sequence and
+  the full runbook are delivered by Step 1 item 6.
 
 ## 3. Terraform state
 
@@ -289,6 +301,7 @@ approval. The Owner may reorder them.
    items and the Owner decisions they need.
 3. Per-root placeholder `terraform.tfvars`, `local.auto.tfvars.example`, a local
    workflow with preflight checks and CI validation using the committed values.
+   Delivered, together with audit findings F1, F12 and F14.
 4. DEV state bucket bootstrap root and the optional S3 backend override.
 5. SSM developer-access EC2: local workstation → Session Manager port forwarding →
    private EKS endpoint (443), and later private RDS (5432). No SSH and no public IP.
