@@ -73,6 +73,9 @@ AWS_OK = {
     "eks describe-addon-versions coredns": {"addons": [{"addonName": "coredns", "addonVersions": [{"addonVersion": "v1.14.3-eksbuild.16", "compatibilities": [{"clusterVersion": "1.35"}]}]}]},
     "eks describe-addon-versions kube-proxy": {"addons": [{"addonName": "kube-proxy", "addonVersions": [{"addonVersion": "v1.35.3-eksbuild.25", "compatibilities": [{"clusterVersion": "1.35"}]}]}]},
     "ssm get-parameter": {"Parameter": {"Value": "ami-0123abcd4567ef890"}},
+    "s3api get-bucket-versioning": {"Status": "Enabled"},
+    "s3api get-public-access-block": {"PublicAccessBlockConfiguration": {
+        "BlockPublicAcls": True, "IgnorePublicAcls": True, "BlockPublicPolicy": True, "RestrictPublicBuckets": True}},
 }
 LOCAL_PLATFORM = textwrap.dedent(f"""\
     project                  = "acme"
@@ -91,7 +94,7 @@ class Workspace:
         self.services = base / "repo/infra/services/dev/ca-central-1"
         self.root = self.services / root_name
         self.root.mkdir(parents=True)
-        (base / "repo/.gitignore").write_text("*.tfvars\n*.tfplan\n!terraform.tfvars\n")
+        (base / "repo/.gitignore").write_text("*.tfvars\n*.tfplan\n!terraform.tfvars\n*_override.tf\n*.tfbackend\n")
         (self.root / "variables.tf").write_text("".join(f'variable "{name}" {{}}\n' for name in values))
         subprocess.run(["git", "init", "-q", str(base / "repo")], check=True)
         if local is not None:
@@ -110,6 +113,16 @@ class Workspace:
         path.write_text(source)
         path.chmod(0o755)
         return str(path)
+
+    def use_backend(self, project="acme", root_name="platform", override=None, config=None):
+        """Install the repository's backend example files with the project filled in."""
+        example = preflight.SERVICES / "network"
+        (self.root / preflight.BACKEND_OVERRIDE).write_text(
+            override if override is not None else (example / "backend_override.tf.example").read_text())
+        text = (example / "backend.s3.tfbackend.example").read_text()
+        text = text.replace('"project-dev-s3-tfstate"', f'"{project}-dev-s3-tfstate"').replace(
+            '"project/dev/ca-central-1/network/', f'"{project}/dev/ca-central-1/{root_name}/')
+        (self.root / preflight.BACKEND_CONFIG).write_text(config if config is not None else text)
 
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()]
@@ -244,6 +257,125 @@ class PreflightTests(unittest.TestCase):
             self.check(workspace, env=dict(workspace.env, FAKE_TF_EXIT_CONSOLE="1", FAKE_VALUES="/nonexistent"))
 
 
+class BackendTests(unittest.TestCase):
+    def check(self, workspace, live=False, env=None):
+        return preflight.preflight("platform", workspace.terraform, workspace.aws, live=live,
+                                   services=workspace.services, env=env or workspace.env)["findings"]
+
+    def test_repository_examples_pass_once_filled_in(self):
+        workspace = Workspace()
+        self.addCleanup(workspace.close)
+        workspace.use_backend()
+        self.assertEqual(self.check(workspace), [])
+        self.assertEqual(self.check(workspace, live=True), [])
+        buckets = [call for call in workspace.calls() if call[1:2] == ["s3api"]]
+        self.assertEqual({tuple(call[1:3]) for call in buckets}, {("s3api", "get-bucket-versioning"), ("s3api", "get-public-access-block")})
+        self.assertTrue(all("acme-dev-s3-tfstate" in call for call in buckets))
+
+    def test_unedited_examples_are_refused(self):
+        workspace = Workspace()
+        self.addCleanup(workspace.close)
+        workspace.use_backend(project="project")
+        self.assertEqual(self.check(workspace), ["backend_bucket_mismatch", "backend_key_mismatch"])
+        placeholder = Workspace(values=dict(PLATFORM, project="project"))
+        self.addCleanup(placeholder.close)
+        placeholder.use_backend(project="project")
+        self.assertEqual(self.check(placeholder), ["placeholder:project", "placeholder:backend"])
+
+    def test_backend_setting_findings(self):
+        good = 'bucket = "acme-dev-s3-tfstate"\nkey = "acme/dev/ca-central-1/platform/terraform.tfstate"\nregion = "ca-central-1"\nuse_lockfile = true\nencrypt = true\n'
+        cases = {
+            good.replace("platform/", "network/"): ["backend_key_mismatch"],
+            good.replace('"acme-dev-s3-tfstate"', '"other-dev-s3-tfstate"'): ["backend_bucket_mismatch"],
+            good.replace('region = "ca-central-1"', 'region = "us-east-1"'): ["backend_region_mismatch"],
+            good.replace("use_lockfile = true", "use_lockfile = false"): ["backend_lockfile_disabled"],
+            good.replace("encrypt = true", "encrypt = false"): ["backend_encryption_disabled"],
+            good + 'profile = "admin"\n': ["backend_config_settings"],
+            good.replace("use_lockfile = true\n", ""): ["backend_config_settings"],
+            good + "role_arn = arn\n": ["backend_config_unparsable"],
+            good + 'bucket = "acme-dev-s3-tfstate"\n': ["backend_config_unparsable"],
+        }
+        for config, expected in cases.items():
+            workspace = Workspace()
+            self.addCleanup(workspace.close)
+            workspace.use_backend(config=config)
+            self.assertEqual(self.check(workspace), expected, config)
+
+    def test_override_must_stay_empty(self):
+        workspace = Workspace()
+        self.addCleanup(workspace.close)
+        workspace.use_backend(override='terraform {\n  backend "s3" {\n    bucket = "x"\n  }\n}\n')
+        self.assertEqual(self.check(workspace), ["backend_override_unexpected_content"])
+
+    def test_incomplete_backend_files(self):
+        workspace = Workspace()
+        self.addCleanup(workspace.close)
+        workspace.use_backend()
+        (workspace.root / preflight.BACKEND_CONFIG).unlink()
+        self.assertEqual(self.check(workspace), ["backend_config_missing"])
+        workspace.use_backend()
+        (workspace.root / preflight.BACKEND_OVERRIDE).unlink()
+        self.assertEqual(self.check(workspace), ["backend_config_without_override"])
+
+    def test_tracked_backend_files_are_refused(self):
+        workspace = Workspace()
+        self.addCleanup(workspace.close)
+        workspace.use_backend()
+        subprocess.run(["git", "-C", str(workspace.root), "add", "-f", preflight.BACKEND_CONFIG, preflight.BACKEND_OVERRIDE], check=True)
+        self.assertEqual(sorted(self.check(workspace)), ["backend_config_tracked", "backend_override_tracked"])
+
+    def test_bootstrap_root_stays_local(self):
+        values = {"project": "acme", "aws_account_id": ACCOUNT, "tags": {}}
+        workspace = Workspace(root_name="tfstate", values=values, local=f'project = "acme"\naws_account_id = "{ACCOUNT}"\n')
+        self.addCleanup(workspace.close)
+        self.assertEqual(preflight.preflight("tfstate", workspace.terraform, services=workspace.services, env=workspace.env)["findings"], [])
+        workspace.use_backend(root_name="tfstate")
+        self.assertEqual(preflight.preflight("tfstate", workspace.terraform, services=workspace.services, env=workspace.env)["findings"],
+                         ["bootstrap_backend_must_stay_local"])
+
+    def test_live_state_bucket_findings(self):
+        scenarios = [
+            (dict(AWS_OK, **{"s3api get-bucket-versioning": {"Status": "Suspended"}}), ["state_bucket_versioning_not_enabled"]),
+            (dict(AWS_OK, **{"s3api get-bucket-versioning": {}}), ["state_bucket_versioning_not_enabled"]),
+            ({k: v for k, v in AWS_OK.items() if k != "s3api get-bucket-versioning"}, ["state_bucket_unavailable"]),
+            (dict(AWS_OK, **{"s3api get-public-access-block": {"PublicAccessBlockConfiguration": {
+                "BlockPublicAcls": True, "IgnorePublicAcls": True, "BlockPublicPolicy": False, "RestrictPublicBuckets": True}}}),
+             ["state_bucket_public_access_not_blocked"]),
+        ]
+        for responses, expected in scenarios:
+            workspace = Workspace(aws=responses)
+            self.addCleanup(workspace.close)
+            workspace.use_backend()
+            self.assertEqual(self.check(workspace, live=True), expected)
+
+    def test_local_value_reads_plain_strings_only(self):
+        workspace = Workspace(local='project = "acme" # mine\naws_account_id = var.x\n')
+        self.addCleanup(workspace.close)
+        self.assertEqual(preflight.local_value(workspace.root, "project"), "acme")
+        self.assertIsNone(preflight.local_value(workspace.root, "aws_account_id"))
+
+
+class AutomationRefusalTests(unittest.TestCase):
+    def test_refusal_codes(self):
+        self.assertEqual(preflight.automation_refusal({}), None)
+        self.assertEqual(preflight.automation_refusal({"GITHUB_ACTIONS": "true"}), "live_refused_in_ci")
+        self.assertEqual(preflight.automation_refusal({"CLAUDE_CODE_REMOTE": "true"}), "live_refused_in_cloud_session")
+        self.assertEqual(preflight.automation_refusal({"CODEX_SANDBOX": "seatbelt"}), "live_refused_in_cloud_session")
+        for variable in preflight.CREDENTIAL_VARIABLES:
+            self.assertEqual(preflight.automation_refusal({variable: "proxy-injected"}), "live_refused_placeholder_credentials")
+        self.assertEqual(preflight.automation_refusal({"AWS_ENDPOINT_URL": "https://localhost"}), "live_refused_endpoint_override")
+
+    def test_live_preflight_refused_in_cloud_session_without_aws_calls(self):
+        for extra in ({"CLAUDE_CODE_REMOTE": "true"}, {"AWS_ACCESS_KEY_ID": "proxy-injected", "AWS_SECRET_ACCESS_KEY": "proxy-injected"}):
+            workspace = Workspace()
+            self.addCleanup(workspace.close)
+            report = preflight.preflight("platform", workspace.terraform, workspace.aws, live=True, services=workspace.services,
+                                         env=dict(workspace.env, **extra))
+            self.assertEqual(len(report["findings"]), 1)
+            self.assertTrue(report["findings"][0].startswith("live_refused_"))
+            self.assertFalse([call for call in workspace.calls() if call[0] == "aws"])
+
+
 class RunTests(unittest.TestCase):
     def operate(self, workspace, command, answer="platform", env=None):
         messages = []
@@ -295,6 +427,50 @@ class RunTests(unittest.TestCase):
         code, steps, _, _ = self.operate(workspace, "apply", env=dict(workspace.env, GITHUB_ACTIONS="true"))
         self.assertEqual((code, steps), (1, []))
         self.assertEqual(workspace.calls(), [])
+
+    def test_cloud_session_is_refused_before_any_tool(self):
+        for extra in ({"CLAUDE_CODE_REMOTE": "true"}, {"AWS_ACCESS_KEY_ID": "proxy-injected"}):
+            workspace = Workspace()
+            self.addCleanup(workspace.close)
+            code, steps, _, messages = self.operate(workspace, "apply", env=dict(workspace.env, **extra))
+            self.assertEqual((code, steps, workspace.calls()), (1, [], []))
+            self.assertTrue(messages[0].startswith("Refused (live_refused_"))
+
+    def test_s3_backend_init_passes_backend_settings(self):
+        workspace = Workspace()
+        self.addCleanup(workspace.close)
+        workspace.use_backend()
+        code, steps, calls, _ = self.operate(workspace, "plan")
+        self.assertEqual((code, steps), (0, ["init", "console", "plan"]))
+        self.assertIn("-backend-config=" + preflight.BACKEND_CONFIG, calls[0])
+
+    def test_migrate_state_checks_before_moving_state(self):
+        workspace = Workspace()
+        self.addCleanup(workspace.close)
+        workspace.use_backend()
+        code, steps, calls, messages = self.operate(workspace, "migrate-state")
+        self.assertEqual((code, steps), (0, ["init", "console"]))
+        self.assertEqual(calls[0], ["init", "-lockfile=readonly", "-backend-config=" + preflight.BACKEND_CONFIG, "-migrate-state"])
+        order = [call[1] if call[0] == "aws" else "terraform" for call in workspace.calls()]
+        self.assertEqual(order[:4], ["sts", "s3api", "s3api", "terraform"])
+        self.assertTrue(messages[-1].startswith("Migrated; preflight passed"))
+
+    def test_migrate_state_refusals_change_nothing(self):
+        scenarios = [
+            ("no_override", None, AWS_OK, "Refused: copy backend_override.tf.example"),
+            ("versioning_off", "acme", dict(AWS_OK, **{"s3api get-bucket-versioning": {"Status": "Suspended"}}), "state_bucket_versioning_not_enabled"),
+            ("wrong_account", "acme", dict(AWS_OK, **{"sts get-caller-identity": {"Account": "999988887777"}}), "caller_account_mismatch"),
+            ("placeholder_project", "project", AWS_OK, "placeholder:backend"),
+        ]
+        for name, project, responses, message in scenarios:
+            local = LOCAL_PLATFORM.replace('"acme"', f'"{project}"') if project else LOCAL_PLATFORM
+            workspace = Workspace(local=local, aws=responses)
+            self.addCleanup(workspace.close)
+            if project:
+                workspace.use_backend(project=project)
+            code, steps, _, messages = self.operate(workspace, "migrate-state")
+            self.assertEqual((code, steps), (1, []), name)
+            self.assertIn(message, messages[-1], name)
 
     def test_unignored_plan_path_is_refused(self):
         workspace = Workspace()

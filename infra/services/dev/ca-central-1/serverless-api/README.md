@@ -23,6 +23,9 @@ are documented placeholders. Copy `local.auto.tfvars.example` to the untracked
 [local workflow](../../../../../scripts/local-workflow/README.md) preflight refuses a plan or apply while any of them is
 missing locally or still a placeholder. Full CI plans this root with the committed
 values under mocks. Never put a credential or secret value in any tfvars file.
+State is local by default; for the optional S3 backend copy
+`backend_override.tf.example` and `backend.s3.tfbackend.example` (both stay
+untracked once copied) and run `run.py <root> migrate-state`.
 
 | Committed value | Setting |
 | --- | --- |
