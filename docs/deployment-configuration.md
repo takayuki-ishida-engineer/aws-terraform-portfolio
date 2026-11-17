@@ -281,7 +281,9 @@ approval. The Owner may reorder them.
 1. These rules and the repository guard (this document).
 2. Naming and tag alignment and a consistency audit of the existing code, delivered
    as 2a rules (this document), 2b network, 2c platform, 2d api and serverless-api,
-   2e IAM tag-key policies and the audit report. Root splits may be included where
+   2e the audit report. 2d starts with the IAM tag-key policies, pulled forward from
+   2e because the secret's `project` tag is their ABAC key (2d-1 authorization tag
+   keys, 2d-2 serverless-api, 2d-3 api). Root splits may be included where
    section 6 applies.
 3. Per-root placeholder `terraform.tfvars`, `local.auto.tfvars.example`, a local
    workflow with preflight checks and CI validation using the committed values.

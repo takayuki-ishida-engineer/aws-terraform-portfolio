@@ -15,7 +15,7 @@ permissions; it does **not** choose or authenticate the provider. This module
 performs no account lookup and contains no provider/backend configuration. Use one
 owning root per workload account for this global fixed policy identity; do not
 instantiate competing copies per application, environment or region in the same
-account. Its region and Project contract must match the reviewed human-access
+account. Its region and project contract must match the reviewed human-access
 configuration.
 
 The separate [IAM access module](../iam_access/README.md) adds a customer-managed
@@ -32,19 +32,19 @@ account-specific ARN and caller-account scope.
 | --- | --- | --- |
 | `account_id` | Required `string`, no default | Non-null, exactly 12 decimal digits; one approved workload account selected independently by the owning root |
 | `region` | Required `string`, no default | Non-null explicit region syntax, no wildcard; existence and partition compatibility verified outside this module |
-| `project_tag` | Required `string`, no default | Non-null, 1–63 lowercase letters/digits/hyphens starting with a letter; matches the reviewed secret Project identity |
+| `project_tag` | Required `string`, no default | Non-null, 1–63 lowercase letters/digits/hyphens starting with a letter; matches the reviewed secret project identity |
 | `partition` | `string`, `aws` | Only `aws`, `aws-us-gov` or `aws-cn`; this does not configure the provider |
-| `tags` | `map(string)`, `{}` | Additional non-sensitive policy inventory tags; canonical module-owned Name and Project take precedence |
+| `tags` | `map(string)`, `{}` | Additional non-sensitive policy inventory tags; canonical module-owned Name and project take precedence |
 
 The policy accepts no arbitrary JSON, action list, resource list, policy name,
 path, managed-policy ARN or future-service feature flag. Root account/region/
-Project values must be verified before external use; format validation cannot
+project values must be verified before external use; format validation cannot
 establish account ownership, existing resources or effective authorization.
 Names, descriptions and tags must contain no credential or confidential values.
 
 | Category | Effective configuration |
 | --- | --- |
-| Root Override | Explicit workload account, Secrets Manager region, Project identity, optional partition and non-sensitive inventory tags |
+| Root Override | Explicit workload account, Secrets Manager region, project identity, optional partition and non-sensitive inventory tags |
 | Module Default | Partition `aws`; additional inventory tags `{}` |
 | Module Fixed | Policy name `Portfolio-Developer-SecretsManager`, path `/`, the reviewed six actions/five statements and all authorization safeguards; 6,144-character quota guard |
 
@@ -77,11 +77,11 @@ would need a separate explicitly reviewed design.
 
 | Actions | Additional conditions / purpose |
 | --- | --- |
-| `secretsmanager:CreateSecret` | Required request Project; canonical Environment/ManagedBy/Name/Project/Service tag keys; no requested replica regions; no replica overwrite |
-| `secretsmanager:TagResource` with Project supplied | Both resource and requested Project match; the same canonical tag keys; no request-tag-only adoption of unrelated resources |
-| `secretsmanager:DescribeSecret`, `secretsmanager:GetResourcePolicy` | Existing matching Project resource; the provider reads both during secret-container refresh |
-| `secretsmanager:TagResource`, `secretsmanager:UntagResource` for other tags | Matching resource Project; exclude every case variant of Project and require a tag-key list |
-| `secretsmanager:DeleteSecret` | Matching Project; explicit recovery period 7–30 days; `BoolIfExists` rejects true ForceDeleteWithoutRecovery while permitting omission/false |
+| `secretsmanager:CreateSecret` | Required request project; canonical Name/env/managed/project/service tag keys; no requested replica regions; no replica overwrite |
+| `secretsmanager:TagResource` with project supplied | Both resource and requested project match; the same canonical tag keys; no request-tag-only adoption of unrelated resources |
+| `secretsmanager:DescribeSecret`, `secretsmanager:GetResourcePolicy` | Existing matching project resource; the provider reads both during secret-container refresh |
+| `secretsmanager:TagResource`, `secretsmanager:UntagResource` for other tags | Matching resource project; exclude every case variant of project and require a tag-key list |
+| `secretsmanager:DeleteSecret` | Matching project; explicit recovery period 7–30 days; `BoolIfExists` rejects true ForceDeleteWithoutRecovery while permitting omission/false |
 
 The ARN includes the service-assigned suffix and permits valid secret names with
 `/`; the module does not fabricate secret ARNs or create containers. There are
@@ -115,7 +115,7 @@ or removes conditions to fit. Outputs expose the actual count and headroom.
 
 Account-specific generation avoids repeating all workload account ARNs in every
 service document. Native cases cover different accounts/regions/partitions,
-maximum Project length and an oversized synthetic region that must be rejected
+maximum project length and an oversized synthetic region that must be rejected
 by the policy-size precondition. Format-valid synthetic data does not prove a
 real region/account exists.
 
@@ -141,9 +141,9 @@ module "developer_account_policies" {
   project_tag = var.project
   partition   = var.aws_partition
 
+  # project, env and managed come from the root's provider default_tags.
   tags = {
-    Environment = var.environment
-    ManagedBy   = "Terraform"
+    Team = var.team
   }
 }
 ```
@@ -165,7 +165,7 @@ Safe migration order:
 3. Add the reviewed attachment while the old approved inline policy still covers
    its Secret permissions, then remove those statements from the inline policy
    and re-provision. The access module must serialize that transition.
-4. Verify the effective union, policy versions/content, account/region/Project
+4. Verify the effective union, policy versions/content, account/region/project
    scope, reference identity, assigned-account provisioning and external drift.
 
 Rollback must retain the target policies until no reference requires them.

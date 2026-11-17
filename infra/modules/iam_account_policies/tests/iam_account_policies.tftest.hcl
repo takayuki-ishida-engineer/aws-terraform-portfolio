@@ -22,7 +22,7 @@ run "fixed_identity_and_outputs" {
     condition = (
       aws_iam_policy.developer_secrets_manager.name == "Portfolio-Developer-SecretsManager" &&
       aws_iam_policy.developer_secrets_manager.path == "/" &&
-      aws_iam_policy.developer_secrets_manager.tags == tomap({ Name = "Portfolio-Developer-SecretsManager", Project = "test-portfolio" }) &&
+      aws_iam_policy.developer_secrets_manager.tags == tomap({ Name = "Portfolio-Developer-SecretsManager", project = "test-portfolio" }) &&
       output.policy_arn == aws_iam_policy.developer_secrets_manager.arn &&
       output.policy_name == aws_iam_policy.developer_secrets_manager.name &&
       output.policy_path == aws_iam_policy.developer_secrets_manager.path &&
@@ -45,11 +45,11 @@ run "fixed_identity_and_outputs" {
 run "module_owned_inventory_tags" {
   command = plan
   variables {
-    tags = { Name = "ignored", Project = "ignored", Owner = "test-team" }
+    tags = { Name = "ignored", project = "ignored", Owner = "test-team" }
   }
   assert {
-    condition     = aws_iam_policy.developer_secrets_manager.tags == tomap({ Name = "Portfolio-Developer-SecretsManager", Project = "test-portfolio", Owner = "test-team" })
-    error_message = "Additional inventory tags must not override the module-owned policy identity or Project."
+    condition     = aws_iam_policy.developer_secrets_manager.tags == tomap({ Name = "Portfolio-Developer-SecretsManager", project = "test-portfolio", Owner = "test-team" })
+    error_message = "Additional inventory tags must not override the module-owned policy identity or project."
   }
 }
 
@@ -87,13 +87,13 @@ run "creation_request_tags_and_replication_guards" {
   assert {
     condition = one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "CreateProjectSecret"]).Condition == {
       StringEquals = {
-        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:RequestTag/Project" = "test-portfolio"
+        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:RequestTag/project" = "test-portfolio"
       }
-      "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
+      "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Name", "env", "managed", "project", "service"] }
       Null                        = { "secretsmanager:AddReplicaRegions" = "true" }
       BoolIfExists                = { "secretsmanager:ForceOverwriteReplicaSecret" = "false" }
     }
-    error_message = "Creation must require canonical Project request tags and retain supported no-replica/overwrite guards without fake payload restrictions."
+    error_message = "Creation must require canonical project request tags and retain supported no-replica/overwrite guards without fake payload restrictions."
   }
 }
 
@@ -103,11 +103,11 @@ run "tag_identity_requires_matching_resource_and_request" {
     condition = one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "TagProjectSecretIdentity"]).Condition == {
       StringEquals = {
         "aws:PrincipalAccount"   = "000000000000", "aws:RequestedRegion" = "ca-central-1",
-        "aws:RequestTag/Project" = "test-portfolio", "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:RequestTag/project" = "test-portfolio", "aws:ResourceTag/project" = "test-portfolio"
       }
-      "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
+      "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Name", "env", "managed", "project", "service"] }
     }
-    error_message = "The special tag grant must require both Project values and canonical keys, never request-tag-only resource adoption."
+    error_message = "The special tag grant must require both project values and canonical keys, never request-tag-only resource adoption."
   }
 }
 
@@ -117,10 +117,10 @@ run "metadata_reads_require_existing_project" {
     condition = (
       toset(one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "ReadProjectSecretMetadata"]).Action) == toset(["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"]) &&
       one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "ReadProjectSecretMetadata"]).Condition == { StringEquals = {
-        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:ResourceTag/project" = "test-portfolio"
       } }
     )
-    error_message = "Provider refresh metadata reads must remain separate from value retrieval and Project-scoped."
+    error_message = "Provider refresh metadata reads must remain separate from value retrieval and project-scoped."
   }
 }
 
@@ -129,12 +129,12 @@ run "existing_tags_protect_project_identity" {
   assert {
     condition = one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "EditProjectSecretTags"]).Condition == {
       StringEquals = {
-        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:ResourceTag/project" = "test-portfolio"
       }
-      "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
+      "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["project"] }
       Null                                     = { "aws:TagKeys" = "false" }
     }
-    error_message = "Existing tag edits must exclude every Project case variant and reject a missing tag-key list."
+    error_message = "Existing tag edits must exclude every project case variant and reject a missing tag-key list."
   }
 }
 
@@ -143,7 +143,7 @@ run "deletion_recovery_and_force_guards" {
   assert {
     condition = one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "ScheduleProjectSecretDeletion"]).Condition == {
       StringEquals = {
-        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:PrincipalAccount" = "000000000000", "aws:RequestedRegion" = "ca-central-1", "aws:ResourceTag/project" = "test-portfolio"
       }
       BoolIfExists             = { "secretsmanager:ForceDeleteWithoutRecovery" = "false" }
       NumericGreaterThanEquals = { "secretsmanager:RecoveryWindowInDays" = "7" }
@@ -219,10 +219,10 @@ run "longest_project_stays_bounded" {
   assert {
     condition = (
       output.policy_non_whitespace_characters <= 6144 &&
-      one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "CreateProjectSecret"]).Condition.StringEquals["aws:RequestTag/Project"] == var.project_tag &&
-      one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "ReadProjectSecretMetadata"]).Condition.StringEquals["aws:ResourceTag/Project"] == var.project_tag
+      one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "CreateProjectSecret"]).Condition.StringEquals["aws:RequestTag/project"] == var.project_tag &&
+      one([for statement in jsondecode(output.policy_json).Statement : statement if statement.Sid == "ReadProjectSecretMetadata"]).Condition.StringEquals["aws:ResourceTag/project"] == var.project_tag
     )
-    error_message = "The maximum valid Project length must remain fully enforced and within the policy quota."
+    error_message = "The maximum valid project length must remain fully enforced and within the policy quota."
   }
 }
 

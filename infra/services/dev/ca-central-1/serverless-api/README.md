@@ -104,7 +104,7 @@ are not mislabeled as child defaults.
 | --- | --- |
 | Identity | Fixed locals: `dev`, `ca-central-1`, `serverless-api`, `aws-terraform-portfolio` |
 | Provider | Root-owned default `hashicorp/aws`; fixed Region; `allowed_account_ids = [var.aws_account_id]` |
-| Provider default tags | `Environment = dev`, `Service = serverless-api`, `Project = aws-terraform-portfolio`, `ManagedBy = Terraform` |
+| Provider default tags | `project = aws-terraform-portfolio`, `env = dev`, `managed = terraform` ([tag keys](../../../../../docs/deployment-configuration.md#5-tags)); per-resource `Name`/`service` follow in the naming change |
 | Terraform/provider versions | CLI `~> 1.17.0`, AWS `~> 6.72.0`; unchanged committed lock selects AWS 6.72.0 |
 | State | Explicit local backend, default root-local `terraform.tfstate`; isolated by environment/Region/service |
 
@@ -124,7 +124,7 @@ are not mislabeled as child defaults.
 | Both Log Groups | 30-day retention; deletion protection true; CMK null (`log_*` workload inputs versus access_log_* HTTP API inputs) | Module Default |
 | Both Log Groups | `STANDARD`, `skip_destroy = false` | Module Fixed |
 | Secret lifecycle/encryption | 30-day recovery; no explicit CMK; optional description null | Module Default |
-| Secret metadata tags | Canonical `Name` and required `Project` | Module Fixed |
+| Secret metadata tags | Canonical `Name` and the module-owned `project` authorization tag | Module Fixed |
 | Extra module tags | Empty maps; root provider tags still apply | Module Default |
 | S3 | Global namespace, versioning Enabled, all four public-access blocks true, BucketOwnerEnforced, AES256/SSE-S3, `force_destroy = false`, HTTPS Deny with service-principal exception | Module Fixed |
 | Role | Lambda-only trust, path `/`, max session 3600 seconds, one inline `LambdaWorkloadAccess` policy | Module Fixed |

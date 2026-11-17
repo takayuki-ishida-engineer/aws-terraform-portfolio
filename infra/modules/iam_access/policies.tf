@@ -23,12 +23,13 @@ locals {
     "aws:PrincipalAccount" = sort(tolist(var.target_account_ids))
   }
   project_condition = {
-    StringEquals = merge(local.regional_equals, { "aws:ResourceTag/Project" = var.project_tag })
+    StringEquals = merge(local.regional_equals, { "aws:ResourceTag/project" = var.project_tag })
   }
-  # Canonical keys avoid ambiguous Project/project duplicates during creation.
-  creation_tag_keys = ["Environment", "ManagedBy", "Name", "Project", "Service"]
+  # Exactly the approved tag keys (docs/deployment-configuration.md section 5);
+  # one canonical spelling avoids ambiguous project/Project duplicates.
+  creation_tag_keys = ["Name", "env", "managed", "project", "service"]
   creation_condition = {
-    StringEquals                = merge(local.regional_equals, { "aws:RequestTag/Project" = var.project_tag })
+    StringEquals                = merge(local.regional_equals, { "aws:RequestTag/project" = var.project_tag })
     "ForAllValues:StringEquals" = { "aws:TagKeys" = local.creation_tag_keys }
   }
   # Fixed, reviewed create pairs: callers cannot inject actions or resource types.
@@ -146,7 +147,7 @@ locals {
           Action   = ["ec2:CreateTags", "ec2:DeleteTags"]
           Resource = local.network_arns
           Condition = merge(local.project_condition, {
-            "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
+            "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["project"] }
             Null                                     = { "aws:TagKeys" = "false" }
           })
         }

@@ -294,7 +294,7 @@ def self_test():
     {"Effect": "Allow", "Action": ["ec2:CreateSubnet"],
     "Resource": ["arn:aws:ec2:ca-central-1:000000000000:" + kind + "/*"],
     "Condition": {"StringEquals": {key: "test"}}}
-    for kind, key in (("subnet", "aws:RequestTag/Project"), ("vpc", "aws:ResourceTag/Project"))]}
+    for kind, key in (("subnet", "aws:RequestTag/project"), ("vpc", "aws:ResourceTag/project"))]}
   check_policy(base, refs)
   mutations = {
     "unknown action": lambda p: p["Statement"][0].update(Action=["ec2:Typo"]),
@@ -302,7 +302,7 @@ def self_test():
     "wildcard write resource": lambda p: p["Statement"][0].update(Resource=["*"]),
     "unsupported resource": lambda p: p["Statement"][0].update(Resource=["arn:aws:ec2:ca-central-1:000000000000:security-group/*"]),
     "unsupported condition": lambda p: p["Statement"][0].update(Condition={"Bool": {"ec2:IsMain": "false"}}),
-    "wrong resource condition": lambda p: p["Statement"][0].update(Condition={"StringEquals": {"aws:ResourceTag/Project": "test"}}),
+    "wrong resource condition": lambda p: p["Statement"][0].update(Condition={"StringEquals": {"aws:ResourceTag/project": "test"}}),
     "missing required parent": lambda p: p["Statement"].pop(),
     "optional resource without required VPC": lambda p: p.update(Statement=[{
       "Effect": "Allow", "Action": ["ec2:CreateVpc"],
@@ -342,7 +342,7 @@ def secretsmanager_self_test():
   arn = "arn:aws:secretsmanager:ca-central-1:000000000000:secret:portfolio/dev/database-000000"
   base = {"Version": "2012-10-17", "Statement": [{
     "Effect": "Allow", "Action": ["secretsmanager:DescribeSecret"], "Resource": [arn],
-    "Condition": {"StringEquals": {"aws:ResourceTag/Project": "test"}}}]}
+    "Condition": {"StringEquals": {"aws:ResourceTag/project": "test"}}}]}
   check_policy(base, refs)
   # Also exercise the deletion and tag-integrity keys used by generated policies.
   deletion = copy.deepcopy(base)
@@ -354,8 +354,8 @@ def secretsmanager_self_test():
   check_policy(deletion, refs)
   tag = copy.deepcopy(base)
   tag["Statement"][0].update(Action=["secretsmanager:TagResource"])
-  tag["Statement"][0]["Condition"]["StringEquals"]["aws:RequestTag/Project"] = "test"
-  tag["Statement"][0]["Condition"]["ForAllValues:StringEquals"] = {"aws:TagKeys": ["Name", "Project"]}
+  tag["Statement"][0]["Condition"]["StringEquals"]["aws:RequestTag/project"] = "test"
+  tag["Statement"][0]["Condition"]["ForAllValues:StringEquals"] = {"aws:TagKeys": ["Name", "project"]}
   check_policy(tag, refs)
   mutations = {
     "unknown secret action": lambda p: p["Statement"][0].update(Action=["secretsmanager:Typo"]),
@@ -363,7 +363,7 @@ def secretsmanager_self_test():
     "unscoped secret resource": lambda p: p["Statement"][0].update(Resource=["*"]),
     "unsupported secret resource": lambda p: p["Statement"][0].update(Resource=["arn:aws:kms:ca-central-1:000000000000:key/00000000-0000-0000-0000-000000000000"]),
     "fabricated payload-absence condition": lambda p: p["Statement"][0].update(Action=["secretsmanager:CreateSecret"], Condition={"Null": {"secretsmanager:SecretString": "true", "secretsmanager:SecretBinary": "true"}}),
-    "unsupported untag request-tag condition": lambda p: p["Statement"][0].update(Action=["secretsmanager:UntagResource"], Condition={"StringEquals": {"aws:RequestTag/Project": "test"}}),
+    "unsupported untag request-tag condition": lambda p: p["Statement"][0].update(Action=["secretsmanager:UntagResource"], Condition={"StringEquals": {"aws:RequestTag/project": "test"}}),
     "wildcard secret account": lambda p: p["Statement"][0].update(Resource=[arn.replace("000000000000", "*")]),
     "colon inside secret identifier": lambda p: p["Statement"][0].update(Resource=[arn.replace("portfolio/dev", "portfolio:dev")]),
   }

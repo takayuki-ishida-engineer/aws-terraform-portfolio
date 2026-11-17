@@ -21,7 +21,7 @@ variable "region" {
 }
 
 variable "project_tag" {
-  description = "Required Project authorization tag shared with the owning root's reviewed secret metadata."
+  description = "Required project authorization tag value shared with the owning root's reviewed secret metadata."
   type        = string
   nullable    = false
 
@@ -44,7 +44,7 @@ variable "partition" {
 }
 
 variable "tags" {
-  description = "Additional non-sensitive policy inventory tags; module-owned Name and Project values take precedence."
+  description = "Additional non-sensitive policy inventory tags; module-owned Name and project values take precedence."
   type        = map(string)
   default     = {}
   nullable    = false

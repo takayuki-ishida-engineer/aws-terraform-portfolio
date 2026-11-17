@@ -80,7 +80,7 @@ instance IDs, workforce identities, credentials, or secrets are provided here.
 | `administration_account_id` | `string` | Exactly 12 digits; must not be an assignment target; management/registered delegated-admin account verified externally |
 | `target_account_ids` | `set(string)` | Nonempty set of exactly 12-digit approved workload accounts |
 | `target_region` | `string` | Explicit region identifier without wildcards; existence/partition support verified externally |
-| `project_tag` | `string` | 1-63 lowercase letters/digits/hyphens, starting with a letter; Project authorization tag value |
+| `project_tag` | `string` | 1-63 lowercase letters/digits/hyphens, starting with a letter; project authorization tag value |
 | `tags` | `map(string)` | Optional, default `{}`; Permission Set inventory tags only, never policy content |
 
 `administration_account_id` is intentionally separate from workload targets:
@@ -91,10 +91,10 @@ scoping proves that the caller is a delegated administrator.
 | --- | --- |
 | Root Override | Explicit instance, administrative account, target accounts, region, project identity, inventory prefix and optional inventory tags |
 | Module Default | Additional Permission Set `tags = {}` |
-| Module Fixed | Three Permission Set names, one-hour sessions, reviewed actions/resource types/conditions, EC2 creation tag keys, module-owned Name/Project inventory tags |
+| Module Fixed | Three Permission Set names, one-hour sessions, reviewed actions/resource types/conditions, EC2 creation tag keys, module-owned Name/project inventory tags |
 
 Permission Set names remain exactly those listed above; `name_prefix` does not
-rename access identities. Module-owned `Name` and `Project` inventory tags win
+rename access identities. Module-owned `Name` and `project` inventory tags win
 over caller tags. There is no arbitrary JSON policy input, managed-policy ARN
 input, PassRole switch, or future-service toggle. Use one reviewed management
 configuration for these organization-wide names rather than duplicate modules
@@ -129,10 +129,10 @@ All actions below are exact names. Let:
   patterns `arn:<partition>:ec2:<target_region>:<approved-target-id>:<type>/*`.
 - **R** require `aws:RequestedRegion = target_region` and
   `aws:PrincipalAccount` in `target_account_ids`.
-- **E** mean R plus `aws:ResourceTag/Project = project_tag`.
-- **C** mean R plus `aws:RequestTag/Project = project_tag` and
+- **E** mean R plus `aws:ResourceTag/project = project_tag`.
+- **C** mean R plus `aws:RequestTag/project = project_tag` and
   `ForAllValues:StringEquals` on `aws:TagKeys` allowing only canonical
-  `Environment`, `ManagedBy`, `Name`, `Project`, `Service` keys.
+  `Name`, `env`, `managed`, `project`, `service` keys.
 
 The principal-account condition constrains the caller's account, not ownership of
 every returned shared resource. ARN account segments separately scope writes.
@@ -179,21 +179,21 @@ supply approved existing user/group identifiers.
 | `ec2:ModifySubnetAttribute` | S | E; no undocumented attribute-name/value constraint |
 | `ec2:AssociateRouteTable`, `ec2:ReplaceRouteTableAssociation`, `ec2:DisassociateRouteTable` | T + S | E on applicable authorized resources; no subnet-only or main-table exclusion guarantee |
 | `ec2:CreateTags` during creation | Exact corresponding V/S/G/T | C and exact `ec2:CreateAction` paired with that resource's create API |
-| `ec2:CreateTags`, `ec2:DeleteTags` after creation | V/S/G/T | E; `ForAllValues:StringNotEqualsIgnoreCase` excludes `Project`; `Null: aws:TagKeys = false` |
+| `ec2:CreateTags`, `ec2:DeleteTags` after creation | V/S/G/T | E; `ForAllValues:StringNotEqualsIgnoreCase` excludes `project`; `Null: aws:TagKeys = false` |
 | Five metadata actions listed below | Wildcard or V as documented below | R or E |
 | `ec2:DescribeNetworkAcls`, `ec2:DescribeSecurityGroups` | `*` | R; Developer only, provider VPC default-resource metadata reads |
 
 Creation grants are separate per new resource type, so a request tag cannot
 substitute for authorization on an existing parent VPC. Creation-time tagging
 works only in the service-supplied create context. Canonical tag-key restrictions
-avoid ambiguous `Project`/`project` duplicates during creation. Later tag edits
-cannot set/delete any case variant of Project, adopt an unrelated resource into
+avoid ambiguous `project`/`Project` duplicates during creation. Later tag edits
+cannot set/delete any case variant of project, adopt an unrelated resource into
 the authorization scope, or use an omitted tag list to delete all tags.
 
 All prior 20 actions were rechecked against the official action/resource/condition
 tables, including parent-VPC authorization, both sides of IGW attachment, the
 service-supplied tag-on-create context, and protection against adopting resources
-by changing Project. The seven additions are the five lifecycle writes below
+by changing project. The seven additions are the five lifecycle writes below
 and two provider metadata reads. There are no intentionally omitted operations
 identified for the implemented explicit-IPv4-CIDR VPC path. This is an offline
 design assessment, not proof that deployment or deletion will succeed in AWS.
@@ -210,14 +210,14 @@ indefinitely. No arbitrary policy/name/path input or speculative service is adde
 | Actual synthetic fixture | Before | After | Limit / new headroom |
 | --- | --- | --- | --- |
 | Developer inline, two targets / `test-portfolio` | 9,877 bytes | 7,184 bytes | 10,240 / 3,056 bytes |
-| Developer inline, two targets / full portfolio Project | 10,048 bytes | 7,301 bytes | 10,240 / 2,939 bytes |
+| Developer inline, two targets / full portfolio project | 10,048 bytes | 7,301 bytes | 10,240 / 2,939 bytes |
 | Account Secrets Manager policy / `test-portfolio` | Part of monolith | 2,346 characters | 6,144 / 3,798 characters |
 
 Compact policy inputs are ASCII, so native preconditions measure actual encoded
 size correctly. Identity Center allows one inline document, at most 32,768 total
 bytes and **10,240 non-whitespace bytes**; the compact inline guard satisfies both.
 IAM customer-managed policies have an independent **6,144 non-whitespace character**
-limit. Oversized account/Project/region configurations are rejected, not widened.
+limit. Oversized account/project/region configurations are rejected, not widened.
 All three Permission Sets, three inline resources, one Developer-only reference
 and the one per-account policy are checked from actual mocked-plan inventories.
 
@@ -236,8 +236,18 @@ owning account. Previously a principal in any approved account could match any
 approved account's secret ARN; the managed policy intentionally narrows both its
 principal condition and resource ARN to its own account. The effective union is
 compared against an approved Terraform-rendered synthetic baseline, not merely
-an action count. EC2, Access Admin and Operator remain identical; twelve deliberate
+an action count. EC2, Access Admin and Operator remain identical; fifteen deliberate
 mutations verify that the comparison rejects widened or missing privileges.
+
+The approved baseline itself stays frozen and hash-pinned. Before comparison the
+checker projects it through the Owner-approved tag key rename of
+[deployment configuration](../../../docs/deployment-configuration.md#5-tags)
+(`Project`→`project`, `Environment`→`env`, `ManagedBy`→`managed`,
+`Service`→`service`, `Name` unchanged). Only `aws:RequestTag/<key>` and
+`aws:ResourceTag/<key>` condition keys and `aws:TagKeys` values are renamed; every
+action, resource, operator and value stays frozen, and an unknown key fails
+closed. Three of the fifteen mutations reject a pre-rename condition key, the
+pre-rename creation key list and an extra creation key.
 
 ### Five-action authorization decisions
 
@@ -259,10 +269,10 @@ Supported keys for the selected resource types, in addition to global R:
 
 | Operations / resource | Published service keys | Keys actually used |
 | --- | --- | --- |
-| ModifyVpcAttribute / V | `aws:ResourceTag/${TagKey}`, `ec2:ResourceTag/${TagKey}`, `ec2:Attribute`, `ec2:Attribute/${AttributeName}`, `ec2:Tenancy`, `ec2:VpcID`; action-level `ec2:Region` | `aws:ResourceTag/Project` plus R |
-| ModifySubnetAttribute / S | Tag keys above, both Attribute keys, `ec2:AvailabilityZone`, `ec2:AvailabilityZoneId`, `ec2:SubnetID`, `ec2:Vpc`; action-level `ec2:Region` | `aws:ResourceTag/Project` plus R |
-| All three association actions / T | Tag keys above, `ec2:RouteTableID`, `ec2:Vpc`; action-level `ec2:Region` | `aws:ResourceTag/Project` plus R |
-| All three association actions / S | Tag keys above, `ec2:AvailabilityZone`, `ec2:AvailabilityZoneId`, `ec2:SubnetID`, `ec2:Vpc`; action-level `ec2:Region` | `aws:ResourceTag/Project` plus R |
+| ModifyVpcAttribute / V | `aws:ResourceTag/${TagKey}`, `ec2:ResourceTag/${TagKey}`, `ec2:Attribute`, `ec2:Attribute/${AttributeName}`, `ec2:Tenancy`, `ec2:VpcID`; action-level `ec2:Region` | `aws:ResourceTag/project` plus R |
+| ModifySubnetAttribute / S | Tag keys above, both Attribute keys, `ec2:AvailabilityZone`, `ec2:AvailabilityZoneId`, `ec2:SubnetID`, `ec2:Vpc`; action-level `ec2:Region` | `aws:ResourceTag/project` plus R |
+| All three association actions / T | Tag keys above, `ec2:RouteTableID`, `ec2:Vpc`; action-level `ec2:Region` | `aws:ResourceTag/project` plus R |
+| All three association actions / S | Tag keys above, `ec2:AvailabilityZone`, `ec2:AvailabilityZoneId`, `ec2:SubnetID`, `ec2:Vpc`; action-level `ec2:Region` | `aws:ResourceTag/project` plus R |
 
 `ec2:Attribute` and `ec2:Attribute/${AttributeName}` are documented String keys.
 The [EC2 IAM guide](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-policies-for-amazon-ec2.html)
@@ -272,7 +282,7 @@ settings. No guessed Boolean, attribute-selection or attribute-value condition
 is used. Terraform fixed values and plan review are not IAM parameter controls.
 
 The references do not establish that every old/new route table and subnet is
-always evaluated for an association-ID request. Project restrictions apply to
+always evaluated for an association-ID request. Restrictions on the project tag apply to
 the resources actually authorized, not an invented universal parent check.
 There is no supported `ec2:IsMain` discriminator or association ARN here.
 Review main-association IDs, implicitly associated subnets and routing impact
@@ -292,30 +302,30 @@ Developer's six actions are generated by `iam_account_policies`, not this
 module's inline document. For that policy, let **Q** be
 `arn:<partition>:secretsmanager:<region>:<account_id>:secret:*`, **Rₐ** be the
 explicit region plus scalar `aws:PrincipalAccount = account_id`, **Eₐ** add the
-matching Project resource tag, and **Cₐ** add the Project request tag plus the five
+matching project resource tag, and **Cₐ** add the project request tag plus the five
 canonical creation keys. Operator keeps its previous multi-target Q/R/E scope.
 Q contains explicit partition/region/account segments;
 `SecretId` includes the service-assigned suffix and may contain `/` from the name.
 All six actions require the SAR `Secret` resource type. The per-account policy
-uses the same five canonical creation keys and Project identity as the roots.
+uses the same five canonical creation keys and project identity as the roots.
 
 | Profile / exact action | Resource | Conditions / purpose |
 | --- | --- | --- |
 | Developer `secretsmanager:CreateSecret` | Q | Cₐ; `Null: secretsmanager:AddReplicaRegions = true`, `BoolIfExists: secretsmanager:ForceOverwriteReplicaSecret = false`; create a tagged container, no requested replicas/overwrite |
-| Developer `secretsmanager:TagResource` with Project supplied | Q | Cₐ **and** existing/resource `aws:ResourceTag/Project = project_tag`; creation authorization or reaffirming the same Project, not adopting unrelated secrets |
+| Developer `secretsmanager:TagResource` with project supplied | Q | Cₐ **and** existing/resource `aws:ResourceTag/project = project_tag`; creation authorization or reaffirming the same project, not adopting unrelated secrets |
 | Developer `secretsmanager:DescribeSecret`, `secretsmanager:GetResourcePolicy` | Q | Eₐ; provider refresh reads both, even when no resource policy is managed |
-| Developer `secretsmanager:TagResource`, `secretsmanager:UntagResource` for other tags | Q | Eₐ; `ForAllValues:StringNotEqualsIgnoreCase` excludes Project; `Null: aws:TagKeys = false` |
+| Developer `secretsmanager:TagResource`, `secretsmanager:UntagResource` for other tags | Q | Eₐ; `ForAllValues:StringNotEqualsIgnoreCase` excludes project; `Null: aws:TagKeys = false` |
 | Developer `secretsmanager:DeleteSecret` | Q | Eₐ; `BoolIfExists: ForceDeleteWithoutRecovery = false`; NumericGreaterThanEquals RecoveryWindowInDays 7 and NumericLessThanEquals 30 (both `secretsmanager:` keys) |
 | Operator `secretsmanager:DescribeSecret` | Q | E; metadata only, no list/policy/value read or mutations |
 
 CreateSecret with tags also requires TagResource. The official
 [IAM Secrets Manager ABAC tutorial](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_attribute-based-access-control.html)
-documents creation with matching resource/request tags. Requiring both Project
+documents creation with matching resource/request tags. Requiring both project
 values and exact canonical keys permits that path without a request-tag-only
 Allow that could adopt an unrelated existing secret. It can reaffirm the same
-Project on an existing matching resource; there is no invented Secrets Manager
-`CreateAction` key. Other Project casing variants cannot be introduced through
-these grants. Project governance by other identities remains an external trust
+project on an existing matching resource; there is no invented Secrets Manager
+`CreateAction` key. Other project casing variants cannot be introduced through
+these grants. Governance of the project tag by other identities remains an external trust
 boundary.
 
 The provider's safe deletion request supplies the recovery period and omits the
@@ -358,7 +368,7 @@ continues to apply to these newly reviewed Developer capabilities.
 
 Operator retains these five EC2 actions, plus only the scoped Secrets Manager
 DescribeSecret above, and has no write grants. The four wildcard
-describes cannot be Project-filtered through IAM and can expose other-project
+describes cannot be project-filtered through IAM and can expose other-project
 or shared-resource network metadata in the permitted region/account context.
 They do not retrieve workload content. Do not put secrets in tags or metadata.
 
@@ -399,7 +409,7 @@ capability in Operator. Monitoring extensions need a real requirement and review
   exact API parameters, association IDs, state and resulting topology externally.
 - These identity policies are not permissions boundaries or SCPs. Other policies,
   Permission Sets, privileged tag editors, account governance and resource policies
-  affect effective access. Trusted governance of the Project tag is essential.
+  affect effective access. Trusted governance of the project tag is essential.
 - Creation covers the reviewed explicit-CIDR paths. IPAM pool authorization and
   other optional EC2 dependencies are not granted or tested.
 - The new managed reference requires an existing matching policy in every assigned
@@ -472,7 +482,7 @@ For any separately authorized external execution:
    checks do not establish effective authorization or production readiness.
 2. Each workload account's owning root creates/verifies its fixed-name/path policy
    using that account's explicitly restricted provider. Check exact account,
-   region, Project, policy JSON/default version, quota and existing attachments.
+   region, project, policy JSON/default version, quota and existing attachments.
 3. Only after every target is ready, add the Developer reference. Provider 6.72.0
    attaches it and automatically provisions all already provisioned accounts.
 4. Remove the Secrets Manager statements from the inline policy and verify
@@ -526,7 +536,7 @@ Formatting, initialization and validation passed; native tests passed **39 runs,
 zero failed**. All prior 34 run names remain. A native alternate-module fixture
 renders the actual account policy; retained Secrets Manager assertions inspect
 that policy rather than an empty inline placeholder. New attachment, quota and
-multi-account/Project cases validate the split without weakening the old guards.
+multi-account/project cases validate the split without weakening the old guards.
 Coverage includes policy JSON,
 binding, account/region/resource, creation-parent, tag-integrity, Operator
 confidentiality, forbidden-privilege and administrative-input regressions.
@@ -604,7 +614,7 @@ official public references, not an AWS service acceptance or execution result.
 ### Live Authorization Readiness: not complete
 
 Before authorized external use, verify actual IAM evaluation and other policies,
-account/partition/region and Project-tag governance, instance ownership and
+account/partition/region and project-tag governance, instance ownership and
 management/delegated prerequisites, customer-managed-key needs, policy quotas,
 runtime API authorization and topology, MFA, and assignment approval/audit/
 reconciliation. Test through a separately authorized environment. No policy

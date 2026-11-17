@@ -32,7 +32,7 @@ run "permission_set_identity_and_sessions" {
   command = plan
 
   variables {
-    tags = { Name = "ignored", Project = "ignored", Owner = "test-team" }
+    tags = { Name = "ignored", project = "ignored", Owner = "test-team" }
   }
 
   assert {
@@ -41,8 +41,8 @@ run "permission_set_identity_and_sessions" {
   }
 
   assert {
-    condition     = alltrue([for profile in [aws_ssoadmin_permission_set.access_admin, aws_ssoadmin_permission_set.developer, aws_ssoadmin_permission_set.operator] : profile.instance_arn == var.instance_arn && profile.session_duration == "PT1H" && profile.tags.Project == "test-portfolio" && profile.tags.Owner == "test-team"])
-    error_message = "Permission Sets must use the supplied instance, fixed one-hour sessions, and module-owned Project tags."
+    condition     = alltrue([for profile in [aws_ssoadmin_permission_set.access_admin, aws_ssoadmin_permission_set.developer, aws_ssoadmin_permission_set.operator] : profile.instance_arn == var.instance_arn && profile.session_duration == "PT1H" && profile.tags.project == "test-portfolio" && profile.tags.Owner == "test-team"])
+    error_message = "Permission Sets must use the supplied instance, fixed one-hour sessions, and module-owned project tags."
   }
 
   assert {
@@ -83,7 +83,7 @@ run "default_inventory_tags" {
   command = plan
 
   assert {
-    condition     = aws_ssoadmin_permission_set.developer.tags == tomap({ Name = "test-portfolio-developer", Project = "test-portfolio" })
+    condition     = aws_ssoadmin_permission_set.developer.tags == tomap({ Name = "test-portfolio-developer", project = "test-portfolio" })
     error_message = "Default optional tags must add no caller-controlled identity or permissions."
   }
 }
@@ -259,18 +259,18 @@ run "developer_creation_and_parent_authorization" {
       ] : alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
         statement.Action == ["ec2:${spec.action}"] &&
         toset(statement.Resource) == toset([for id in ["000000000000", "000000000001"] : "arn:aws:ec2:ca-central-1:${id}:${spec.type}/*"]) &&
-        statement.Condition.StringEquals["aws:RequestTag/Project"] == "test-portfolio" &&
-        toset(statement.Condition["ForAllValues:StringEquals"]["aws:TagKeys"]) == toset(["Environment", "ManagedBy", "Name", "Project", "Service"])
+        statement.Condition.StringEquals["aws:RequestTag/project"] == "test-portfolio" &&
+        toset(statement.Condition["ForAllValues:StringEquals"]["aws:TagKeys"]) == toset(["Name", "env", "managed", "project", "service"])
         if statement.Sid == spec.action
     ])])
-    error_message = "Each create grant must pair only its new resource type with the required Project tag and canonical approved tag keys."
+    error_message = "Each create grant must pair only its new resource type with the required project tag and canonical approved tag keys."
   }
 
   assert {
     condition = (
       toset(one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "UseExistingProjectVpc"]).Action) == toset(["ec2:CreateSubnet", "ec2:CreateRouteTable"]) &&
       toset(one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "UseExistingProjectVpc"]).Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) &&
-      one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "UseExistingProjectVpc"]).Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio"
+      one([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement : statement if statement.Sid == "UseExistingProjectVpc"]).Condition.StringEquals["aws:ResourceTag/project"] == "test-portfolio"
     )
     error_message = "Subnet/route-table creation must separately authorize the existing project VPC, not bypass it with request-tag permissions."
   }
@@ -285,7 +285,7 @@ run "developer_tag_integrity" {
       { action = "CreateInternetGateway", type = "internet-gateway" }, { action = "CreateRouteTable", type = "route-table" }
       ] : alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
         statement.Action == ["ec2:CreateTags"] && statement.Condition.StringEquals["ec2:CreateAction"] == spec.action &&
-        statement.Condition.StringEquals["aws:RequestTag/Project"] == "test-portfolio" &&
+        statement.Condition.StringEquals["aws:RequestTag/project"] == "test-portfolio" &&
         toset(statement.Resource) == toset([for id in ["000000000000", "000000000001"] : "arn:aws:ec2:ca-central-1:${id}:${spec.type}/*"])
         if statement.Sid == "TagDuring${spec.action}"
     ])])
@@ -294,12 +294,12 @@ run "developer_tag_integrity" {
 
   assert {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
-      statement.Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio" &&
-      statement.Condition["ForAllValues:StringNotEqualsIgnoreCase"]["aws:TagKeys"] == ["Project"] &&
+      statement.Condition.StringEquals["aws:ResourceTag/project"] == "test-portfolio" &&
+      statement.Condition["ForAllValues:StringNotEqualsIgnoreCase"]["aws:TagKeys"] == ["project"] &&
       statement.Condition.Null["aws:TagKeys"] == "false"
       if statement.Sid == "EditNonAuthorizationTags"
     ])
-    error_message = "Existing tag edits must exclude all Project casing variants and reject missing-tag-list deletes."
+    error_message = "Existing tag edits must exclude all project casing variants and reject missing-tag-list deletes."
   }
 }
 
@@ -308,10 +308,10 @@ run "developer_existing_resource_controls" {
 
   assert {
     condition = alltrue([for statement in jsondecode(aws_ssoadmin_permission_set_inline_policy.developer.inline_policy).Statement :
-      statement.Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio"
+      statement.Condition.StringEquals["aws:ResourceTag/project"] == "test-portfolio"
       if contains(["UseExistingProjectVpc", "ManageExistingProjectNetwork", "EditNonAuthorizationTags", "ProjectVpcAttributes", "ManageProjectSubnetAssociations"], statement.Sid)
     ])
-    error_message = "Every existing network resource operation must retain the Project authorization tag."
+    error_message = "Every existing network resource operation must retain the project authorization tag."
   }
 
   assert {
@@ -349,12 +349,12 @@ run "operator_metadata_only" {
       statement.Condition.StringEquals["aws:RequestedRegion"] == "ca-central-1" &&
       toset(statement.Condition.StringEquals["aws:PrincipalAccount"]) == toset(["000000000000", "000000000001"]) &&
       (statement.Sid == "RegionalNetworkMetadata" ? statement.Resource == ["*"] :
-        statement.Condition.StringEquals["aws:ResourceTag/Project"] == "test-portfolio" &&
+        statement.Condition.StringEquals["aws:ResourceTag/project"] == "test-portfolio" &&
         (statement.Sid == "ProjectVpcAttributes" ?
           toset(statement.Resource) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) :
       toset(statement.Resource) == toset(["arn:aws:secretsmanager:ca-central-1:000000000000:secret:*", "arn:aws:secretsmanager:ca-central-1:000000000001:secret:*"])))
     ])
-    error_message = "Operator's wildcard stays limited to regional network metadata; VPC attributes and Secret metadata remain exactly Project/account/region scoped."
+    error_message = "Operator's wildcard stays limited to regional network metadata; VPC attributes and Secret metadata remain exactly project/account/region scoped."
   }
 }
 
@@ -416,10 +416,10 @@ run "vpc_attribute_authorization" {
       statement.Sid == "ManageExistingProjectNetwork" &&
       toset([for arn in statement.Resource : arn if strcontains(arn, ":vpc/")]) == toset(["arn:aws:ec2:ca-central-1:000000000000:vpc/*", "arn:aws:ec2:ca-central-1:000000000001:vpc/*"]) &&
       statement.Condition == { StringEquals = {
-        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/project" = "test-portfolio"
       } }
     ])
-    error_message = "Compacted vpc attribute authorization must retain exactly its compatible vpc ARNs and Project/account/region conditions, without fabricated value guards."
+    error_message = "Compacted vpc attribute authorization must retain exactly its compatible vpc ARNs and project/account/region conditions, without fabricated value guards."
   }
 }
 
@@ -431,10 +431,10 @@ run "subnet_attribute_authorization" {
       statement.Sid == "ManageExistingProjectNetwork" &&
       toset([for arn in statement.Resource : arn if strcontains(arn, ":subnet/")]) == toset(["arn:aws:ec2:ca-central-1:000000000000:subnet/*", "arn:aws:ec2:ca-central-1:000000000001:subnet/*"]) &&
       statement.Condition == { StringEquals = {
-        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/project" = "test-portfolio"
       } }
     ])
-    error_message = "Compacted subnet attribute authorization must retain exactly its compatible subnet ARNs and Project/account/region conditions, without fabricated value guards."
+    error_message = "Compacted subnet attribute authorization must retain exactly its compatible subnet ARNs and project/account/region conditions, without fabricated value guards."
   }
 }
 
@@ -449,7 +449,7 @@ run "association_lifecycle_authorization" {
         "arn:aws:ec2:ca-central-1:000000000000:subnet/*", "arn:aws:ec2:ca-central-1:000000000001:subnet/*"
       ]) &&
       statement.Condition == { StringEquals = {
-        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/project" = "test-portfolio"
       } } if statement.Sid == "ManageProjectSubnetAssociations"
     ])
     error_message = "Association grants must use only reviewed route-table/subnet resources and supported conditions, never a fake IsMain or association-ARN restriction."
@@ -497,14 +497,14 @@ run "secret_creation_controls" {
       statement.Action == ["secretsmanager:CreateSecret"] &&
       statement.Condition == {
         StringEquals = {
-          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:RequestTag/Project" = "test-portfolio"
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:RequestTag/project" = "test-portfolio"
         }
-        "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
+        "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Name", "env", "managed", "project", "service"] }
         Null                        = { "secretsmanager:AddReplicaRegions" = "true" }
         BoolIfExists                = { "secretsmanager:ForceOverwriteReplicaSecret" = "false" }
       }
     ])
-    error_message = "Secret creation must require canonical Project request tags and reject replicas/overwrite without inventing payload-absence conditions."
+    error_message = "Secret creation must require canonical project request tags and reject replicas/overwrite without inventing payload-absence conditions."
   }
 }
 
@@ -517,12 +517,12 @@ run "secret_tag_identity_boundaries" {
       statement.Condition == {
         StringEquals = {
           "aws:RequestedRegion"     = "ca-central-1", "aws:PrincipalAccount" = "000000000000",
-          "aws:ResourceTag/Project" = "test-portfolio", "aws:RequestTag/Project" = "test-portfolio"
+          "aws:ResourceTag/project" = "test-portfolio", "aws:RequestTag/project" = "test-portfolio"
         }
-        "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Environment", "ManagedBy", "Name", "Project", "Service"] }
+        "ForAllValues:StringEquals" = { "aws:TagKeys" = ["Name", "env", "managed", "project", "service"] }
       }
     ])
-    error_message = "Identity tagging must require both resource and request Project values and exact canonical keys; request tags alone must never authorize adopting unrelated secrets."
+    error_message = "Identity tagging must require both resource and request project values and exact canonical keys; request tags alone must never authorize adopting unrelated secrets."
   }
 }
 
@@ -534,13 +534,13 @@ run "secret_existing_tag_integrity" {
       toset(statement.Action) == toset(["secretsmanager:TagResource", "secretsmanager:UntagResource"]) &&
       statement.Condition == {
         StringEquals = {
-          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/Project" = "test-portfolio"
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/project" = "test-portfolio"
         }
-        "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["Project"] }
+        "ForAllValues:StringNotEqualsIgnoreCase" = { "aws:TagKeys" = ["project"] }
         Null                                     = { "aws:TagKeys" = "false" }
       }
     ])
-    error_message = "Existing Secret tag edits must require matching ownership, exclude every Project spelling and reject omitted tag lists."
+    error_message = "Existing Secret tag edits must require matching ownership, exclude every project spelling and reject omitted tag lists."
   }
 }
 
@@ -552,7 +552,7 @@ run "secret_deletion_recovery_controls" {
       statement.Action == ["secretsmanager:DeleteSecret"] &&
       statement.Condition == {
         StringEquals = {
-          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/Project" = "test-portfolio"
+          "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/project" = "test-portfolio"
         }
         BoolIfExists             = { "secretsmanager:ForceDeleteWithoutRecovery" = "false" }
         NumericGreaterThanEquals = { "secretsmanager:RecoveryWindowInDays" = "7" }
@@ -579,10 +579,10 @@ run "secret_profile_separation" {
   assert {
     condition = (
       one([for s in jsondecode(run.account_policy_fixture.policy_json).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Condition == { StringEquals = {
-        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = "000000000000", "aws:ResourceTag/project" = "test-portfolio"
       } } &&
       one([for s in jsondecode(aws_ssoadmin_permission_set_inline_policy.operator.inline_policy).Statement : s if s.Sid == "ReadProjectSecretMetadata"]).Condition == { StringEquals = {
-        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/project" = "test-portfolio"
       } }
     )
     error_message = "Developer managed permissions must be narrowed to the owning account while Operator's original metadata scope remains unchanged."
@@ -602,10 +602,10 @@ run "vpc_effective_authorization_preserved" {
         for account in ["000000000000", "000000000001"] : "arn:aws:ec2:ca-central-1:${account}:${kind}/*"
       ]])) &&
       statement.Condition == { StringEquals = {
-        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/Project" = "test-portfolio"
+        "aws:RequestedRegion" = "ca-central-1", "aws:PrincipalAccount" = ["000000000000", "000000000001"], "aws:ResourceTag/project" = "test-portfolio"
       } }
     ])
-    error_message = "Same-condition compaction must preserve the exact eleven existing actions and four account-scoped ARN types, with unchanged Project/region/account conditions."
+    error_message = "Same-condition compaction must preserve the exact eleven existing actions and four account-scoped ARN types, with unchanged project/region/account conditions."
   }
 
   assert {
@@ -637,7 +637,7 @@ run "rendered_policy_size_within_quota" {
     condition = alltrue([for policy in [aws_ssoadmin_permission_set_inline_policy.access_admin, aws_ssoadmin_permission_set_inline_policy.developer, aws_ssoadmin_permission_set_inline_policy.operator] :
       length(policy.inline_policy) <= 10240
     ])
-    error_message = "The actual compact ASCII policy documents must remain below the non-adjustable inline policy quota for the reviewed two-account fixture and full portfolio Project tag."
+    error_message = "The actual compact ASCII policy documents must remain below the non-adjustable inline policy quota for the reviewed two-account fixture and full portfolio project tag."
   }
 }
 
@@ -718,6 +718,6 @@ run "single_account_maximum_project_capacity" {
         statement.Condition.StringEquals["aws:PrincipalAccount"] == ["000000000000"]
       ])
     )
-    error_message = "Maximum Project identity length must remain supported without weakening account scope."
+    error_message = "Maximum project identity length must remain supported without weakening account scope."
   }
 }
