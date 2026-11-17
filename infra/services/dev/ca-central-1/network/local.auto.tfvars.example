@@ -1,0 +1,5 @@
+# Copy to local.auto.tfvars (untracked) and replace every value. It overrides the
+# placeholders in terraform.tfvars. Never put a credential or secret value here.
+
+project        = "myproj"       # 1-10 lowercase characters; becomes <project>-dev-...
+aws_account_id = "111122223333" # the dedicated DEV workload account

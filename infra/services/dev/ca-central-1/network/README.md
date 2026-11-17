@@ -5,6 +5,24 @@ mock evidence. It has not been deployed or approved for AWS/Live execution. It d
 not connect the independent serverless-api root or implement EKS/STG/PROD.
 **V1-C01 acceptance is still required before this PR merges.**
 
+## Input values (Step 1 item 3)
+
+Values follow the [deployment configuration](../../../../../docs/deployment-configuration.md#1-where-values-live). The committed
+`terraform.tfvars` holds every required input; environment-specific inputs there
+are documented placeholders. Copy `local.auto.tfvars.example` to the untracked
+`local.auto.tfvars` and set the real values: `project` and `aws_account_id`. The
+[local workflow](../../../../../scripts/local-workflow/README.md) preflight refuses a plan or apply while any of them is
+missing locally or still a placeholder. Full CI plans this root with the committed
+values under mocks. Never put a credential or secret value in any tfvars file.
+
+| Committed value | Setting |
+| --- | --- |
+| VPC | `10.40.0.0/16`, `per_az` routing, active workload AZ `ca-central-1a` |
+| Private subnets | `private1` `10.40.1.0/24` (a), `private2` `10.40.2.0/24` (b) |
+| Public subnets | `public1` `10.40.10.0/24` (a), `public2` `10.40.11.0/24` (b) |
+| NAT | One NAT gateway in `ca-central-1a` (`public1`) serving the active AZ |
+| S3 gateway endpoint | Not enabled (`gateway_endpoints` omitted; Module Default) |
+
 ## Ownership and configuration
 
 Root owns the fixed ca-central-1 AWS provider, allowed_account_ids guard, local
@@ -36,7 +54,7 @@ OPEN and unimplemented.
 
 Input values follow the [deployment configuration](../../../../../docs/deployment-configuration.md#1-where-values-live):
 a committed `terraform.tfvars` with placeholders and an untracked
-`local.auto.tfvars` for real environment values, delivered by Step 1 item 3. Names
+`local.auto.tfvars` for real environment values (see [Input values](#input-values-step-1-item-3)). Names
 and tags follow sections 4 and 5 of that document. Never put credentials or secret
 values in any tfvars file. Synthetic complete fixtures in
 [tests](tests/network.tftest.hcl) are mock-only, not approved deployment allocation.

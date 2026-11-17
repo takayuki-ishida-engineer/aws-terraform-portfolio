@@ -16,6 +16,21 @@ Emulator Lifecycle NOT_TESTED; namespace isolation environment BLOCKED. P0-01–
 P1-02 and NP-2B/NP-3 remain OPEN for their dependent scopes. serverless-api is unchanged.
 See [REST module](../../../../modules/api_gateway_rest/README.md) for tests and limits.
 
+## Input values (Step 1 item 3)
+
+Values follow the [deployment configuration](../../../../../docs/deployment-configuration.md#1-where-values-live). The committed
+`terraform.tfvars` holds every required input; environment-specific inputs there
+are documented placeholders. Copy `local.auto.tfvars.example` to the untracked
+`local.auto.tfvars` and set the real values: `project`, `aws_account_id`, `callback_urls`, `logout_urls` and `default_redirect_uri`. The
+[local workflow](../../../../../scripts/local-workflow/README.md) preflight refuses a plan or apply while any of them is
+missing locally or still a placeholder. Full CI plans this root with the committed
+values under mocks. Never put a credential or secret value in any tfvars file.
+
+| Committed value | Setting |
+| --- | --- |
+| Cognito | `ESSENTIALS`, MFA `ON`, password length 14, access/ID tokens 15 minutes, refresh 8 hours, no DEV loopback |
+| Resource server | `portfolio-api`, scopes `read` and `write`, approved `read` |
+
 ## Historical V6 foundation and validation
 
 # DEV API Root — V6 Cognito only

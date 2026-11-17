@@ -11,7 +11,7 @@ locals {
 module "api_gateway_rest" {
   source         = "../../../../modules/api_gateway_rest"
   providers      = { aws = aws }
-  expected_scope = { environment = "dev", partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
+  expected_scope = { environment = local.environment, partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
   name_prefix    = local.name_prefix
   authentication = module.cognito_auth.authentication
   tags           = var.tags
@@ -19,7 +19,7 @@ module "api_gateway_rest" {
 module "cognito_auth" {
   source                     = "../../../../modules/cognito_auth"
   providers                  = { aws = aws }
-  expected_scope             = { environment = "dev", partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
+  expected_scope             = { environment = local.environment, partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
   name_prefix                = local.name_prefix
   feature_plan               = var.feature_plan
   allow_dev_loopback         = var.allow_dev_loopback

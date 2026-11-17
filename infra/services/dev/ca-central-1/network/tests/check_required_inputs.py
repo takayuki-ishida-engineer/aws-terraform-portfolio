@@ -6,12 +6,13 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parents[3] / "modules/vpc/tests"))
 from check_network_configuration import parse, require  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[6] / "scripts/terraform-testing"))
+from isolated_root import tfvars_free_copy  # noqa: E402
 
 REQUIRED = ("aws_account_id", "project", "vpc_cidr", "private_subnets",
             "public_subnets", "active_workload_az", "nat")
@@ -29,7 +30,10 @@ def main():
                            AWS_SHARED_CREDENTIALS_FILE="/dev/null", AWS_CONFIG_FILE="/dev/null")
         results = []
         header = (ROOT / "tests/network.tftest.hcl").read_text().split('\nrun "', 1)[0]
-        with tempfile.TemporaryDirectory(prefix=".required-", dir=ROOT / "tests") as temporary:
+        # Committed terraform.tfvars would satisfy the omitted inputs; run in a tfvars-free copy.
+        with tfvars_free_copy(ROOT) as (workspace, isolation):
+            environment.update(isolation)
+            temporary = workspace / "tests"
             for missing in REQUIRED:
                 folder = Path(temporary) / missing
                 folder.mkdir()
@@ -37,7 +41,7 @@ def main():
                 source = header + '\nvariables {\n' + variables + '\n}\nrun "missing_input" {\n  command = plan\n}\n'
                 (folder / "missing.tftest.hcl").write_text(source)
                 process = subprocess.run([args.terraform, "test", "-json", "-verbose", "-no-color",
-                    "-test-directory=" + str(folder.relative_to(ROOT))], cwd=ROOT, env=environment,
+                    "-test-directory=" + str(folder.relative_to(workspace))], cwd=workspace, env=environment,
                     capture_output=True, text=True, check=False)
                 require(process.returncode == 1 and not process.stderr.strip(), "expected_failed_process:" + missing)
                 events = [parse(line) for line in process.stdout.splitlines()]
@@ -91,7 +95,7 @@ def main():
                 variables = "\n".join(f"  {k} = {json.dumps(v)}" for k, v in supplied.items())
                 (folder / "rejected.tftest.hcl").write_text(header + '\nvariables {\n' + variables + '\n}\nrun "rejected_input" {\n  command = plan\n}\n')
                 process = subprocess.run([args.terraform, "test", "-json", "-verbose", "-no-color",
-                    "-test-directory=" + str(folder.relative_to(ROOT))], cwd=ROOT, env=environment,
+                    "-test-directory=" + str(folder.relative_to(workspace))], cwd=workspace, env=environment,
                     capture_output=True, text=True, check=False)
                 events = [parse(line) for line in process.stdout.splitlines()]
                 errors = [e["diagnostic"] for e in events if e.get("type") == "diagnostic" and e.get("diagnostic", {}).get("severity") == "error"]

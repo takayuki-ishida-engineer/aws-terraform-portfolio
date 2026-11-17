@@ -14,11 +14,12 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[6] / "scripts/terraform-testing"))
+from isolated_root import tfvars_free_copy  # noqa: E402
 CASES = [
     ("missing_project", "project", None, "missing", "project"),
     ("missing_artifact_key", "artifact_key", None, "missing", "artifact_key"),
@@ -111,11 +112,13 @@ def main():
         env.update(TF_INPUT="0", TF_IN_AUTOMATION="1", AWS_EC2_METADATA_DISABLED="true",
             AWS_SHARED_CREDENTIALS_FILE="/dev/null", AWS_CONFIG_FILE="/dev/null")
         reports = []
-        # Terraform requires a relative local test directory. These temporary
-        # test files reuse this root's initialization and are removed on exit;
-        # no additional .terraform/provider directory or initialization is made.
-        with tempfile.TemporaryDirectory(prefix=".negative-inputs-", dir=ROOT / "tests") as work:
-            work = Path(work)
+        # Terraform requires a relative local test directory. The temporary
+        # sibling copy has no committed terraform.tfvars (which would satisfy the
+        # omitted inputs), reuses this root's initialization and is removed on
+        # exit; no additional provider installation or initialization is made.
+        with tfvars_free_copy(ROOT) as (workspace, isolation):
+            env.update(isolation)
+            work = workspace / "tests"
             for identifier, variable, supplied, mode, expected_name in CASES:
                 fixture = work / identifier
                 fixture.mkdir()
@@ -126,8 +129,8 @@ def main():
                 (fixture / "negative.tftest.hcl").write_text(text + '\nrun "rejected_input" {\n  command = plan\n}\n', encoding="utf-8")
                 events = fixture / "events.jsonl"
                 with events.open("w", encoding="utf-8") as output:
-                    process = subprocess.run([args.terraform, "test", "-json", "-verbose", "-no-color", "-test-directory=" + str(fixture.relative_to(ROOT))],
-                        cwd=ROOT, env=env, stdout=output, stderr=subprocess.PIPE, text=True, check=False)
+                    process = subprocess.run([args.terraform, "test", "-json", "-verbose", "-no-color", "-test-directory=" + str(fixture.relative_to(workspace))],
+                        cwd=workspace, env=env, stdout=output, stderr=subprocess.PIPE, text=True, check=False)
                 require(not process.stderr.strip(), "negative_unexpected_stderr:" + identifier)
                 try:
                     report = inspect_failure(events, expected_name, mode, process.returncode)

@@ -1,0 +1,22 @@
+# Copy to local.auto.tfvars (untracked) and replace every value. It overrides the
+# placeholders in terraform.tfvars. Never put a credential or secret value here.
+
+project                  = "myproj"
+aws_account_id           = "111122223333"
+bootstrap_admin_role_arn = "arn:aws:iam::111122223333:role/your-eks-admin-role"
+
+# Paste the network root output here (Step 1 item 6 automates this hand-off):
+#   terraform -chdir=../network output -json network
+network_reference = {
+  interface_version                 = 1
+  scope                             = { environment = "dev", partition = "aws", region = "ca-central-1", account_id = "111122223333" }
+  routing_mode                      = "per_az"
+  vpc_id                            = "vpc-..."
+  vpc_cidr                          = "10.40.0.0/16"
+  private_subnet_ids                = { private1 = "subnet-...", private2 = "subnet-..." }
+  public_subnet_ids                 = { public1 = "subnet-...", public2 = "subnet-..." }
+  subnet_azs                        = { private = { private1 = "ca-central-1a", private2 = "ca-central-1b" } }
+  private_route_table_ids_by_subnet = { private1 = "rtb-...", private2 = "rtb-..." }
+  public_route_table_id             = "rtb-..."
+  nat_gateway_ids_by_az             = { "ca-central-1a" = "nat-..." }
+}
