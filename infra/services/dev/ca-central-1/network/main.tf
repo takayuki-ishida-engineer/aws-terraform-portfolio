@@ -1,21 +1,22 @@
 locals {
   region      = "ca-central-1"
   environment = "dev"
-  required_tags = {
-    Environment = local.environment
-    Service     = "network"
-    Project     = "aws-terraform-portfolio"
-    ManagedBy   = "Terraform"
+  # Names and tags follow docs/deployment-configuration.md sections 4 and 5.
+  name_prefix = "${var.project}-${local.environment}"
+  default_tags = {
+    project = var.project
+    env     = local.environment
+    managed = "terraform"
   }
 }
 module "network" {
   source          = "../../../../modules/vpc"
   providers       = { aws = aws }
-  name_prefix     = var.name_prefix
+  name_prefix     = local.name_prefix
   vpc_cidr        = var.vpc_cidr
   private_subnets = var.private_subnets
   public_subnets  = var.public_subnets
-  tags            = merge(var.tags, local.required_tags)
+  tags            = var.tags
   private_routing = { mode = "per_az", nat = var.nat }
   expected_scope = {
     partition  = "aws"

@@ -17,7 +17,7 @@ REPO = HERE.parents[3]
 MODULE = HERE.parent
 ROOT = REPO / "infra/services/dev/ca-central-1/network"
 PROVIDER = "registry.terraform.io/hashicorp/aws"
-ORIGINAL_SHA256 = "d289084811b428400611fe8722d2591b4ab13d25fa6c652ef67cd72e21596e82"  # Filled from the independently accepted starting revision.
+ORIGINAL_SHA256 = "7d350bc3088855a259ea145fa114f65fff84c3ecfecc10372f932cd2374d461b"  # Step 1 PR 2b: original 16 tests updated only for the naming/tag rules (Name formats, service tags).
 
 
 def require(ok, reason):
@@ -116,6 +116,35 @@ def inventory(inputs):
         result |= {address("aws_route", "private_nat", az) for az in nat.get("nat_az_by_private_az", {})}
         result |= {address("aws_vpc_endpoint", "gateway", service) for service in inputs.get("gateway_endpoints", {})}
     return result
+
+
+def expected_owned_tags(inputs):
+    """Exact module-owned Name and service tags per taggable address.
+
+    Names follow docs/deployment-configuration.md section 4 and tags section 5:
+    <prefix>[-<az letter>]-<type>[-<purpose>], with service set to the type token.
+    """
+    prefix = inputs["name_prefix"]
+    per_az = inputs.get("private_routing", {}).get("mode", "legacy_shared") == "per_az"
+    owned = {"aws_vpc.this": (prefix + "-vpc", "vpc"), "aws_route_table.private": (prefix + "-rtb-private", "rtb")}
+    for group in ("private", "public"):
+        for key, subnet in inputs.get(group + "_subnets", {}).items():
+            owned[address("aws_subnet", group, key)] = (f"{prefix}-{subnet['availability_zone'][-1]}-subnet-{key}", "subnet")
+    if inputs.get("public_subnets"):
+        owned["aws_internet_gateway.this[0]"] = (prefix + "-igw", "igw")
+        owned["aws_route_table.public[0]"] = (prefix + "-rtb-public", "rtb")
+    if per_az:
+        for az in {v["availability_zone"] for v in inputs["private_subnets"].values()}:
+            first = sorted(k for k, v in inputs["private_subnets"].items() if v["availability_zone"] == az)[0]
+            owned[address("aws_route_table", "private_by_az", az)] = (f"{prefix}-{az[-1]}-rtb-{first}", "rtb")
+        nat = inputs["private_routing"].get("nat") or {}
+        for az in nat.get("public_subnet_key_by_nat_az", {}):
+            owned[address("aws_eip", "nat", az)] = (f"{prefix}-{az[-1]}-eip-nat", "eip")
+            owned[address("aws_nat_gateway", "this", az)] = (f"{prefix}-{az[-1]}-nat", "nat")
+        endpoints = inputs.get("gateway_endpoints", {})
+        for key in endpoints:
+            owned[address("aws_vpc_endpoint", "gateway", key)] = (f"{prefix}-vpce-{key}" if len(endpoints) > 1 else prefix + "-vpce", "vpce")
+    return {addr: {"Name": name, "service": service} for addr, (name, service) in owned.items()}
 
 
 def changes_of(plan, prefix="", allow_empty=False):
@@ -221,14 +250,13 @@ def verify_plan(plan, inputs, scope):
         require(actual_policy == reviewed_policy, "endpoint_reviewed_policy")
         for field in ("subnet_ids", "security_group_ids"):
             require(not read(addr, field), "gateway_interface_associations")
-    # Check fixed name precedence and root tag ownership on every taggable resource.
-    tags = dict(inputs.get("tags", {}))
-    if scope == "root":
-        tags.update(Environment="dev",Service="network",Project="aws-terraform-portfolio",ManagedBy="Terraform")
-    for addr in ids:
+    # Exact module-owned Name/service tags win over caller tags; nothing else is injected.
+    # Root-wide project/env/managed tags come from provider default_tags, not resource tags.
+    owned = expected_owned_tags(inputs)
+    require(set(owned) == set(ids), "tagged_resource_inventory")
+    for addr, owned_tags in owned.items():
         actual = read(addr, "tags")
-        require(isinstance(actual, dict) and isinstance(actual.get("Name"), str) and actual["Name"].startswith(inputs["name_prefix"] + "-"), "resource_name_tags")
-        require(all(actual.get(k) == v for k, v in tags.items() if k != "Name"), "caller_or_required_tags")
+        require(isinstance(actual, dict) and actual == {**inputs.get("tags", {}), **owned_tags}, "resource_name_and_service_tags")
     expected_outputs = {
         "vpc_id": vpc, "vpc_cidr": inputs["vpc_cidr"],
         "private_subnet_ids": {k: ids[address("aws_subnet", "private", k)] for k in inputs["private_subnets"]},
@@ -301,6 +329,7 @@ def definitions(scope):
         positives = {("tests/network.tftest.hcl",n):v for n,v in positives.items()}
         negatives = {("tests/network.tftest.hcl",n):v for n,v in negatives.items()}
         for inputs in positives.values():
+            inputs["name_prefix"] = inputs["project"] + "-dev"
             inputs["expected_scope"] = dict(partition="aws",region="ca-central-1",account_id=inputs["aws_account_id"])
             inputs["private_routing"] = {"mode":"per_az", "nat":inputs["nat"]}
     return positives, negatives, manifest
@@ -459,9 +488,11 @@ def self_test(events, scope, plans):
         row["change"]["after"][field]=value
         return p
     a='ca-central-1a';b='ca-central-1b'
-    mutations=[('public_ip_assignment','aws_subnet.private["app-a"]','map_public_ip_on_launch',True),
-        ('private_public_association','aws_route_table_association.private["app-a"]','route_table_id','rtb-public'),
-        ('wrong_association_subnet','aws_route_table_association.private["app-a"]','subnet_id','subnet-app-b'),
+    # Root cases use the enforced tier keys; child cases keep generic keys.
+    pk,uk=('private1','public1') if scope=='root' else ('app-a','public-a')
+    mutations=[('public_ip_assignment',address('aws_subnet','private',pk),'map_public_ip_on_launch',True),
+        ('private_public_association',address('aws_route_table_association','private',pk),'route_table_id','rtb-public'),
+        ('wrong_association_subnet',address('aws_route_table_association','private',pk),'subnet_id','subnet-app-b'),
         ('wrong_nat_target',address('aws_route','private_nat',a),'nat_gateway_id','nat-b'),
         ('nat_target_as_igw',address('aws_route','private_nat',a),'gateway_id','igw-mock'),
         ('wrong_route_table',address('aws_route','private_nat',a),'route_table_id','rtb-b'),
@@ -470,12 +501,12 @@ def self_test(events, scope, plans):
         ('wrong_nat_eip',address('aws_nat_gateway','this',a),'allocation_id','eipalloc-b'),
         ('regional_nat',address('aws_nat_gateway','this',a),'availability_mode','regional'),
         ('private_nat',address('aws_nat_gateway','this',a),'connectivity_type','private'),
-        ('wrong_vpc','aws_subnet.private["app-a"]','vpc_id','vpc-other'),
+        ('wrong_vpc',address('aws_subnet','private',pk),'vpc_id','vpc-other'),
         ('wrong_vpc_account','aws_vpc.this','arn','arn:aws:ec2:ca-central-1:111111111111:vpc/vpc-v2-mock'),
         ('legacy_inline_egress','aws_route_table.private','route',[{'cidr_block':'0.0.0.0/0','gateway_id':'igw-mock'}]),
         ('az_inline_competing_route',address('aws_route_table','private_by_az',a),'route',[{'cidr_block':'0.0.0.0/0','gateway_id':'igw-mock'}]),
         ('public_wrong_target','aws_route_table.public[0]','route',[{'cidr_block':'0.0.0.0/0','gateway_id':'nat-a'}]),
-        ('public_ip_public_subnet','aws_subnet.public["public-a"]','map_public_ip_on_launch',True)]
+        ('public_ip_public_subnet',address('aws_subnet','public',uk),'map_public_ip_on_launch',True)]
     semantic=[]
     for name,addr,field,value in mutations:
         semantic.append(rejected(lambda addr=addr,field=field,value=value:verify_plan(mutate_resource(addr,field,value),inputs,scope),name))

@@ -1,11 +1,11 @@
-variable "name_prefix" {
-  description = "Resource Name tag prefix: 1-63 letters, digits, underscores or hyphens, starting with a letter or digit."
+variable "project" {
+  description = "Project token for resource names and the project tag; the committed placeholder is project. Lowercase, starts with a letter, at most 10 characters, no aws, amazon or cognito."
   type        = string
   nullable    = false
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$", var.name_prefix))
-    error_message = "name_prefix must be 1-63 letters, digits, underscores or hyphens and start with a letter or digit."
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,8}[a-z0-9])?$", var.project)) && !can(regex("(aws|amazon|cognito)", var.project))
+    error_message = "project must be 1-10 lowercase letters, digits or hyphens, start with a letter, not end with a hyphen and not contain aws, amazon or cognito."
   }
 }
 
@@ -40,6 +40,11 @@ variable "private_subnets" {
   }
 
   validation {
+    condition     = alltrue([for key in keys(var.private_subnets) : can(regex("^private[1-9][0-9]*$", key))])
+    error_message = "private_subnets keys must be private1, private2, ... as the tier number in resource names."
+  }
+
+  validation {
     condition = alltrue([for subnet in var.private_subnets : try(
       cidrnetmask(subnet.cidr_block) != "" &&
       tonumber(split("/", subnet.cidr_block)[1]) >= 16 &&
@@ -70,6 +75,11 @@ variable "public_subnets" {
   }
 
   validation {
+    condition     = alltrue([for key in keys(var.public_subnets) : can(regex("^public[1-9][0-9]*$", key))])
+    error_message = "public_subnets keys must be public1, public2, ... as the tier number in resource names."
+  }
+
+  validation {
     condition = alltrue([for subnet in var.public_subnets : try(
       cidrnetmask(subnet.cidr_block) != "" &&
       tonumber(split("/", subnet.cidr_block)[1]) >= 16 &&
@@ -87,10 +97,15 @@ variable "public_subnets" {
 }
 
 variable "tags" {
-  description = "Caller tags; the module-owned Name tag takes precedence on every resource."
+  description = "Optional extra caller tags. project, env and managed come from provider default_tags and Name and service from the module, so those keys are rejected here."
   type        = map(string)
   default     = {}
   nullable    = false
+
+  validation {
+    condition     = length(setintersection(toset(keys(var.tags)), toset(["project", "env", "service", "managed", "Name"]))) == 0
+    error_message = "tags must not set project, env, service, managed or Name; those are owned by default_tags and the module."
+  }
 }
 
 

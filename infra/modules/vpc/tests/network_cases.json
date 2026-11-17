@@ -1,24 +1,24 @@
 {
   "root_positive": {
     "dev_network": {
-      "name_prefix": "test-network",
+      "project": "test",
       "vpc_cidr": "10.40.0.0/16",
       "private_subnets": {
-        "app-a": {
+        "private1": {
           "cidr_block": "10.40.1.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "app-b": {
+        "private2": {
           "cidr_block": "10.40.2.0/24",
           "availability_zone": "ca-central-1b"
         }
       },
       "public_subnets": {
-        "public-a": {
+        "public1": {
           "cidr_block": "10.40.10.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "public-b": {
+        "public2": {
           "cidr_block": "10.40.11.0/24",
           "availability_zone": "ca-central-1b"
         }
@@ -28,7 +28,7 @@
       "active_workload_az": "ca-central-1a",
       "nat": {
         "public_subnet_key_by_nat_az": {
-          "ca-central-1a": "public-a"
+          "ca-central-1a": "public1"
         },
         "nat_az_by_private_az": {
           "ca-central-1a": "ca-central-1a"
@@ -36,24 +36,24 @@
       }
     },
     "dev_cross_az_explicit": {
-      "name_prefix": "test-network",
+      "project": "test",
       "vpc_cidr": "10.40.0.0/16",
       "private_subnets": {
-        "app-a": {
+        "private1": {
           "cidr_block": "10.40.1.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "app-b": {
+        "private2": {
           "cidr_block": "10.40.2.0/24",
           "availability_zone": "ca-central-1b"
         }
       },
       "public_subnets": {
-        "public-a": {
+        "public1": {
           "cidr_block": "10.40.10.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "public-b": {
+        "public2": {
           "cidr_block": "10.40.11.0/24",
           "availability_zone": "ca-central-1b"
         }
@@ -63,7 +63,7 @@
       "active_workload_az": "ca-central-1a",
       "nat": {
         "public_subnet_key_by_nat_az": {
-          "ca-central-1a": "public-a"
+          "ca-central-1a": "public1"
         },
         "nat_az_by_private_az": {
           "ca-central-1a": "ca-central-1a",
@@ -72,24 +72,24 @@
       }
     },
     "dev_network_s3": {
-      "name_prefix": "test-network",
+      "project": "test",
       "vpc_cidr": "10.40.0.0/16",
       "private_subnets": {
-        "app-a": {
+        "private1": {
           "cidr_block": "10.40.1.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "app-b": {
+        "private2": {
           "cidr_block": "10.40.2.0/24",
           "availability_zone": "ca-central-1b"
         }
       },
       "public_subnets": {
-        "public-a": {
+        "public1": {
           "cidr_block": "10.40.10.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "public-b": {
+        "public2": {
           "cidr_block": "10.40.11.0/24",
           "availability_zone": "ca-central-1b"
         }
@@ -106,7 +106,7 @@
       "active_workload_az": "ca-central-1a",
       "nat": {
         "public_subnet_key_by_nat_az": {
-          "ca-central-1a": "public-a"
+          "ca-central-1a": "public1"
         },
         "nat_az_by_private_az": {
           "ca-central-1a": "ca-central-1a"
@@ -114,24 +114,24 @@
       }
     },
     "dev_network_alternate_computed_ids": {
-      "name_prefix": "test-network",
+      "project": "test",
       "vpc_cidr": "10.40.0.0/16",
       "private_subnets": {
-        "app-a": {
+        "private1": {
           "cidr_block": "10.40.1.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "app-b": {
+        "private2": {
           "cidr_block": "10.40.2.0/24",
           "availability_zone": "ca-central-1b"
         }
       },
       "public_subnets": {
-        "public-a": {
+        "public1": {
           "cidr_block": "10.40.10.0/24",
           "availability_zone": "ca-central-1a"
         },
-        "public-b": {
+        "public2": {
           "cidr_block": "10.40.11.0/24",
           "availability_zone": "ca-central-1b"
         }
@@ -148,7 +148,7 @@
       "active_workload_az": "ca-central-1a",
       "nat": {
         "public_subnet_key_by_nat_az": {
-          "ca-central-1a": "public-a"
+          "ca-central-1a": "public1"
         },
         "nat_az_by_private_az": {
           "ca-central-1a": "ca-central-1a"
@@ -162,7 +162,7 @@
     "multiple_dev_nats": "var.nat",
     "missing_active_route": "var.nat",
     "missing_public": "var.public_subnets",
-    "invalid_root_cidr": "var.vpc_cidr"
+    "invalid_root_cidr": "var.vpc_cidr", "invalid_project": "var.project", "invalid_subnet_keys": "var.private_subnets", "reserved_tag_keys": "var.tags"
   },
   "child_positive": {
     "per_az_isolated": {
@@ -982,6 +982,9 @@
     "missing_active_route": [],
     "missing_public": [],
     "invalid_root_cidr": [],
+    "invalid_project": [],
+    "invalid_subnet_keys": [],
+    "reserved_tag_keys": [],
     "wrong_actual_account": [
       "interface_version",
       "nat_eips_by_az",

@@ -57,8 +57,8 @@ run "private_only" {
   }
 
   assert {
-    condition     = aws_vpc.this.tags.Name == "test-network-vpc" && aws_vpc.this.tags.Team == "platform" && aws_subnet.private["app-a"].tags.Name == "test-network-private-app-a" && aws_subnet.private["app-a"].tags.Team == "platform" && aws_route_table.private.tags.Name == "test-network-private-rt"
-    error_message = "Caller tags must survive, but module-owned Name tags must take precedence."
+    condition     = aws_vpc.this.tags.Name == "test-network-vpc" && aws_vpc.this.tags.service == "vpc" && aws_vpc.this.tags.Team == "platform" && aws_subnet.private["app-a"].tags.Name == "test-network-a-subnet-app-a" && aws_subnet.private["app-a"].tags.service == "subnet" && aws_subnet.private["app-a"].tags.Team == "platform" && aws_route_table.private.tags.Name == "test-network-rtb-private" && aws_route_table.private.tags.service == "rtb"
+    error_message = "Caller tags must survive, but module-owned Name and service tags must take precedence."
   }
 
   assert {
@@ -139,7 +139,7 @@ run "public_and_private" {
   }
 
   assert {
-    condition     = aws_internet_gateway.this[0].vpc_id == aws_vpc.this.id && aws_internet_gateway.this[0].tags.Name == "test-network-igw" && aws_route_table.public[0].tags.Name == "test-network-public-rt" && alltrue([for key, subnet in aws_subnet.public : subnet.tags.Name == "test-network-public-${key}" && subnet.tags.Team == "platform"])
+    condition     = aws_internet_gateway.this[0].vpc_id == aws_vpc.this.id && aws_internet_gateway.this[0].tags.Name == "test-network-igw" && aws_internet_gateway.this[0].tags.service == "igw" && aws_route_table.public[0].tags.Name == "test-network-rtb-public" && aws_route_table.public[0].tags.service == "rtb" && alltrue([for key, subnet in aws_subnet.public : subnet.tags.Name == "test-network-${substr(subnet.availability_zone, length(subnet.availability_zone) - 1, 1)}-subnet-${key}" && subnet.tags.service == "subnet" && subnet.tags.Team == "platform"])
     error_message = "Public resources must use consistent naming and caller tags without allowing Name overrides."
   }
 
@@ -178,7 +178,7 @@ run "stable_keys_and_defaults" {
   }
 
   assert {
-    condition     = length(aws_subnet.public) == 0 && length(aws_route_table.public) == 0 && length(aws_internet_gateway.this) == 0 && length(aws_route_table.private.route) == 0 && alltrue([for subnet in aws_subnet.private : !subnet.map_public_ip_on_launch && !subnet.assign_ipv6_address_on_creation]) && aws_vpc.this.tags == tomap({ Name = "test-network-vpc" })
+    condition     = length(aws_subnet.public) == 0 && length(aws_route_table.public) == 0 && length(aws_internet_gateway.this) == 0 && length(aws_route_table.private.route) == 0 && alltrue([for subnet in aws_subnet.private : !subnet.map_public_ip_on_launch && !subnet.assign_ipv6_address_on_creation]) && aws_vpc.this.tags == tomap({ Name = "test-network-vpc", service = "vpc" })
     error_message = "Default empty public_subnets/tags must preserve private-only networking and fixed security settings."
   }
 }
