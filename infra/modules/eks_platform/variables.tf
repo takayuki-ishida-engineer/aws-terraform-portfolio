@@ -152,6 +152,16 @@ variable "node_https_egress_cidrs" {
     error_message = "Supply explicit canonical IPv4 HTTPS destinations with /8-/32 prefixes, never unrestricted 0.0.0.0/0."
   }
 }
+variable "node_https_egress_prefix_list_ids" {
+  description = "Optional AWS-managed prefix lists that nodes may reach on HTTPS, for example the regional S3 list for ECR image layers through the NAT gateway. Each ID must be verified against the account before an apply."
+  type        = set(string)
+  default     = []
+  nullable    = false
+  validation {
+    condition     = length(var.node_https_egress_prefix_list_ids) <= 5 && alltrue([for id in var.node_https_egress_prefix_list_ids : can(regex("^pl-[0-9a-f]{8,17}$", id))])
+    error_message = "Supply at most five prefix list IDs of the form pl- followed by 8-17 hexadecimal characters."
+  }
+}
 variable "addon_versions" {
   description = "Required externally verified version triple for this Kubernetes version/architecture. No most_recent discovery or unpinned bootstrap."
   type        = object({ vpc_cni = string, coredns = string, kube_proxy = string })

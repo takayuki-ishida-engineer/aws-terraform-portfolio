@@ -306,7 +306,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "network-verification.json").read_text())
-          expected = {'native_tests': 13, 'positive_plans': 4, 'negative_cases': 9, 'semantic_mutations': 34, 'capture_failure_injections': 22, 'source_dependency_mutations': 8, 'policy_structure_mutations': 33}
+          expected = {'native_tests': 14, 'positive_plans': 5, 'negative_cases': 9, 'semantic_mutations': 42, 'capture_failure_injections': 22, 'source_dependency_mutations': 10, 'policy_structure_mutations': 33}
           if report.get("status") != "passed" or report.get("evidence_type") != "actual_mock_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
               raise SystemExit("Validate DEV network root and actual routing contracts evidence/count contract changed; independent review required.")
           print("Actual network verification:", report)
@@ -349,7 +349,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "platform-verification.json").read_text())
-          expected = {'native_tests': 39, 'positive_plans': 6, 'negative_cases': 33, 'semantic_mutations': 76, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
+          expected = {'native_tests': 40, 'positive_plans': 7, 'negative_cases': 33, 'semantic_mutations': 79, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
           if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("evidence_type") != "actual_mock_plan_verification" or any(report.get(k) != v for k, v in expected.items()):
               raise SystemExit("EKS root actual-plan/security/count contract failed; independent review required.")
           print("Actual EKS root verification:", report)
@@ -363,7 +363,7 @@ jobs:
           import json, os
           from pathlib import Path
           report=json.loads(Path(os.environ["RUNNER_TEMP"],"ingress-root.json").read_text())
-          expected={"native_tests":39,"positive_plans":6,"negative_cases":33,"semantic_mutations":63,"capture_failure_injections":21,"source_dependency_mutations":8,"iam_policy_mutations":12}
+          expected={"native_tests":40,"positive_plans":7,"negative_cases":33,"semantic_mutations":63,"capture_failure_injections":21,"source_dependency_mutations":8,"iam_policy_mutations":12}
           if report.get("status")!="passed" or report.get("aws_api_calls")!=0 or any(report.get(k)!=v for k,v in expected.items()):
               raise SystemExit("Independent platform ingress security/evidence checks failed")
           print("Independent actual Root ingress verification:",report)
@@ -393,7 +393,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "eks_platform-verification.json").read_text())
-          expected = {'native_tests': 54, 'positive_plans': 7, 'negative_cases': 47, 'semantic_mutations': 76, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
+          expected = {'native_tests': 55, 'positive_plans': 8, 'negative_cases': 47, 'semantic_mutations': 79, 'capture_failure_injections': 21, 'source_dependency_mutations': 10}
           if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or report.get("evidence_type") != "actual_mock_plan_verification" or any(report.get(k) != v for k, v in expected.items()):
               raise SystemExit("EKS child actual-plan/security/count contract failed; independent review required.")
           print("Actual EKS child verification:", report)
@@ -471,7 +471,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "vpc-verification.json").read_text())
-          expected = {'native_tests': 75, 'positive_plans': 15, 'negative_cases': 60, 'semantic_mutations': 36, 'capture_failure_injections': 22, 'source_dependency_mutations': 8, 'policy_structure_mutations': 33}
+          expected = {'native_tests': 82, 'positive_plans': 17, 'negative_cases': 65, 'semantic_mutations': 45, 'capture_failure_injections': 22, 'source_dependency_mutations': 10, 'policy_structure_mutations': 33}
           if report.get("status") != "passed" or report.get("evidence_type") != "actual_mock_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
               raise SystemExit("Validate VPC legacy and extension actual mock plans evidence/count contract changed; independent review required.")
           print("Actual vpc verification:", report)

@@ -20,7 +20,7 @@ output "public_subnet_ids" {
 
 output "private_route_table_id" {
   description = "Legacy shared no-internet table ID; null in opted-in per_az (candidate V1-C01 requires independent acceptance before merge)."
-  value       = local.per_az ? null : aws_route_table.private.id
+  value       = local.per_az ? null : aws_route_table.private[0].id
 }
 
 output "public_route_table_id" {
@@ -42,7 +42,7 @@ output "subnet_azs" {
 }
 output "private_route_table_ids_by_az" {
   description = "Active private table per AZ; legacy mode repeats the shared ID."
-  value       = tomap({ for az in local.private_azs : az => local.per_az ? aws_route_table.private_by_az[az].id : aws_route_table.private.id })
+  value       = tomap({ for az in local.private_azs : az => local.per_az ? aws_route_table.private_by_az[az].id : aws_route_table.private[0].id })
 }
 output "private_route_table_ids_by_subnet" {
   description = "Actual selected table per stable private subnet key."
@@ -57,8 +57,11 @@ output "nat_eips_by_az" {
   value       = tomap({ for az, eip in aws_eip.nat : az => { allocation_id = eip.id, public_ip = eip.public_ip } })
 }
 output "endpoint_ids" {
-  description = "Actual enabled gateway endpoint IDs. No interface endpoints implemented."
-  value       = { gateway = tomap({ for service, endpoint in aws_vpc_endpoint.gateway : service => endpoint.id }) }
+  description = "Actual enabled gateway and interface endpoint IDs keyed by service."
+  value = {
+    gateway   = tomap({ for service, endpoint in aws_vpc_endpoint.gateway : service => endpoint.id })
+    interface = tomap({ for service, endpoint in aws_vpc_endpoint.interface : service => endpoint.id })
+  }
 }
 output "routing_mode" {
   description = "Explicit selected routing layout."

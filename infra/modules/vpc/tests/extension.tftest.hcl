@@ -83,6 +83,42 @@ override_resource {
   values          = { "id" : "vpce-s3" }
 }
 
+override_resource {
+  target          = aws_security_group.endpoints[0]
+  override_during = plan
+  values          = { "id" : "sg-vpce" }
+}
+override_resource {
+  target          = aws_vpc_security_group_ingress_rule.endpoints_https[0]
+  override_during = plan
+  values          = { "id" : "sgr-vpce-https" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["ec2"]
+  override_during = plan
+  values          = { "id" : "vpce-ec2" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["ecr.api"]
+  override_during = plan
+  values          = { "id" : "vpce-ecr-api" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["ecr.dkr"]
+  override_during = plan
+  values          = { "id" : "vpce-ecr-dkr" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["logs"]
+  override_during = plan
+  values          = { "id" : "vpce-logs" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["sts"]
+  override_during = plan
+  values          = { "id" : "vpce-sts" }
+}
+
 run "per_az_isolated" {
   command = plan
   variables {
@@ -946,4 +982,102 @@ run "endpoint_legacy_principal_object" {
     gateway_endpoints = { "s3" : { "private_route_table_azs" : ["ca-central-1a"], "policy_json" : "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::000000000000:role/test-network-reader\"},\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}" } }
   }
   expect_failures = [var.gateway_endpoints]
+}
+run "interface_endpoints_active_az" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } } }
+    gateway_endpoints   = { "s3" : { "private_route_table_azs" : ["ca-central-1a"], "policy_json" : "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"ReadApprovedObjects\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:GetObjectVersion\"],\"Resource\":[\"arn:aws:s3:::test-network-artifacts/approved/*\"],\"Condition\":{\"ArnEquals\":{\"aws:PrincipalArn\":\"arn:aws:iam::000000000000:role/test-network-reader\"}}}]}" } }
+    interface_endpoints = { "services" : ["ec2", "ecr.api", "ecr.dkr", "logs", "sts"], "subnet_keys" : ["app-a"] }
+  }
+  assert {
+    condition     = output.routing_mode == var.private_routing.mode && output.interface_version == 1
+    error_message = "The selected mode and candidate interface version must be exposed."
+  }
+}
+run "interface_endpoints_two_azs" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : null }
+    interface_endpoints = { "services" : ["sts"], "subnet_keys" : ["app-a", "app-b"] }
+  }
+  assert {
+    condition     = output.routing_mode == var.private_routing.mode && output.interface_version == 1
+    error_message = "The selected mode and candidate interface version must be exposed."
+  }
+}
+run "interface_legacy_rejected" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "legacy_shared", "nat" : null }
+    interface_endpoints = { "services" : ["sts"], "subnet_keys" : ["app-a"] }
+  }
+  expect_failures = [aws_vpc.this]
+}
+run "interface_unknown_service" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } } }
+    interface_endpoints = { "services" : ["s3"], "subnet_keys" : ["app-a"] }
+  }
+  expect_failures = [var.interface_endpoints]
+}
+run "interface_empty_subnets" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } } }
+    interface_endpoints = { "services" : ["sts"], "subnet_keys" : [] }
+  }
+  expect_failures = [var.interface_endpoints]
+}
+run "interface_unknown_subnet" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } } }
+    interface_endpoints = { "services" : ["sts"], "subnet_keys" : ["app-c"] }
+  }
+  expect_failures = [aws_vpc.this]
+}
+run "interface_same_az_subnets" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" }, "app-extra" : { "cidr_block" : "10.40.3.0/24", "availability_zone" : "ca-central-1a" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a", "ca-central-1b" : "public-b" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a", "ca-central-1b" : "ca-central-1b" } } }
+    interface_endpoints = { "services" : ["sts"], "subnet_keys" : ["app-a", "app-extra"] }
+  }
+  expect_failures = [aws_vpc.this]
 }

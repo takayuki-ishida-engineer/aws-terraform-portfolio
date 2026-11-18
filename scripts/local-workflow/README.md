@@ -76,12 +76,14 @@ Live (`--live`, read-only, workstation only):
 - With the S3 backend: `aws s3api get-bucket-versioning` must report `Enabled` and
   `aws s3api get-public-access-block` all four settings `true` for the State bucket.
 - platform: `aws eks describe-addon-versions` must list each pinned add-on version as
-  compatible with `kubernetes_version`, and the SSM public parameter for the pinned
-  AL2023 node AMI release must exist.
+  compatible with `kubernetes_version`, the SSM public parameter for the pinned
+  AL2023 node AMI release must exist, and `aws ec2 describe-managed-prefix-lists`
+  must return exactly the configured S3 prefix list for
+  `node_https_egress_prefix_list_ids`.
 
 Only `sts get-caller-identity`, `s3api get-bucket-versioning`,
-`s3api get-public-access-block`, `eks describe-addon-versions` and
-`ssm get-parameter` can be called. The scripts never read, print or store a
+`s3api get-public-access-block`, `eks describe-addon-versions`,
+`ssm get-parameter` and `ec2 describe-managed-prefix-lists` can be called. The scripts never read, print or store a
 credential or secret value.
 
 ## Optional S3 backend

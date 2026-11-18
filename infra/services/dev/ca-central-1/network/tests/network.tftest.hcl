@@ -2,15 +2,16 @@ mock_provider "aws" {
   override_during = plan
 }
 
+# The committed terraform.tfvars also loads here; interface_endpoints keeps its
+# module default in native cases unless a run sets it (finding F16).
+variables {
+  interface_endpoints = null
+}
+
 override_resource {
   target          = module.network.aws_vpc.this
   override_during = plan
   values          = { "id" : "vpc-v2-mock", "arn" : "arn:aws:ec2:ca-central-1:000000000000:vpc/vpc-v2-mock" }
-}
-override_resource {
-  target          = module.network.aws_route_table.private
-  override_during = plan
-  values          = { "id" : "rtb-legacy" }
 }
 override_resource {
   target          = module.network.aws_route_table.public[0]
@@ -81,6 +82,42 @@ override_resource {
   target          = module.network.aws_vpc_endpoint.gateway["s3"]
   override_during = plan
   values          = { "id" : "vpce-s3" }
+}
+
+override_resource {
+  target          = module.network.aws_security_group.endpoints[0]
+  override_during = plan
+  values          = { "id" : "sg-vpce" }
+}
+override_resource {
+  target          = module.network.aws_vpc_security_group_ingress_rule.endpoints_https[0]
+  override_during = plan
+  values          = { "id" : "sgr-vpce-https" }
+}
+override_resource {
+  target          = module.network.aws_vpc_endpoint.interface["ec2"]
+  override_during = plan
+  values          = { "id" : "vpce-ec2" }
+}
+override_resource {
+  target          = module.network.aws_vpc_endpoint.interface["ecr.api"]
+  override_during = plan
+  values          = { "id" : "vpce-ecr-api" }
+}
+override_resource {
+  target          = module.network.aws_vpc_endpoint.interface["ecr.dkr"]
+  override_during = plan
+  values          = { "id" : "vpce-ecr-dkr" }
+}
+override_resource {
+  target          = module.network.aws_vpc_endpoint.interface["logs"]
+  override_during = plan
+  values          = { "id" : "vpce-logs" }
+}
+override_resource {
+  target          = module.network.aws_vpc_endpoint.interface["sts"]
+  override_during = plan
+  values          = { "id" : "vpce-sts" }
 }
 
 run "dev_network" {
@@ -249,11 +286,6 @@ run "dev_network_alternate_computed_ids" {
     values          = { "id" : "vpc-alternate", "arn" : "arn:aws:ec2:ca-central-1:000000000000:vpc/vpc-alternate" }
   }
   override_resource {
-    target          = module.network.aws_route_table.private
-    override_during = plan
-    values          = { "id" : "rtb-alternate-legacy" }
-  }
-  override_resource {
     target          = module.network.aws_route_table.public[0]
     override_during = plan
     values          = { "id" : "rtb-alternate-public" }
@@ -354,4 +386,22 @@ run "reserved_tag_keys" {
     tags               = { "service" : "network" }
   }
   expect_failures = [var.tags]
+}
+run "dev_network_endpoints" {
+  command = plan
+  variables {
+    project             = "test"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "private1" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "private2" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public1" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public2" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    gateway_endpoints   = {}
+    aws_account_id      = "000000000000"
+    active_workload_az  = "ca-central-1a"
+    nat                 = { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public1" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } }
+    interface_endpoints = { "services" : ["ec2", "ecr.api", "ecr.dkr", "logs", "sts"], "subnet_keys" : ["private1"] }
+  }
+  assert {
+    condition     = output.network.routing_mode == "per_az" && length(output.network.endpoint_ids.interface) == 5
+    error_message = "The DEV root must forward the five reviewed interface endpoints (finding F16)."
+  }
 }

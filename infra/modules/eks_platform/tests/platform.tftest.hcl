@@ -1083,3 +1083,25 @@ run "invalid_access_key" {
   }
   expect_failures = [var.namespace_access]
 }
+
+run "node_s3_prefix_list" {
+  command = plan
+  variables {
+    expected_scope                    = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    network_reference                 = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    name_prefix                       = "test"
+    kubernetes_version                = "1.34"
+    service_ipv4_cidr                 = "172.20.0.0/16"
+    cluster_subnet_keys               = ["private-a", "private-b"]
+    node_group                        = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn          = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs                  = ["10.70.20.0/24"]
+    node_https_egress_cidrs           = ["203.0.113.0/24"]
+    node_https_egress_prefix_list_ids = ["pl-7da54014"]
+    addon_versions                    = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+  }
+  assert {
+    condition     = aws_eks_cluster.this.vpc_config[0].endpoint_private_access && !aws_eks_cluster.this.vpc_config[0].endpoint_public_access && aws_eks_cluster.this.access_config[0].authentication_mode == "API" && !aws_eks_cluster.this.access_config[0].bootstrap_cluster_creator_admin_permissions
+    error_message = "Private API-only authentication and disabled implicit creator admin are mandatory."
+  }
+}

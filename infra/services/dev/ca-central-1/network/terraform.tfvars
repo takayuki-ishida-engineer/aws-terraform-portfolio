@@ -24,3 +24,12 @@ nat = {
   public_subnet_key_by_nat_az = { "ca-central-1a" = "public1" }
   nat_az_by_private_az        = { "ca-central-1a" = "ca-central-1a" }
 }
+
+# AWS API access for private EKS nodes without leaving the VPC (finding F16):
+# interface endpoints with private DNS in the active workload AZ only. Image
+# layers come from S3 through the NAT gateway (node egress limited to the S3
+# managed prefix list in the platform root). Each endpoint is billed per hour.
+interface_endpoints = {
+  services    = ["ec2", "ecr.api", "ecr.dkr", "logs", "sts"]
+  subnet_keys = ["private1"]
+}

@@ -37,7 +37,7 @@ not unrestricted connectivity or AWS-managed SG hardening. No Kubernetes provide
 new Root/backend/lock or double owner is added.
 
 Current affected local results: Child36 native (7 complete positive plans,
-29 rejections); Root39 native (6/33), EKS Child54. Independent ingress validation
+29 rejections); Root40 native (7/33), EKS Child55. Independent ingress validation
 per Child/Root:63 semantic,12 IAM policy mutations,21 capture faults,8 dependency
 checks. Twelve actual unsafe source re-plans were detected; Root14 required inputs
 and11 Network fields rejected. Root basic inventory54=EKS37+ingress17, or58 with

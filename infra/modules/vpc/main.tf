@@ -19,8 +19,16 @@ resource "aws_vpc" "this" {
 
   lifecycle {
     precondition {
-      condition     = local.per_az || (var.private_routing.nat == null && length(var.gateway_endpoints) == 0)
+      condition     = local.per_az || (var.private_routing.nat == null && length(var.gateway_endpoints) == 0 && var.interface_endpoints == null)
       error_message = "NAT/endpoints require explicit per_az routing; legacy_shared must remain unchanged."
+    }
+    precondition {
+      condition = var.interface_endpoints == null || try(
+        length(setsubtract(var.interface_endpoints.subnet_keys, keys(var.private_subnets))) == 0 &&
+        length(distinct([for key in var.interface_endpoints.subnet_keys : var.private_subnets[key].availability_zone])) == length(var.interface_endpoints.subnet_keys),
+        false
+      )
+      error_message = "Interface endpoint subnet_keys must name existing private subnets, at most one per Availability Zone."
     }
     precondition {
       condition     = !local.per_az || var.expected_scope != null
@@ -110,10 +118,19 @@ resource "aws_internet_gateway" "this" {
   tags   = merge(var.tags, { Name = "${var.name_prefix}-igw", service = "igw" })
 }
 
+# Shared no-internet private table, only in legacy_shared routing. per_az uses
+# one table per AZ (routing.tf) and creates no unassociated shared table (F8).
 resource "aws_route_table" "private" {
+  count = local.per_az ? 0 : 1
+
   vpc_id = aws_vpc.this.id
   route  = []
   tags   = merge(var.tags, { Name = "${var.name_prefix}-rtb-private", service = "rtb" })
+}
+
+moved {
+  from = aws_route_table.private
+  to   = aws_route_table.private[0]
 }
 
 resource "aws_route_table" "public" {
@@ -131,7 +148,7 @@ resource "aws_route_table_association" "private" {
   for_each = var.private_subnets
 
   subnet_id      = aws_subnet.private[each.key].id
-  route_table_id = local.per_az ? aws_route_table.private_by_az[var.private_subnets[each.key].availability_zone].id : aws_route_table.private.id
+  route_table_id = local.per_az ? aws_route_table.private_by_az[var.private_subnets[each.key].availability_zone].id : aws_route_table.private[0].id
 
   depends_on = [aws_route.private_nat, aws_vpc_endpoint.gateway]
 }

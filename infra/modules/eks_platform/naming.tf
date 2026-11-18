@@ -18,4 +18,5 @@ locals {
   # holds more than one CIDR.
   client_rule_suffix = { for cidr in var.api_client_cidrs : cidr => length(var.api_client_cidrs) > 1 ? format("-%02d", index(sort(tolist(var.api_client_cidrs)), cidr) + 1) : "" }
   https_rule_suffix  = { for cidr in var.node_https_egress_cidrs : cidr => length(var.node_https_egress_cidrs) > 1 ? format("-%02d", index(sort(tolist(var.node_https_egress_cidrs)), cidr) + 1) : "" }
+  prefix_rule_suffix = { for id in var.node_https_egress_prefix_list_ids : id => length(var.node_https_egress_prefix_list_ids) > 1 ? format("-%02d", index(sort(tolist(var.node_https_egress_prefix_list_ids)), id) + 1) : "" }
 }

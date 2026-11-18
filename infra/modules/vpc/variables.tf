@@ -161,3 +161,21 @@ variable "gateway_endpoints" {
     error_message = "Endpoint policy must use 2012-10-17 Allow statements, Principal=*, mandatory ArnEquals aws:PrincipalArn literal IAM role conditions, scoped bucket/object ARNs and supported read-only actions; no missing/empty role condition, role/action/bucket wildcard, unsupported operator/key or mixed bucket/object scope."
   }
 }
+
+variable "interface_endpoints" {
+  description = "Optional AWS service interface endpoints with private DNS (per_az only), placed in the selected private subnets (one per AZ) and reachable on TCP 443 from the VPC CIDR only, through a module-owned security group. Endpoint policies stay the AWS default; IAM still authorizes every call."
+  type = object({
+    services    = set(string)
+    subnet_keys = set(string)
+  })
+  default = null
+
+  validation {
+    condition = var.interface_endpoints == null || try(
+      length(var.interface_endpoints.services) > 0 && length(var.interface_endpoints.subnet_keys) > 0 &&
+      length(setsubtract(var.interface_endpoints.services, ["ec2", "ecr.api", "ecr.dkr", "logs", "sts", "ssm", "ssmmessages", "ec2messages"])) == 0,
+      false
+    )
+    error_message = "interface_endpoints needs at least one subnet key and at least one reviewed service: ec2, ecr.api, ecr.dkr, logs, sts, ssm, ssmmessages or ec2messages."
+  }
+}

@@ -17,7 +17,8 @@ Run from the operator's workstation before any real AWS operation
 - Live (``--live``, workstation only): read-only AWS calls with the operator's
   own CLI credentials confirm the caller account, the State bucket's versioning
   and public access block when the S3 backend is used and, for the platform
-  root, that the pinned EKS add-on versions and node AMI release exist. Refused
+  root, that the pinned EKS add-on versions and node AMI release exist and that
+  the node egress prefix list is the regional S3 list. Refused
   in CI, in Claude Code or Codex cloud sessions, with the cloud session's
   placeholder credentials and whenever an AWS endpoint override is set.
 
@@ -78,7 +79,8 @@ PLACEHOLDER_PATTERNS = [
 ARN_ACCOUNT = re.compile(r"arn:aws[a-z-]*:[a-z0-9-]*:[a-z0-9-]*:([0-9]{12}):")
 BARE_ACCOUNT = re.compile(r"^([0-9]{12})$")
 READ_ONLY_AWS = {("sts", "get-caller-identity"), ("eks", "describe-addon-versions"), ("ssm", "get-parameter"),
-                 ("s3api", "get-bucket-versioning"), ("s3api", "get-public-access-block")}
+                 ("s3api", "get-bucket-versioning"), ("s3api", "get-public-access-block"),
+                 ("ec2", "describe-managed-prefix-lists")}
 ADDON_NAMES = {"vpc_cni": "vpc-cni", "coredns": "coredns", "kube_proxy": "kube-proxy"}
 
 
@@ -324,6 +326,12 @@ def live_findings(root_name, values, aws="aws", env=None, backend=None):
             parameter = run_aws(aws, ["ssm", "get-parameter", "--name", name], environment)
             if not isinstance(parameter, dict) or not str(parameter.get("Parameter", {}).get("Value", "")).startswith("ami-"):
                 findings.append("node_release_unavailable")
+        if values.get("node_https_egress_prefix_list_ids"):
+            lists = run_aws(aws, ["ec2", "describe-managed-prefix-lists", "--filters",
+                                  f"Name=prefix-list-name,Values=com.amazonaws.{REGION}.s3"], environment)
+            actual = {item.get("PrefixListId") for item in (lists or {}).get("PrefixLists", [])} if isinstance(lists, dict) else set()
+            if len(actual) != 1 or not actual <= set(values["node_https_egress_prefix_list_ids"]):
+                findings.append("s3_prefix_list_mismatch")
     return findings
 
 

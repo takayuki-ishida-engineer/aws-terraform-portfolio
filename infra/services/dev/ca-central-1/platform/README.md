@@ -19,7 +19,7 @@ untracked once copied) and run `run.py <root> migrate-state`.
 | Node group | `private1`, `m6i.large`, `AL2023_x86_64_STANDARD` release `1.35.9-20261112`, 30 GiB, 1/1/2 |
 | Cluster subnets and service CIDR | `private1`, `private2`; `172.20.0.0/16` |
 | Private API clients | `10.40.1.0/24` (subnet of the item 5 developer-access EC2) |
-| Node HTTPS egress | `10.40.0.0/16`; nodes still need AWS service reachability (audit finding F16) |
+| Node HTTPS egress (finding F16) | `10.40.0.0/16` (the network root's interface endpoints and the private EKS endpoint) and the S3 managed prefix list `pl-7da54014` (`com.amazonaws.ca-central-1.s3`, ECR image layers through the NAT gateway); the live preflight verifies the prefix list ID |
 | Private ingress | `private1`, Gateway target port `8443` |
 
 ## Current V5 runtime identity extension
@@ -68,7 +68,7 @@ and volumes launched by the node group. Modules set `Name` and `service`. Option
 keys are lowercase hyphenated words. The former Environment/Service/Project/
 ManagedBy tags are removed.
 
-Affected local native results are Root39, ingress Child36, EKS Child54; independent
+Affected local native results are Root40, ingress Child36, EKS Child55; independent
 IAM/SG/security/input/evidence/mutations pass as recorded in child/runtime READMEs.
 Current totals are in the latest Full CI job summary ("Summarize actual validation results"), requiring
 exact-HEAD independent review. Historical V3/V4 sections below retain their scoped counts;

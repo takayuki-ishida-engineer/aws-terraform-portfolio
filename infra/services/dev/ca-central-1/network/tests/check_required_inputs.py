@@ -4,6 +4,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +31,10 @@ def main():
                            AWS_SHARED_CREDENTIALS_FILE="/dev/null", AWS_CONFIG_FILE="/dev/null")
         results = []
         header = (ROOT / "tests/network.tftest.hcl").read_text().split('\nrun "', 1)[0]
+        # Each fixture supplies its own complete variable block; drop the native-suite
+        # file-level defaults so missing inputs really are missing.
+        header, defaults = re.subn(r"(?m)^variables \{[^}]*\}\n", "", header)
+        require(defaults == 1, "native_header_defaults")
         # Committed terraform.tfvars would satisfy the omitted inputs; run in a tfvars-free copy.
         with tfvars_free_copy(ROOT) as (workspace, isolation):
             environment.update(isolation)
