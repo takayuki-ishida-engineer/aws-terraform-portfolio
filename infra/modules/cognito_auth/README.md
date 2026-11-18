@@ -132,8 +132,8 @@ Actual-source and required-input checks are in tests/check_rejections.py; counts
 are reported from completed execution, not counted as native tests. Negative
 partial plans are not accepted as successful five-resource configurations.
 
-The CI keeps686 historical native and153 toolkit cases and adds95 native =>781.
-There are15 initialized configurations, one shared locked AWS provider. Complete
+V6 added 95 native cases. Current totals and initialized configurations, all
+sharing one locked AWS provider, are in the latest Full CI job summary ("Summarize actual validation results"). Complete
 CI belongs to independent exact-HEAD review; local results are not full CI success.
 Mocks do not prove Cognito/IAM behavior, delivery, token signatures, PKCE, cost,
 feature availability, federation, quotas, prefix uniqueness or teardown.

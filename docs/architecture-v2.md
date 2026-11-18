@@ -154,8 +154,8 @@ external CA/Secret references, MUTUAL TLS>=1.2 with client SPKI, STRICT mesh and
 namespace default deny. No application or authenticated deployment is performed.
 Actual local checks: Child36/Root38/EKS52 native; runtime8 Helm renders,
 122 schema objects,58 security mutations,18 invalid inputs,19 evidence faults.
-Expected full CI686 native/153 toolkit remains for independent exact-HEAD review,
-not a completed CI claim. Historical V3/V4 snapshots retain their original scope.
+Current totals are in the latest Full CI job summary ("Summarize actual validation results");
+this section is not a completed CI claim. Historical V3/V4 snapshots retain their original scope.
 
 Registration-only IAM excludes ModifyTargetGroup/Attributes and SG writes. LBC
 has no universal TGB-only switch; layered flags/RBAC/admission/IAM and clean

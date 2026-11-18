@@ -11,7 +11,8 @@ override_resource {
 }
 
 variables {
-  name = "/portfolio/test/application"
+  name    = "/portfolio/test/application"
+  service = "application"
 }
 
 run "default_log_group_configuration" {
@@ -25,9 +26,9 @@ run "default_log_group_configuration" {
       aws_cloudwatch_log_group.this.log_group_class == "STANDARD" &&
       aws_cloudwatch_log_group.this.kms_key_id == null &&
       !aws_cloudwatch_log_group.this.skip_destroy &&
-      length(aws_cloudwatch_log_group.this.tags) == 0
+      aws_cloudwatch_log_group.this.tags == tomap({ Name = "/portfolio/test/application", service = "application" })
     )
-    error_message = "Defaults must preserve the supplied name, finite 30-day retention, deletion protection, STANDARD class, ordinary service encryption and no added tags or skip-destroy orphaning."
+    error_message = "Defaults must preserve the supplied name, finite 30-day retention, deletion protection, STANDARD class, ordinary service encryption, only the module-owned Name and service tags and no skip-destroy orphaning."
   }
 }
 
@@ -209,11 +210,10 @@ run "caller_owned_unicode_tags" {
 
   assert {
     condition = (
-      aws_cloudwatch_log_group.this.tags == var.tags &&
-      aws_cloudwatch_log_group.this.tags.Project == "Root-Owned" &&
-      !contains(keys(aws_cloudwatch_log_group.this.tags), "Name")
+      aws_cloudwatch_log_group.this.tags == tomap(merge(var.tags, { Name = var.name, service = var.service })) &&
+      aws_cloudwatch_log_group.this.tags.Project == "Root-Owned"
     )
-    error_message = "Caller Project metadata and API-supported Unicode/colon tags must pass through without invented Name or Project values."
+    error_message = "Caller Project metadata and API-supported Unicode/colon tags must pass through next to the module-owned Name and service tags."
   }
 }
 
@@ -222,17 +222,45 @@ run "maximum_tag_count_and_lengths" {
   variables {
     tags = merge(
       { (join("", [for i in range(128) : "K"])) = join("", [for i in range(256) : "v"]) },
-      { for i in range(49) : format("tag-%02d", i) => "" }
+      { for i in range(47) : format("tag-%02d", i) => "" }
     )
   }
 
   assert {
     condition = (
-      aws_cloudwatch_log_group.this.tags == var.tags &&
+      aws_cloudwatch_log_group.this.tags == tomap(merge(var.tags, { Name = var.name, service = var.service })) &&
       length(aws_cloudwatch_log_group.this.tags) == 50 &&
       length(aws_cloudwatch_log_group.this.tags[join("", [for i in range(128) : "K"])]) == 256
     )
-    error_message = "The documented API limits of 50 tags, 128-character keys, 256-character values and empty values must remain usable."
+    error_message = "The documented API limits of 50 tags (48 caller tags plus Name and service), 128-character keys, 256-character values and empty values must remain usable."
+  }
+}
+
+run "owned_name_tag_normalization" {
+  command = plan
+  variables {
+    name    = "/portfolio/test/${join("", [for i in range(300) : "a"])}#audit"
+    service = "audit-log"
+  }
+
+  assert {
+    condition = (
+      aws_cloudwatch_log_group.this.name == var.name &&
+      aws_cloudwatch_log_group.this.tags.Name == substr(var.name, 0, 256) &&
+      length(aws_cloudwatch_log_group.this.tags.Name) == 256 &&
+      aws_cloudwatch_log_group.this.tags.service == "audit-log"
+    )
+    error_message = "The Name tag must be the log group name cut to the 256-character tag limit, and service must be the caller token."
+  }
+}
+
+run "hash_in_name_becomes_hyphen_in_name_tag" {
+  command = plan
+  variables { name = "/portfolio/test/app#1" }
+
+  assert {
+    condition     = aws_cloudwatch_log_group.this.name == "/portfolio/test/app#1" && aws_cloudwatch_log_group.this.tags.Name == "/portfolio/test/app-1"
+    error_message = "Tag values cannot contain #, so the Name tag replaces it with a hyphen while the log group keeps its name."
   }
 }
 
@@ -420,7 +448,7 @@ run "overlong_tag_value" {
 
 run "too_many_tags" {
   command = plan
-  variables { tags = { for i in range(51) : format("tag-%02d", i) => "invalid" } }
+  variables { tags = { for i in range(49) : format("tag-%02d", i) => "invalid" } }
   expect_failures = [var.tags]
 }
 
@@ -428,6 +456,30 @@ run "unsupported_tag_key_character" {
   command = plan
   variables { tags = { "invalid#key" = "invalid" } }
   expect_failures = [var.tags]
+}
+
+run "caller_name_tag" {
+  command = plan
+  variables { tags = { Name = "other" } }
+  expect_failures = [var.tags]
+}
+
+run "caller_service_tag" {
+  command = plan
+  variables { tags = { service = "other" } }
+  expect_failures = [var.tags]
+}
+
+run "uppercase_service_token" {
+  command = plan
+  variables { service = "Logs" }
+  expect_failures = [var.service]
+}
+
+run "service_token_with_trailing_hyphen" {
+  command = plan
+  variables { service = "logs-" }
+  expect_failures = [var.service]
 }
 
 run "unsupported_tag_value_character" {

@@ -332,8 +332,8 @@ Affected Terraform evidence: Child36 native, Root38 native and EKS Child52 nativ
 61 ingress semantic / 12 IAM / 21 capture-fault / 8 dependency checks per Child and
 Root scope; 12 actual unsafe Terraform source cases; Root15 required inputs and
 11 Network fields rejected. EKS73/21/10 per scope remain intact. These categories
-are separate from native counts. Expected independent full CI is 686 native
-(678+8), 153 toolkit, 13 initialized configurations / one locked AWS6.72.0 binary.
+are separate from native counts. Current Full CI totals, including the initialized
+configurations sharing one locked AWS 6.72.0 binary, are in the latest Full CI job summary ("Summarize actual validation results").
 Local checks are not completed exact-HEAD GitHub Actions evidence.
 
 All G01–G07 remain OPEN. No account/resource existence, State custody, publication,
