@@ -21,6 +21,7 @@ module "cognito_auth" {
   providers                  = { aws = aws }
   expected_scope             = { environment = local.environment, partition = "aws", region = "ca-central-1", account_id = var.aws_account_id }
   name_prefix                = local.name_prefix
+  deletion_protection        = var.deletion_protection ? "ACTIVE" : "INACTIVE"
   feature_plan               = var.feature_plan
   allow_dev_loopback         = var.allow_dev_loopback
   callback_urls              = var.callback_urls

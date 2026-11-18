@@ -31,7 +31,7 @@ def verify(p,v,root=False):
   row=rows[prefix+'aws_cognito_'+t+'.this'];need(row['type']=='aws_cognito_'+t and row['name']=='this' and row.get('module_address','')==prefix.rstrip('.') and 'index' not in row,'exact resource identity');need(row['mode']=='managed' and row['provider_name']=='registry.terraform.io/hashicorp/aws' and row['change']['actions']==['create'] and row['change']['before'] is None,'owner/provider/actions');eq(t,'region',v['expected_scope']['region'])
  pool=get('user_pool');client=get('user_pool_client');server=get('resource_server');domain=get('user_pool_domain');brand=get('managed_login_branding');scope=v['expected_scope']
  need(scope==dict(environment='dev',partition='aws',region='ca-central-1',account_id='000000000000'),'fixture scope')
- for k,x in dict(name=v['name_prefix']+'-cognito',user_pool_tier=v['feature_plan'],deletion_protection='ACTIVE',username_attributes=['email'],auto_verified_attributes=[],mfa_configuration=v['mfa_configuration'],username_configuration=[{'case_sensitive':False}],software_token_mfa_configuration=[{'enabled':True}],sms_configuration=[],email_configuration=[],email_mfa_configuration=[],lambda_config=[],user_pool_add_ons=[]).items():eq('user_pool',k,x)
+ for k,x in dict(name=v['name_prefix']+'-cognito',user_pool_tier=v['feature_plan'],deletion_protection=v.get('deletion_protection','ACTIVE'),username_attributes=['email'],auto_verified_attributes=[],mfa_configuration=v['mfa_configuration'],username_configuration=[{'case_sensitive':False}],software_token_mfa_configuration=[{'enabled':True}],sms_configuration=[],email_configuration=[],email_mfa_configuration=[],lambda_config=[],user_pool_add_ons=[]).items():eq('user_pool',k,x)
  # Module-owned Name and service tags win (docs/deployment-configuration.md section 5).
  need(pool['tags'].get('Name')==v['name_prefix']+'-cognito' and pool['tags'].get('service')=='cognito','pool name and service tags')
  need(pool['admin_create_user_config'][0]['allow_admin_create_user_only'] is True,'no self signup')
@@ -64,8 +64,8 @@ def capture(events,root=False):
  for e in plans:
   name=e.get('@testrun');need(name in expected and name not in seen,'unique expected plan');seen.add(name)
   if name in positive:verify(e['test_plan'],positive[name],root);positive_plans.append(e['test_plan'])
- need(set(positive)<=seen and len(positive_plans)==5,'complete positive captures')
- return dict(status='passed',native_tests=len(expected),positive_plans=5,negative_tests=len(expected)-5),positive_plans
+ need(set(positive)<=seen and len(positive_plans)==len(positive),'complete positive captures')
+ return dict(status='passed',native_tests=len(expected),positive_plans=len(positive),negative_tests=len(expected)-len(positive)),positive_plans
 
 def source_guard(text=None):
  if text is None:text='\n'.join(p.read_text() for p in HERE.parent.glob('*.tf'))

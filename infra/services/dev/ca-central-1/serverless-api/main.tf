@@ -34,6 +34,9 @@ module "lambda_workload" {
   account_id     = var.aws_account_id
   region         = local.region
   log_group_name = "/aws/lambda/${local.name_prefix}-lambda"
+  # Teardown switch (Root Override of the module default true): set false and
+  # apply before destroy, otherwise the protected log group blocks deletion.
+  log_deletion_protection_enabled = var.log_deletion_protection
 
   s3_bucket         = module.artifact_bucket.bucket_name
   s3_key            = var.artifact_key
@@ -56,4 +59,6 @@ module "http_api" {
   lambda_function_arn   = module.lambda_workload.function_arn
   lambda_invoke_arn     = module.lambda_workload.invoke_arn
   access_log_group_name = "${local.path_prefix}/apigw/http"
+
+  access_log_deletion_protection_enabled = var.log_deletion_protection
 }

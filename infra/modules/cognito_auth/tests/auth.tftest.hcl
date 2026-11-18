@@ -1059,3 +1059,29 @@ run "reject_invalid_port" {
   }
   expect_failures = [var.callback_urls]
 }
+
+run "teardown_inactive" {
+  command = plan
+  variables {
+    deletion_protection        = "INACTIVE"
+    expected_scope             = { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    name_prefix                = "test-dev"
+    feature_plan               = "ESSENTIALS"
+    allow_dev_loopback         = false
+    callback_urls              = ["https://client.example.invalid/callback"]
+    logout_urls                = ["https://client.example.invalid/logout"]
+    default_redirect_uri       = "https://client.example.invalid/callback"
+    resource_server_identifier = "portfolio-api"
+    scopes                     = { "read" : "Read approved records", "write" : "Write approved records" }
+    approved_scope_names       = ["read"]
+    mfa_configuration          = "ON"
+    password_minimum_length    = 14
+    access_token_minutes       = 15
+    id_token_minutes           = 15
+    refresh_token_hours        = 8
+  }
+  assert {
+    condition     = output.authentication.interface_version == 1 && output.authentication.app_client_id == "testclient123"
+    error_message = "Computed authentication contract failed."
+  }
+}

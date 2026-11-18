@@ -83,6 +83,7 @@ values that identify no verified account, bucket, artifact or deployment.
 | `lambda_runtime` | Required reviewed runtime: `nodejs22.x`, `python3.13` or `java21` |
 | `lambda_handler` | Required handler selected for that ZIP; child validation checks runtime-specific syntax, not artifact contents or executable compatibility |
 | `enable_secret_read` | Optional boolean, default `false`, non-null; the tracked feature file explicitly keeps it disabled |
+| `log_deletion_protection` | Optional boolean, default `true`, non-null; teardown switch for both log groups (set `false` and apply before destroy, finding F19) |
 
 No input accepts secret plaintext, credentials, access keys, tokens, passwords,
 confidential application configuration or arbitrary module options. Do not put a
@@ -144,7 +145,8 @@ are not mislabeled as child defaults.
 | Lambda environment | Empty when disabled; only `SECRET_ARN` with actual secret ARN when enabled | Root Override |
 | API Lambda references | Actual Lambda function and invocation ARN outputs | Root Override |
 | API log destination | Actual internally owned API Log Group's bare ARN | Module Fixed |
-| Both Log Groups | 30-day retention; deletion protection true; CMK null (`log_*` workload inputs versus access_log_* HTTP API inputs) | Module Default |
+| Both Log Groups | 30-day retention; CMK null (`log_*` workload inputs versus access_log_* HTTP API inputs) | Module Default |
+| Both Log Groups | Deletion protection from `log_deletion_protection` (default `true`) | Root Override |
 | Both Log Groups | `STANDARD`, `skip_destroy = false` | Module Fixed |
 | Secret recovery window | 7 days (decision in [deployment configuration §9](../../../../../docs/deployment-configuration.md#9-step-1-operational-decisions-owner-2026-11-16)) | Root Override |
 | Secret encryption/description | No explicit CMK; optional description null | Module Default |
@@ -214,6 +216,12 @@ resource policy, generated password or initialization provisioner exists here.
 Creating metadata does not initialize a value or establish `AWSCURRENT`.
 
 ## External artifact bootstrap and deployment prerequisites
+
+Implemented for the operator's workstation by Step 1 item 6 (finding F2):
+`python3 scripts/local-workflow/run.py serverless-api publish-artifact` creates the
+bucket with a confirmed targeted plan, uploads `function/function.zip` and records
+its version in `local.auto.tfvars`; then `run.py serverless-api apply`. See the
+[runbook](../../../../../docs/dev-runbook.md). The background below remains valid.
 
 A new empty bucket cannot contain the exact versioned ZIP required by Lambda.
 The following is a future, separately authorized operational sequence, **not an

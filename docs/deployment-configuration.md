@@ -324,7 +324,10 @@ approval. The Owner may reorder them.
    Delivered: the `developer-access` root, the `developer_access` module and the
    network root's Session Manager interface endpoints.
 6. Cross-root hand-off automation and the local apply/destroy runbook, including
-   the Kubernetes runtime through the developer-access tunnel.
+   the Kubernetes runtime through the developer-access tunnel. 6a delivered: the
+   [runbook](dev-runbook.md), `handoff.py`, `eks_tunnel.py`, `empty_bucket.py`,
+   `run.py publish-artifact` and the teardown switches. 6b (the Kubernetes runtime:
+   certificates, image source, object names) follows.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

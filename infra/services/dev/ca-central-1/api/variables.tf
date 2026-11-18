@@ -129,3 +129,10 @@ variable "tags" {
     error_message = "tags must not set project, env, service, managed or Name; the root and modules own those keys."
   }
 }
+
+variable "deletion_protection" {
+  description = "Cognito user pool deletion protection. Keep true; set false and apply only as the first teardown step, because a protected pool blocks terraform destroy."
+  type        = bool
+  default     = true
+  nullable    = false
+}
