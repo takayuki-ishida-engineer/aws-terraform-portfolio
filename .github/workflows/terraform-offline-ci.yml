@@ -17,7 +17,7 @@ jobs:
   offline-validation:
     name: Credential-free Terraform validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -658,7 +658,8 @@ jobs:
               "workload_log_group_name", "maximum_name_length", "supported_name_characters", "minimum_finite_retention",
               "weekly_retention", "supported_400_day_retention", "supported_731_day_retention", "maximum_supported_retention",
               "explicit_disposable_development_override", "existing_symmetric_key_reference", "existing_multi_region_key_reference",
-              "govcloud_partition_key_syntax", "china_partition_key_syntax", "caller_owned_unicode_tags", "maximum_tag_count_and_lengths"}
+              "govcloud_partition_key_syntax", "china_partition_key_syntax", "caller_owned_unicode_tags", "maximum_tag_count_and_lengths",
+              "owned_name_tag_normalization", "hash_in_name_becomes_hyphen_in_name_tag"}
           finite_retention = {1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653}
           summaries, plans, passed, errors, seen_plans, rejected_plans = [], [], set(), set(), set(), set()
           diagnostics = collections.deque(maxlen=20)
@@ -694,16 +695,16 @@ jobs:
                 plans.append((key, config))
               if event.get("type") == "test_summary":
                 summaries.append(event["test_summary"])
-          expected = {"status": "pass", "passed": 51, "failed": 0, "errored": 0, "skipped": 0}
-          if int(sys.argv[1]) != 0 or len(plans) != len(positive_runs) or {key[1] for key, _ in plans} != positive_runs or len(rejected_plans) != 33 or seen_plans != passed or len(summaries) != 1 or not errors <= passed or any(summaries[0].get(key) != value for key, value in expected.items()) or len(passed) != expected["passed"]:
+          expected = {"status": "pass", "passed": 57, "failed": 0, "errored": 0, "skipped": 0}
+          if int(sys.argv[1]) != 0 or len(plans) != len(positive_runs) or {key[1] for key, _ in plans} != positive_runs or len(rejected_plans) != 37 or seen_plans != passed or len(summaries) != 1 or not errors <= passed or any(summaries[0].get(key) != value for key, value in expected.items()) or len(passed) != expected["passed"]:
             for diagnostic in diagnostics:
               print(diagnostic, file=sys.stderr)
             raise SystemExit(f"CloudWatch Logs validation failed (Terraform exit {sys.argv[1]}).")
           key, config = plans[0]
           # name_prefix is Optional+Computed and receives a mock-generated value
           # even with an explicit name; verify the actual name, not that metadata.
-          if key[1] != "default_log_group_configuration" or config.get("name") != "/portfolio/test/application" or config.get("retention_in_days") != 30 or config.get("deletion_protection_enabled") is not True or config.get("kms_key_id") is not None or config.get("tags"):
-            raise SystemExit("Actual default log group configuration must use the explicit name, 30-day retention, protection, normal encryption and no additional tags.")
+          if key[1] != "default_log_group_configuration" or config.get("name") != "/portfolio/test/application" or config.get("retention_in_days") != 30 or config.get("deletion_protection_enabled") is not True or config.get("kms_key_id") is not None or config.get("tags") != {"Name": "/portfolio/test/application", "service": "application"}:
+            raise SystemExit("Actual default log group configuration must use the explicit name, 30-day retention, protection, normal encryption and only the module-owned Name and service tags.")
           print("Actual CloudWatch Logs configuration checked across", len(plans), "positive plans and", len(rejected_plans), "resource-free input rejections; summary:", summaries[0])
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             output.write(f"passed={summaries[0]['passed']}\n")

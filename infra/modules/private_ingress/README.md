@@ -41,8 +41,8 @@ Current affected local results: Child36 native (7 complete positive plans,
 per Child/Root:63 semantic,12 IAM policy mutations,21 capture faults,8 dependency
 checks. Twelve actual unsafe source re-plans were detected; Root14 required inputs
 and11 Network fields rejected. Root basic inventory54=EKS37+ingress17, or58 with
-two namespace access pairs. EKS76/21/10 checks remain. Full independent CI expected
-686 native/153 toolkit/13 configurations, not claimed passed locally.
+two namespace access pairs. EKS76/21/10 checks remain. Current full independent CI
+totals are in the latest Full CI job summary ("Summarize actual validation results"); nothing is claimed passed locally.
 
 ## Inputs and effective configuration
 
@@ -208,9 +208,9 @@ actual plan checks; they do not prove AWS execution ordering. The existing EKS
 73/21/10 checks remain. Separate required-input processes check 15 Root inputs and
 11 Network fields. Rejected partial plans are never counted as complete positives.
 
-Expected complete CI: 678 native (=641 V3 +28 child +9 Root), unchanged 153 Python,
-13 initialized configurations sharing one locked AWS binary. Local affected checks
-are not a claim that full V4 CI already passed. Independent exact-HEAD review is
+V4 added 28 child and 9 Root native tests; current complete CI totals and the
+initialized configurations sharing one locked AWS binary are in
+the latest Full CI job summary ("Summarize actual validation results"). Local affected checks are not a claim that full CI passed. Independent exact-HEAD review is
 required; no test proves real AWS creation, IAM/controller/TLS effectiveness,
 capacity, pricing, log delivery or teardown.
 

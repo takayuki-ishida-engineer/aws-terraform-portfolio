@@ -18,7 +18,8 @@ There are no data-source lookups or random names.
 | `retention_in_days` | number | **Module Default** `30`; **Root Override** permitted | Only the 22 finite API/provider values below; no zero or indefinite retention |
 | `deletion_protection_enabled` | bool | **Module Default** `true`; explicit **Root Override** permitted | Boolean; false is an intentional operational decision |
 | `kms_key_arn` | string | **Module Default** `null`; **Root Override** references an existing key | Complete key ARN ≤256 characters, explicit supported partition/region/account and UUID or `mrk-` identifier; no aliases, bare IDs or wildcards |
-| `tags` | map(string) | **Module Default** `{}`; **Root Override** permitted | ≤50 entries; keys 1–128 and values 0–256 Unicode characters; non-null values and no case-insensitive `aws:` prefix |
+| `service` | string | Required **Root Override** | Resource-type token for the `service` tag, taken from the log group path (for example `lambda` for `/aws/lambda/<name>`, `apigw` for `/<project>/<env>/apigw/<purpose>`); 1–32 lowercase letters, digits or hyphens, starting with a letter, not ending with a hyphen |
+| `tags` | map(string) | **Module Default** `{}`; **Root Override** permitted | No `Name` or `service` key; with those two at most 50 entries (48 caller tags); keys 1–128 and values 0–256 Unicode characters; non-null values and no case-insensitive `aws:` prefix |
 
 Finite retention days are **1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365,
 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653**. These match AWS
@@ -29,9 +30,13 @@ Tags accept Unicode letters, separators and numbers plus `_.:/=+-@` as specified
 by the TagResource API. Its value limit is 256 and it permits colons; a working
 with log-groups guide contains older conflicting guidance, so validation follows
 the normative API. Names, tags and other metadata must never contain secrets.
-The module invents or overwrites no `Project` or `Name` tag. Root provider
-`default_tags` remain root-owned; review the merged effective tags and total tag
-count when composing a root.
+The module owns two tags, following the
+[tag rules](../../../docs/deployment-configuration.md#5-tags) (**Module Fixed**):
+`Name` is the log group name cut to the 256-character tag limit, with `#` (invalid
+in tag values) replaced by `-`, and `service` is the `service` input. Callers may
+not set either. `project`, `env` and `managed` come from the root's provider
+`default_tags`; review the merged effective tags and total tag count when composing
+a root.
 
 These settings are **Module Fixed**, with no override switches:
 
@@ -140,11 +145,11 @@ the repository's service-root depth. It adds no Phase 4 integration:
 ```hcl
 module "log_storage" {
   source = "../../../../modules/cloudwatch_logs"
-  name   = "/portfolio/dev/serverless-api" # Required Root Override.
+  name    = "/project/dev/apigw/http" # Required Root Override (path form, section 4).
+  service = "apigw"                   # Required Root Override: the path's type token.
 
-  # Module Defaults: retention 30, protection true, no explicit CMK, no tags.
+  # Module Defaults: retention 30, protection true, no explicit CMK, no caller tags.
   retention_in_days = 60 # Root Override, chosen after lifecycle/cost review.
-  tags              = { Project = "portfolio", Environment = "dev" }
 }
 ```
 
@@ -176,12 +181,13 @@ plans for one log group and no unrelated resources, requires no resource changes
 for rejected inputs, verifies defaults and checks complete unique summaries and
 process status. Failure-injection checks exercise the checker itself. Verbose
 mock output and transient locks are neither committed nor uploaded as artifacts.
-The current suite passes **51 tests: 18 positive plans and 33 intended variable
-validation failures**. The CI checker accepted that actual capture and rejected
+The current suite passes **57 tests: 20 positive plans and 37 intended variable
+validation failures**, including the owned `Name`/`service` tags, `Name`
+normalization and rejected caller `Name`/`service` tags and invalid tokens. The CI checker accepted that actual capture and rejected
 all **30** injected process, completeness, count, inventory, default and lifecycle
-faults for the intended reason. Existing regressions retain 180 native mocks and
-153 Python tests, alongside policy-reference, negative/equivalence and independent
-guardrail checks.
+faults for the intended reason. Repository-wide totals are reported by the Full CI
+job summary ("Summarize actual validation results"), alongside policy-reference,
+negative/equivalence and independent guardrail checks.
 
 No actual logs, KMS operations, credentials, service API calls or deployment are
 used. Mock evidence does not establish real retention enforcement, successful

@@ -70,8 +70,8 @@ ManagedBy tags are removed.
 
 Affected local native results are Root39, ingress Child36, EKS Child54; independent
 IAM/SG/security/input/evidence/mutations pass as recorded in child/runtime READMEs.
-Expected full CI is686 native/153 toolkit/13 configurations, requiring exact-HEAD
-independent review. Historical V3/V4 sections below retain their scoped counts;
+Current totals are in the latest Full CI job summary ("Summarize actual validation results"), requiring
+exact-HEAD independent review. Historical V3/V4 sections below retain their scoped counts;
 they are not current repository-wide totals. All G01–G07/JPY10,000/72-hour removal/
 Secrets recovery restrictions are unchanged.
 

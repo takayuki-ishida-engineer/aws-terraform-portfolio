@@ -8,6 +8,17 @@ variable "name" {
   }
 }
 
+variable "service" {
+  description = "Resource-type token for the module-owned service tag: the token in the log group path, for example lambda for /aws/lambda/<name> or apigw for /<project>/<env>/apigw/<purpose>."
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.service))
+    error_message = "service must be a lowercase resource-type token of 1-32 letters, digits or hyphens that starts with a letter and does not end with a hyphen."
+  }
+}
+
 variable "retention_in_days" {
   description = "Explicit finite retention period in supported whole days; indefinite retention is not exposed by this module."
   type        = number
@@ -47,17 +58,17 @@ variable "kms_key_arn" {
 }
 
 variable "tags" {
-  description = "Optional visible, non-secret tags passed through without module-owned Name or Project metadata; provider default_tags remain root-owned."
+  description = "Optional visible, non-secret caller tags; Name and service are module owned and rejected here. Provider default_tags remain root-owned."
   type        = map(string)
   default     = {}
   nullable    = false
 
   validation {
-    condition = length(var.tags) <= 50 && alltrue([for key, value in var.tags :
-      length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") &&
+    condition = length(setunion(keys(var.tags), ["Name", "service"])) <= 50 && alltrue([for key, value in var.tags :
+      length(key) >= 1 && length(key) <= 128 && !startswith(lower(key), "aws:") && !contains(["Name", "service"], key) &&
       can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]+$", key)) &&
       try(length(value) <= 256, false) && can(regex("^[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*$", value))
     ])
-    error_message = "tags must have at most 50 entries, 1-128-character keys without the reserved aws: prefix, and non-null values up to 256 characters; only Unicode letters, separators, numbers and _ . : / = + @ - are supported."
+    error_message = "tags must not set Name or service and, with those two module-owned tags, hold at most 50 entries with 1-128-character keys without the reserved aws: prefix and non-null values up to 256 characters; only Unicode letters, separators, numbers and _ . : / = + @ - are supported."
   }
 }
