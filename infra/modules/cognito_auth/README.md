@@ -43,7 +43,8 @@ domain, resource server and branding are not taggable. `project`, `env` and
 | --- | --- |
 | Root Override | All required inputs, including name_prefix `<project>-dev`; DEV scope aws/ca-central-1 and required account; caller tags only (reserved keys rejected by the root) |
 | Module Default | tags={} only; no guessed paid plan, names, callbacks or token lifetime |
-| Module Fixed | ACTIVE deletion protection; email username, case-insensitive; admin-only user creation/recovery; no automatic verification/delivery; mutable required email; TOTP enabled; code-only public client; Cognito-only IdP; revocation; default branding/domain v2 |
+| Module Default | `deletion_protection = "ACTIVE"` (`INACTIVE` only as the first reviewed teardown step; validation allows only these two) |
+| Module Fixed | Email username, case-insensitive; admin-only user creation/recovery; no automatic verification/delivery; mutable required email; TOTP enabled; code-only public client; Cognito-only IdP; revocation; default branding/domain v2 |
 
 Scope permits dev/stg/prod but aws/ca-central-1 only in this initial contract;
 no STG/PROD Root is created. Names must be environment-prefixed lowercase, domain
@@ -141,8 +142,9 @@ feature availability, federation, quotas, prefix uniqueness or teardown.
 G01–G07 OPEN. No AWS credentials/authenticated calls, real State, apply/destroy/import,
 users or secrets. Dedicated workload account/identity, callback control, paid-plan
 cost, State custody and actual external plan require separate authorization.
-ACTIVE deletion protection requires an explicit reviewed source change before
-future authorized deletion; it is not silently bypassed for cleanup. Inventory
+ACTIVE deletion protection stays the default; teardown first applies
+`deletion_protection = "INACTIVE"` from the root as a reviewed step (finding F19);
+it is not silently bypassed for cleanup. Inventory
 users/domain/branding/client/pool and confirm full removal externally. DEV cumulative
 actual cost<=JPY10,000, complete verified removal within72 hours. Secrets Manager
 30-day recovery conflict remains OPEN; Cognito does not resolve it.

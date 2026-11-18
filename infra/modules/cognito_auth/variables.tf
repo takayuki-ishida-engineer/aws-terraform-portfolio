@@ -125,3 +125,14 @@ variable "tags" {
   default     = {}
   nullable    = false
 }
+
+variable "deletion_protection" {
+  description = "User pool deletion protection. Keep ACTIVE; INACTIVE only as the first reviewed teardown step, because an ACTIVE pool blocks terraform destroy."
+  type        = string
+  default     = "ACTIVE"
+  nullable    = false
+  validation {
+    condition     = contains(["ACTIVE", "INACTIVE"], var.deletion_protection)
+    error_message = "deletion_protection must be ACTIVE or INACTIVE."
+  }
+}

@@ -1032,3 +1032,33 @@ run "reject_reserved_tag_keys" {
   }
   expect_failures = [var.tags]
 }
+
+run "teardown_inactive" {
+  command = plan
+  variables {
+    deletion_protection        = false
+    project                    = "test"
+    feature_plan               = "ESSENTIALS"
+    allow_dev_loopback         = false
+    callback_urls              = ["https://client.example.invalid/callback"]
+    logout_urls                = ["https://client.example.invalid/logout"]
+    default_redirect_uri       = "https://client.example.invalid/callback"
+    resource_server_identifier = "portfolio-api"
+    scopes                     = { "read" : "Read approved records", "write" : "Write approved records" }
+    approved_scope_names       = ["read"]
+    mfa_configuration          = "ON"
+    password_minimum_length    = 14
+    access_token_minutes       = 15
+    id_token_minutes           = 15
+    refresh_token_hours        = 8
+    aws_account_id             = "000000000000"
+  }
+  assert {
+    condition     = output.authentication.interface_version == 1 && output.authentication.app_client_id == "testclient123"
+    error_message = "Computed authentication contract failed."
+  }
+  assert {
+    condition     = local.name_prefix == "test-dev" && local.default_tags == { project = "test", env = "dev", managed = "terraform" }
+    error_message = "Names derive from <project>-dev; project, env and managed come from provider default_tags."
+  }
+}

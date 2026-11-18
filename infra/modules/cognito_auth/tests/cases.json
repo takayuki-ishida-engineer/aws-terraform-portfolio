@@ -155,6 +155,38 @@
       "access_token_minutes": 15,
       "id_token_minutes": 15,
       "refresh_token_hours": 8
+    },
+    "teardown_inactive": {
+      "expected_scope": {
+        "environment": "dev",
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "name_prefix": "test-dev",
+      "feature_plan": "ESSENTIALS",
+      "allow_dev_loopback": false,
+      "callback_urls": [
+        "https://client.example.invalid/callback"
+      ],
+      "logout_urls": [
+        "https://client.example.invalid/logout"
+      ],
+      "default_redirect_uri": "https://client.example.invalid/callback",
+      "resource_server_identifier": "portfolio-api",
+      "scopes": {
+        "read": "Read approved records",
+        "write": "Write approved records"
+      },
+      "approved_scope_names": [
+        "read"
+      ],
+      "mfa_configuration": "ON",
+      "password_minimum_length": 14,
+      "access_token_minutes": 15,
+      "id_token_minutes": 15,
+      "refresh_token_hours": 8,
+      "deletion_protection": "INACTIVE"
     }
   },
   "negative": {

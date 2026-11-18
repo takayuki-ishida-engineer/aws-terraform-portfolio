@@ -65,7 +65,7 @@ def capture(events,root=False):
     for e in plans:
         name=e['@testrun'];need(name in expected and name not in seen,'unique plan');seen.add(name)
         if not name.startswith('reject_'):verify_plan(e['test_plan'],root);positive.append(e['test_plan'])
-    count=5 if root else 1
+    count=6 if root else 1
     need(len(positive)==count,'positive plans')
     return dict(native_tests=len(expected),positive_plans=count,negative_tests=len(expected)-count),positive
 

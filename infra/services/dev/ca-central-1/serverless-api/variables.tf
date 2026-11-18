@@ -50,3 +50,10 @@ variable "enable_secret_read" {
   default     = false
   nullable    = false
 }
+
+variable "log_deletion_protection" {
+  description = "Deletion protection for the Lambda and HTTP API log groups. Keep true; set false and apply only as the first teardown step, because a protected log group blocks terraform destroy."
+  type        = bool
+  default     = true
+  nullable    = false
+}

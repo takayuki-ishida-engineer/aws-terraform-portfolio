@@ -22,7 +22,7 @@ PREFIX = PROJECT + "-dev"
 PATH_PREFIX = "/" + PROJECT + "/dev"
 ACCOUNT = "000000000000"
 REGION = "ca-central-1"
-POSITIVE_RUNS = {"default_secret_read_disabled", "enabled_exact_secret_read", "node_runtime", "java_runtime"}
+POSITIVE_RUNS = {"default_secret_read_disabled", "enabled_exact_secret_read", "node_runtime", "java_runtime", "teardown_log_protection_off"}
 NEGATIVE_RUNS = {"invalid_account_id"}
 MODULE_TYPES = {
     "artifact_bucket": {"aws_s3_bucket", "aws_s3_bucket_versioning", "aws_s3_bucket_public_access_block",
@@ -111,7 +111,7 @@ def resources_of(plan, complete=True):
     return resources
 
 
-def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
+def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler", log_protection=True):
     resources = resources_of(plan)
 
     def value(module, kind):
@@ -164,7 +164,7 @@ def verify_plan(plan, enabled, runtime="python3.13", handler="app.handler"):
     for module, name in (("lambda_workload", "/aws/lambda/" + PREFIX + "-lambda"), ("http_api", PATH_PREFIX + "/apigw/http")):
         log = read(module, "aws_cloudwatch_log_group", "name", "arn", "retention_in_days", "deletion_protection_enabled", "log_group_class", "kms_key_id", "skip_destroy")
         require(log.get("name") == name and log.get("arn") == f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:{name}", "log_identity:" + module)
-        require(log.get("retention_in_days") == 30 and log.get("deletion_protection_enabled") is True
+        require(log.get("retention_in_days") == 30 and log.get("deletion_protection_enabled") is log_protection
             and log.get("log_group_class") == "STANDARD" and log.get("kms_key_id") is None
             and log.get("skip_destroy") is False, "log_safety:" + module)
         logs[module] = log
@@ -329,7 +329,8 @@ def verify_capture(events, exit_code=0):
                 require(name in terminal and name not in plans, "capture_plan_order_or_duplicate")
                 if name in POSITIVE_RUNS:
                     verify_plan(event["test_plan"], name == "enabled_exact_secret_read",
-                        *{"node_runtime": ("nodejs22.x", "index.handler"), "java_runtime": ("java21", "com.example.Handler::handleRequest")}.get(name, ("python3.13", "app.handler")))
+                        *{"node_runtime": ("nodejs22.x", "index.handler"), "java_runtime": ("java21", "com.example.Handler::handleRequest")}.get(name, ("python3.13", "app.handler")),
+                        log_protection=name != "teardown_log_protection_off")
                 else:
                     require(not resources_of(event["test_plan"], False), "rejected_account_plan")
                 plans[name] = event["test_plan"]

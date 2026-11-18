@@ -12,6 +12,9 @@ markers are a safety net, not the boundary: the rule itself is in `AGENTS.md`.
 | --- | --- |
 | `preflight.py` | Offline checks of a root's input values; with `--live`, read-only AWS checks |
 | `run.py` | `init` → preflight (offline and live) → saved plan → typed confirmation → apply of that plan; `migrate-state` moves local State into the optional S3 backend |
+| `handoff.py` | `network`: writes the applied network output as `network_reference` into the platform and developer-access `local.auto.tfvars` (account checked) |
+| `eks_tunnel.py` | `kubeconfig`: kubeconfig for `https://127.0.0.1:<port>` with the real `tls-server-name` and `aws eks get-token`; `start`: Session Manager port forwarding to the private EKS endpoint |
+| `empty_bucket.py` | Deletes every object version from `<project>-dev-s3-artifact` or `-tfstate` before teardown, after a typed confirmation |
 | `test_local_workflow.py` | Offline self-tests with fake `terraform` and `aws` executables (Full CI) |
 | `check_committed_values.py` | Full CI check of the committed values and the preflight against every DEV root |
 
@@ -38,7 +41,9 @@ python3 scripts/local-workflow/run.py network apply
 
 Apply in the order `tfstate` (only for the optional S3 backend), `network`,
 `platform`, `developer-access`, then `serverless-api` and `api`; destroy in the
-reverse order. The platform and developer-access roots need the network output in their
+reverse order. The [DEV runbook](../../docs/dev-runbook.md) gives the complete
+sequence, including `run.py serverless-api publish-artifact`, the hand-off, the
+EKS tunnel and the teardown switches. The platform and developer-access roots need the network output in their
 `local.auto.tfvars` (`terraform -chdir=infra/services/dev/ca-central-1/network output -json network`).
 Step 1 item 6 automates that hand-off and the serverless-api artifact upload, and
 adds the full runbook.

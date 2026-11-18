@@ -273,6 +273,17 @@ run "java_runtime" {
   }
 }
 
+run "teardown_log_protection_off" {
+  command = plan
+  variables {
+    log_deletion_protection = false
+  }
+  assert {
+    condition     = !module.lambda_workload.log_deletion_protection_enabled && !module.http_api.access_log_deletion_protection_enabled
+    error_message = "The teardown switch must turn off deletion protection on both log groups and nothing else."
+  }
+}
+
 run "invalid_account_id" {
   command = plan
   variables {

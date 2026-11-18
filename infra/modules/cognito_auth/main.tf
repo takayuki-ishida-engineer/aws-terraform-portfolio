@@ -2,7 +2,7 @@ resource "aws_cognito_user_pool" "this" {
   region                   = var.expected_scope.region
   name                     = "${var.name_prefix}-cognito"
   user_pool_tier           = var.feature_plan
-  deletion_protection      = "ACTIVE"
+  deletion_protection      = var.deletion_protection
   username_attributes      = ["email"]
   auto_verified_attributes = []
   mfa_configuration        = var.mfa_configuration

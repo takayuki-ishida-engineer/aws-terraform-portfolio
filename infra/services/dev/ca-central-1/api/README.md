@@ -33,6 +33,7 @@ untracked once copied) and run `run.py <root> migrate-state`.
 | --- | --- |
 | Cognito | `ESSENTIALS`, MFA `ON`, password length 14, access/ID tokens 15 minutes, refresh 8 hours, no DEV loopback |
 | Resource server | `portfolio-api`, scopes `read` and `write`, approved `read` |
+| Cognito deletion protection | `deletion_protection` (bool, default `true` → `ACTIVE`; `false` → `INACTIVE` only as the first teardown step, finding F19). Root Override of the module default |
 
 ## Historical V6 foundation and validation
 
