@@ -17,7 +17,8 @@ backend.s3.tfbackend in the root), init passes the backend settings, and
 the same checks (Terraform asks before copying).
 
 Apply roots in this order: tfstate (only for the S3 backend), network,
-platform, then serverless-api and api. Destroy in the reverse order.
+platform, developer-access, then serverless-api and api. Destroy in the
+reverse order.
 Cross-root hand-off is still manual (platform needs the network output in its
 local.auto.tfvars).
 """

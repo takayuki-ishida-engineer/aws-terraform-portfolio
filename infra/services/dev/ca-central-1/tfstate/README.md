@@ -34,7 +34,7 @@ preflight refuses a plan or apply while a placeholder remains.
 | --- | --- |
 | `bucket_name` | `<project>-dev-s3-tfstate` |
 | `bucket_arn` | Bucket ARN for reviewed IAM policies |
-| `backend_settings` | `bucket`, `region = ca-central-1`, `use_lockfile = true`, `encrypt = true` and `keys`: one `<project>/dev/ca-central-1/<root>/terraform.tfstate` per root (`network`, `platform`, `serverless-api`, `api`) |
+| `backend_settings` | `bucket`, `region = ca-central-1`, `use_lockfile = true`, `encrypt = true` and `keys`: one `<project>/dev/ca-central-1/<root>/terraform.tfstate` per root (`network`, `platform`, `serverless-api`, `api`, `developer-access`) |
 
 Each root's `backend.s3.tfbackend.example` already has this shape; replace
 `project` with your project after applying this root.

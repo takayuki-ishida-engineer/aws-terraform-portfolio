@@ -37,7 +37,8 @@ python3 scripts/local-workflow/run.py network apply
 ```
 
 Apply in the order `tfstate` (only for the optional S3 backend), `network`,
-`platform`, then `serverless-api` and `api`; destroy in the reverse order. The platform root needs the network output in its
+`platform`, `developer-access`, then `serverless-api` and `api`; destroy in the
+reverse order. The platform and developer-access roots need the network output in their
 `local.auto.tfvars` (`terraform -chdir=infra/services/dev/ca-central-1/network output -json network`).
 Step 1 item 6 automates that hand-off and the serverless-api artifact upload, and
 adds the full runbook.
@@ -56,6 +57,7 @@ Offline (no AWS call):
   | serverless-api | `project`, `aws_account_id`, `artifact_object_version` |
   | api | `project`, `aws_account_id`, `callback_urls`, `logout_urls`, `default_redirect_uri` |
   | tfstate | `project`, `aws_account_id` |
+  | developer-access | `project`, `aws_account_id`, `network_reference` |
 
 - No effective value of those inputs is a documented placeholder, an unedited
   example value or the Emulator's synthetic account `000000000000`, and every

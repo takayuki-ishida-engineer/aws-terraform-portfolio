@@ -39,7 +39,7 @@ NEGATIVE = {
 }
 BACKEND_SETTINGS = {
     "bucket": BUCKET, "region": "ca-central-1", "use_lockfile": True, "encrypt": True,
-    "keys": {root: f"test/dev/ca-central-1/{root}/terraform.tfstate" for root in ("network", "platform", "serverless-api", "api")},
+    "keys": {root: f"test/dev/ca-central-1/{root}/terraform.tfstate" for root in ("network", "platform", "serverless-api", "api", "developer-access")},
 }
 REQUIRED = ("project", "aws_account_id")
 

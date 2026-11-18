@@ -133,13 +133,13 @@ jobs:
               expected = {"infra/services/dev/ca-central-1/serverless-api",
                       "infra/services/dev/ca-central-1/network",
                       "infra/services/dev/ca-central-1/platform", "infra/services/dev/ca-central-1/api",
-                      "infra/services/dev/ca-central-1/tfstate"} | {
+                      "infra/services/dev/ca-central-1/tfstate", "infra/services/dev/ca-central-1/developer-access"} | {
                   "infra/modules/" + name for name in (
                       "vpc", "secrets_manager", "iam_account_policies", "iam_access", "lambda_workload",
                       "cloudwatch_logs", "s3_artifact_bucket", "api_gateway_http", "eks_platform", "private_ingress", "cognito_auth", "api_gateway_rest",
-                      "tfstate_bucket")}
+                      "tfstate_bucket", "developer_access")}
               if {row["module"] for row in initialized} != expected or references != len(expected) or len(identities) != 1:
-                  raise SystemExit("Expected eighteen initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
+                  raise SystemExit("Expected twenty initialized configurations reusing one locked AWS 6.72.0 binary; inspect measurements.")
           if checkpoint == "job_completion":
               snapshots = [json.loads(line) for line in (temporary / "provider-storage.jsonl").read_text().splitlines()]
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
@@ -1060,6 +1060,56 @@ jobs:
               output.write(f"passed={module['native_tests'] + root['native_tests']}\n")
           PY
 
+      - name: Verify developer access module and root
+        id: developer_access
+        run: |
+          set -euo pipefail
+          umask 077
+          checker="$GITHUB_WORKSPACE/infra/modules/eks_platform/tests/check_platform_configuration.py"
+          root="$GITHUB_WORKSPACE/infra/services/dev/ca-central-1/developer-access"
+          cd "$GITHUB_WORKSPACE/infra/modules/developer_access"
+          cp "$root/.terraform.lock.hcl" .terraform.lock.hcl
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          # Stream away only repeated provider schemas; preserve full resource/diagnostic evidence.
+          if terraform test -no-color -json -verbose | python3 "$checker" --compact > "$RUNNER_TEMP/developer-access-module-tests.jsonl"; then
+            module_status=0
+          else
+            module_status=$?
+          fi
+          python3 tests/check_developer_access.py --test-events "$RUNNER_TEMP/developer-access-module-tests.jsonl" \
+            --terraform-exit-code "$module_status" --self-test > "$RUNNER_TEMP/developer-access-module.json"
+          cd "$root"
+          terraform init -backend=false -input=false -no-color -lockfile=readonly
+          terraform validate -no-color
+          git diff --exit-code -- .terraform.lock.hcl
+          if terraform test -no-color -json -verbose | python3 "$checker" --compact > "$RUNNER_TEMP/developer-access-root-tests.jsonl"; then
+            root_status=0
+          else
+            root_status=$?
+          fi
+          python3 tests/check_root.py --test-events "$RUNNER_TEMP/developer-access-root-tests.jsonl" \
+            --terraform-exit-code "$root_status" --terraform terraform --self-test > "$RUNNER_TEMP/developer-access-root.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          module = json.loads((temp / "developer-access-module.json").read_text())
+          root = json.loads((temp / "developer-access-root.json").read_text())
+          expected_module = {"native_tests": 12, "positive_plans": 2, "negative_cases": 10, "semantic_mutations": 13, "capture_failure_injections": 6, "source_mutations": 5}
+          expected_root = {"native_tests": 9, "positive_plans": 2, "negative_cases": 7, "required_input_rejections": 4, "semantic_mutations": 6, "capture_failure_injections": 4}
+          for report, expected in ((module, expected_module), (root, expected_root)):
+              if report.get("status") != "passed" or report.get("evidence_type") != "actual_mock_plan_verification" or report.get("aws_api_calls") != 0 \
+                  or any(report.get(key) != value for key, value in expected.items()):
+                  raise SystemExit("Developer access module/root evidence or counts changed; independent review required.")
+          print("Actual developer_access verification:", module)
+          print("Actual developer-access root verification:", root)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"passed={module['native_tests'] + root['native_tests']}\n")
+          PY
+
       - name: Validate committed DEV values and the local workflow preflight
         id: committed_values
         run: |
@@ -1077,9 +1127,9 @@ jobs:
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "committed-values.json").read_text())
           roots = {item["root"]: item for item in report.get("roots", [])}
-          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or sorted(roots) != ["api", "network", "platform", "serverless-api", "tfstate"] \
+          if report.get("status") != "passed" or report.get("aws_api_calls") != 0 or sorted(roots) != ["api", "developer-access", "network", "platform", "serverless-api", "tfstate"] \
               or any(item.get("mock_plan") != "pass" or item.get("synthetic_local_values") != "passed" or item.get("local_override_effective") is not True for item in roots.values()) \
-              or any(roots[name].get("backend_examples") != "valid" for name in ("api", "network", "platform", "serverless-api")) \
+              or any(roots[name].get("backend_examples") != "valid" for name in ("api", "developer-access", "network", "platform", "serverless-api")) \
               or roots["tfstate"].get("backend_examples") != "none (bootstrap root stays local)":
               raise SystemExit("Committed DEV values or local workflow preflight evidence failed.")
           print("Committed DEV values and preflight:", json.dumps(roots, sort_keys=True))
@@ -1165,6 +1215,8 @@ jobs:
           COMMITTED_VALUES_RESULT: ${{ steps.committed_values.outcome }}
           TFSTATE_RESULT: ${{ steps.tfstate.outcome }}
           TFSTATE_PASSED: ${{ steps.tfstate.outputs.passed }}
+          DEVELOPER_ACCESS_RESULT: ${{ steps.developer_access.outcome }}
+          DEVELOPER_ACCESS_PASSED: ${{ steps.developer_access.outputs.passed }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -1194,6 +1246,7 @@ jobs:
             ("Official authorization-reference check", "REFERENCE_RESULT", ""),
             ("Checker negative self-tests", "SELF_TEST_RESULT", ""),
             ("DEV State bucket module/bootstrap root plans/mutations", "TFSTATE_RESULT", os.environ.get("TFSTATE_PASSED", "")),
+            ("Developer access module/root plans/mutations", "DEVELOPER_ACCESS_RESULT", os.environ.get("DEVELOPER_ACCESS_PASSED", "")),
             ("Committed DEV values mock plans/local workflow preflight/backend examples", "COMMITTED_VALUES_RESULT", ""),
             ("Toolkit offline self-tests/export/dry-run", "TOOLKIT_RESULT", os.environ.get("TOOLKIT_PASSED", "")),
           ]
