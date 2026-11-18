@@ -17,7 +17,7 @@ REPO = HERE.parents[3]
 MODULE = HERE.parent
 ROOT = REPO / "infra/services/dev/ca-central-1/network"
 PROVIDER = "registry.terraform.io/hashicorp/aws"
-ORIGINAL_SHA256 = "7d350bc3088855a259ea145fa114f65fff84c3ecfecc10372f932cd2374d461b"  # Step 1 PR 2b: original 16 tests updated only for the naming/tag rules (Name formats, service tags).
+ORIGINAL_SHA256 = "ba1eb4e7881f462b8cebe5c97d766b3fbbcc494d6015f46b5561e2174a35bbdd"  # Step 1 PR 2b: naming/tag rules only; F8: the legacy shared table is now aws_route_table.private[0] (address only, same assertions).
 
 
 def require(ok, reason):
@@ -102,7 +102,8 @@ def verify_endpoint_policy(text, account_id):
 
 def inventory(inputs):
     per_az = inputs.get("private_routing", {}).get("mode", "legacy_shared") == "per_az"
-    result = {"aws_vpc.this", "aws_route_table.private"}
+    # The shared private table exists only in legacy_shared routing (finding F8).
+    result = {"aws_vpc.this"} | (set() if per_az else {"aws_route_table.private[0]"})
     for group in ("private", "public"):
         for key in inputs.get(group + "_subnets", {}):
             result |= {address("aws_subnet", group, key), address("aws_route_table_association", group, key)}
@@ -115,6 +116,10 @@ def inventory(inputs):
             result |= {address("aws_eip", "nat", az), address("aws_nat_gateway", "this", az)}
         result |= {address("aws_route", "private_nat", az) for az in nat.get("nat_az_by_private_az", {})}
         result |= {address("aws_vpc_endpoint", "gateway", service) for service in inputs.get("gateway_endpoints", {})}
+        interface = inputs.get("interface_endpoints")
+        if interface:
+            result |= {"aws_security_group.endpoints[0]", "aws_vpc_security_group_ingress_rule.endpoints_https[0]"}
+            result |= {address("aws_vpc_endpoint", "interface", service) for service in interface["services"]}
     return result
 
 
@@ -126,7 +131,9 @@ def expected_owned_tags(inputs):
     """
     prefix = inputs["name_prefix"]
     per_az = inputs.get("private_routing", {}).get("mode", "legacy_shared") == "per_az"
-    owned = {"aws_vpc.this": (prefix + "-vpc", "vpc"), "aws_route_table.private": (prefix + "-rtb-private", "rtb")}
+    owned = {"aws_vpc.this": (prefix + "-vpc", "vpc")}
+    if not per_az:
+        owned["aws_route_table.private[0]"] = (prefix + "-rtb-private", "rtb")
     for group in ("private", "public"):
         for key, subnet in inputs.get(group + "_subnets", {}).items():
             owned[address("aws_subnet", group, key)] = (f"{prefix}-{subnet['availability_zone'][-1]}-subnet-{key}", "subnet")
@@ -142,8 +149,16 @@ def expected_owned_tags(inputs):
             owned[address("aws_eip", "nat", az)] = (f"{prefix}-{az[-1]}-eip-nat", "eip")
             owned[address("aws_nat_gateway", "this", az)] = (f"{prefix}-{az[-1]}-nat", "nat")
         endpoints = inputs.get("gateway_endpoints", {})
+        interface = inputs.get("interface_endpoints") or {"services": []}
+        # Every endpoint gets a purpose once more than one endpoint exists.
+        total = len(endpoints) + len(interface["services"])
         for key in endpoints:
-            owned[address("aws_vpc_endpoint", "gateway", key)] = (f"{prefix}-vpce-{key}" if len(endpoints) > 1 else prefix + "-vpce", "vpce")
+            owned[address("aws_vpc_endpoint", "gateway", key)] = (f"{prefix}-vpce-{key}" if total > 1 else prefix + "-vpce", "vpce")
+        for service in interface["services"]:
+            owned[address("aws_vpc_endpoint", "interface", service)] = (f"{prefix}-vpce-{service.replace('.', '-')}", "vpce")
+        if interface["services"]:
+            owned["aws_security_group.endpoints[0]"] = (prefix + "-sg-vpce", "sg")
+            owned["aws_vpc_security_group_ingress_rule.endpoints_https[0]"] = (prefix + "-sg-vpce-in-vpc-https", "sg")
     return {addr: {"Name": name, "service": service} for addr, (name, service) in owned.items()}
 
 
@@ -185,7 +200,8 @@ def verify_plan(plan, inputs, scope):
     def same(addr, field, expected):
         require(read(addr, field) == expected, "resource_contract:" + addr + ":" + field)
     for addr in resources:
-        if addr.startswith(("aws_vpc.", "aws_subnet.", "aws_route_table.", "aws_nat_gateway.", "aws_eip.", "aws_internet_gateway.", "aws_vpc_endpoint.")):
+        if addr.startswith(("aws_vpc.", "aws_subnet.", "aws_route_table.", "aws_nat_gateway.", "aws_eip.", "aws_internet_gateway.", "aws_vpc_endpoint.",
+                            "aws_security_group.", "aws_vpc_security_group_ingress_rule.")):
             identity = read(addr, "id")
             require(isinstance(identity, str) and identity and identity not in ids.values(), "distinct_resource_ids")
             ids[addr] = identity
@@ -196,7 +212,7 @@ def verify_plan(plan, inputs, scope):
     if per_az:
         expected = inputs["expected_scope"]
         same("aws_vpc.this", "arn", f"arn:{expected['partition']}:ec2:{expected['region']}:{expected['account_id']}:vpc/{vpc}")
-    selected = {az: ids[address("aws_route_table", "private_by_az", az)] if per_az else ids["aws_route_table.private"] for az in azs}
+    selected = {az: ids[address("aws_route_table", "private_by_az", az)] if per_az else ids["aws_route_table.private[0]"] for az in azs}
     for group in ("private", "public"):
         for key, subnet in inputs.get(group + "_subnets", {}).items():
             addr = address("aws_subnet", group, key)
@@ -208,8 +224,9 @@ def verify_plan(plan, inputs, scope):
             assoc = address("aws_route_table_association", group, key)
             same(assoc, "subnet_id", ids[addr])
             same(assoc, "route_table_id", selected[subnet["availability_zone"]] if group == "private" else ids["aws_route_table.public[0]"])
-    same("aws_route_table.private", "vpc_id", vpc)
-    same("aws_route_table.private", "route", [])
+    if not per_az:
+        same("aws_route_table.private[0]", "vpc_id", vpc)
+        same("aws_route_table.private[0]", "route", [])
     for az in azs if per_az else []:
         addr = address("aws_route_table", "private_by_az", az)
         same(addr, "vpc_id", vpc)
@@ -250,6 +267,25 @@ def verify_plan(plan, inputs, scope):
         require(actual_policy == reviewed_policy, "endpoint_reviewed_policy")
         for field in ("subnet_ids", "security_group_ids"):
             require(not read(addr, field), "gateway_interface_associations")
+    interface = inputs.get("interface_endpoints") if per_az else None
+    if interface:
+        group, rule = "aws_security_group.endpoints[0]", "aws_vpc_security_group_ingress_rule.endpoints_https[0]"
+        same(group, "vpc_id", vpc)
+        same(group, "name", inputs["name_prefix"] + "-sg-vpce")
+        same(rule, "security_group_id", ids[group])
+        same(rule, "cidr_ipv4", inputs["vpc_cidr"])
+        same(rule, "ip_protocol", "tcp");same(rule, "from_port", 443);same(rule, "to_port", 443)
+        for field in ("cidr_ipv6", "prefix_list_id", "referenced_security_group_id"):
+            require(not resources[rule]["after"].get(field), "endpoint_rule_single_source:" + field)
+        subnets = sorted(ids[address("aws_subnet", "private", key)] for key in interface["subnet_keys"])
+        for service in interface["services"]:
+            addr = address("aws_vpc_endpoint", "interface", service)
+            same(addr, "vpc_id", vpc);same(addr, "vpc_endpoint_type", "Interface")
+            same(addr, "service_name", "com.amazonaws.ca-central-1." + service)
+            same(addr, "private_dns_enabled", True)
+            require(sorted(read(addr, "subnet_ids")) == subnets, "interface_endpoint_subnets")
+            require(read(addr, "security_group_ids") == [ids[group]], "interface_endpoint_security_group")
+            require(not resources[addr]["after"].get("route_table_ids"), "interface_endpoint_route_tables")
     # Exact module-owned Name/service tags win over caller tags; nothing else is injected.
     # Root-wide project/env/managed tags come from provider default_tags, not resource tags.
     owned = expected_owned_tags(inputs)
@@ -261,7 +297,7 @@ def verify_plan(plan, inputs, scope):
         "vpc_id": vpc, "vpc_cidr": inputs["vpc_cidr"],
         "private_subnet_ids": {k: ids[address("aws_subnet", "private", k)] for k in inputs["private_subnets"]},
         "public_subnet_ids": {k: ids[address("aws_subnet", "public", k)] for k in inputs.get("public_subnets", {})},
-        "private_route_table_id": None if per_az else ids["aws_route_table.private"],
+        "private_route_table_id": None if per_az else ids["aws_route_table.private[0]"],
         "public_route_table_id": ids.get("aws_route_table.public[0]"),
         "internet_gateway_id": ids.get("aws_internet_gateway.this[0]"),
         "private_route_table_ids_by_az": selected,
@@ -269,7 +305,8 @@ def verify_plan(plan, inputs, scope):
         "subnet_azs": {g: {k: v["availability_zone"] for k, v in inputs.get(g + "_subnets", {}).items()} for g in ("private", "public")},
         "nat_gateway_ids_by_az": {az: ids[address("aws_nat_gateway", "this", az)] for az in nat.get("public_subnet_key_by_nat_az", {})},
         "nat_eips_by_az": {az: {"allocation_id": ids[address("aws_eip", "nat", az)], "public_ip": read(address("aws_eip", "nat", az), "public_ip")} for az in nat.get("public_subnet_key_by_nat_az", {})},
-        "endpoint_ids": {"gateway": {s: ids[address("aws_vpc_endpoint", "gateway", s)] for s in inputs.get("gateway_endpoints", {})}},
+        "endpoint_ids": {"gateway": {s: ids[address("aws_vpc_endpoint", "gateway", s)] for s in inputs.get("gateway_endpoints", {})},
+                         "interface": {s: ids[address("aws_vpc_endpoint", "interface", s)] for s in (interface or {}).get("services", [])}},
         "routing_mode": "per_az" if per_az else "legacy_shared", "interface_version": 1,
     }
     if scope == "root":
@@ -296,14 +333,24 @@ def source_contract(sources=None):
                        'route_table_id=aws_route_table.private_by_az[each.key].id',
                        'nat_gateway_id=aws_nat_gateway.this[each.value].id'):
         require(expression in routing, "actual_resource_reference:" + expression)
-    require('route_table_id=local.per_az?aws_route_table.private_by_az[var.private_subnets[each.key].availability_zone].id:aws_route_table.private.id' in main, "actual_subnet_routing_reference")
-    require('value=local.per_az?null:aws_route_table.private.id' in source(child+"outputs.tf"), "singular_output_reference")
+    require('route_table_id=local.per_az?aws_route_table.private_by_az[var.private_subnets[each.key].availability_zone].id:aws_route_table.private[0].id' in main, "actual_subnet_routing_reference")
+    require('value=local.per_az?null:aws_route_table.private[0].id' in source(child+"outputs.tf"), "singular_output_reference")
+    require('resource"aws_route_table""private"{count=local.per_az?0:1' in main and 'moved{from=aws_route_table.privateto=aws_route_table.private[0]}' in main, "shared_table_legacy_only")
     require('vpc_id=module.network.vpc_id' in source(root+"outputs.tf"), "root_output_reference")
     require('depends_on=[aws_internet_gateway.this,aws_route_table.public,aws_route_table_association.public]' in routing, "nat_public_readiness")
     require('depends_on=[aws_route.private_nat,aws_vpc_endpoint.gateway]' in main, "association_cutover_readiness")
     require('resource"aws_route_table""private_by_az"{' in routing and not re.search(r'\broute\s*(?:=|\{)', sources[child+"routing.tf"]), "no_inline_az_route_owner")
     require('route=[]' in main and 'gateway_id=aws_internet_gateway.this[0].id' in main, "legacy_route_ownership")
     require('route_table_ids=[forazinsort(tolist(each.value.private_route_table_azs)):aws_route_table.private_by_az[az].idifcontains(local.private_azs,az)]' in endpoint, "endpoint_association_owner")
+    interface_block = re.search(r'resource"aws_vpc_endpoint""interface"\{.*?\n\}', re.sub(r"(?m)#.*$", "", sources[child+"endpoints.tf"]).replace(" ", ""), re.S)
+    require(interface_block and 'policy' not in interface_block.group(0), "interface_endpoint_default_policy")
+    for expression in ('resource"aws_vpc_endpoint""interface"{for_each=local.interface_services',
+                       'subnet_ids=[forkeyinsort(tolist(var.interface_endpoints.subnet_keys)):aws_subnet.private[key].id]',
+                       'security_group_ids=[aws_security_group.endpoints[0].id]', 'private_dns_enabled=true',
+                       'security_group_id=aws_security_group.endpoints[0].idcidr_ipv4=var.vpc_cidrip_protocol="tcp"from_port=443to_port=443',
+                       'interface_services=local.per_az&&var.interface_endpoints!=null?var.interface_endpoints.services:toset([])'):
+        require(expression in endpoint, "interface_endpoint_reference:" + expression)
+    require(not re.search(r'\b(ingress|egress)\s*\{', sources[child+"endpoints.tf"]), "endpoint_group_no_inline_rules")
     forbidden = ('aws_vpc_endpoint_route_table_association','aws_vpc_endpoint_subnet_association','aws_main_route_table_association','override_provider','skip_credentials_validation','skip_requesting_account_id','assume_role')
     require(not any(term in '\n'.join(sources.values()) for term in forbidden), "unapproved_owner_or_provider_bypass")
     require(source(root+"providers.tf").startswith('provider"aws"{region=local.regionallowed_account_ids=[var.aws_account_id]'), "root_account_region_guard")
@@ -503,7 +550,6 @@ def self_test(events, scope, plans):
         ('private_nat',address('aws_nat_gateway','this',a),'connectivity_type','private'),
         ('wrong_vpc',address('aws_subnet','private',pk),'vpc_id','vpc-other'),
         ('wrong_vpc_account','aws_vpc.this','arn','arn:aws:ec2:ca-central-1:111111111111:vpc/vpc-v2-mock'),
-        ('legacy_inline_egress','aws_route_table.private','route',[{'cidr_block':'0.0.0.0/0','gateway_id':'igw-mock'}]),
         ('az_inline_competing_route',address('aws_route_table','private_by_az',a),'route',[{'cidr_block':'0.0.0.0/0','gateway_id':'igw-mock'}]),
         ('public_wrong_target','aws_route_table.public[0]','route',[{'cidr_block':'0.0.0.0/0','gateway_id':'nat-a'}]),
         ('public_ip_public_subnet',address('aws_subnet','public',uk),'map_public_ip_on_launch',True)]
@@ -527,6 +573,33 @@ def self_test(events, scope, plans):
     ]:
         p=copy.deepcopy(plan);edit(p)
         semantic.append(rejected(lambda p=p:verify_plan(p,inputs,scope),name))
+    # F8: per_az must not create the unassociated shared table; legacy keeps it route-free.
+    p=copy.deepcopy(plan);row=copy.deepcopy(next(r for r in p['resource_changes'] if r['type']=='aws_route_table' and r['name']=='private_by_az'))
+    row.update(address=prefix+'aws_route_table.private[0]',name='private',index=0);row['change']['after']['id']='rtb-shared'
+    p['resource_changes'].append(row)
+    semantic.append(rejected(lambda p=p:verify_plan(p,inputs,scope),'shared_private_table_in_per_az'))
+    if scope=='child':
+        legacy_key=('tests/extension.tftest.hcl','legacy_private_unchanged')
+        p=copy.deepcopy(plans[legacy_key]);row=next(r for r in p['resource_changes'] if r['address']=='aws_route_table.private[0]')
+        row['change']['after']['route']=[{'cidr_block':'0.0.0.0/0','gateway_id':'igw-mock'}]
+        semantic.append(rejected(lambda p=p:verify_plan(p,positives[legacy_key],scope),'legacy_inline_egress'))
+    # F16: interface endpoints stay private, regional, VPC-only and reviewed.
+    iface_key=next((k for k in positives if positives[k].get('interface_endpoints')),None)
+    require(iface_key is not None,'interface_endpoint_fixture')
+    iplan=plans[iface_key];iinputs=positives[iface_key]
+    svc=sorted(iinputs['interface_endpoints']['services'])[0]
+    ep=prefix+address('aws_vpc_endpoint','interface',svc);rule=prefix+'aws_vpc_security_group_ingress_rule.endpoints_https[0]'
+    public_subnet=next(r for r in iplan['resource_changes'] if r['type']=='aws_subnet' and r['name']=='public')['change']['after']['id']
+    for name,addr,field,value in [('interface_wrong_region',ep,'service_name','com.amazonaws.us-east-1.'+svc),
+            ('interface_private_dns_off',ep,'private_dns_enabled',False),('interface_public_subnet',ep,'subnet_ids',[public_subnet]),
+            ('interface_no_security_group',ep,'security_group_ids',[]),('endpoint_rule_world',rule,'cidr_ipv4','0.0.0.0/0'),
+            ('endpoint_rule_ssh',rule,'from_port',22),('endpoint_rule_peer_group',rule,'referenced_security_group_id','sg-other')]:
+        p=copy.deepcopy(iplan);row=next(r for r in p['resource_changes'] if r['address']==addr);row['change']['after'][field]=value
+        semantic.append(rejected(lambda p=p:verify_plan(p,iinputs,scope),name))
+    p=copy.deepcopy(iplan);row=copy.deepcopy(next(r for r in p['resource_changes'] if r['address']==ep))
+    row.update(address=prefix+address('aws_vpc_endpoint','interface','s3'),index='s3');row['change']['after']['id']='vpce-extra'
+    p['resource_changes'].append(row)
+    semantic.append(rejected(lambda p=p:verify_plan(p,iinputs,scope),'interface_unreviewed_service'))
     if scope=='child':
         legacy_key=('tests/extension.tftest.hcl','legacy_private_unchanged')
         p=copy.deepcopy(plans[legacy_key])
@@ -556,7 +629,9 @@ def self_test(events, scope, plans):
         faults.append(rejected(lambda text=text:parse(text),'malformed_'+str(len(faults))))
     sources={str(p.relative_to(REPO)):p.read_text() for folder in (MODULE,ROOT) for p in folder.glob('*.tf')}
     source_mutations=[]
-    replacements=[('infra/modules/vpc/routing.tf','aws_internet_gateway.this,',''),('infra/modules/vpc/main.tf','depends_on = [aws_route.private_nat, aws_vpc_endpoint.gateway]','depends_on = []'),('infra/services/dev/ca-central-1/network/providers.tf','allowed_account_ids = [var.aws_account_id]','allowed_account_ids = []'),('infra/services/dev/ca-central-1/network/backend.tf','"local"','"s3"')]
+    replacements=[('infra/modules/vpc/routing.tf','aws_internet_gateway.this,',''),
+        ('infra/modules/vpc/endpoints.tf','cidr_ipv4         = var.vpc_cidr','cidr_ipv4         = "0.0.0.0/0"'),
+        ('infra/modules/vpc/endpoints.tf','private_dns_enabled = true','private_dns_enabled = false'),('infra/modules/vpc/main.tf','depends_on = [aws_route.private_nat, aws_vpc_endpoint.gateway]','depends_on = []'),('infra/services/dev/ca-central-1/network/providers.tf','allowed_account_ids = [var.aws_account_id]','allowed_account_ids = []'),('infra/services/dev/ca-central-1/network/backend.tf','"local"','"s3"')]
     for path, expression, replacement in [
         ('infra/modules/vpc/routing.tf', 'allocation_id', 'allocation_id = "eipalloc-a"'),
         ('infra/modules/vpc/routing.tf', 'nat_gateway_id', 'nat_gateway_id = "nat-a"'),

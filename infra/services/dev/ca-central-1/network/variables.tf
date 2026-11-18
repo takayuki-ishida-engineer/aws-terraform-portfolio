@@ -151,3 +151,12 @@ variable "gateway_endpoints" {
   default  = {}
   nullable = false
 }
+
+variable "interface_endpoints" {
+  description = "Optional AWS service interface endpoints (services and private subnet keys) forwarded to the child, which validates the reviewed service list, subnets and the VPC-only HTTPS security group. DEV uses them so private EKS nodes reach ECR, STS, EC2 and CloudWatch Logs (finding F16)."
+  type = object({
+    services    = set(string)
+    subnet_keys = set(string)
+  })
+  default = null
+}

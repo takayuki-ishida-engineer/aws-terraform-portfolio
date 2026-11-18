@@ -40,6 +40,7 @@ cannot be established by these syntax/relationship validations.
 | namespace_access | map(object({principal_arn=string, policy=string, namespaces=set(string)})), {} | Optional distinct approved view/edit roles, explicit non-system namespaces; no extra cluster administrators or groups; keys are lowercase hyphenated words because they appear in the access entry Name tag |
 | api_client_cidrs | set(string), required | Canonical private source CIDRs, no world/public API client ranges; not an installed VPN/admin host |
 | node_https_egress_cidrs | set(string), required | Explicit reviewed IPv4 /8–/32 destinations for actual AWS HTTPS flows, no world default |
+| node_https_egress_prefix_list_ids | set(string), default `[]` | Optional AWS-managed prefix lists (`pl-` + 8–17 hex, at most five) that nodes reach on TCP 443 only, for example the regional S3 list for ECR image layers (finding F16); rule `<prefix>-sg-eks-node-out-pl-https[-NN]` |
 | addon_versions | object({vpc_cni,coredns,kube_proxy}=strings), required | Exact vX.Y.Z-eksbuild.N, compatibility with Cluster/AMI/architecture externally verified; no most_recent discovery |
 | cluster_kms_key_arn | string or null, null | Optional same-account/Region approved external customer key; no key/grant owner is created |
 | deletion_protection | bool, true | Cluster and log group protected; disabling is configuration, not teardown/Live approval |
@@ -275,11 +276,11 @@ No kubeconfig, bearer token, secret or full-state publication is output.
 
 ## Actual offline verification and execution boundary
 
-Terraform 1.17.0 / locked AWS 6.72.0: 54 native passes, seven complete positive
-plans and 47 intentional native rejection cases. Independent actual-plan checks
+Terraform 1.17.0 / locked AWS 6.72.0: 55 native passes, eight complete positive
+plans (including the S3 prefix-list egress case) and 47 intentional native rejection cases. Independent actual-plan checks
 exercise exact ownership/resource inventory, known critical computed values,
-relationships, IAM/Trust/SG/access/add-on contracts, exact Name/service tags and all outputs. There are 76
-semantic mutations, 21 capture-failure injections and ten source dependency/guard
+relationships, IAM/Trust/SG/access/add-on contracts, exact Name/service tags and all outputs. There are 79
+semantic mutations (three for the prefix-list rule), 21 capture-failure injections and ten source dependency/guard
 mutations per scope. Ten additional actual unsafe Terraform source copies are
 re-planned: private-profile violations fail native assertions and independent
 checks; other unsafe IAM/SG/add-on variants fail actual-plan checks. Failed native

@@ -80,6 +80,16 @@ resource "aws_vpc_security_group_egress_rule" "nodes_https" {
   to_port           = 443
   tags              = merge(var.tags, { Name = "${local.sg_name.nodes}-out-https${local.https_rule_suffix[each.value]}", service = "sg" })
 }
+# HTTPS to AWS-managed prefix lists (for example S3 for ECR image layers, finding F16).
+resource "aws_vpc_security_group_egress_rule" "nodes_https_prefix_list" {
+  for_each          = var.node_https_egress_prefix_list_ids
+  security_group_id = aws_security_group.nodes.id
+  prefix_list_id    = each.value
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  tags              = merge(var.tags, { Name = "${local.sg_name.nodes}-out-pl-https${local.prefix_rule_suffix[each.value]}", service = "sg" })
+}
 resource "aws_vpc_security_group_egress_rule" "nodes_peer_dns" {
   for_each                     = toset(["tcp", "udp"])
   security_group_id            = aws_security_group.nodes.id

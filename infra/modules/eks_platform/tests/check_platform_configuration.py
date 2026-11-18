@@ -87,6 +87,8 @@ def owned_tags(v, prefix):
         owned[indexed('aws_vpc_security_group_ingress_rule.cluster_clients', cidr)] = (sgc + '-in-client-https' + seq(v['api_client_cidrs'], cidr), 'sg')
     for cidr in v['node_https_egress_cidrs']:
         owned[indexed('aws_vpc_security_group_egress_rule.nodes_https', cidr)] = (sgn + '-out-https' + seq(v['node_https_egress_cidrs'], cidr), 'sg')
+    for prefix_list in v.get('node_https_egress_prefix_list_ids', []):
+        owned[indexed('aws_vpc_security_group_egress_rule.nodes_https_prefix_list', prefix_list)] = (sgn + '-out-pl-https' + seq(v['node_https_egress_prefix_list_ids'], prefix_list), 'sg')
     for key in ['https', 'kubelet', 'dns_tcp', 'dns_udp']:
         owned[indexed('aws_vpc_security_group_egress_rule.cluster_nodes', key)] = (sgc + '-out-node-' + key.replace('_', '-'), 'sg')
         owned[indexed('aws_vpc_security_group_ingress_rule.nodes_cluster', key)] = (sgn + '-in-cluster-' + key.replace('_', '-'), 'sg')
@@ -146,13 +148,15 @@ def validate_inputs(v, scope):
         cidr = ipaddress.ip_network(c)
         require(any(cidr.subnet_of(ipaddress.ip_network(p)) for p in ['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16']), 'private_api_clients')
     require(v['api_client_cidrs'] and v['node_https_egress_cidrs'] and all(8 <= ipaddress.ip_network(c).prefixlen <= 32 and ipaddress.ip_network(c).version == 4 for c in v['node_https_egress_cidrs']), 'bounded_https_egress')
+    lists = v.get('node_https_egress_prefix_list_ids', [])
+    require(len(lists) <= 5 and len(lists) == len(set(lists)) and all(re.fullmatch(r'pl-[0-9a-f]{8,17}', p) for p in lists), 'managed_prefix_list_egress')
 
 
 def expected_rules(v, control, nodes):
     result = {}
-    def rule(address, owner, protocol, port, *, source_group=None, cidr=None):
+    def rule(address, owner, protocol, port, *, source_group=None, cidr=None, prefix_list=None):
         result[address] = dict(security_group_id=owner,ip_protocol=protocol,from_port=port,to_port=port,
-            referenced_security_group_id=source_group,cidr_ipv4=cidr)
+            referenced_security_group_id=source_group,cidr_ipv4=cidr,prefix_list_id=prefix_list)
     rule('aws_vpc_security_group_ingress_rule.cluster_nodes',control,'tcp',443,source_group=nodes)
     for cidr in v['api_client_cidrs']:
         rule(indexed('aws_vpc_security_group_ingress_rule.cluster_clients',cidr),control,'tcp',443,cidr=cidr)
@@ -168,6 +172,8 @@ def expected_rules(v, control, nodes):
     rule('aws_vpc_security_group_egress_rule.nodes_cluster',nodes,'tcp',443,source_group=control)
     for cidr in v['node_https_egress_cidrs']:
         rule(indexed('aws_vpc_security_group_egress_rule.nodes_https',cidr),nodes,'tcp',443,cidr=cidr)
+    for prefix_list in v.get('node_https_egress_prefix_list_ids', []):
+        rule(indexed('aws_vpc_security_group_egress_rule.nodes_https_prefix_list',prefix_list),nodes,'tcp',443,prefix_list=prefix_list)
     return result
 
 
@@ -241,7 +247,7 @@ def verify_plan(plan, v, scope):
         addr='aws_security_group.'+group;same(addr,'vpc_id',net['vpc_id']);same(addr,'ingress',[]);same(addr,'egress',[]);same(addr,'name_prefix',f'{prefix}-sg-{purpose}-')
     for addr,fields in rules.items():
         for field,value in fields.items():same(addr,field,value)
-        require(not read(addr,'cidr_ipv6') and not read(addr,'prefix_list_id'),'no_alternate_sg_destination')
+        require(not read(addr,'cidr_ipv6'),'no_alternate_sg_destination')
     role_arns={}
     for role,principal,role_name in [('cluster','eks.amazonaws.com',prefix+'-role-eks-cluster'),('nodes','ec2.amazonaws.com',prefix+'-role-eks-node')]:
         addr='aws_iam_role.'+role;same(addr,'name',role_name);same(addr,'arn',f'arn:aws:iam::{account}:role/{role_name}');role_arns[role]=read(addr,'arn')
@@ -326,7 +332,7 @@ def source_contract(sources=None):
     require('depends_on=[aws_iam_role_policy.cluster,aws_cloudwatch_log_group.cluster,aws_vpc_security_group_ingress_rule.cluster_nodes,aws_vpc_security_group_ingress_rule.cluster_clients,aws_vpc_security_group_egress_rule.cluster_nodes]' in cluster,'cluster_iam_log_sg_dependency')
     for expr in ['node_role_arn=aws_iam_role.nodes.arn','id=aws_launch_template.nodes.id','version=tostring(aws_launch_template.nodes.latest_version)','associate_public_ip_address=false','security_groups=[aws_security_group.nodes.id]']:
         require(expr in compute,'source_node_binding:'+expr)
-    for dep in ['aws_iam_role_policy_attachment.nodes','aws_eks_addon.vpc_cni','aws_eks_addon.kube_proxy','aws_eks_access_policy_association.bootstrap','aws_vpc_security_group_ingress_rule.nodes_cluster','aws_vpc_security_group_ingress_rule.nodes_dns','aws_vpc_security_group_egress_rule.nodes_cluster','aws_vpc_security_group_egress_rule.nodes_dns','aws_vpc_security_group_egress_rule.nodes_peer_dns','aws_vpc_security_group_egress_rule.nodes_https']:
+    for dep in ['aws_iam_role_policy_attachment.nodes','aws_eks_addon.vpc_cni','aws_eks_addon.kube_proxy','aws_eks_access_policy_association.bootstrap','aws_vpc_security_group_ingress_rule.nodes_cluster','aws_vpc_security_group_ingress_rule.nodes_dns','aws_vpc_security_group_egress_rule.nodes_cluster','aws_vpc_security_group_egress_rule.nodes_dns','aws_vpc_security_group_egress_rule.nodes_peer_dns','aws_vpc_security_group_egress_rule.nodes_https','aws_vpc_security_group_egress_rule.nodes_https_prefix_list']:
         depends=re.search(r'depends_on=\[([^]]+)\]',compute);require(depends and dep in depends[1].split(','),'node_readiness_dependency:'+dep)
     require('depends_on=[aws_eks_node_group.this]' in addons and 'depends_on=[aws_iam_role_policy_attachment.cni]' in addons,'addon_ordering')
     require('url=aws_eks_cluster.this.identity[0].oidc[0].issuer' in iam and 'Federated=aws_iam_openid_connect_provider.cluster.arn' in iam,'actual_oidc_identity')
@@ -346,6 +352,7 @@ def source_contract(sources=None):
     # Default AWS add-on parameters are server-versioned, not arbitrary unreviewed
     # JSON. Inline SG rules must never compete with the standalone rule owners.
     security=norm(child+'security.tf');require('ingress{' not in security and 'egress{' not in security,'no_inline_sg_rule_owner')
+    require('for_each=var.node_https_egress_prefix_list_idssecurity_group_id=aws_security_group.nodes.idprefix_list_id=each.valueip_protocol="tcp"from_port=443to_port=443' in security,'node_prefix_list_https_only')
 
 
 def definitions(scope):
@@ -511,6 +518,11 @@ def self_test(events,scope,plans):
         changed=copy.deepcopy(plan);fn(changed);detected.append(rejected(lambda changed=changed:verify_plan(changed,v,scope),label))
     changed=copy.deepcopy(plan);output=next(iter(changed['output_changes'].values()));output['after']='unapproved'
     detected.append(rejected(lambda:verify_plan(changed,v,scope),'wrong_actual_output'))
+    # F16: the S3 prefix-list rule stays HTTPS-only to exactly the reviewed list.
+    pl_plan=plans['node_s3_prefix_list'];pl_v=positives['node_s3_prefix_list']
+    pl_rule=indexed('aws_vpc_security_group_egress_rule.nodes_https_prefix_list',sorted(pl_v['node_https_egress_prefix_list_ids'])[0])
+    for label,field,value in [('prefix_list_world','cidr_ipv4','0.0.0.0/0'),('prefix_list_other_list','prefix_list_id','pl-00000000'),('prefix_list_port_80','from_port',80)]:
+        detected.append(rejected(lambda field=field,value=value:verify_plan(edit(pl_rule,[field],value,base=pl_plan),pl_v,scope),label))
     faults=[]
     for kind in ['version','test_abstract','test_plan','test_run','diagnostic','test_summary','test_file']:
         changed=copy.deepcopy(events);index=next(i for i,e in enumerate(changed) if e['type']==kind and (kind not in {'test_run','test_file'} or 'status' in e[kind]));changed.pop(index)
@@ -544,6 +556,7 @@ def self_test(events,scope,plans):
         'iam_trust_and_policy_json':9,
         'namespace_privilege_escalation':2,
         'ownership_computed_values_and_outputs':9,
+        'node_prefix_list_egress':3,
     }
     require(sum(categories.values())==len(detected),'mutation_category_reconciliation')
     require(len(detected)==len(set(detected)) and len(faults)==21 and len(source_mutations)==10,'unique_complete_security_cases')

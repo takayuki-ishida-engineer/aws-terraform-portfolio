@@ -80,9 +80,12 @@ override_resource {
   values          = { "access_entry_arn" : "arn:aws:eks:ca-central-1:000000000000:access-entry/test-dev-eks/role/test-deployer/00000000" }
 }
 
+# The committed terraform.tfvars also loads here; optional inputs that it sets keep
+# their module default in native cases unless a run sets them (finding F16).
 variables {
-  ingress_subnet_key  = "private-a"
-  gateway_target_port = 8443
+  ingress_subnet_key                = "private-a"
+  gateway_target_port               = 8443
+  node_https_egress_prefix_list_ids = []
 }
 override_resource {
   target          = module.private_ingress.aws_lb.this
@@ -920,4 +923,31 @@ run "reserved_tag_keys" {
     tags                     = { "service" : "platform" }
   }
   expect_failures = [var.tags]
+}
+
+run "node_s3_prefix_list" {
+  command = plan
+  variables {
+    network_reference                 = { "interface_version" : 1, "scope" : { "environment" : "dev", "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }, "routing_mode" : "per_az", "vpc_id" : "vpc-0123456789abcdef0", "vpc_cidr" : "10.70.0.0/16", "private_subnet_ids" : { "private-a" : "subnet-00000000000000001", "private-b" : "subnet-00000000000000002" }, "public_subnet_ids" : { "public-a" : "subnet-00000000000000003" }, "subnet_azs" : { "private" : { "private-a" : "ca-central-1a", "private-b" : "ca-central-1b" } }, "private_route_table_ids_by_subnet" : { "private-a" : "rtb-00000000000000001", "private-b" : "rtb-00000000000000002" }, "public_route_table_id" : "rtb-00000000000000003", "nat_gateway_ids_by_az" : { "ca-central-1a" : "nat-00000000000000001" } }
+    project                           = "test"
+    kubernetes_version                = "1.34"
+    service_ipv4_cidr                 = "172.20.0.0/16"
+    cluster_subnet_keys               = ["private-a", "private-b"]
+    node_group                        = { "subnet_keys" : ["private-a"], "instance_type" : "m6i.large", "ami_type" : "AL2023_x86_64_STANDARD", "release_version" : "1.34.0-20260101", "disk_size_gib" : 30, "min_size" : 1, "desired_size" : 1, "max_size" : 2 }
+    bootstrap_admin_role_arn          = "arn:aws:iam::000000000000:role/test-platform-bootstrap"
+    api_client_cidrs                  = ["10.70.20.0/24"]
+    node_https_egress_cidrs           = ["203.0.113.0/24"]
+    node_https_egress_prefix_list_ids = ["pl-7da54014"]
+    addon_versions                    = { "vpc_cni" : "v1.20.0-eksbuild.1", "coredns" : "v1.12.0-eksbuild.1", "kube_proxy" : "v1.34.0-eksbuild.1" }
+    aws_account_id                    = "000000000000"
+    active_workload_az                = "ca-central-1a"
+  }
+  assert {
+    condition     = output.platform.scope.environment == "dev" && output.platform.cluster_name == "${var.project}-dev-eks"
+    error_message = "Root must expose the actual DEV cluster."
+  }
+  assert {
+    condition     = local.name_prefix == "test-dev" && local.default_tags == { project = "test", env = "dev", managed = "terraform" }
+    error_message = "Names derive from <project>-dev; project, env and managed come from provider default_tags."
+  }
 }

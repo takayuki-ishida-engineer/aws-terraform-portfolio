@@ -66,6 +66,7 @@ PLATFORM = {
     "network_reference": NETWORK_REFERENCE, "kubernetes_version": "1.35",
     "addon_versions": {"vpc_cni": "v1.23.1-eksbuild.1", "coredns": "v1.14.3-eksbuild.16", "kube_proxy": "v1.35.3-eksbuild.25"},
     "node_group": {"ami_type": "AL2023_x86_64_STANDARD", "release_version": "1.35.9-20261112"},
+    "node_https_egress_prefix_list_ids": ["pl-7da54014"],
 }
 AWS_OK = {
     "sts get-caller-identity": {"Account": ACCOUNT, "Arn": f"arn:aws:sts::{ACCOUNT}:assumed-role/operator/session", "UserId": "AROAEXAMPLE:session"},
@@ -74,6 +75,7 @@ AWS_OK = {
     "eks describe-addon-versions kube-proxy": {"addons": [{"addonName": "kube-proxy", "addonVersions": [{"addonVersion": "v1.35.3-eksbuild.25", "compatibilities": [{"clusterVersion": "1.35"}]}]}]},
     "ssm get-parameter": {"Parameter": {"Value": "ami-0123abcd4567ef890"}},
     "s3api get-bucket-versioning": {"Status": "Enabled"},
+    "ec2 describe-managed-prefix-lists": {"PrefixLists": [{"PrefixListId": "pl-7da54014", "PrefixListName": "com.amazonaws.ca-central-1.s3"}]},
     "s3api get-public-access-block": {"PublicAccessBlockConfiguration": {
         "BlockPublicAcls": True, "IgnorePublicAcls": True, "BlockPublicPolicy": True, "RestrictPublicBuckets": True}},
 }
@@ -234,6 +236,8 @@ class PreflightTests(unittest.TestCase):
             (dict(AWS_OK, **{"eks describe-addon-versions coredns": {"addons": [{"addonName": "coredns", "addonVersions": [
                 {"addonVersion": "v1.14.3-eksbuild.16", "compatibilities": [{"clusterVersion": "1.36"}]}]}]}}), ["addon_version_unavailable:coredns"]),
             ({k: v for k, v in AWS_OK.items() if k != "ssm get-parameter"}, ["node_release_unavailable"]),
+            (dict(AWS_OK, **{"ec2 describe-managed-prefix-lists": {"PrefixLists": [{"PrefixListId": "pl-0123abcd"}]}}), ["s3_prefix_list_mismatch"]),
+            ({k: v for k, v in AWS_OK.items() if k != "ec2 describe-managed-prefix-lists"}, ["s3_prefix_list_mismatch"]),
         ]
         for responses, expected in scenarios:
             workspace = Workspace(aws=responses)

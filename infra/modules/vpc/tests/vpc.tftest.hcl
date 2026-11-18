@@ -10,7 +10,7 @@ override_resource {
 }
 
 override_resource {
-  target          = aws_route_table.private
+  target          = aws_route_table.private[0]
   override_during = plan
   values          = { id = "rtb-private-mock" }
 }
@@ -47,7 +47,7 @@ run "private_only" {
   }
 
   assert {
-    condition     = length(aws_route_table.private.route) == 0 && aws_route_table_association.private["app-a"].route_table_id == aws_route_table.private.id && aws_route_table_association.private["app-a"].subnet_id == aws_subnet.private["app-a"].id
+    condition     = length(aws_route_table.private[0].route) == 0 && aws_route_table_association.private["app-a"].route_table_id == aws_route_table.private[0].id && aws_route_table_association.private["app-a"].subnet_id == aws_subnet.private["app-a"].id
     error_message = "Private subnets must use the explicit shared private route table without configured internet routes."
   }
 
@@ -57,12 +57,12 @@ run "private_only" {
   }
 
   assert {
-    condition     = aws_vpc.this.tags.Name == "test-network-vpc" && aws_vpc.this.tags.service == "vpc" && aws_vpc.this.tags.Team == "platform" && aws_subnet.private["app-a"].tags.Name == "test-network-a-subnet-app-a" && aws_subnet.private["app-a"].tags.service == "subnet" && aws_subnet.private["app-a"].tags.Team == "platform" && aws_route_table.private.tags.Name == "test-network-rtb-private" && aws_route_table.private.tags.service == "rtb"
+    condition     = aws_vpc.this.tags.Name == "test-network-vpc" && aws_vpc.this.tags.service == "vpc" && aws_vpc.this.tags.Team == "platform" && aws_subnet.private["app-a"].tags.Name == "test-network-a-subnet-app-a" && aws_subnet.private["app-a"].tags.service == "subnet" && aws_subnet.private["app-a"].tags.Team == "platform" && aws_route_table.private[0].tags.Name == "test-network-rtb-private" && aws_route_table.private[0].tags.service == "rtb"
     error_message = "Caller tags must survive, but module-owned Name and service tags must take precedence."
   }
 
   assert {
-    condition     = output.vpc_id == aws_vpc.this.id && output.vpc_cidr == "10.40.0.0/16" && output.private_subnet_ids["app-a"] == aws_subnet.private["app-a"].id && output.private_route_table_id == aws_route_table.private.id && length(output.public_subnet_ids) == 0 && output.public_route_table_id == null && output.internet_gateway_id == null
+    condition     = output.vpc_id == aws_vpc.this.id && output.vpc_cidr == "10.40.0.0/16" && output.private_subnet_ids["app-a"] == aws_subnet.private["app-a"].id && output.private_route_table_id == aws_route_table.private[0].id && length(output.public_subnet_ids) == 0 && output.public_route_table_id == null && output.internet_gateway_id == null
     error_message = "Outputs must expose real resource references and null/empty optional values."
   }
 }
@@ -124,7 +124,7 @@ run "public_and_private" {
   }
 
   assert {
-    condition     = length(aws_route_table.public[0].route) == 1 && alltrue([for route in aws_route_table.public[0].route : route.cidr_block == "0.0.0.0/0" && route.gateway_id == aws_internet_gateway.this[0].id]) && length(aws_route_table.private.route) == 0
+    condition     = length(aws_route_table.public[0].route) == 1 && alltrue([for route in aws_route_table.public[0].route : route.cidr_block == "0.0.0.0/0" && route.gateway_id == aws_internet_gateway.this[0].id]) && length(aws_route_table.private[0].route) == 0
     error_message = "Only the public table may contain the IPv4 default route to the Internet Gateway."
   }
 
@@ -134,7 +134,7 @@ run "public_and_private" {
   }
 
   assert {
-    condition     = length(aws_route_table_association.private) == 2 && alltrue([for key, association in aws_route_table_association.private : association.subnet_id == aws_subnet.private[key].id && association.route_table_id == aws_route_table.private.id]) && length(aws_route_table_association.public) == 2 && alltrue([for key, association in aws_route_table_association.public : association.subnet_id == aws_subnet.public[key].id && association.route_table_id == aws_route_table.public[0].id])
+    condition     = length(aws_route_table_association.private) == 2 && alltrue([for key, association in aws_route_table_association.private : association.subnet_id == aws_subnet.private[key].id && association.route_table_id == aws_route_table.private[0].id]) && length(aws_route_table_association.public) == 2 && alltrue([for key, association in aws_route_table_association.public : association.subnet_id == aws_subnet.public[key].id && association.route_table_id == aws_route_table.public[0].id])
     error_message = "Every subnet association must target its own subnet and the intended private/public route table."
   }
 
@@ -178,7 +178,7 @@ run "stable_keys_and_defaults" {
   }
 
   assert {
-    condition     = length(aws_subnet.public) == 0 && length(aws_route_table.public) == 0 && length(aws_internet_gateway.this) == 0 && length(aws_route_table.private.route) == 0 && alltrue([for subnet in aws_subnet.private : !subnet.map_public_ip_on_launch && !subnet.assign_ipv6_address_on_creation]) && aws_vpc.this.tags == tomap({ Name = "test-network-vpc", service = "vpc" })
+    condition     = length(aws_subnet.public) == 0 && length(aws_route_table.public) == 0 && length(aws_internet_gateway.this) == 0 && length(aws_route_table.private[0].route) == 0 && alltrue([for subnet in aws_subnet.private : !subnet.map_public_ip_on_launch && !subnet.assign_ipv6_address_on_creation]) && aws_vpc.this.tags == tomap({ Name = "test-network-vpc", service = "vpc" })
     error_message = "Default empty public_subnets/tags must preserve private-only networking and fixed security settings."
   }
 }

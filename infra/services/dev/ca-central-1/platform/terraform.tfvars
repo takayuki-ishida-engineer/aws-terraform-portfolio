@@ -62,9 +62,12 @@ node_group = {
 # Private API clients: the private subnet that will host the SSM developer-access EC2 (Step 1 item 5).
 api_client_cidrs = ["10.40.1.0/24"]
 
-# Node HTTPS egress stays inside the VPC. See the audit report (F16): a working node
-# group also needs ECR/S3/STS reachability through interface endpoints or reviewed ranges.
-node_https_egress_cidrs = ["10.40.0.0/16"]
+# Node HTTPS egress (finding F16): the VPC CIDR covers the network root's interface
+# endpoints (EC2, ECR, STS, CloudWatch Logs) and the private EKS endpoint; the
+# regional S3 managed prefix list covers ECR image layers through the NAT gateway.
+# The workstation preflight (--live) checks the prefix list ID with a read-only call.
+node_https_egress_cidrs           = ["10.40.0.0/16"]
+node_https_egress_prefix_list_ids = ["pl-7da54014"] # com.amazonaws.ca-central-1.s3
 
 # Private ingress (NLB in the active worker AZ, Gateway Pod port).
 ingress_subnet_key  = "private1"

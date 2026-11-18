@@ -23,5 +23,6 @@ module "network" {
     region     = local.region
     account_id = var.aws_account_id
   }
-  gateway_endpoints = var.gateway_endpoints
+  gateway_endpoints   = var.gateway_endpoints
+  interface_endpoints = var.interface_endpoints
 }

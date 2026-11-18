@@ -57,5 +57,5 @@ resource "aws_eks_node_group" "this" {
   update_config { max_unavailable = 1 }
   node_repair_config { enabled = false }
   tags       = merge(var.tags, { Name = "${var.name_prefix}-ng", service = "ng" })
-  depends_on = [aws_iam_role_policy_attachment.nodes, aws_eks_addon.vpc_cni, aws_eks_addon.kube_proxy, aws_eks_access_policy_association.bootstrap, aws_vpc_security_group_ingress_rule.nodes_cluster, aws_vpc_security_group_ingress_rule.nodes_dns, aws_vpc_security_group_egress_rule.nodes_cluster, aws_vpc_security_group_egress_rule.nodes_dns, aws_vpc_security_group_egress_rule.nodes_peer_dns, aws_vpc_security_group_egress_rule.nodes_https]
+  depends_on = [aws_iam_role_policy_attachment.nodes, aws_eks_addon.vpc_cni, aws_eks_addon.kube_proxy, aws_eks_access_policy_association.bootstrap, aws_vpc_security_group_ingress_rule.nodes_cluster, aws_vpc_security_group_ingress_rule.nodes_dns, aws_vpc_security_group_egress_rule.nodes_cluster, aws_vpc_security_group_egress_rule.nodes_dns, aws_vpc_security_group_egress_rule.nodes_peer_dns, aws_vpc_security_group_egress_rule.nodes_https, aws_vpc_security_group_egress_rule.nodes_https_prefix_list]
 }

@@ -206,6 +206,7 @@ they are, for example `private`, `public`, `node`, `cluster`, `artifact`, `basti
 | API Gateway APIs | `project-dev-apigw-http`, `project-dev-apigw-rest` |
 | Cognito | user pool `project-dev-cognito`, app client `project-dev-client`, domain `project-dev-auth` |
 | S3 buckets | `project-dev-s3-artifact`, `project-dev-s3-tfstate` |
+| VPC endpoints and their security group | `project-dev-vpce-ecr-api`, `project-dev-vpce-sts`, `project-dev-sg-vpce` |
 | Secret | `/project/dev/secret/app` |
 | Log groups | `/aws/lambda/project-dev-lambda`, `/aws/eks/project-dev-eks/cluster`, `/project/dev/apigw/http` |
 

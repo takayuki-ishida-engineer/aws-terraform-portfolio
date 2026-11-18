@@ -11,16 +11,19 @@ or live reachability/authorization.
 
 - One `aws_vpc.this`, with DNS support and hostnames enabled.
 - `aws_subnet.private` and `aws_route_table_association.private`, keyed by the
-  caller's `private_subnets` map. Legacy mode shares `aws_route_table.private`;
-  opted-in mode selects the actual AZ table for every subnet.
+  caller's `private_subnets` map. Legacy mode shares `aws_route_table.private[0]`;
+  opted-in mode selects the actual AZ table for every subnet and creates no shared
+  table.
 - Only when `public_subnets` is nonempty: `aws_subnet.public` and its keyed
   associations, one `aws_internet_gateway.this[0]`, and one
   `aws_route_table.public[0]` with an inline `0.0.0.0/0` route to that gateway.
 
 The private table explicitly configures no routes. AWS still supplies its implicit
 VPC-local route; **legacy mode** adds no private default internet route or NAT path.
-The original shared table remains unchanged and owned even when unused in per-AZ
-mode. New AZ tables omit inline routes; standalone NAT defaults own their routes.
+The shared table exists only in legacy mode (finding F8): per-AZ mode never creates
+the former unassociated `<prefix>-rtb-private`. A `moved` block keeps an existing
+legacy table at its new `aws_route_table.private[0]` address. New AZ tables omit
+inline routes; standalone NAT defaults own their routes.
 Public subnet classification means association with the IGW-routed table, not
 automatic assignment of public IPs or guaranteed reachability for workloads.
 Neither private nor public subnets automatically assign public IPv4 or IPv6.
@@ -60,8 +63,8 @@ VPC-sized maps, not a general IP address management system.
 | Configuration source | Settings / behavior |
 | --- | --- |
 | Root Override | The calling root supplies required naming/CIDR/private subnet inputs and may supply public subnets and caller tags |
-| Module Default | `public_subnets = {}`, `tags = {}`, `private_routing = {mode="legacy_shared", nat=null}`, `expected_scope = null`, `gateway_endpoints = {}` |
-| Module Fixed | DNS support/hostnames enabled; generated IPv6 disabled; subnet public IPv4 and IPv6 assignment disabled; one shared private table without configured routes; module-owned `Name` and `service` tags |
+| Module Default | `public_subnets = {}`, `tags = {}`, `private_routing = {mode="legacy_shared", nat=null}`, `expected_scope = null`, `gateway_endpoints = {}`, `interface_endpoints = null` |
+| Module Fixed | DNS support/hostnames enabled; generated IPv6 disabled; subnet public IPv4 and IPv6 assignment disabled; in legacy mode one shared private table without configured routes; interface endpoints with private DNS, the AWS default endpoint policy and a security group allowing only TCP 443 from the VPC CIDR (no egress rules); module-owned `Name` and `service` tags |
 
 Public subnets select only the public/IGW path. The structured `private_routing`
 selector and explicit endpoint map select genuine optional extensions; public
@@ -77,11 +80,13 @@ is the last letter of the Availability Zone and `service` is the type token.
 | VPC | `<prefix>-vpc` | `vpc` |
 | Subnet | `<prefix>-<az>-subnet-<key>`, for example `project-dev-a-subnet-private1` | `subnet` |
 | Internet gateway | `<prefix>-igw` | `igw` |
-| Shared private route table | `<prefix>-rtb-private` | `rtb` |
+| Shared private route table (legacy mode only) | `<prefix>-rtb-private` | `rtb` |
 | Public route table | `<prefix>-rtb-public` | `rtb` |
 | Per-AZ private route table | `<prefix>-<az>-rtb-<first private key in that AZ>` | `rtb` |
 | NAT gateway / its EIP | `<prefix>-<az>-nat` / `<prefix>-<az>-eip-nat` | `nat` / `eip` |
-| S3 gateway endpoint | `<prefix>-vpce`, or `<prefix>-vpce-<key>` when several exist | `vpce` |
+| S3 gateway endpoint | `<prefix>-vpce`, or `<prefix>-vpce-<key>` when more than one endpoint (gateway or interface) exists | `vpce` |
+| Interface endpoint | `<prefix>-vpce-<service with dots as hyphens>`, for example `project-dev-vpce-ecr-api` | `vpce` |
+| Interface endpoint security group / its HTTPS rule | `<prefix>-sg-vpce` / `<prefix>-sg-vpce-in-vpc-https` | `sg` |
 
 Associations and routes have no tag support. Provider default tags (`project`,
 `env`, `managed`) belong to the root; the module defines no provider. Callers must
@@ -105,9 +110,11 @@ outputs infer their types; keyed objects are convertible to maps by callers.
 ## V2 extension contract — candidate pending independent review
 
 **V1-C01 requires explicit acceptance before this PR merges.** Legacy mode retains
-all seven original output meanings and the original 16 native tests byte-for-byte.
-Opted-in per-AZ mode returns null for `private_route_table_id`: the old physical
-table is retained but is not the active private routing table. Consumers must use
+all seven original output meanings and the original 16 native test assertions; the
+tests changed only for the naming/tag rules and, with F8, the shared table's
+`aws_route_table.private[0]` address (the checker pins their SHA-256). Opted-in
+per-AZ mode returns null for `private_route_table_id` and, since F8, creates no
+shared table. Consumers must use
 the new selected-table maps. This is a candidate exception, not already approved.
 The [V1 decision](../../../docs/vpc-extension-decision.md) remains design provenance.
 
@@ -116,6 +123,7 @@ The [V1 decision](../../../docs/vpc-extension-decision.md) remains design proven
 | private_routing | object({mode=optional(string,"legacy_shared"), nat=optional(object({public_subnet_key_by_nat_az=map(string), nat_az_by_private_az=map(string)}))}); default {} | Mode legacy_shared/per_az. null NAT means no EIP/NAT/default, including per-AZ isolated mode. Non-null maps must both be nonempty |
 | expected_scope | nullable object({partition=string, region=string, account_id=string}); default null | Required for per-AZ. Initial extension catalog is aws/ca-central-1; actual VPC ARN/ID must match. Legacy defaults gain no account/Region constraint |
 | gateway_endpoints | map(object({private_route_table_azs=set(string), policy_json=string})); default {} | Only explicitly requested s3 is implemented; nonempty existing private AZ selection and reviewed scoped read-only policy |
+| interface_endpoints | object({services=set(string), subnet_keys=set(string)}); default null | per_az only; reviewed services ec2, ecr.api, ecr.dkr, logs, sts, ssm, ssmmessages, ec2messages; existing private subnet keys, at most one per AZ; private DNS; AWS default endpoint policy; VPC-CIDR-only HTTPS security group |
 
 NAT keys are real caller-supplied AZ names, not ordinal indexes. Every NAT AZ must
 have an actual private AZ and a distinct same-AZ public subnet key. A private AZ
@@ -152,9 +160,28 @@ Legacy private route=[] and public inline IGW default remain their sole route
 owners. New tables omit inline route management and use standalone NAT defaults.
 AWS owns implicit local and endpoint service-prefix routes; the endpoint owns its
 inline route_table_ids only. Pinned 6.72.0 filters AWS-managed gateway routes from
-route-table state. There are no interface endpoint bundles, endpoint SGs, SG/NACL
-or Kubernetes NetworkPolicy rules. Routing alone does not enforce isolation.
+route-table state. Optional interface endpoints own one security group with one
+HTTPS ingress rule from the VPC CIDR; there are no NACL or Kubernetes
+NetworkPolicy rules. Routing alone does not enforce isolation.
 Omitted inline routes also do not audit arbitrary out-of-band route drift.
+
+### Interface endpoints (finding F16)
+
+`interface_endpoints = { services, subnet_keys }` (default `null`, per_az only)
+creates one `aws_vpc_endpoint.interface[<service>]` per reviewed service (`ec2`,
+`ecr.api`, `ecr.dkr`, `logs`, `sts`, `ssm`, `ssmmessages`, `ec2messages`) in the
+selected private subnets, with private DNS so AWS SDKs reach the endpoint without
+configuration changes. Validation rejects other services and empty lists; a
+precondition rejects unknown subnet keys, more than one subnet per Availability
+Zone and legacy routing. The endpoint policy is the AWS default (IAM still
+authorizes every call): a principal condition would break STS web-identity calls
+for IRSA. Each endpoint is billed per hour per Availability Zone plus per GB, so
+DEV places them in the active workload AZ only.
+
+The S3 gateway endpoint is not used for ECR image layers: ECR serves them through
+presigned S3 URLs signed by ECR, which the mandatory `aws:PrincipalArn` role
+condition below would deny. DEV nodes download layers through the NAT gateway
+with egress limited to the S3 managed prefix list (platform root).
 
 S3 Gateway Endpoint policy follows the [AWS gateway Principal contract](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-access.html)
 and [S3 gateway guidance](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html).
@@ -214,7 +241,7 @@ Synthetic policy fragment (not an approved deployment identity/allocation):
 | private_route_table_ids_by_subnet | map(string), actual association target per stable key |
 | nat_gateway_ids_by_az | map(string), actual IDs or {} |
 | nat_eips_by_az | map(object({allocation_id=string, public_ip=string})), actual references or {} |
-| endpoint_ids | object({gateway=map(string)}), enabled S3 only; no speculative interface field |
+| endpoint_ids | object({gateway=map(string), interface=map(string)}), actual enabled endpoint IDs keyed by service; `{}` when none |
 | routing_mode | string, selected mode |
 | interface_version | number, candidate 1; not publication authorization |
 
@@ -230,9 +257,11 @@ actual mixed update/destroy ordering externally; no atomic rollback is promised.
 
 ## Offline verification and operational limits
 
-`tests/vpc.tftest.hcl` keeps all original 16 cases unchanged. `extension.tftest.hcl`
-adds 59 cases: 12 positive configurations and 47 intended rejections. Together:
-75 native passes, 15 complete positive plans and 60 rejected partial plans.
+`tests/vpc.tftest.hcl` keeps all original 16 cases (address-only F8 change).
+`extension.tftest.hcl` adds 66 cases: 14 positive configurations and 52 intended
+rejections, including interface endpoints (active AZ with the S3 gateway, two AZs,
+legacy, unknown service, empty or unknown subnets, two subnets in one AZ). Together:
+82 native passes, 17 complete positive plans and 65 rejected partial plans.
 `tests/check_network_configuration.py` checks actual generated resource identities,
 exact inventories, known critical route/subnet/NAT/endpoint bindings, output
 contracts, policy fields and private IP/DNS defaults. Repeated provider schemas
@@ -240,8 +269,9 @@ are streamed away; resource plans, diagnostics and terminal evidence are retaine
 Unknown provider-derived EC2 instance/ENI metadata is not a configured NAT target;
 configured alternate targets and unknown critical IDs/route targets are rejected.
 
-The checker rejects 36 actual-plan semantic mutations, 22 capture faults and eight
-source reference/dependency/account/backend mutations. An independent Python policy
+The checker rejects 45 actual-plan semantic mutations (including a shared table in
+per-AZ mode and eight interface endpoint and endpoint-rule faults), 22 capture
+faults and ten source reference/dependency/account/backend mutations. An independent Python policy
 validator also rejects 33 matched-invalid-policy mutations per scope: both the
 actual plan and input are deliberately poisoned identically, so equality cannot
 mask an AWS-invalid or overbroad policy. Rejected-input plans must have their
