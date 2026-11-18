@@ -12,7 +12,25 @@ networking, DNS, cost, availability or recovery. Formal acceptance of each
 rehearsal needs independent review and an Owner decision. CORE PORTFOLIO
 COMPLETE and PORTFOLIO COMPLETE remain undeclared.
 
-## Rehearsal 1: network root (2026-11-18)
+## How to read the evidence
+
+| Where | What it shows |
+| --- | --- |
+| [`aws-emulator-rehearsal.yml`](../.github/workflows/aws-emulator-rehearsal.yml) | The exact steps the formal runs execute: Owner billing attestation before checkout, verified downloads, an isolated `--network none` container, strict host cleanup and the job summary |
+| The linked GitHub Actions run | Its log has every gate row, and its job summary has the result tables. Third parties can open both. GitHub deletes logs after the retention period, so the summary below is the durable copy |
+| This page | One summary per formal run: which CI run executed it, the tested SHA, tool versions, the 14 controls, the lifecycle operations, cleanup, limitations and residual risk |
+
+## Formal runs (GitHub Actions)
+
+| Run | Scenario | Tested SHA | Result |
+| --- | --- | --- | --- |
+| — | Network root without interface endpoints | — | Pending the Owner's dispatch of `aws-emulator-rehearsal.yml` |
+
+## Preliminary rehearsal 1: network root (2026-11-18, Claude Code container)
+
+This preliminary local run shaped the harness and found the security group gap.
+It is not a CI run: no third party can inspect its log, and the formal record
+comes from GitHub Actions above.
 
 **Authorization:** the Owner's instruction of 2026-11-18 to start the emulator
 verification once everything up to Step 2 was in order. The Owner also approved,
@@ -25,7 +43,7 @@ host and no credential were added.
 | Item | Value |
 | --- | --- |
 | Tested SHA (Terraform source) | `ec3519069ef0fa710e94012ba9db06578e15cf13` (main after PR #70): `infra/services/dev/ca-central-1/network` and `infra/modules/vpc`, copied with `git archive` |
-| Harness | `scripts/emulator-rehearsal/rehearse.py`, SHA-256 `0769389771cb7adeea5507ab3be08e5dca0e514ebc36b1decb169c08b58709dc`, as committed in this pull request |
+| Harness | `scripts/emulator-rehearsal/rehearse.py`, SHA-256 `0769389771cb7adeea5507ab3be08e5dca0e514ebc36b1decb169c08b58709dc`, as committed in PR #71 |
 | Emulator | 1.0.385 (`1.0.385-1` amd64 DEB, SHA-256 `5344b39e…3f5`, publisher `98BCF336A3BE53B734E967C52E5BF49BD940F624`), as pinned in `versions.json` |
 | Terraform / AWS provider / AWS CLI | 1.17.0 (SHA-256 verified) / 6.72.0 (committed network lock, `init -lockfile=readonly` from a local mirror) / 2.35.0 (SHA-256 and GPG verified) |
 | Execution environment | Claude Code cloud container. The emulator, Terraform and the AWS CLI ran in a fresh `unshare --net --mount` namespace, as uid 1000 with no capabilities and `no_new_privs`, on a namespace-private tmpfs. No Docker and no GitHub Actions minutes were used for the lifecycle |
@@ -88,9 +106,9 @@ API probe, not a Terraform result.
 | Other roots (tfstate, platform, developer-access, serverless-api, api) and the end-to-end apply and destroy | NOT_TESTED; each needs its own Owner authorization |
 
 Other residual points:
-- The run used a local cloud container rather than the representative GitHub
-  Actions workflow. Its evidence is the gate output summarized here; raw State,
-  plans, credentials and logs were never kept or uploaded.
+- The run used a local cloud container, not GitHub Actions. Its evidence is the
+  gate output summarized here; raw State, plans, credentials and logs were never
+  kept or uploaded. The formal runs above replace it as evidence.
 - The refresh allowlist is a reviewed judgment that this computed-field
   convergence is normal. It is covered by the offline mutation tests in
   `test_rehearse.py`.
