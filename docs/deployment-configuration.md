@@ -2,9 +2,9 @@
 
 Status: conventions approved by the Owner on 2026-11-16 for Step 1, the DEV
 deploy-ready brush-up. This document defines the rules. Names and tags (item 2),
-the per-root value files and the local workflow (item 3) and the State bucket
-bootstrap with the optional S3 backend (item 4) are implemented; the remaining
-items follow in later Step 1 pull requests. Nothing here authorizes real AWS access in Codex Cloud or through CI/CD.
+the per-root value files and the local workflow (item 3), the State bucket
+bootstrap with the optional S3 backend (item 4) and the developer access host
+(item 5) are implemented; item 6 follows in later Step 1 pull requests. Nothing here authorizes real AWS access in Codex Cloud or through CI/CD.
 
 ## 1. Where values live
 
@@ -76,8 +76,8 @@ It checks paths only, never file contents, and makes no AWS call.
 - The [local workflow](../scripts/local-workflow/README.md) runs `init`, the offline
   and live preflight, a saved plan, a typed confirmation and the apply of exactly
   that plan, for one root at a time. Apply `tfstate` (only for the optional S3
-  backend), `network`, `platform`, then `serverless-api` and `api`; destroy in the
-  reverse order. The live preflight makes
+  backend), `network`, `platform`, `developer-access`, then `serverless-api` and
+  `api`; destroy in the reverse order. The live preflight makes
   only read-only calls (caller account, State bucket versioning and public access
   block, EKS add-on catalog, node AMI parameter) and is refused in CI, in Claude
   Code or Codex cloud sessions and with the cloud session's placeholder credentials.
@@ -207,6 +207,7 @@ they are, for example `private`, `public`, `node`, `cluster`, `artifact`, `basti
 | Cognito | user pool `project-dev-cognito`, app client `project-dev-client`, domain `project-dev-auth` |
 | S3 buckets | `project-dev-s3-artifact`, `project-dev-s3-tfstate` |
 | VPC endpoints and their security group | `project-dev-vpce-ecr-api`, `project-dev-vpce-sts`, `project-dev-sg-vpce` |
+| Developer access host | `project-dev-ec2-bastion`, `project-dev-role-bastion`, `project-dev-profile-bastion`, `project-dev-sg-bastion` |
 | Secret | `/project/dev/secret/app` |
 | Log groups | `/aws/lambda/project-dev-lambda`, `/aws/eks/project-dev-eks/cluster`, `/project/dev/apigw/http` |
 
@@ -320,6 +321,8 @@ approval. The Owner may reorder them.
    examples and `run.py migrate-state`.
 5. SSM developer-access EC2: local workstation → Session Manager port forwarding →
    private EKS endpoint (443), and later private RDS (5432). No SSH and no public IP.
+   Delivered: the `developer-access` root, the `developer_access` module and the
+   network root's Session Manager interface endpoints.
 6. Cross-root hand-off automation and the local apply/destroy runbook, including
    the Kubernetes runtime through the developer-access tunnel.
 

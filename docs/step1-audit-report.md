@@ -12,7 +12,7 @@ resolved, and what remains open with its owning item or the Owner decision it ne
 - **Status updates:** the Status columns below are kept current as later Step 1
   items resolve findings (item 3: F1, F12, F14; new finding F16. Item 4: new finding
   F17 and the Owner decisions of 2026-11-17 in section 6. 2026-11-18: F8, F9, F13,
-  F15 and F16 resolved).
+  F15 and F16 resolved. Item 5: F3 resolved).
 
 ## 1. Delivered in item 2
 
@@ -37,7 +37,7 @@ All four DEV roots now take a single `project` input, derive every name from
 | --- | --- | --- | --- |
 | F1 | Required input values exist nowhere, so no root can be planned as is | **Resolved** in item 3: committed placeholder `terraform.tfvars` and `local.auto.tfvars.example` per root, the local workflow preflight, and Full CI mock plans with the committed values | — |
 | F2 | serverless-api cannot be applied the first time: Lambda needs a ZIP in a bucket the same root creates | **Partly resolved** in #61: the handler, a reproducible build and `function.zip` are committed and drift-checked. The upload-then-apply sequence is still open; since item 3 the preflight refuses a placeholder `artifact_object_version` | Item 6 |
-| F3 | The private EKS endpoint is unreachable from a workstation | Open | Item 5 (SSM developer-access EC2) |
+| F3 | The private EKS endpoint is unreachable from a workstation | **Resolved** in item 5: the `developer-access` root (Session Manager only, no SSH or public IP) and the network root's `ssm`, `ssmmessages`, `ec2messages` endpoints; port forwarding to the private endpoint is documented. Connectivity is verified only on a real deployment | — |
 | F4 | The Kubernetes runtime needs certificates and keys with no tooling | Open; approach decided (§9: local script, nothing in Git or State) | Item 6 |
 | F5 | Destroy and immediate rebuild fails while a deleted secret is in its recovery window | Open; approach decided (§9: 7-day window, restore and import procedure). The 7-day window is set since item 3 (F12); the restore and import procedure is open | Item 6 |
 | F6 | `iam_access` and `iam_account_policies` are used by no root; operator permissions and the EKS bootstrap admin role are undefined | Open; approach decided (§9: documented prerequisites, a root deferred to Step 3) | Item 6 (runbook) |

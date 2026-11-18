@@ -1,0 +1,15 @@
+# Copy to local.auto.tfvars (untracked) and replace every value. It overrides the
+# placeholders in terraform.tfvars. Never put a credential or secret value here.
+
+project        = "myproj"
+aws_account_id = "111122223333"
+
+# Paste the network root output here (the extra fields are ignored):
+#   terraform -chdir=../network output -json network
+network_reference = {
+  interface_version  = 1
+  scope              = { environment = "dev", partition = "aws", region = "ca-central-1", account_id = "111122223333" }
+  vpc_id             = "vpc-..."
+  vpc_cidr           = "10.40.0.0/16"
+  private_subnet_ids = { private1 = "subnet-...", private2 = "subnet-..." }
+}

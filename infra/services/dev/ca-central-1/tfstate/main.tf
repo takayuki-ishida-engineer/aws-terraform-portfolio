@@ -9,7 +9,7 @@ locals {
     managed = "terraform"
   }
   # Roots that may use the optional S3 backend; one State key per root (section 3).
-  backend_roots = ["network", "platform", "serverless-api", "api"]
+  backend_roots = ["network", "platform", "serverless-api", "api", "developer-access"]
 }
 
 module "state_bucket" {

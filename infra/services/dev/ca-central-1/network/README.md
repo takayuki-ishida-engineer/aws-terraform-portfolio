@@ -25,7 +25,7 @@ untracked once copied) and run `run.py <root> migrate-state`.
 | Public subnets | `public1` `10.40.10.0/24` (a), `public2` `10.40.11.0/24` (b) |
 | NAT | One NAT gateway in `ca-central-1a` (`public1`) serving the active AZ |
 | S3 gateway endpoint | Not enabled (`gateway_endpoints` omitted; Module Default). ECR image layers use presigned S3 URLs that the module's mandatory role-ARN endpoint policy would deny, so nodes reach S3 through the NAT gateway |
-| Interface endpoints (finding F16) | `ec2`, `ecr.api`, `ecr.dkr`, `logs`, `sts` in `private1` (active AZ only), private DNS, AWS default endpoint policy, security group `<project>-dev-sg-vpce` allowing only TCP 443 from `10.40.0.0/16`; billed per endpoint-hour plus per GB |
+| Interface endpoints | `ec2`, `ecr.api`, `ecr.dkr`, `logs`, `sts` for EKS nodes (finding F16) and `ssm`, `ssmmessages`, `ec2messages` for Session Manager on the developer access host (item 5), in `private1` (active AZ only), private DNS, AWS default endpoint policy, security group `<project>-dev-sg-vpce` allowing only TCP 443 from `10.40.0.0/16`; billed per endpoint-hour plus per GB |
 | Shared private route table | Not created in `per_az` routing (finding F8) |
 
 ## Ownership and configuration

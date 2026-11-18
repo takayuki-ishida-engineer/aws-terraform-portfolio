@@ -46,6 +46,7 @@ HEADERS = {
     "serverless-api": "root_integration.tftest.hcl",
     "api": "auth.tftest.hcl",
     "tfstate": "tfstate.tftest.hcl",
+    "developer-access": "developer_access.tftest.hcl",
 }
 NETWORK_REFERENCE = """{
   interface_version = 1
@@ -67,6 +68,8 @@ SYNTHETIC_LOCAL = {
     "api": {"callback_urls": '["https://app.ci-check.dev/callback"]', "logout_urls": '["https://app.ci-check.dev/logout"]',
             "default_redirect_uri": '"https://app.ci-check.dev/callback"'},
     "tfstate": {},
+    # The full network output, as an operator pastes it; extra fields are ignored.
+    "developer-access": {"network_reference": NETWORK_REFERENCE},
 }
 
 
