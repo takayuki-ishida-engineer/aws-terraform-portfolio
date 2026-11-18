@@ -135,7 +135,9 @@ At main **`be79be6a64a6ef2e78f76e920afb335c59bbd49d`**,
 [Terraform offline CI run 43347607972](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43347607972)
 was a **completed/success push run, attempt 1**, with every job step successful.
 The following dated snapshot was checked against its actual logs; every Full CI run
-reports the current totals in its job summary ("Summarize actual validation results"):
+reports the current totals in its job summary ("Summarize actual validation results").
+CI runs never cancel each other: one run per workflow at a time, and each push or
+merge waits until the previous run has finished successfully:
 
 | Verification layer | Observed result |
 | --- | --- |

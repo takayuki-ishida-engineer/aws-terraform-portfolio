@@ -9,9 +9,13 @@ on:
 permissions:
   contents: read
 
+# Runs never cancel each other (Owner, 2026-11-18): one run of this workflow at a
+# time, pull requests and main pushes alike; a later run waits until the earlier
+# one finishes. GitHub still replaces an older *pending* run in the same group, so
+# the next push or merge waits until the previous run has finished successfully.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   offline-validation:

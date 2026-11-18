@@ -235,6 +235,11 @@ remain unchanged. No Live gate is closed by emulator evidence.
   branch for new development; start a new branch from updated `main`.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
+- Never start a CI run while another run of the same workflow is queued or in
+  progress, and never accept a cancelled run as a result. After a merge, wait for
+  the main push run to finish successfully before pushing or merging the next
+  change; do not push to a pull request while its CI is running. The workflows do
+  not cancel in-progress runs (Owner, 2026-11-18).
 
 ### Codex execution efficiency and verification
 

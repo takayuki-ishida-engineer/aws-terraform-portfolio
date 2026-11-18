@@ -6,9 +6,11 @@ on:
     branches: [main]
 permissions:
   contents: read
+# Runs never cancel each other (Owner, 2026-11-18); a later run waits for the
+# earlier one, as in the Terraform offline CI.
 concurrency:
-  group: emulator-contracts-${{ github.ref }}
-  cancel-in-progress: true
+  group: emulator-contracts
+  cancel-in-progress: false
 jobs:
   static-contracts:
     runs-on: ubuntu-24.04
