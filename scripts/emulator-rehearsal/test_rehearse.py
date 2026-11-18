@@ -15,6 +15,22 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rehearse  # noqa: E402
 from gates import Blocked  # noqa: E402
+import summarize  # noqa: E402
+import workflow_contract  # noqa: E402
+import importlib.util  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+import tempfile  # noqa: E402
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+sys.path.insert(1, str(REPO / 'kubernetes/vendor/pyyaml'))
+import yaml  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location('step2_prepare', HERE / 'prepare.py')
+step2_prepare = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(step2_prepare)
+WORKFLOW = REPO / '.github/workflows/aws-emulator-rehearsal.yml'
 
 RUN_ID = '20261118000000-1'
 M = rehearse.M
@@ -189,6 +205,157 @@ class RefreshTests(Quiet):
                 doc, nat_row = refresh(r), nat(r)
                 mutate(doc, nat_row)
                 self.rejects(label, r.check_refresh, doc, r.drift_summary(doc), nat_row)
+
+
+def workflow():
+    return yaml.load(WORKFLOW.read_text(), Loader=yaml.BaseLoader)
+
+
+class WorkflowTests(Quiet):
+    def test_committed_workflow_passes(self):
+        workflow_contract.workflow_gate(workflow())
+
+    def test_unsafe_mutations_rejected(self):
+        def steps(w):
+            return w['jobs']['rehearsal']['steps']
+
+        def docker(w, old, new):
+            s = steps(w)[3]
+            assert old in s['run'], old
+            s['run'] = s['run'].replace(old, new, 1)
+
+        cases = [
+            ('manual-only', lambda w: w['on'].update(push={'branches': ['main']})),
+            ('permissions-concurrency', lambda w: w.update(permissions={'contents': 'write'})),
+            ('permissions-concurrency', lambda w: w['concurrency'].update({'cancel-in-progress': 'true'})),
+            ('standard-free-runner', lambda w: w['jobs']['rehearsal'].update({'runs-on': 'ubuntu-latest-8-cores'})),
+            ('no-extra-runtime-privileges', lambda w: w['jobs']['rehearsal'].update(permissions={'id': 'write'})),
+            ('explicit-owner-confirmation', lambda w: w['on']['workflow_dispatch']['inputs']['owner_billing_confirmed'].update(default='true')),
+            ('dispatch-contract', lambda w: w['on']['workflow_dispatch']['inputs'].update(extra={'required': 'true'})),
+            ('scenario-choice', lambda w: w['on']['workflow_dispatch']['inputs']['scenario'].update(options=['anything'])),
+            ('consent-before-checkout', lambda w: steps(w).insert(0, steps(w).pop(1))),
+            ('checkout-no-auth-lfs', lambda w: steps(w)[1]['with'].update({'persist-credentials': 'true'})),
+            ('pinned-approved-checkout-only', lambda w: steps(w)[1].update(uses='actions/checkout@v4')),
+            ('no-external-writes-or-host-network', lambda w: steps(w)[4].update(run=steps(w)[4]['run'] + '\n# actions/upload-artifact')),
+            ('owner-pre-check-e[\'OWNER_BILLING_CONFIRMED\']==\'true\'', lambda w: steps(w)[0].update(
+                run=steps(w)[0]['run'].replace("e['OWNER_BILLING_CONFIRMED']=='true'", 'True'))),
+            ('docker-option-value', lambda w: docker(w, '--network none', '--network bridge')),
+            ('unexpected-docker-option', lambda w: docker(w, '--read-only', '--read-only --ipc host')),
+            ('docker-options-missing', lambda w: docker(w, ' --read-only', '')),
+            ('docker-option-value', lambda w: docker(w, '--cap-drop ALL', '--cap-drop NET_RAW')),
+            ('no-port-or-host-mount', lambda w: docker(w, '--rm', '--rm -v /:/host')),
+            ('docker-tmpfs-bounds', lambda w: docker(w, 'size=3g', 'size=30g')),
+            ('docker-image-and-report', lambda w: docker(w, '| tee "$RUNNER_TEMP/step2-safe-report.jsonl"', '')),
+            ('strict-host-cleanup', lambda w: docker(w, 'trap cleanup EXIT', 'true')),
+            ('summary-real-outcome', lambda w: steps(w)[4].pop('if')),
+            ('verified-preparation-step', lambda w: steps(w)[2].update(run='python3 scripts/emulator-rehearsal/prepare.py')),
+        ]
+        for label, mutate in cases:
+            with self.subTest(label=label):
+                w = workflow()
+                mutate(w)
+                self.rejects(label, workflow_contract.workflow_gate, w)
+
+
+GITHUB = {'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REPOSITORY': 'owner/repo',
+          'GITHUB_WORKFLOW_REF': 'owner/repo/.github/workflows/aws-emulator-rehearsal.yml@refs/heads/main'}
+
+
+class ContextTests(Quiet):
+    def test_allowed_contexts(self):
+        self.assertEqual(step2_prepare.execution_context(GITHUB), 'github-actions')
+        self.assertEqual(step2_prepare.execution_context({}), 'local')
+
+    def test_refused_contexts(self):
+        for change in [{'GITHUB_EVENT_NAME': 'push'}, {'GITHUB_EVENT_NAME': 'pull_request'},
+                       {'GITHUB_WORKFLOW_REF': 'owner/repo/.github/workflows/terraform-offline-ci.yml@refs/heads/main'},
+                       {'GITHUB_WORKFLOW_REF': 'owner/repo/.github/workflows/aws-emulator-rehearsal.yml@refs/heads/feature'},
+                       {'GITHUB_REPOSITORY': 'fork/repo'}]:
+            with self.subTest(change=change):
+                self.assertIsNone(step2_prepare.execution_context(dict(GITHUB, **change)))
+        self.assertIsNone(step2_prepare.execution_context({'CI': 'true'}))
+
+
+def record(**override):
+    base = {'run_id': '123-1', 'tested_sha': 'a' * 40, 'harness_sha256': 'b' * 64, 'scenario': 'no-interface-endpoints',
+            'versions': {'emulator': '1.0.385', 'terraform': '1.17.0', 'awscli': '2.35.0', 'provider': '6.72.0'},
+            'execution': {'kind': 'github-actions', 'repository': 'owner/repo', 'run_id': '123', 'run_attempt': '1',
+                          'run_url': 'https://github.com/owner/repo/actions/runs/123',
+                          'workflow_ref': 'owner/repo/.github/workflows/aws-emulator-rehearsal.yml@refs/heads/main',
+                          'runner': 'ubuntu-24.04 (GitHub-hosted)'},
+            'controls': {str(i): 'PASS' for i in range(1, 15)}, 'operations': dict.fromkeys(summarize.OPERATIONS, 'PASS'),
+            'resource_cleanup': 'PASS', 'material_cleanup': 'PASS', 'process_cleanup': 'PASS', 'failure': None}
+    base.update(override)
+    return base
+
+
+SUMMARY_ENV = dict(GITHUB, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1', TARGET_SHA='a' * 40,
+                   EXECUTION_STATUS='success', OWNER_ATTESTATION_ACCEPTED='true')
+
+
+def report(rows):
+    handle = tempfile.NamedTemporaryFile('w', suffix='.jsonl', delete=False)
+    handle.write(''.join(json.dumps(r) + '\n' for r in rows))
+    handle.close()
+    return handle.name
+
+
+class SummaryTests(Quiet):
+    def run_summary(self, rows, env=SUMMARY_ENV):
+        path = report(rows)
+        out = Path(tempfile.mkdtemp()) / 'summary.md'
+        saved = dict(os.environ)
+        try:
+            os.environ.clear(); os.environ.update(env, GITHUB_STEP_SUMMARY=str(out))
+            code = summarize.main([path])
+        finally:
+            os.environ.clear(); os.environ.update(saved)
+            os.unlink(path)
+        return code, out.read_text()
+
+    def good(self, **override):
+        return [{'gate': 'control-1', 'status': 'PASS'},
+                {'gate': 'refresh-convergence', 'status': 'PASS', 'drift': [{'address': 'module.network.aws_eip.nat["ca-central-1a"]'}]},
+                {'gate': 'summary-record', 'status': 'PASS', 'record': record(**override)},
+                {'gate': 'host-cleanup', 'status': 'PASS'}]
+
+    def test_complete_pass_names_the_ci_run(self):
+        code, text = self.run_summary(self.good())
+        self.assertEqual(code, 0)
+        self.assertIn('**Result: PASS**', text)
+        self.assertIn('https://github.com/owner/repo/actions/runs/123', text)
+        self.assertIn('aws-emulator-rehearsal.yml@refs/heads/main', text)
+        self.assertEqual(sum(1 for line in text.splitlines() if line.endswith('| PASS |') and line.count('|') == 4), 14)
+
+    def test_incomplete_or_missing_evidence_fails(self):
+        cases = [
+            ('summary record missing', [r for r in self.good() if r['gate'] != 'summary-record']),
+            ('host cleanup MISSING', self.good()[:-1]),
+            ('host cleanup FAIL', self.good()[:-1] + [{'gate': 'host-cleanup', 'status': 'FAIL'}]),
+            ('not every control PASS', self.good(controls=dict({str(i): 'PASS' for i in range(1, 15)}, **{'7': 'NOT_TESTED'}))),
+            ('not every operation PASS', self.good(operations=dict(dict.fromkeys(summarize.OPERATIONS, 'PASS'), destroy='FAIL'))),
+            ('resource cleanup FAIL', self.good(resource_cleanup='FAIL')),
+            ('run identity mismatch', self.good(run_id='999-1')),
+            ('run identity mismatch', self.good(tested_sha='c' * 40)),
+            ('failure recorded', self.good(failure={'operation': 'create', 'label': 'x', 'api': None})),
+        ]
+        for problem, rows in cases:
+            with self.subTest(problem=problem):
+                code, text = self.run_summary(rows)
+                self.assertEqual(code, 1)
+                self.assertNotIn('**Result: PASS**', text)
+                self.assertIn(problem, text)
+        code, text = self.run_summary(self.good(), dict(SUMMARY_ENV, EXECUTION_STATUS='failure'))
+        self.assertEqual(code, 1)
+        code, text = self.run_summary(self.good(), dict(SUMMARY_ENV, OWNER_ATTESTATION_ACCEPTED=''))
+        self.assertEqual(code, 1)
+        code, text = self.run_summary(self.good() + [{'gate': 'summary-record', 'status': 'PASS', 'record': record()}])
+        self.assertEqual(code, 1)
+
+    def test_unsafe_text_blocks(self):
+        code, text = self.run_summary(self.good(scenario='<script>'))
+        self.assertEqual(code, 1)
+        self.assertIn('**Result: BLOCKED**', text)
 
 
 if __name__ == '__main__':

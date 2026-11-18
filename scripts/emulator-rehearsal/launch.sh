@@ -6,14 +6,14 @@
 # uid 1000 with no capabilities and no_new_privs. Needs root for unshare/mount.
 #
 #   STEP2_BASE            directory prepared by prepare.py (artifacts, tools, prepared.json)
-#   STEP2_PROVIDER_MIRROR filesystem mirror holding the locked AWS provider package
+#   STEP2_PROVIDER_MIRROR filesystem mirror with the locked AWS provider (default: $STEP2_BASE/mirror)
 #   TESTED_SHA            merged main SHA whose network root and vpc module are rehearsed
 #   SCENARIO              full (default) or no-interface-endpoints
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$HERE" rev-parse --show-toplevel)
 BASE=${STEP2_BASE:?set STEP2_BASE to the prepare.py directory}
-MIRROR=${STEP2_PROVIDER_MIRROR:?set STEP2_PROVIDER_MIRROR}
+MIRROR=${STEP2_PROVIDER_MIRROR:-$BASE/mirror}
 SHA=${TESTED_SHA:?set TESTED_SHA}
 SCENARIO=${SCENARIO:-full}
 T=/opt/step2-tools

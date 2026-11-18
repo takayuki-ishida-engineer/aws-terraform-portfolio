@@ -718,7 +718,8 @@ def main():
     receipts = r.cleanup()
     if resource_cleanup == 'PASS' and receipts.get('material') == 'PASS' and receipts.get('process') == 'PASS':
         r.ctl('14')
-    summary = {'run_id': r.run_id, 'tested_sha': r.meta['sha'], 'harness_sha256': r.meta.get('harness_sha256'), 'scenario': 'network root (real vpc module), committed values' + ('' if r.scenario == 'full' else ' without interface_endpoints'),
+    summary = {'run_id': r.run_id, 'tested_sha': r.meta['sha'], 'harness_sha256': r.meta.get('harness_sha256'),
+               'execution': r.meta.get('execution', {'kind': 'local'}), 'scenario': 'network root (real vpc module), committed values' + ('' if r.scenario == 'full' else ' without interface_endpoints'),
                'versions': {k: r.prepared['versions'][k].get('version', r.prepared['versions'][k]) if isinstance(r.prepared['versions'][k], dict) else r.prepared['versions'][k]
                             for k in ('emulator', 'terraform', 'awscli', 'provider')},
                'controls': r.controls, 'operations': r.ops, 'resource_cleanup': resource_cleanup,
@@ -726,6 +727,8 @@ def main():
                'unsupported_apis': r.unsupported, 'scenario_id': r.scenario, 'notes': r.notes,
                'failure': None if not failure else {'operation': r.current, 'label': safe(failure.label), 'api': failure.api}}
     (EVIDENCE / ('summary-' + r.run_id + '.json')).write_text(json.dumps(summary, indent=2))
+    # The complete non-secret record also goes to stdout, so a CI job log and job summary keep it.
+    emit('summary-record', 'PASS', record=summary)
     emit('summary', 'PASS' if not failure and all(v == 'PASS' for v in r.controls.values()) else 'INCOMPLETE',
          operations=r.ops, controls=r.controls)
     return 0 if not failure else 1
