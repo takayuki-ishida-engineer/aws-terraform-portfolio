@@ -24,7 +24,37 @@ COMPLETE and PORTFOLIO COMPLETE remain undeclared.
 
 | Run | Scenario | Tested SHA | Result |
 | --- | --- | --- | --- |
-| — | Network root without interface endpoints | — | Pending the Owner's dispatch of `aws-emulator-rehearsal.yml` |
+| [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (attempt 1, 2026-11-18) | Network root without interface endpoints (16 resources) | `0a16e486dd37c40358a122aef47a215a8c6a4ab7` | **PASS**: all 14 controls, all 13 lifecycle operations and every cleanup receipt ([details](#formal-run-1-network-root-without-interface-endpoints)) |
+
+### Formal run 1: network root without interface endpoints
+
+| Item | Value |
+| --- | --- |
+| Executed by | GitHub Actions run [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946), attempt 1, job `rehearsal`, workflow `.github/workflows/aws-emulator-rehearsal.yml@refs/heads/main`, GitHub-hosted `ubuntu-24.04` |
+| Dispatched | By the Owner, 2026-11-18 09:50:55 UTC (job 09:50:58–09:54:01 UTC). The Owner's billing attestation was given at `2026-11-18T18:49:53+09:00` (Owner-attested; not API-audited) |
+| Tested SHA | `0a16e486dd37c40358a122aef47a215a8c6a4ab7`: `infra/services/dev/ca-central-1/network` and `infra/modules/vpc` from that commit |
+| Scenario | Network root (real `vpc` module) with its committed values and `interface_endpoints = null`; synthetic `project = "step2"` and account `000000000000` |
+| Harness | `scripts/emulator-rehearsal/rehearse.py`, SHA-256 `58a1a15405c945ce23d7e8f04d70df0f38f772bb6e9a32e97c9df34592e4109c` |
+| Versions | Emulator 1.0.385, Terraform 1.17.0, AWS provider 6.72.0, AWS CLI 2.35.0; all hash and signature verified in the preparation step; provider mirror built from the committed lock |
+| Isolation | Temporary local image; `docker run --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --user 1000:1000`, tmpfs only. Public STS and EC2 probes gave `ENETUNREACH` |
+
+Results:
+
+| Area | Result |
+| --- | --- |
+| Controls 1–14 | All PASS |
+| Lifecycle | All PASS: plan (16 resources), create, independent API identity, read (reviewed EIP and route-table convergence, then a clean refresh), tag-only update plan, update, API update check, no-op plan, reviewed destroy plan, destroy, empty State, API absence and unchanged baseline |
+| Authentication | Changed secret rejected with `SignatureDoesNotMatch`; changed key rejected with `InvalidClientTokenId`; unsigned request rejected |
+| Security group probe | The provider-form revoke (protocol `-1`, ports `0`) returned `InvalidPermission.NotFound`; the same revoke without ports was accepted. This confirms the gap described below |
+| Interface endpoint probe | Direct API `CreateVpcEndpoint` (`sts`, private DNS) returned `available` with 3 DNS entries; deletion verified |
+| Cleanup | Resources, material (credentials, CA, State, plans and logs on tmpfs), emulator process, and host (container, image, context): all PASS |
+| Not used | AWS credentials, secrets, artifacts, caches, registry pushes |
+
+Status: every operation in this scenario was measured PASS in a third-party-visible
+CI run. Accepting it as AWS EMULATOR DEMONSTRATED for this scenario needs
+independent review and an Owner decision; the AGENTS.md status statements are
+unchanged. The security group paths, the 8 interface endpoints through Terraform,
+the `full` scenario and the other roots remain NOT_TESTED (see below).
 
 ## Preliminary rehearsal 1: network root (2026-11-18, Claude Code container)
 

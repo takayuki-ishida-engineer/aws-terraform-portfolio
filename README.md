@@ -1,5 +1,18 @@
 # AWS Terraform and Kubernetes Portfolio
 
+## Step 2 emulator rehearsal — network root PASS in GitHub Actions
+
+| Item | Value |
+| --- | --- |
+| What | The real DEV network root (`vpc` module, committed values without interface endpoints, 16 resources) through Plan, Create, Read, Update, No-op and Destroy in the official AWS Emulator, under all fourteen isolation controls |
+| CI run | [GitHub Actions run 44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (`aws-emulator-rehearsal.yml`, Owner-dispatched, 2026-11-18); its log and job summary show every gate |
+| Tested SHA | `0a16e486dd37c40358a122aef47a215a8c6a4ab7` |
+| Result | **PASS**: all 14 controls, all 13 lifecycle operations, independent API checks and cleanup |
+| Record | [Step 2 emulator rehearsals](docs/step2-emulator-rehearsals.md): versions, harness hash, the emulator security group gap, untested items and residual risk |
+
+Measured in the emulator only; not evidence of real AWS behavior. Acceptance needs
+independent review and an Owner decision.
+
 ## Representative Emulator workflow — AWS EMULATOR DEMONSTRATED for the VPC scenario
 
 [Phase 3 implementation](scripts/emulator-verification/README.md) supplies an owner-confirmed, merged-main-only manual
