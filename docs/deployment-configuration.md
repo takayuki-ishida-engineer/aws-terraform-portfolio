@@ -327,7 +327,9 @@ approval. The Owner may reorder them.
    the Kubernetes runtime through the developer-access tunnel. 6a delivered: the
    [runbook](dev-runbook.md), `handoff.py`, `eks_tunnel.py`, `empty_bucket.py`,
    `run.py publish-artifact` and the teardown switches. 6b (the Kubernetes runtime:
-   certificates, image source, object names) follows.
+   certificates, image source, object names) follows. 6b-A delivered the
+   certificates (`k8s_certs.py`, finding F4) and the `<project>-<purpose>` object
+   names (F11). The image source (F18) stays open.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

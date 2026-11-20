@@ -1,5 +1,19 @@
 # NP-2A NetworkPolicy flow contract and VPC CNI compatibility
 
+> **Naming update (Step 1 item 6b-A, finding F11, 2026-11-20).** This contract
+> quotes object names as they were when it was written. The runtime now names every
+> object the project creates `<project>-<purpose>`: `portfolio-app` is `<project>-app`,
+> `portfolio-application` is `<project>-application`, `istio-ingress` is
+> `<project>-ingress`, revision `portfolio-v1` is `<project>-v1` (so `istiod-portfolio-v1`
+> is `istiod-<project>-v1`), `portfolio-gateway` is `<project>-gateway`, and the
+> application `default-deny` policies are `<project>-default-deny`. Upstream names
+> (`istio-system`, `kube-system`, `aws-load-balancer-controller`, `cacerts`) are
+> unchanged. Flows, selectors, ports and the policy semantics below are unchanged;
+> renderer evidence is runtime_contract_version 3. See the
+> [mapping](../kubernetes/README.md#step-1-item-6b-a-project-derived-names-and-dev-certificates).
+> DEV certificates are now generated and registered by `k8s_certs.py` (finding F4);
+> the PKI lifecycle obligations in section 4 still apply.
+
 ## NP-2P source implementation status
 
 The user explicitly approved option A for NP-2P from main

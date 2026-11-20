@@ -12,6 +12,46 @@ SHA-256 remains unverified. NP-1 starts from main
 completed successfully. That existing CI result does not establish this PR HEAD's
 regression result or any Kubernetes Live behavior.
 
+## Step 1 item 6b-A: project-derived names and DEV certificates
+
+Finding F11 (2026-11-20): every Kubernetes object the project creates is named
+`<project>-<purpose>` from a new required input, `runtime.project`, which follows the
+DEV roots' project rule. The input moves to interface_version 2 (version 1 is
+refused) and renderer evidence to runtime_contract_version 3. The project must match
+the Platform output: cluster `<project>-dev-eks` and controller role
+`<project>-dev-role-lbc`. Both gateway Secret names start with `<project>-`.
+
+| Object | Before | Now |
+| --- | --- | --- |
+| Ingress namespace, controller `--watch-namespace` | `istio-ingress` | `<project>-ingress` |
+| Istio revision (and the revision-suffixed Istio objects) | `portfolio-v1` | `<project>-v1` |
+| Gateway Deployment, Service, ServiceAccount, Role and binding; TGB | `portfolio-gateway` | `<project>-gateway` |
+| Istio Gateway | `portfolio-backend` | `<project>-backend` |
+| Binding writer SA, Role, RoleBinding | `portfolio-binding-writer` | `<project>-binding-writer` |
+| Controller Role and RoleBinding; TGB admission policy and binding | `portfolio-target-registration` | `<project>-target-registration` |
+| Ingress-namespace admission policy and binding | `portfolio-no-lb-service` | `<project>-no-lb-service` |
+| Reserved controller ingress class | `portfolio-disabled` | `<project>-disabled` |
+| Application namespace / ServiceAccount | `portfolio-app` / `portfolio-application` | `<project>-app` / `<project>-application` |
+| PeerAuthentication / AuthorizationPolicy / NetworkPolicy | `strict` / `default-deny` / `default-deny` | `<project>-strict-mtls` / `<project>-default-deny` / `<project>-default-deny` |
+| Gateway server and client CA Secrets | free-form | `<project>-gateway-tls` / `<project>-gateway-client-cacert` |
+
+Names the upstream products fix stay: `kube-system`, `istio-system`, the CRDs,
+`aws-load-balancer-controller*` (including the webhook Service and its Secret
+`aws-load-balancer-controller-tls`), Istio's `istiod-*`/`istio-*` objects (suffixed with
+the revision), `istiod-default-validator` and the Istio CA Secret `cacerts`. The label
+key `portfolio.runtime/ingress` is a label, not an object name, and is unchanged.
+Object content, selectors, RBAC, admission, TLS and the inventory size (62) are
+otherwise unchanged; only the names move. The source templates hold `${project}`
+tokens that the renderer fills in.
+
+Finding F4: [`scripts/local-workflow/k8s_certs.py`](../scripts/local-workflow/README.md#kubernetes-certificates-k8s_certspy)
+creates the DEV certificates and keys on the operator's workstation and registers
+the four Secrets this runtime references (`cacerts`, `aws-load-balancer-controller-tls`,
+`<project>-gateway-tls`, `<project>-gateway-client-cacert`) directly in the cluster.
+Nothing enters Git, Terraform or a CI log. Its `public.json` supplies the runtime's
+certificate-derived inputs. The runtime is still not deployable: the nodes cannot
+pull the public images while node egress stays closed (finding F18, open).
+
 ## NP-2P Gateway port alignment and compatibility
 
 NP-2P implements the explicitly approved NP-2A option A from main
@@ -37,8 +77,9 @@ terminates only at the MUTUAL Gateway; port alignment grants no network allowanc
 Input JSON shape/version1 and nested Platform interface_version1 stay unchanged:
 backend_target_port already means the actual backend port. No duplicate port input
 or Terraform output is introduced. The **generated runtime semantics change**;
-renderer evidence and test reports now require runtime_contract_version=2. The
-Kubernetes v1/List/API versions, names, selectors and ownership are unchanged.
+renderer evidence and test reports then required runtime_contract_version=2 (F11
+later raised it to 3, above). The Kubernetes v1/List/API versions, names, selectors
+and ownership were unchanged by NP-2P.
 Current consumers are renderer CLI, independent validator/capture tests and the
 existing CI report reconciliation. All are updated or verified against the new
 semantics. No external publisher/consumer or deployed resource is assumed absent
@@ -79,7 +120,7 @@ separate authorization.
 | Kubernetes platform operator | Pinned controller, ServiceAccounts, Istio base/istiod/gateway, ClusterIP Service, guarded TargetGroupBinding (TGB), mesh policies. No second load balancer or Terraform-owned setting writer. |
 | Controller | Register/deregister Pod IPs on the one approved target group; no ELB creation/deletion/modification or SG writes. |
 | Future application release | Real image, workloads, routes, exact SPIFFE allow rules, readiness and rollback. No fake application is included. |
-| External PKI/secret custodian | Server/client trust, webhook credentials and Istio CA initialization/renewal/compromise response; no secret values in this repository or Terraform. |
+| External PKI/secret custodian | Server/client trust, webhook credentials and Istio CA initialization/renewal/compromise response; no secret values in this repository or Terraform. In DEV, `k8s_certs.py` generates and registers them, and renewal means generating and registering new material. |
 
 [dependencies.lock.json](dependencies.lock.json) locks official package URLs,
 versions, published SHA-256 values and the Helm executable hash. Chart archives
@@ -148,10 +189,10 @@ external chart-named webhook TLS Secret must exist before controller startup.
 
 | Ordered stage | Objects | Responsibilities / external readiness barrier |
 | --- | ---: | --- |
-| namespaces | 2 | istio-system and istio-ingress, restricted Pod security and revision labels |
+| namespaces | 2 | istio-system and `<project>-ingress`, restricted Pod security and revision labels |
 | base | 16 | 15 pinned Istio CRDs and validator; CRDs established before custom resources |
 | controller | 13 | 2 pinned LBC CRDs, Deployment/Service, external-IRSA SA, narrowed cluster and namespaced RBAC, two webhooks; external TLS Secret, role effectiveness and webhook readiness required |
-| istiod | 12 | revision portfolio-v1, SA, config, roles, Deployment/Service, injector/validator; required external cacerts and ready injection/validation CA |
+| istiod | 12 | revision `<project>-v1`, SA, config, roles, Deployment/Service, injector/validator; required external cacerts and ready injection/validation CA |
 | gateway | 5 | SA, Deployment, ClusterIP Service, Role/Binding; wait for actual revision injection, SDS and readiness |
 | mesh_security | 5 | existing application Namespace, identity SA, STRICT PeerAuthentication, deny-default AuthorizationPolicy and all-Pod Ingress/Egress default-deny NetworkPolicy |
 | admission | 4 | two ValidatingAdmissionPolicies and enforcing Deny bindings; verify actual admission health before TGB writes |
@@ -175,7 +216,7 @@ for Service/Pod port conflicts, recommended alternatives and gated future flows;
 this design does not modify the current bundle or authorize allow policies/CNI activation.
 
 [application-security.yaml](platform/istio/application-security.yaml) adds exactly
-one `networking.k8s.io/v1` NetworkPolicy, `portfolio-app/default-deny`.
+one `networking.k8s.io/v1` NetworkPolicy, `<project>-app/<project>-default-deny`.
 `podSelector: {}` selects every Pod in that namespace; both Ingress and Egress
 are explicit and both rule lists are empty. The existing Namespace, ServiceAccount,
 STRICT PeerAuthentication and empty-ALLOW AuthorizationPolicy retain their owners.
@@ -251,7 +292,7 @@ ModifyTargetGroup/Attributes, ELB creation/deletion or SG mutation is granted.
 
 LBC has no universal TGB-only switch: main.go still registers Ingress
 reconciliation. Layered defenses are therefore required: reserved class,
-watch-namespace=istio-ingress, Service/Gateway feature gates off, no Service
+watch-namespace=`<project>-ingress`, Service/Gateway feature gates off, no Service
 mutator, backend-SG management off, narrowed Kubernetes permissions, admission
 and least-privilege AWS IAM. Region/VPC/cluster are explicit, avoiding IMDS discovery
 with the existing hop-limit-one nodes. The controller can read scoped Service/Pod
@@ -316,8 +357,8 @@ No valid TLS/mTLS handshake or actual target registration is inferred from schem
 ## Offline evidence and limits
 
 [Runtime tests](tests/README.md) perform eight actual Helm renders over two
-positive configurations, validate 124 objects, reject97 rendered security
-mutations (existing77 plus20 NP-2P),38 invalid input contracts and26 missing/malformed/fabricated evidence
+positive configurations, validate 124 objects, reject108 rendered security
+mutations (existing77 plus20 NP-2P and11 F11),54 invalid input contracts and26 missing/malformed/fabricated evidence
 cases. Core schemas come from pinned Kubernetes v1.34.1 OpenAPI; CRD schemas are
 from the exact pinned charts. NP-1 extends the selected schema definitions with
 NetworkPolicy and its reference closure from the **same** v1.34.1 source, whose

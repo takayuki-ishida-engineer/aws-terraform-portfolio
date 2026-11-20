@@ -147,12 +147,14 @@ reviewed input while preserving the NLB TCP:443 listener.
   owns dynamic target registration. Terraform manages Secrets Manager metadata,
   never secret values, private keys or Google OAuth secrets.
 - **Runtime authorization:** restricted Pod Security, scoped RBAC and fail-closed
-  admission guards constrain runtime objects. `portfolio-app` has both-direction
+  admission guards constrain runtime objects. `<project>-app` has both-direction
   default-deny NetworkPolicy, STRICT PeerAuthentication and a default-deny
   Istio AuthorizationPolicy. Their live enforcement has not been demonstrated.
 - **Transport:** the NLB passes TCP through to a Gateway configured for MUTUAL TLS,
-  TLS 1.2 or newer and expected-client SPKI verification. Certificate custody,
-  rotation, revocation response and REST backend compatibility remain open.
+  TLS 1.2 or newer and expected-client SPKI verification. DEV certificates are
+  generated and registered by a workstation script, never stored in Git or
+  Terraform (finding F4). Production certificate custody, rotation, revocation
+  response and REST backend compatibility remain open.
 
 ## Validation and CI
 

@@ -1,4 +1,6 @@
-# Runtime renderer must supply required cluster/VPC/Region/IRSA/resources/node AZ.
+# Runtime renderer must supply required cluster/VPC/Region/IRSA/resources/node AZ,
+# and the project-derived ingressClass (<project>-disabled) and watchNamespace
+# (<project>-ingress); this file must not set either.
 # Chart/app pin: 3.6.2/v3.6.2; verified archive digest in dependencies.lock.json.
 replicaCount: 1
 serviceAccount:
@@ -8,7 +10,6 @@ image:
   repository: public.ecr.aws/eks/aws-load-balancer-controller
   tag: v3.6.2
 region: ca-central-1
-ingressClass: portfolio-disabled
 createIngressClassResource: false
 ingressClassParams:
   create: false
@@ -18,7 +19,6 @@ enablePodReadinessGateInject: false
 enableBackendSecurityGroup: false
 enableManageBackendSecurityGroupRules: false
 enableEndpointSlices: true
-watchNamespace: istio-ingress
 enableShield: false
 enableWaf: false
 enableWafv2: false

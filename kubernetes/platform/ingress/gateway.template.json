@@ -1,9 +1,9 @@
 {
   "apiVersion": "networking.istio.io/v1",
   "kind": "Gateway",
-  "metadata": {"name": "portfolio-backend", "namespace": "istio-ingress"},
+  "metadata": {"name": "${project}-backend", "namespace": "${project}-ingress"},
   "spec": {
-    "selector": {"istio": "portfolio-gateway"},
+    "selector": {"istio": "${project}-gateway"},
     "servers": [{
       "port": {"number": "${backend_target_port}", "name": "https-backend", "protocol": "HTTPS"},
       "hosts": ["${backend_hostname}"],

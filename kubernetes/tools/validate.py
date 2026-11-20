@@ -1,7 +1,6 @@
 """Offline OpenAPI structural validation plus independent cross-resource security contracts."""
 import copy,json,re
-from common import ROOT,LOCK,need,sha,fastjsonschema,metadata
-from render import REV
+from common import ROOT,LOCK,fill,need,names,sha,fastjsonschema,metadata
 _CACHE={}
 def identity(o):return (o['apiVersion'],o['kind'],o['metadata'].get('namespace',''),o['metadata']['name'])
 def normalize(schema):
@@ -43,23 +42,25 @@ def structural(objects):
   _CACHE[digest](copy.deepcopy(obj))
  return len(objects)
 
-def application_network_policy(objects):
+def application_network_policy(objects,project):
  # Policies are additive: validating only the named deny policy would overlook
  # a second policy that grants traffic. No other policy is approved in NP-1.
- policies=[o for o in objects if o['kind']=='NetworkPolicy']
+ N=names(project);policies=[o for o in objects if o['kind']=='NetworkPolicy']
  need(len(policies)==1,'NP-1 permits exactly one NetworkPolicy; no additive allow policy')
  policy=policies[0]
- need(identity(policy)==('networking.k8s.io/v1','NetworkPolicy','portfolio-app','default-deny'),'application NetworkPolicy identity')
+ need(identity(policy)==('networking.k8s.io/v1','NetworkPolicy',N['app_namespace'],N['network_policy']),'application NetworkPolicy identity')
  need(policy['spec']=={'podSelector':{},'policyTypes':['Ingress','Egress'],'ingress':[],'egress':[]},'all application Pods: explicit ingress/egress default deny, no exceptions')
- namespace=next(o for o in objects if o['kind']=='Namespace' and o['metadata']['name']=='portfolio-app')
+ namespace=next(o for o in objects if o['kind']=='Namespace' and o['metadata']['name']==N['app_namespace'])
  need(objects.index(namespace)<objects.index(policy),'application namespace before NetworkPolicy')
 
 def verify(objects,d,fixture=False):
  metadata(d,fixture);need(isinstance(objects,list),'resource list');rows={}
  for o in objects:
   need(isinstance(o,dict) and all(k in o for k in ['apiVersion','kind','metadata']),'resource envelope');i=identity(o);need(i not in rows,'duplicate object');rows[i]=o
- application_network_policy(objects)
- expected=json.loads((ROOT/'kubernetes/tests/expected-inventory.json').read_text());need(set(rows)=={tuple(x) for x in expected},'complete exact ownership inventory')
+ project=d['runtime']['project'];N=names(project);REV=N['revision'];ING=N['ingress_namespace'];GW=N['gateway'];APP=N['app_namespace']
+ application_network_policy(objects,project)
+ # The inventory holds ${project} tokens for the names the project creates (F11).
+ expected=fill(json.loads((ROOT/'kubernetes/tests/expected-inventory.json').read_text()),project);need(set(rows)=={tuple(x) for x in expected},'complete exact ownership inventory')
  structural(objects)
  def obj(kind,name,ns=''):return next(o for o in objects if o['kind']==kind and o['metadata']['name']==name and o['metadata'].get('namespace','')==ns)
  c=d['controller_identity'];p=d['private_ingress'];r=d['runtime']
@@ -81,7 +82,7 @@ def verify(objects,d,fixture=False):
  flags={}
  for arg in co['args']:
   k,sep,v=arg.partition('=');need(sep and k not in flags,'unique explicit controller flag');flags[k]=v
- for k,v in {'--cluster-name':c['cluster_name'],'--aws-region':'ca-central-1','--aws-vpc-id':p['vpc_id'],'--watch-namespace':'istio-ingress','--ingress-class':'portfolio-disabled','--disable-ingress-class-annotation':'true','--enable-backend-security-group':'false','--enable-manage-backend-security-group-rules':'false','--enable-pod-readiness-gate-inject':'false','--enable-shield':'false','--enable-waf':'false','--enable-wafv2':'false'}.items():need(flags[k]==v,'controller scope/ownership:'+k)
+ for k,v in {'--cluster-name':c['cluster_name'],'--aws-region':'ca-central-1','--aws-vpc-id':p['vpc_id'],'--watch-namespace':ING,'--ingress-class':N['ingress_class'],'--disable-ingress-class-annotation':'true','--enable-backend-security-group':'false','--enable-manage-backend-security-group-rules':'false','--enable-pod-readiness-gate-inject':'false','--enable-shield':'false','--enable-waf':'false','--enable-wafv2':'false'}.items():need(flags[k]==v,'controller scope/ownership:'+k)
  gates=dict(x.split('=') for x in flags['--feature-gates'].split(','));need(set(gates)=={'ALBGatewayAPI','ALBTargetControlAgent','EnableCertificateManagement','EnableRGTAPI','EnableServiceController','EndpointsFailOpen','GatewayListenerSet','GlobalAcceleratorController','NLBGatewayAPI'} and set(gates.values())=={'false'},'non-TGB controller features disabled')
  need(cs['volumes']==[{'name':'cert','secret':{'defaultMode':420,'secretName':r['webhook_tls_secret']}}],'external webhook Secret')
  for kind in ['MutatingWebhookConfiguration','ValidatingWebhookConfiguration']:
@@ -90,7 +91,7 @@ def verify(objects,d,fixture=False):
    need(w['namespaceSelector']=={'matchLabels':{'portfolio.runtime/ingress':'true'}} and all(x['resources']==['targetgroupbindings'] for x in w['rules']),'only scoped TGB webhooks')
  # Binding identity is as important as the role's contents: a changed roleRef
  # must not silently select cluster-admin or a pre-existing unrestricted role.
- bindings=[('ClusterRoleBinding','aws-load-balancer-controller-rolebinding','','ClusterRole','aws-load-balancer-controller-role','kube-system','aws-load-balancer-controller'),('RoleBinding','aws-load-balancer-controller-leader-election-rolebinding','kube-system','Role','aws-load-balancer-controller-leader-election-role','kube-system','aws-load-balancer-controller'),('ClusterRoleBinding','istiod-clusterrole-'+REV+'-istio-system','','ClusterRole','istiod-clusterrole-'+REV+'-istio-system','istio-system','istiod-'+REV),('RoleBinding','istiod-'+REV,'istio-system','Role','istiod-'+REV,'istio-system','istiod-'+REV),('RoleBinding','portfolio-gateway','istio-ingress','Role','portfolio-gateway','istio-ingress','portfolio-gateway')]
+ bindings=[('ClusterRoleBinding','aws-load-balancer-controller-rolebinding','','ClusterRole','aws-load-balancer-controller-role','kube-system','aws-load-balancer-controller'),('RoleBinding','aws-load-balancer-controller-leader-election-rolebinding','kube-system','Role','aws-load-balancer-controller-leader-election-role','kube-system','aws-load-balancer-controller'),('ClusterRoleBinding','istiod-clusterrole-'+REV+'-istio-system','','ClusterRole','istiod-clusterrole-'+REV+'-istio-system','istio-system','istiod-'+REV),('RoleBinding','istiod-'+REV,'istio-system','Role','istiod-'+REV,'istio-system','istiod-'+REV),('RoleBinding',GW,ING,'Role',GW,ING,GW)]
  for kind,name,ns,rkind,rname,sns,sname in bindings:
   b=obj(kind,name,ns);need(b['roleRef']=={'apiGroup':'rbac.authorization.k8s.io','kind':rkind,'name':rname} and len(b['subjects'])==1,'exact pinned runtime role binding')
   subject=b['subjects'][0];need(subject['kind']=='ServiceAccount' and subject['name']==sname and subject.get('namespace',ns)==sns,'exact runtime binding subject')
@@ -98,33 +99,33 @@ def verify(objects,d,fixture=False):
   if o['kind'] in ['Role','ClusterRole']:
    for rule in o['rules']:
     if 'elbv2.k8s.aws' in rule['apiGroups'] or '*' in rule['apiGroups']:
-     need('*' not in rule['resources'] and ('targetgroupbindings' not in rule['resources'] or o['kind']=='Role' and o['metadata']['namespace']=='istio-ingress' and o['metadata']['name'] in ['portfolio-binding-writer','portfolio-target-registration']),'single scoped TGB writer boundary')
+     need('*' not in rule['resources'] and ('targetgroupbindings' not in rule['resources'] or o['kind']=='Role' and o['metadata']['namespace']==ING and o['metadata']['name'] in [N['binding_writer'],N['target_registration']]),'single scoped TGB writer boundary')
  for rule in obj('ClusterRole','aws-load-balancer-controller-role')['rules']:need(set(rule['verbs'])<={'get','list','watch'} and not {'secrets','targetgroupbindings'}&set(rule['resources']),'cluster-wide metadata read only')
- role=obj('Role','portfolio-target-registration','istio-ingress')
+ role=obj('Role',N['target_registration'],ING)
  for rule in role['rules']:
   need('*' not in rule['verbs'] and '*' not in rule['resources'],'no wildcard controller RBAC')
   if set(rule['verbs'])&{'create','delete','patch','update'}:
-   if any(x.startswith('targetgroupbindings') for x in rule['resources']):need(set(rule['verbs'])<={'patch','update'} and rule.get('resourceNames')==['portfolio-gateway'],'exact TGB update rights')
+   if any(x.startswith('targetgroupbindings') for x in rule['resources']):need(set(rule['verbs'])<={'patch','update'} and rule.get('resourceNames')==[GW],'exact TGB update rights')
    else:need(set(rule['resources'])<={'events','pods/status'},'no service/ingress/LB writer')
- writer=obj('Role','portfolio-binding-writer','istio-ingress');need(writer['rules']==[{'apiGroups':['elbv2.k8s.aws'],'resources':['targetgroupbindings'],'verbs':['create']},{'apiGroups':['elbv2.k8s.aws'],'resources':['targetgroupbindings'],'resourceNames':['portfolio-gateway'],'verbs':['get','update','patch','delete']}],'binding writer bounds')
- for name,ns,sa_ns,sa_name,role_name in [('portfolio-binding-writer','istio-ingress','istio-ingress','portfolio-binding-writer','portfolio-binding-writer'),('portfolio-target-registration','istio-ingress','kube-system','aws-load-balancer-controller','portfolio-target-registration')]:
+ writer=obj('Role',N['binding_writer'],ING);need(writer['rules']==[{'apiGroups':['elbv2.k8s.aws'],'resources':['targetgroupbindings'],'verbs':['create']},{'apiGroups':['elbv2.k8s.aws'],'resources':['targetgroupbindings'],'resourceNames':[GW],'verbs':['get','update','patch','delete']}],'binding writer bounds')
+ for name,ns,sa_ns,sa_name,role_name in [(N['binding_writer'],ING,ING,N['binding_writer'],N['binding_writer']),(N['target_registration'],ING,'kube-system','aws-load-balancer-controller',N['target_registration'])]:
   b=obj('RoleBinding',name,ns);need(b['subjects']==[{'kind':'ServiceAccount','name':sa_name,'namespace':sa_ns}] and b['roleRef']=={'apiGroup':'rbac.authorization.k8s.io','kind':'Role','name':role_name},'binding actor')
- policy=obj('ValidatingAdmissionPolicy','portfolio-target-registration')['spec'];need(policy['failurePolicy']=='Fail' and policy['matchConstraints']=={'resourceRules':[{'apiGroups':['elbv2.k8s.aws'],'apiVersions':['v1beta1'],'operations':['CREATE','UPDATE'],'resources':['targetgroupbindings']}]},'all TGB admissions guarded')
+ policy=obj('ValidatingAdmissionPolicy',N['target_registration'])['spec'];need(policy['failurePolicy']=='Fail' and policy['matchConstraints']=={'resourceRules':[{'apiGroups':['elbv2.k8s.aws'],'apiVersions':['v1beta1'],'operations':['CREATE','UPDATE'],'resources':['targetgroupbindings']}]},'all TGB admissions guarded')
  expr=[x['expression'] for x in policy['validations']]
- required=["request.userInfo.username in ['system:serviceaccount:istio-ingress:portfolio-binding-writer','system:serviceaccount:kube-system:aws-load-balancer-controller']","object.metadata.namespace == 'istio-ingress' && object.metadata.name == 'portfolio-gateway'",'object.spec.targetGroupARN == '+json.dumps(p['target_group_arn']),"object.spec.targetType == 'ip'",'object.spec.vpcID == '+json.dumps(p['vpc_id']),"object.spec.serviceRef.name == 'portfolio-gateway' && object.spec.serviceRef.port == "+str(p['backend_target_port']),"!has(object.spec.networking) && !has(object.spec.iamRoleArnToAssume) && !has(object.spec.nodeSelector)","!has(object.spec.multiClusterTargetGroup) || object.spec.multiClusterTargetGroup == false"]
+ required=["request.userInfo.username in ['system:serviceaccount:"+ING+":"+N['binding_writer']+"','system:serviceaccount:kube-system:aws-load-balancer-controller']","object.metadata.namespace == '"+ING+"' && object.metadata.name == '"+GW+"'",'object.spec.targetGroupARN == '+json.dumps(p['target_group_arn']),"object.spec.targetType == 'ip'",'object.spec.vpcID == '+json.dumps(p['vpc_id']),"object.spec.serviceRef.name == '"+GW+"' && object.spec.serviceRef.port == "+str(p['backend_target_port']),"!has(object.spec.networking) && !has(object.spec.iamRoleArnToAssume) && !has(object.spec.nodeSelector)","!has(object.spec.multiClusterTargetGroup) || object.spec.multiClusterTargetGroup == false"]
  need(expr==required,'exact reviewed CEL binding boundary')
- for name in ['portfolio-target-registration','portfolio-no-lb-service']:
+ for name in [N['target_registration'],N['no_lb_service']]:
   binding=obj('ValidatingAdmissionPolicyBinding',name)['spec'];need(binding=={'policyName':name,'validationActions':['Deny']},'admission enforcement binding')
- noing=obj('ValidatingAdmissionPolicy','portfolio-no-lb-service')['spec'];need(noing['matchConstraints']=={'namespaceSelector':{'matchLabels':{'portfolio.runtime/ingress':'true'}},'resourceRules':[{'apiGroups':['networking.k8s.io'],'apiVersions':['v1'],'operations':['CREATE','UPDATE'],'resources':['ingresses']},{'apiGroups':[''],'apiVersions':['v1'],'operations':['CREATE','UPDATE'],'resources':['services']}]},'namespace LB guard cannot be bypassed by changed match constraints');need(noing['failurePolicy']=='Fail' and noing['validations']==[{'expression':"request.kind.kind == 'Service' && object.spec.type == 'ClusterIP'",'message':'This namespace permits ClusterIP Services, not Ingress or external LB ownership.'}],'deny duplicate LB paths')
- tgb=obj('TargetGroupBinding','portfolio-gateway','istio-ingress');need(tgb['apiVersion']=='elbv2.k8s.aws/v1beta1' and tgb['spec']=={'targetGroupARN':p['target_group_arn'],'targetType':'ip','vpcID':p['vpc_id'],'serviceRef':{'name':'portfolio-gateway','port':p['backend_target_port']},'multiClusterTargetGroup':False},'actual owned TGB no SG networking/assumeRole')
- dep=obj('Deployment','portfolio-gateway','istio-ingress');pod=dep['spec']['template'];pc=pod['spec']['containers'][0];svc=obj('Service','portfolio-gateway','istio-ingress')['spec']
- need(pod['spec']['serviceAccountName']=='portfolio-gateway' and pc['image']=='docker.io/istio/proxyv2:1.32.0','gateway identity/image')
+ noing=obj('ValidatingAdmissionPolicy',N['no_lb_service'])['spec'];need(noing['matchConstraints']=={'namespaceSelector':{'matchLabels':{'portfolio.runtime/ingress':'true'}},'resourceRules':[{'apiGroups':['networking.k8s.io'],'apiVersions':['v1'],'operations':['CREATE','UPDATE'],'resources':['ingresses']},{'apiGroups':[''],'apiVersions':['v1'],'operations':['CREATE','UPDATE'],'resources':['services']}]},'namespace LB guard cannot be bypassed by changed match constraints');need(noing['failurePolicy']=='Fail' and noing['validations']==[{'expression':"request.kind.kind == 'Service' && object.spec.type == 'ClusterIP'",'message':'This namespace permits ClusterIP Services, not Ingress or external LB ownership.'}],'deny duplicate LB paths')
+ tgb=obj('TargetGroupBinding',GW,ING);need(tgb['apiVersion']=='elbv2.k8s.aws/v1beta1' and tgb['spec']=={'targetGroupARN':p['target_group_arn'],'targetType':'ip','vpcID':p['vpc_id'],'serviceRef':{'name':GW,'port':p['backend_target_port']},'multiClusterTargetGroup':False},'actual owned TGB no SG networking/assumeRole')
+ dep=obj('Deployment',GW,ING);pod=dep['spec']['template'];pc=pod['spec']['containers'][0];svc=obj('Service',GW,ING)['spec']
+ need(pod['spec']['serviceAccountName']==GW and pc['image']=='docker.io/istio/proxyv2:1.32.0','gateway identity/image')
  need(pod['metadata']['labels']['istio.io/rev']==REV and pod['metadata']['labels']['sidecar.istio.io/inject']=='true' and pod['metadata']['annotations']['inject.istio.io/templates']=='gateway','pinned gateway injection template')
  need(svc['type']=='ClusterIP' and all(pod['metadata']['labels'].get(k)==v for k,v in svc['selector'].items()) and svc['ports']==[{'name':'https-backend','port':p['backend_target_port'],'protocol':'TCP','targetPort':p['backend_target_port']}],'Service selector/backend port/Pod target port')
  need(pc['ports']==[{'containerPort':15090,'protocol':'TCP','name':'http-envoy-prom'},{'name':'https-backend','containerPort':p['backend_target_port'],'protocol':'TCP'},{'name':'status','containerPort':15021,'protocol':'TCP'}] and pc['resources']==r['resources']['gateway'],'exact Pod ports/resources; no duplicate backend or probe binding')
  need(pc['securityContext']['runAsUser']==1337,'Gateway non-root UID1337')
  need(pc['readinessProbe']=={'httpGet':{'path':'/healthz/ready','port':15021},'periodSeconds':5} and pc['livenessProbe']=={'tcpSocket':{'port':15021},'initialDelaySeconds':30,'periodSeconds':10,'failureThreshold':6},'unchanged Gateway probe port15021')
- gw=obj('Gateway','portfolio-backend','istio-ingress')['spec'];need(gw['selector']=={'istio':'portfolio-gateway'} and len(gw['servers'])==1,'Gateway owner/one TLS listener')
+ gw=obj('Gateway',N['backend'],ING)['spec'];need(gw['selector']=={'istio':GW} and len(gw['servers'])==1,'Gateway owner/one TLS listener')
  server=gw['servers'][0];need(server['port']=={'number':p['backend_target_port'],'name':'https-backend','protocol':'HTTPS'} and server['hosts']==[r['backend_hostname']],'exact backend hostname/TLS listener')
  need(server['tls']=={'mode':'MUTUAL','credentialName':r['gateway_tls_secret'],'minProtocolVersion':'TLSV1_2','verifyCertificateSpki':r['expected_client_spki'],'caCertCredentialName':r['gateway_client_ca_secret']},'MUTUAL explicit server credential/client CA/identity; no fallback')
  istio=obj('Deployment','istiod-'+REV,'istio-system')['spec']['template']['spec'];ic=istio['containers'][0]
@@ -133,8 +134,9 @@ def verify(objects,d,fixture=False):
  env={v['name']:v.get('value') for v in ic['env']};need(env['PILOT_ENABLE_GATEWAY_API']=='false' and env['PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER']=='false','no extra gateway deployment controller')
  mesh=obj('ConfigMap','istio-'+REV,'istio-system')['data']['mesh'];from common import docs
  need(docs(mesh)[0]['trustDomain']==r['trust_domain'],'explicit mesh trust domain')
- app=obj('Namespace','portfolio-app')['metadata']['labels'];need(app['istio.io/rev']==REV and app['pod-security.kubernetes.io/enforce']=='restricted','sidecar injection/PSS')
- need(obj('PeerAuthentication','strict','portfolio-app')['spec']=={'mtls':{'mode':'STRICT'}},'STRICT mesh')
- need(obj('AuthorizationPolicy','default-deny','portfolio-app')['spec']=={'action':'ALLOW','rules':[]},'namespace deny-by-default; no broad allow')
- need(obj('Namespace','istio-ingress')['metadata']['labels']['portfolio.runtime/ingress']=='true','guarded ingress namespace')
+ app=obj('Namespace',APP)['metadata']['labels'];need(app['istio.io/rev']==REV and app['pod-security.kubernetes.io/enforce']=='restricted','sidecar injection/PSS')
+ need(obj('PeerAuthentication',N['peer_authentication'],APP)['spec']=={'mtls':{'mode':'STRICT'}},'STRICT mesh')
+ need(obj('AuthorizationPolicy',N['authorization_policy'],APP)['spec']=={'action':'ALLOW','rules':[]},'namespace deny-by-default; no broad allow')
+ need(obj('Namespace',ING)['metadata']['labels']['portfolio.runtime/ingress']=='true','guarded ingress namespace')
+ need(obj('ServiceAccount',N['app_service_account'],APP)['automountServiceAccountToken'] is False,'application ServiceAccount without token')
  return len(objects)
