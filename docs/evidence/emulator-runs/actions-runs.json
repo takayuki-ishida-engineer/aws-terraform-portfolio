@@ -1,0 +1,175 @@
+{
+  "retrieved_at": "2026-11-20T06:14:06Z",
+  "source": "GitHub Actions REST API list workflow runs, read through the session GitHub connector",
+  "workflows": {
+    ".github/workflows/aws-emulator-rehearsal.yml": [
+      {
+        "id": 44664010985,
+        "attempt": 1,
+        "number": 3,
+        "event": "push",
+        "head_branch": "main",
+        "head_sha": "70a5868272c19d0d0803e2eabd3fa92ce781d32b",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-11-20T02:54:04Z"
+      },
+      {
+        "id": 44279751946,
+        "attempt": 1,
+        "number": 2,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "0a16e486dd37c40358a122aef47a215a8c6a4ab7",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-11-18T09:50:54Z"
+      },
+      {
+        "id": 44279371023,
+        "attempt": 1,
+        "number": 1,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "0a16e486dd37c40358a122aef47a215a8c6a4ab7",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-18T09:48:25Z"
+      }
+    ],
+    ".github/workflows/aws-emulator-verification.yml": [
+      {
+        "id": 43791639228,
+        "attempt": 1,
+        "number": 12,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "5c62dba517c7eb97394f77aaff6479a1315c524e",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-11-16T02:21:12Z"
+      },
+      {
+        "id": 43786507720,
+        "attempt": 1,
+        "number": 11,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "c17048b2558908c8e21dcd7946240d36ec809397",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-16T01:28:55Z"
+      },
+      {
+        "id": 43778833950,
+        "attempt": 1,
+        "number": 10,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "94116617fd1c95764fa764124cd8423ae407bf67",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-16T00:10:52Z"
+      },
+      {
+        "id": 43741028022,
+        "attempt": 1,
+        "number": 9,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "d9e5fe7ca3a72953b8b2d51f6d022bc385ab61fa",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T17:25:32Z"
+      },
+      {
+        "id": 43733987794,
+        "attempt": 1,
+        "number": 8,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "16a94b5f18c02b63d9aec54c5a87f00ac05ec7f9",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T16:10:39Z"
+      },
+      {
+        "id": 43723761085,
+        "attempt": 1,
+        "number": 7,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "785f68af4d915378d17e3528635e6abbe26b7ced",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T14:19:54Z"
+      },
+      {
+        "id": 43715108794,
+        "attempt": 1,
+        "number": 6,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "406b468c820ed7ed7db86c9d38b578184811453d",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T12:41:16Z"
+      },
+      {
+        "id": 43703888134,
+        "attempt": 1,
+        "number": 5,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "e1c7b4e2faec4215ab82e8bd60553196a2d4d125",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T10:23:57Z"
+      },
+      {
+        "id": 43698042624,
+        "attempt": 1,
+        "number": 4,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "ed8fbba5c8581b49249541a93f159dfb7167e2cf",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T09:11:37Z"
+      },
+      {
+        "id": 43693589574,
+        "attempt": 1,
+        "number": 3,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "6b46535db2386cabe5d351fb91a0922e8e8c654d",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T08:14:47Z"
+      },
+      {
+        "id": 43693298675,
+        "attempt": 1,
+        "number": 2,
+        "event": "workflow_dispatch",
+        "head_branch": "main",
+        "head_sha": "6b46535db2386cabe5d351fb91a0922e8e8c654d",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T08:11:01Z"
+      },
+      {
+        "id": 43688616793,
+        "attempt": 1,
+        "number": 1,
+        "event": "push",
+        "head_branch": "feat/emulator-verification-workflow",
+        "head_sha": "78a3ee6d1a2749b4f32c0ec0f538d1ad8bd41d03",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-11-15T07:08:48Z"
+      }
+    ]
+  }
+}

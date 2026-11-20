@@ -247,6 +247,9 @@ stops early.
   logs.
 - **Reconciliation.** The Actions run list is reconciled against the ledger to
   catch unregistered runs, duplicates, missing attempts and log fetch failures.
+  Here the comparison uses `actions-runs.json`, a static snapshot committed with
+  the entries. It is only as current as that snapshot, and never claims to match
+  the live GitHub API.
   Each entry is submitted in its own pull request before the next `main` change
   or within 7 days of the run, whichever comes first. Anything late or
   unrecoverable is recorded EVIDENCE_GAP and never inferred as success. Entries
@@ -261,9 +264,10 @@ stops early.
 - **Local runs.** Container diagnostics are recorded separately as LOCAL
   PRELIMINARY and never treated as formal runs.
 
-The ledger and `harvest.py` arrive in a dedicated pull request after this policy
-alignment. Until then, formal runs are listed in
-[Step 2 emulator rehearsals](docs/step2-emulator-rehearsals.md).
+The ledger is [`docs/evidence/emulator-runs/`](docs/evidence/emulator-runs/index.md),
+maintained with [`scripts/emulator-evidence/harvest.py`](scripts/emulator-evidence/README.md).
+Its tests and `harvest.py check` run in the `AWS Emulator offline contracts`
+workflow. Neither path triggers the rehearsal workflow.
 
 Classify results precisely:
 
@@ -443,6 +447,10 @@ The v14.4 order (§19.2) is:
 2. the evidence ledger pull request (`harvest.py`, reconciliation, tests and the
    backfill);
 3. bringing PR #75 up to latest main, with `all` limited to `network` and `api`.
+   Before PR #75 merges, `harvest.py` must support PR #75's multi-root
+   `summary-record` and pin its harness version, so that the automatic run its
+   merge starts can be registered. See the
+   [Step 2 record](docs/step2-emulator-rehearsals.md#how-to-read-the-evidence).
 
 Each is its own pull request that stops for Owner approval. Merging PR #75, new
 Emulator runs and Step 1 Item 6b are not authorized yet. Step 3

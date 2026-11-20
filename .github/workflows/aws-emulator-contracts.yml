@@ -27,3 +27,7 @@ jobs:
         run: python3 scripts/emulator-verification/tests/test_verification.py
       - name: Step 2 rehearsal gate tests (offline; never starts the emulator)
         run: python3 scripts/emulator-rehearsal/test_rehearse.py
+      - name: Evidence ledger tests (offline negative, mutation and tamper)
+        run: python3 scripts/emulator-evidence/test_harvest.py
+      - name: Evidence ledger check (schema, safety, index, reconciliation)
+        run: python3 scripts/emulator-evidence/harvest.py check docs/evidence/emulator-runs

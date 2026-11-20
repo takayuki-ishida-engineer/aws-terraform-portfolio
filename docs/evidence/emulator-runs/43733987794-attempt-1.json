@@ -1,0 +1,225 @@
+{
+  "cleanup": {
+    "host": "PASS",
+    "material": "PASS",
+    "process": "PASS",
+    "resources": "NOT_TESTED"
+  },
+  "controls": {
+    "1": "PASS",
+    "10": "NOT_TESTED",
+    "11": "NOT_TESTED",
+    "12": "NOT_TESTED",
+    "13": "NOT_TESTED",
+    "14": "NOT_TESTED",
+    "2": "PASS",
+    "3": "NOT_TESTED",
+    "4": "PASS",
+    "5": "PASS",
+    "6": "PASS",
+    "7": "PASS",
+    "8": "PASS",
+    "9": "NOT_TESTED"
+  },
+  "evidence_gaps": [],
+  "harvest": {
+    "harvested_at": "2026-11-20T14:08:12Z",
+    "registration": "initial-backfill",
+    "tool": "scripts/emulator-evidence/harvest.py"
+  },
+  "job": {
+    "completed_at": "2026-11-15T16:11:40Z",
+    "conclusion": "failure",
+    "id": 132872425431,
+    "name": "representative",
+    "runner_label": "ubuntu-24.04",
+    "started_at": "2026-11-15T16:10:42Z",
+    "steps": [
+      {
+        "conclusion": "success",
+        "name": "Set up job",
+        "number": 1
+      },
+      {
+        "conclusion": "success",
+        "name": "Require owner cost confirmation and reviewed main SHA",
+        "number": 2
+      },
+      {
+        "conclusion": "success",
+        "name": "Checkout reviewed target without credentials",
+        "number": 3
+      },
+      {
+        "conclusion": "success",
+        "name": "Prepare verified packages and offline dependencies",
+        "number": 4
+      },
+      {
+        "conclusion": "failure",
+        "name": "Build temporary image and run isolated verification",
+        "number": 5
+      },
+      {
+        "conclusion": "failure",
+        "name": "Nonsecret summary",
+        "number": 6
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Checkout reviewed target without credentials",
+        "number": 12
+      },
+      {
+        "conclusion": "success",
+        "name": "Complete job",
+        "number": 13
+      }
+    ],
+    "url": "https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43733987794/job/132872425431"
+  },
+  "observations": [],
+  "out_of_scope_roots": [
+    {
+      "name": "api",
+      "reason": "NOT_TESTED in a formal run",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "developer-access",
+      "reason": "NOT_TESTED: security group gap expected",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "network",
+      "reason": "NOT_TESTED in this run",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "platform",
+      "reason": "NOT_TESTED: security group gap expected; EKS and AMI paths untested",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "serverless-api",
+      "reason": "NOT_TESTED: S3 Control gap expected",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "tfstate",
+      "reason": "EMULATOR_COMPATIBILITY_BLOCKED: S3 Control account-ID host prefix not served under strict TLS",
+      "status": "EMULATOR_COMPATIBILITY_BLOCKED"
+    }
+  ],
+  "residual_risk": [
+    "GitHub keeps this run log and job summary for its retention period only; this entry is the durable sanitized record"
+  ],
+  "result": {
+    "basis": "gate-rows",
+    "failure": {
+      "cause": "recorded by the harness gate rows",
+      "diagnostic": "AUTH_STRUCTURED_REJECTION_UNPROVEN",
+      "stage": "auth-invalid-signature",
+      "step": "Build temporary image and run isolated verification"
+    },
+    "overall": "BLOCKED"
+  },
+  "roots": [
+    {
+      "address_source": "resource blocks of scripts/emulator-verification/adapter/main.tf at the tested SHA",
+      "api_ids": {},
+      "evidence": {
+        "api_owned_create": null,
+        "api_owned_update": null,
+        "inventory_sha256": "fe26e2bfaf0782cf4a323fc148844335c86f928df50517491e67e27aa0f8406e",
+        "plan_gate": "NOT_TESTED",
+        "plan_resources": null
+      },
+      "kind": "disposable-adapter",
+      "name": "representative-vpc-proof",
+      "operations": {
+        "api_absence": "NOT_TESTED",
+        "api_create": "NOT_TESTED",
+        "api_update": "NOT_TESTED",
+        "baseline_preserved": "NOT_TESTED",
+        "create": "NOT_TESTED",
+        "destroy": "NOT_TESTED",
+        "destroy_plan": "NOT_TESTED",
+        "initial_state_empty": "NOT_TESTED",
+        "material_cleanup": "PASS",
+        "no_op": "NOT_TESTED",
+        "plan": "NOT_TESTED",
+        "read": "NOT_TESTED",
+        "state_empty": "NOT_TESTED",
+        "update": "NOT_TESTED"
+      },
+      "path": "scripts/emulator-verification/adapter",
+      "resource_addresses": [
+        "aws_vpc.proof"
+      ],
+      "resource_cleanup": "NOT_TESTED",
+      "resources": 1,
+      "result": "BLOCKED"
+    }
+  ],
+  "run": {
+    "actor_is_repository_owner": true,
+    "attempt": 1,
+    "conclusion": "failure",
+    "created_at": "2026-11-15T16:10:39Z",
+    "event": "workflow_dispatch",
+    "head_branch": "main",
+    "head_sha": "16a94b5f18c02b63d9aec54c5a87f00ac05ec7f9",
+    "id": 43733987794,
+    "number": 8,
+    "status": "completed",
+    "triggering_actor_is_repository_owner": true,
+    "updated_at": "2026-11-15T16:11:41Z",
+    "url": "https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43733987794"
+  },
+  "schema": "emulator-run-ledger/1",
+  "source": {
+    "log": "full",
+    "log_lines": 738,
+    "structured_rows": 70,
+    "summary_record": false
+  },
+  "tested": {
+    "harness": "scripts/emulator-verification/lifecycle.py",
+    "harness_sha256": "fe3588082dee12c8ef5f2401475f74df5db5421e8f52d6c71f0766fc8551e621",
+    "harness_verified_against_git": true,
+    "required_operations": [
+      "initial_state_empty",
+      "plan",
+      "create",
+      "read",
+      "api_create",
+      "update",
+      "api_update",
+      "no_op",
+      "destroy_plan",
+      "destroy",
+      "api_absence",
+      "state_empty",
+      "baseline_preserved",
+      "material_cleanup"
+    ],
+    "scenario": "disposable single-VPC adapter lifecycle",
+    "scenario_id": "aws_vpc.proof",
+    "sha": "16a94b5f18c02b63d9aec54c5a87f00ac05ec7f9",
+    "versions": {
+      "awscli": "2.35.0",
+      "emulator": "1.0.385",
+      "provider": "6.72.0",
+      "terraform": "1.17.0"
+    }
+  },
+  "untested": [
+    "Real AWS behavior, IAM enforcement, networking, DNS, cost, quotas and availability: never tested by an emulator",
+    "Every DEV root and module: the representative scenario covers only the disposable aws_vpc.proof adapter"
+  ],
+  "workflow": {
+    "file": ".github/workflows/aws-emulator-verification.yml",
+    "kind": "representative"
+  }
+}
