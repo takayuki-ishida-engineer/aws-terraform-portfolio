@@ -8,9 +8,10 @@ The badge shows only the latest automatic run. Automatic runs cover only the
 reviewed scenarios of an Owner merge-approved pull request (Master Policy v14.4
 §13.2); `all` is not every DEV root. GitHub keeps run logs and job summaries for
 at most 90 days. The badge, run URLs and job summaries are therefore not permanent
-evidence. The durable record is the [Step 2 record](docs/step2-emulator-rehearsals.md),
-and from the next pull request it is the sanitized evidence ledger
-`docs/evidence/emulator-runs/`, with one entry per run and attempt.
+evidence. The durable record is the sanitized
+[evidence ledger](docs/evidence/emulator-runs/index.md), with one entry per formal run and
+attempt, reconciled against the Actions run list, together with the
+[Step 2 record](docs/step2-emulator-rehearsals.md).
 
 | Item | Value |
 | --- | --- |

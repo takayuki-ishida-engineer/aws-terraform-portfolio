@@ -1,0 +1,217 @@
+{
+  "cleanup": {
+    "host": "PASS",
+    "material": "PASS",
+    "process": "PASS",
+    "resources": "PASS"
+  },
+  "controls": {
+    "1": "PASS",
+    "10": "PASS",
+    "11": "PASS",
+    "12": "PASS",
+    "13": "PASS",
+    "14": "PASS",
+    "2": "PASS",
+    "3": "PASS",
+    "4": "PASS",
+    "5": "PASS",
+    "6": "PASS",
+    "7": "PASS",
+    "8": "PASS",
+    "9": "PASS"
+  },
+  "evidence_gaps": [],
+  "harvest": {
+    "harvested_at": "2026-11-20T06:14:06Z",
+    "registration": "initial-backfill",
+    "tool": "scripts/emulator-evidence/harvest.py"
+  },
+  "job": {
+    "completed_at": "2026-11-18T09:54:01Z",
+    "conclusion": "success",
+    "id": 134716991994,
+    "name": "rehearsal",
+    "runner_label": "ubuntu-24.04",
+    "started_at": "2026-11-18T09:50:58Z",
+    "steps": [
+      {
+        "conclusion": "success",
+        "name": "Set up job",
+        "number": 1
+      },
+      {
+        "conclusion": "success",
+        "name": "Require owner cost confirmation and reviewed main SHA",
+        "number": 2
+      },
+      {
+        "conclusion": "success",
+        "name": "Checkout reviewed target without credentials",
+        "number": 3
+      },
+      {
+        "conclusion": "success",
+        "name": "Prepare verified packages, provider mirror and image context",
+        "number": 4
+      },
+      {
+        "conclusion": "success",
+        "name": "Build temporary image and run the isolated rehearsal",
+        "number": 5
+      },
+      {
+        "conclusion": "success",
+        "name": "Nonsecret summary",
+        "number": 6
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Checkout reviewed target without credentials",
+        "number": 12
+      },
+      {
+        "conclusion": "success",
+        "name": "Complete job",
+        "number": 13
+      }
+    ],
+    "url": "https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946/job/134716991994"
+  },
+  "observations": [
+    "Security group probe (direct API, not Terraform): provider-form default egress revoke with ports 0 returned InvalidPermission.NotFound; revoke without ports accepted",
+    "Interface endpoint probe (direct API, not Terraform): create accepted, state available, delete verified",
+    "Real AWS endpoint probes: ec2 ENETUNREACH, sts ENETUNREACH",
+    "Authentication probe auth-reject-secret: SignatureDoesNotMatch",
+    "Authentication probe auth-reject-access: InvalidClientTokenId",
+    "Refresh: reviewed computed-field convergence on module.network.aws_eip.nat[\"ca-central-1a\"], module.network.aws_route_table.private_by_az[\"ca-central-1a\"]; second refresh unchanged"
+  ],
+  "out_of_scope_roots": [
+    {
+      "name": "api",
+      "reason": "NOT_TESTED in a formal run",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "developer-access",
+      "reason": "NOT_TESTED: security group gap expected",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "platform",
+      "reason": "NOT_TESTED: security group gap expected; EKS and AMI paths untested",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "serverless-api",
+      "reason": "NOT_TESTED: S3 Control gap expected",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "tfstate",
+      "reason": "EMULATOR_COMPATIBILITY_BLOCKED: S3 Control account-ID host prefix not served under strict TLS",
+      "status": "EMULATOR_COMPATIBILITY_BLOCKED"
+    }
+  ],
+  "residual_risk": [
+    "The refresh allowlist is a reviewed judgment that the observed computed-field convergence is normal; it is covered by offline mutation tests",
+    "GitHub keeps this run log and job summary for its retention period only; this entry is the durable sanitized record"
+  ],
+  "result": {
+    "basis": "summary-record",
+    "failure": null,
+    "overall": "PASS"
+  },
+  "roots": [
+    {
+      "address_source": "reviewed inventory EXPECTED and expected_for() in scripts/emulator-rehearsal/rehearse.py at the tested SHA, whose SHA-256 equals the run harness_sha256; the plan gate requires exactly this inventory",
+      "api_ids": {
+        "vpc_id": "vpc-0000000000000009c"
+      },
+      "kind": "dev-root",
+      "name": "network",
+      "operations": {
+        "api_absence": "PASS",
+        "api_create": "PASS",
+        "api_update": "PASS",
+        "baseline_preserved": "PASS",
+        "create": "PASS",
+        "destroy": "PASS",
+        "destroy_plan": "PASS",
+        "no_op": "PASS",
+        "plan": "PASS",
+        "read": "PASS",
+        "state_empty": "PASS",
+        "update": "PASS",
+        "update_plan": "PASS"
+      },
+      "path": "infra/services/dev/ca-central-1/network",
+      "resource_addresses": [
+        "module.network.aws_eip.nat[\"ca-central-1a\"]",
+        "module.network.aws_internet_gateway.this[0]",
+        "module.network.aws_nat_gateway.this[\"ca-central-1a\"]",
+        "module.network.aws_route.private_nat[\"ca-central-1a\"]",
+        "module.network.aws_route_table.private_by_az[\"ca-central-1a\"]",
+        "module.network.aws_route_table.private_by_az[\"ca-central-1b\"]",
+        "module.network.aws_route_table.public[0]",
+        "module.network.aws_route_table_association.private[\"private1\"]",
+        "module.network.aws_route_table_association.private[\"private2\"]",
+        "module.network.aws_route_table_association.public[\"public1\"]",
+        "module.network.aws_route_table_association.public[\"public2\"]",
+        "module.network.aws_subnet.private[\"private1\"]",
+        "module.network.aws_subnet.private[\"private2\"]",
+        "module.network.aws_subnet.public[\"public1\"]",
+        "module.network.aws_subnet.public[\"public2\"]",
+        "module.network.aws_vpc.this"
+      ],
+      "resource_cleanup": "PASS",
+      "resources": 16,
+      "result": "PASS"
+    }
+  ],
+  "run": {
+    "actor_is_repository_owner": true,
+    "attempt": 1,
+    "conclusion": "success",
+    "created_at": "2026-11-18T09:50:54Z",
+    "event": "workflow_dispatch",
+    "head_branch": "main",
+    "head_sha": "0a16e486dd37c40358a122aef47a215a8c6a4ab7",
+    "id": 44279751946,
+    "number": 2,
+    "status": "completed",
+    "triggering_actor_is_repository_owner": true,
+    "updated_at": "2026-11-18T09:54:02Z",
+    "url": "https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946"
+  },
+  "schema": "emulator-run-ledger/1",
+  "source": {
+    "log": "full",
+    "log_lines": 728,
+    "structured_rows": 55,
+    "summary_record": true
+  },
+  "tested": {
+    "harness": "scripts/emulator-rehearsal/rehearse.py",
+    "harness_sha256": "58a1a15405c945ce23d7e8f04d70df0f38f772bb6e9a32e97c9df34592e4109c",
+    "harness_verified_against_git": true,
+    "scenario": "network root (real vpc module), committed values without interface_endpoints",
+    "scenario_id": "no-interface-endpoints",
+    "sha": "0a16e486dd37c40358a122aef47a215a8c6a4ab7",
+    "versions": {
+      "awscli": "2.35.0",
+      "emulator": "1.0.385",
+      "provider": "6.72.0",
+      "terraform": "1.17.0"
+    }
+  },
+  "untested": [
+    "Real AWS behavior, IAM enforcement, networking, DNS, cost, quotas and availability: never tested by an emulator",
+    "network: the endpoint security group, its rule and the 8 interface endpoints through Terraform (emulator default egress revoke gap)",
+    "Packet forwarding, NAT, routing, DNS resolution and endpoint reachability: the emulator models API state only"
+  ],
+  "workflow": {
+    "file": ".github/workflows/aws-emulator-rehearsal.yml",
+    "kind": "step2-rehearsal"
+  }
+}

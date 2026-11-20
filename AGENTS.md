@@ -261,9 +261,10 @@ stops early.
 - **Local runs.** Container diagnostics are recorded separately as LOCAL
   PRELIMINARY and never treated as formal runs.
 
-The ledger and `harvest.py` arrive in a dedicated pull request after this policy
-alignment. Until then, formal runs are listed in
-[Step 2 emulator rehearsals](docs/step2-emulator-rehearsals.md).
+The ledger is [`docs/evidence/emulator-runs/`](docs/evidence/emulator-runs/index.md),
+maintained with [`scripts/emulator-evidence/harvest.py`](scripts/emulator-evidence/README.md).
+Its tests and `harvest.py check` run in the `AWS Emulator offline contracts`
+workflow. Neither path triggers the rehearsal workflow.
 
 Classify results precisely:
 

@@ -1,0 +1,118 @@
+{
+  "cleanup": {
+    "host": "NOT_TESTED",
+    "material": "NOT_TESTED",
+    "process": "NOT_TESTED",
+    "resources": "NOT_TESTED"
+  },
+  "controls": {
+    "1": "NOT_TESTED",
+    "10": "NOT_TESTED",
+    "11": "NOT_TESTED",
+    "12": "NOT_TESTED",
+    "13": "NOT_TESTED",
+    "14": "NOT_TESTED",
+    "2": "NOT_TESTED",
+    "3": "NOT_TESTED",
+    "4": "NOT_TESTED",
+    "5": "NOT_TESTED",
+    "6": "NOT_TESTED",
+    "7": "NOT_TESTED",
+    "8": "NOT_TESTED",
+    "9": "NOT_TESTED"
+  },
+  "evidence_gaps": [
+    "No job and no log exist: the reason GitHub created no job is not recorded"
+  ],
+  "harvest": {
+    "harvested_at": "2026-11-20T06:14:06Z",
+    "registration": "initial-backfill",
+    "tool": "scripts/emulator-evidence/harvest.py"
+  },
+  "job": null,
+  "observations": [],
+  "out_of_scope_roots": [
+    {
+      "name": "api",
+      "reason": "NOT_TESTED in a formal run",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "developer-access",
+      "reason": "NOT_TESTED: security group gap expected",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "network",
+      "reason": "NOT_TESTED in this run",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "platform",
+      "reason": "NOT_TESTED: security group gap expected; EKS and AMI paths untested",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "serverless-api",
+      "reason": "NOT_TESTED: S3 Control gap expected",
+      "status": "NOT_TESTED"
+    },
+    {
+      "name": "tfstate",
+      "reason": "EMULATOR_COMPATIBILITY_BLOCKED: S3 Control account-ID host prefix not served under strict TLS",
+      "status": "EMULATOR_COMPATIBILITY_BLOCKED"
+    }
+  ],
+  "residual_risk": [
+    "GitHub keeps this run log and job summary for its retention period only; this entry is the durable sanitized record"
+  ],
+  "result": {
+    "basis": "run-metadata",
+    "failure": {
+      "cause": "GitHub created no job for this run; nothing executed",
+      "diagnostic": "NO_JOB_CREATED",
+      "stage": "workflow",
+      "step": null
+    },
+    "overall": "BLOCKED"
+  },
+  "roots": [],
+  "run": {
+    "actor_is_repository_owner": true,
+    "attempt": 1,
+    "conclusion": "failure",
+    "created_at": "2026-11-15T07:08:48Z",
+    "event": "push",
+    "head_branch": "feat/emulator-verification-workflow",
+    "head_sha": "78a3ee6d1a2749b4f32c0ec0f538d1ad8bd41d03",
+    "id": 43688616793,
+    "number": 1,
+    "status": "completed",
+    "triggering_actor_is_repository_owner": true,
+    "updated_at": "2026-11-15T07:08:48Z",
+    "url": "https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43688616793"
+  },
+  "schema": "emulator-run-ledger/1",
+  "source": {
+    "log": "unavailable",
+    "log_lines": 0,
+    "structured_rows": 0,
+    "summary_record": false
+  },
+  "tested": {
+    "harness": "scripts/emulator-verification/lifecycle.py",
+    "harness_sha256": null,
+    "harness_verified_against_git": false,
+    "scenario": null,
+    "scenario_id": null,
+    "sha": "78a3ee6d1a2749b4f32c0ec0f538d1ad8bd41d03",
+    "versions": null
+  },
+  "untested": [
+    "Real AWS behavior, IAM enforcement, networking, DNS, cost, quotas and availability: never tested by an emulator"
+  ],
+  "workflow": {
+    "file": ".github/workflows/aws-emulator-verification.yml",
+    "kind": "representative"
+  }
+}

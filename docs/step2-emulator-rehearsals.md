@@ -22,13 +22,15 @@ COMPLETE and PORTFOLIO COMPLETE remain undeclared.
 | --- | --- |
 | [`aws-emulator-rehearsal.yml`](../.github/workflows/aws-emulator-rehearsal.yml) | The exact steps every formal run executes: the run gate (main, the Owner, a public repository), verified downloads, an isolated `--network none` container, strict host cleanup and the job summary |
 | [Workflow runs](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml) and the README badge | Every formal run's log, with every gate row, and its job summary. GitHub deletes logs, job summaries and run records after its retention period: at most 90 days on a public repository, with the actual setting confirmed by the Owner. The badge shows only the latest automatic run. Neither the badge, a run URL nor a job summary is permanent evidence |
-| `docs/evidence/emulator-runs/` (v14.4 §13.4, not yet implemented) | The evidence ledger. Every formal run gets a sanitized entry per Run ID and Attempt, whether it passed, failed or stopped early. Each entry records the SHA, versions, roots and resource addresses, the 14 controls, per-operation results, independent API checks, cleanup, failure cause, untested scope and residual risk. The ledger is a third-party-traceable audit record, not a copy of the full logs. It arrives with `harvest.py` and reconciliation in a dedicated pull request; entries for the runs below are backfilled there |
+| [Evidence ledger](evidence/emulator-runs/index.md) (v14.4 §13.4) | Every formal run of this workflow and of the representative workflow has a sanitized entry per Run ID and Attempt, whether it passed, failed or stopped early. Each entry records the SHA, versions, roots and resource addresses, the 14 controls, per-operation results, independent API checks, cleanup, failure cause, untested scope and residual risk. The index shows the reconciliation against the Actions run list. The ledger is a third-party-traceable audit record, not a copy of the full logs. It is maintained with [`harvest.py`](../scripts/emulator-evidence/README.md) through reviewed pull requests |
 | This page | The human-readable narrative: the formal run list, per-root status, emulator gaps, untested items and residual risk. Local container runs are recorded here as LOCAL PRELIMINARY, separately from formal runs |
 
-Until the ledger exists, this page lists every formal run. A formal run never
-counts as success unless its record shows it. A run that is late or missing from
-the record, or whose evidence cannot be retrieved, is recorded as EVIDENCE_GAP or
-INSUFFICIENT_EVIDENCE, never inferred.
+The ledger is authoritative for which runs exist and what each one recorded. A
+formal run never counts as success unless its entry shows it. A run that is late or
+missing from the ledger, or whose evidence cannot be retrieved, is recorded as
+EVIDENCE_GAP or INSUFFICIENT_EVIDENCE, never inferred. All 15 formal runs up to
+2026-11-20 (3 rehearsal, 12 representative) were backfilled and reconciled on
+2026-11-20.
 
 ## Formal runs (GitHub Actions)
 
@@ -44,9 +46,12 @@ started by the Owner (actor and triggering actor).
 
 The representative workflow's accepted run
 [43791639228](portfolio-verification-policy.md#representative-emulator-run-43791639228)
-(disposable `aws_vpc.proof` only) is recorded in the verification policy. The
-ledger pull request checks it against the Actions history and registers it, or
-records why it cannot.
+(disposable `aws_vpc.proof` only) is recorded in the verification policy. It
+matches the Actions history and is registered as PASS in the
+[ledger](evidence/emulator-runs/43791639228-attempt-1.json). The ledger also
+registers the representative workflow's 11 earlier runs (10 BLOCKED, 1 FAIL).
+Only the FAIL run (43786507720) created a resource. Its recovery destroyed it and
+verified its absence (resource cleanup PASS).
 
 ### Status per root (v14.4 §13.3 snapshot)
 
