@@ -3,7 +3,11 @@
 Step 2 of the [step plan](deployment-configuration.md#8-step-plan): rehearse the
 real DEV roots in the official AWS Emulator under all fourteen
 [mandatory controls](../AGENTS.md#mandatory-official-aws-emulator-safety-controls),
-then an end-to-end apply and destroy. Each run needs its own Owner authorization.
+then an end-to-end apply and destroy. Automatic runs on `main` stay within the
+limited standing authorization of Master Policy v14.4 §13.2: only the reviewed
+scenarios in `all` of an Owner merge-approved pull request. Every other run (manual
+dispatch, local or cloud run, unapproved scenario) needs the Owner's approval each
+time ([AGENTS.md](../AGENTS.md#emulator-verification-workflow-and-evidence)).
 The harness and its controls are described in
 [`scripts/emulator-rehearsal`](../scripts/emulator-rehearsal/README.md).
 
@@ -17,17 +21,48 @@ COMPLETE and PORTFOLIO COMPLETE remain undeclared.
 | Where | What it shows |
 | --- | --- |
 | [`aws-emulator-rehearsal.yml`](../.github/workflows/aws-emulator-rehearsal.yml) | The exact steps every formal run executes: the run gate (main, the Owner, a public repository), verified downloads, an isolated `--network none` container, strict host cleanup and the job summary |
-| [Workflow runs](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml) and the README badge | One run per `main` change to Terraform or the rehearsal code (automatic since the Owner decision of 2026-11-20), plus any manual dispatch. Each log has every gate row; each job summary has the result tables. GitHub deletes them after its retention period |
-| This page | The durable record, one entry per milestone: a root's first PASS, a new gap or failure, and its fix. Each entry names the CI run, the tested SHA, tool versions, the 14 controls, the lifecycle operations, cleanup, limitations and residual risk |
+| [Workflow runs](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml) and the README badge | Every formal run's log, with every gate row, and its job summary. GitHub deletes logs, job summaries and run records after its retention period: at most 90 days on a public repository, with the actual setting confirmed by the Owner. The badge shows only the latest automatic run. Neither the badge, a run URL nor a job summary is permanent evidence |
+| `docs/evidence/emulator-runs/` (v14.4 §13.4, not yet implemented) | The evidence ledger. Every formal run gets a sanitized entry per Run ID and Attempt, whether it passed, failed or stopped early. Each entry records the SHA, versions, roots and resource addresses, the 14 controls, per-operation results, independent API checks, cleanup, failure cause, untested scope and residual risk. The ledger is a third-party-traceable audit record, not a copy of the full logs. It arrives with `harvest.py` and reconciliation in a dedicated pull request; entries for the runs below are backfilled there |
+| This page | The human-readable narrative: the formal run list, per-root status, emulator gaps, untested items and residual risk. Local container runs are recorded here as LOCAL PRELIMINARY, separately from formal runs |
 
-Runs that only repeat an already recorded PASS are not recorded again; their logs
-and summaries remain in GitHub Actions until the retention period ends.
+Until the ledger exists, this page lists every formal run. A formal run never
+counts as success unless its record shows it. A run that is late or missing from
+the record, or whose evidence cannot be retrieved, is recorded as EVIDENCE_GAP or
+INSUFFICIENT_EVIDENCE, never inferred.
 
 ## Formal runs (GitHub Actions)
 
-| Run | Scenario | Tested SHA | Result |
-| --- | --- | --- | --- |
-| [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (attempt 1, 2026-11-18) | Network root without interface endpoints (16 resources) | `0a16e486dd37c40358a122aef47a215a8c6a4ab7` | **PASS**: all 14 controls, all 13 lifecycle operations and every cleanup receipt ([details](#formal-run-1-network-root-without-interface-endpoints)) |
+Reconciled on 2026-11-20 against the Actions run list of
+`aws-emulator-rehearsal.yml`: 3 runs, each on attempt 1, all on `main`, all
+started by the Owner (actor and triggering actor).
+
+| Run | Trigger | Head SHA | Scenario | Result |
+| --- | --- | --- | --- | --- |
+| [44279371023](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279371023) (attempt 1, 2026-11-18 09:48 UTC) | Manual dispatch | `0a16e486dd37c40358a122aef47a215a8c6a4ab7` | n/a | **BLOCKED**: stopped at the billing confirmation gate (`Require owner cost confirmation and reviewed main SHA`) before checkout. Every later step was skipped and no resource was created. GitHub shows the run as `failure`. No `summary-record` was produced, so no control or lifecycle result exists |
+| [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (attempt 1, 2026-11-18 09:50 UTC) | Manual dispatch with per-run billing attestation | `0a16e486dd37c40358a122aef47a215a8c6a4ab7` | Network root without interface endpoints (16 resources) | **PASS** (network only): all 14 controls, all 13 lifecycle operations and every cleanup receipt ([details](#formal-run-1-network-root-without-interface-endpoints)) |
+| [44664010985](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44664010985) (attempt 1, 2026-11-20 02:54 UTC) | Automatic, on the push of PR #74 to `main` | `70a5868272c19d0d0803e2eabd3fa92ce781d32b` | The same network root scenario (16 resources), with the harness on that commit | **PASS** (network only): the job concluded `success`. `summarize.py` exits non-zero unless every control, lifecycle operation and cleanup receipt is PASS. Its field-level entry is part of the ledger backfill |
+
+The representative workflow's accepted run
+[43791639228](portfolio-verification-policy.md#representative-emulator-run-43791639228)
+(disposable `aws_vpc.proof` only) is recorded in the verification policy. The
+ledger pull request checks it against the Actions history and registers it, or
+records why it cannot.
+
+### Status per root (v14.4 §13.3 snapshot)
+
+| Root | Status |
+| --- | --- |
+| network (without interface endpoints) | Formal PASS in runs 44279751946 and 44664010985 |
+| network with interface endpoints (`network-full`) | EMULATOR_COMPATIBILITY_BLOCKED: [default egress revoke gap](#emulator-fidelity-gap-default-egress-rule-revoke) |
+| api | Formal NOT_TESTED. Only a local preliminary report exists, in unmerged PR #75 |
+| tfstate | EMULATOR_COMPATIBILITY_BLOCKED: the provider reads bucket tags through S3 Control, whose account-ID host prefix the emulator certificate cannot serve under strict TLS. In the local preliminary trial (PR #75), Terraform resource cleanup was FAIL. Discarding emulator memory at shutdown is not a successful Terraform destroy |
+| serverless-api | NOT_TESTED. The same S3 Control gap is expected but has not been run |
+| platform, developer-access | NOT_TESTED in Actions. The security group gap is expected; EKS and AMI paths are untested |
+
+A known gap that keeps a root out of scope is not a formal FAIL measured in a
+run. Real AWS IAM, networking, EKS, cost, deletion and availability are not
+verified for any root. PR #75's `all` covers only `network` and `api`. It is not
+evidence for the other roots.
 
 ### Formal run 1: network root without interface endpoints
 
@@ -59,7 +94,7 @@ independent review and an Owner decision; the AGENTS.md status statements are
 unchanged. The security group paths, the 8 interface endpoints through Terraform,
 the `full` scenario and the other roots remain NOT_TESTED (see below).
 
-## Preliminary rehearsal 1: network root (2026-11-18, Claude Code container)
+## Preliminary rehearsal 1: network root (2026-11-18, Claude Code container) — LOCAL PRELIMINARY
 
 This preliminary local run shaped the harness and found the security group gap.
 It is not a CI run: no third party can inspect its log, and the formal record
