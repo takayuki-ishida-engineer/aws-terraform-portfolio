@@ -5,19 +5,21 @@ from pathlib import Path
 from unittest.mock import patch
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from common import ROOT,LOCK,parse,metadata,need,sha
-from render import render
-from validate import verify,application_network_policy,structural
+from common import ROOT,LOCK,parse,metadata,need,sha,image_lock
+from render import render,prune_injection_templates
+from validate import verify,application_network_policy,structural,verify_image_lock
 
 def capture(objects,evidence,d):
  need(evidence['status']=='rendered' and evidence['complete_v5'] is False and evidence['actual_helm_renders']==4,'fresh complete render evidence')
- need(type(evidence['runtime_contract_version']) is int and evidence['runtime_contract_version']==3,'F11 project-derived object names: contract3; legacy reports are not compatible')
+ need(type(evidence['runtime_contract_version']) is int and evidence['runtime_contract_version']==4,'F18 digest-pinned private images: contract4; legacy reports are not compatible')
+ need(evidence['image_lock_sha256']==sha((ROOT/'kubernetes/images.lock.json').read_bytes()),'image lock evidence')
  need(evidence['helm_sha256']==LOCK['helm']['binary_sha256'] and evidence['charts']=={k:v['sha256'] for k,v in LOCK['charts'].items()},'pinned artifacts')
  need(evidence['input_sha256']==sha(json.dumps(d,sort_keys=True,separators=(',',':')).encode()),'input evidence')
  need(evidence['manifest_sha256']==sha(json.dumps(objects,sort_keys=True,separators=(',',':')).encode()) and evidence['resource_count']==len(objects),'manifest evidence')
  need(evidence['stages']=={'namespaces':2,'base':16,'controller':13,'istiod':12,'gateway':5,'mesh_security':5,'admission':4,'binding_writer':3,'ingress':2},'complete ordered stage evidence')
  need(sum(evidence['stages'].values())==len(objects) and set(evidence['raw_chart_counts'])=={'controller','base','istiod','gateway'} and all(type(x) is int and x>0 for x in evidence['raw_chart_counts'].values()),'no partial/failed chart evidence')
  return verify(objects,d,True)
+UPSTREAM_INJECTOR={}
 def with_project(q,project):
  # Keep every project-bound input consistent so only the project itself varies.
  c=q['controller_identity'];r=q['runtime'];r['project']=project;c['cluster_name']=project+'-dev-eks';c['role_arn']=c['role_arn'].rsplit('/',1)[0]+'/'+project+'-dev-role-lbc'
@@ -40,7 +42,12 @@ def naming(q,project):
  return project_names
 def main():
  a=argparse.ArgumentParser(description=__doc__);a.add_argument('--helm',required=True);a.add_argument('--report',type=Path);args=a.parse_args()
- d=parse((ROOT/'kubernetes/tests/fixtures/runtime.json').read_text());objects,evidence=render(d,args.helm,True);count=capture(objects,evidence,d)
+ d=parse((ROOT/'kubernetes/tests/fixtures/runtime.json').read_text())
+ import render as render_module
+ original_prune=render_module.prune_injection_templates
+ def spy(text):UPSTREAM_INJECTOR['text']=text;return original_prune(text)
+ with patch('render.prune_injection_templates',side_effect=spy):objects,evidence=render(d,args.helm,True)
+ count=capture(objects,evidence,d)
  alt=with_project(copy.deepcopy(d),'demo');alt['controller_identity']['kubernetes_version']='1.35';alt['private_ingress']['backend_target_port']=9444;alt['runtime']['backend_hostname']='alternate.portfolio.invalid';alt['runtime']['expected_client_spki']=[base64.b64encode(bytes([1])*32).decode()]
  alt['private_ingress']['target_group_arn']=d['private_ingress']['target_group_arn'].replace('/test-ingress-gateway/','/alternate-gateway/')
  alt['controller_identity']['target_group_arn']=alt['private_ingress']['target_group_arn'];need(alt['private_ingress']['target_group_arn']!=d['private_ingress']['target_group_arn'],'distinct synthetic target groups for the two backend ports')
@@ -122,6 +129,32 @@ def main():
  change('legacy_name:PeerAuthentication','PeerAuthentication',None,['metadata','name'],'strict')
  change('other_project_name:binding_writer','Role','test-binding-writer',['metadata','name'],'demo-binding-writer')
  change('app_SA_token','ServiceAccount','test-application',['automountServiceAccountToken'],True)
+ # F18: every image must be the private ECR reference pinned by the locked digest.
+ LOCKFILE=json.loads((ROOT/'kubernetes/images.lock.json').read_text());DIG={i['purpose']:i['digest'] for i in LOCKFILE['images']}
+ HOST='000000000000.dkr.ecr.ca-central-1.amazonaws.com';REF={k:HOST+'/test-dev-ecr-'+k+'@'+v for k,v in DIG.items()}
+ AMD64={i['purpose']:i['platforms']['linux/amd64']['digest'] for i in LOCKFILE['images']}
+ image=['spec','template','spec','containers',0,'image']
+ for label,kind,name,value in [('public:lbc','Deployment','aws-load-balancer-controller','public.ecr.aws/eks/aws-load-balancer-controller:v3.6.2'),('public:pilot','Deployment','istiod-test-v1','docker.io/istio/pilot:1.32.0'),('tag_only:gateway','Deployment','test-gateway',HOST+'/test-dev-ecr-istio-proxy:1.32.0'),('tag_and_digest:lbc','Deployment','aws-load-balancer-controller',HOST+'/test-dev-ecr-lbc:v3.6.2@'+DIG['lbc']),('child_digest:gateway','Deployment','test-gateway',HOST+'/test-dev-ecr-istio-proxy@'+AMD64['istio-proxy']),('wrong_account:pilot','Deployment','istiod-test-v1',REF['istio-pilot'].replace('000000000000','111111111111')),('wrong_region:lbc','Deployment','aws-load-balancer-controller',REF['lbc'].replace('ca-central-1','us-east-1')),('other_project:pilot','Deployment','istiod-test-v1',REF['istio-pilot'].replace('/test-dev-ecr-','/demo-dev-ecr-')),('swapped:gateway','Deployment','test-gateway',REF['istio-pilot'])]:
+  change('image_'+label,kind,name,image,value)
+ cases.append(('image_unapproved_ephemeral_container',lambda q:find(q,'Deployment','test-gateway')['spec']['template']['spec'].update(ephemeralContainers=[{'name':'debug','image':HOST+'/test-dev-ecr-istio-proxy@'+AMD64['istio-proxy']}])))
+ cases.append(('image_unapproved_init_container',lambda q:find(q,'Deployment','test-gateway')['spec']['template']['spec'].update(initContainers=[{'name':'init','image':'busybox:1.28'}])))
+ cases.append(('image_public_in_annotation',lambda q:find(q,'Deployment','test-gateway')['spec']['template']['metadata'].setdefault('annotations',{}).update({'sidecar.istio.io/proxyImage':'docker.io/istio/proxyv2:1.32.0'})))
+ def injector(edit_values=None,edit_config=None):
+  def apply(q):
+   data=find(q,'ConfigMap','istio-sidecar-injector-test-v1')['data']
+   if edit_values:v=json.loads(data['values']);edit_values(v['global']);data['values']=json.dumps(v)
+   if edit_config:data['config']=edit_config(data['config'])
+  return apply
+ cases.extend([('injector_hub_public',injector(lambda g:g.update(hub='docker.io/istio'))),('injector_proxy_tag_only',injector(lambda g:g['proxy'].update(image=HOST+'/test-dev-ecr-istio-proxy:1.32.0'))),('injector_proxy_init_public',injector(lambda g:g['proxy_init'].update(image='docker.io/istio/proxyv2:1.32.0'))),
+  ('injector_grpc_agent_restored',injector(edit_config=lambda c:c+'  grpc-agent: |\n    spec:\n      initContainers:\n        - name: grpc-bootstrap-init\n          image: busybox:1.28\n')),
+  ('injector_unapproved_template',injector(edit_config=lambda c:c+'  custom: |\n    spec: {}\n')),
+  ('injector_default_template_changed',injector(edit_config=lambda c:c.replace('defaultTemplates: [sidecar]','defaultTemplates: [gateway]',1))),
+  ('injector_sidecar_template_changed',injector(edit_config=lambda c:c.replace('runAsNonRoot: true','runAsNonRoot: false',1)))])
+ def recorded(key,edit):
+  def apply(q):
+   data=find(q,'ConfigMap','values-test-v1')['data'];v=json.loads(data[key]);edit(v);data[key]=json.dumps(v)
+  return apply
+ cases.extend([('values_pilot_public',recorded('merged-values',lambda v:v.update(image='docker.io/istio/pilot:1.32.0'))),('values_hub_other_account',recorded('original-values',lambda v:v['global'].update(hub=HOST.replace('000000000000','111111111111'))))])
  cases.extend([('missing_object',lambda q:q.pop()),('duplicate_object',lambda q:q.append(copy.deepcopy(q[0]))),('forbidden_Secret',lambda q:q.append({'apiVersion':'v1','kind':'Secret','metadata':{'name':'forbidden'}}))])
  # Exercise NP semantics separately as well as through full-bundle validation:
  # an exact-inventory failure must not be the only additive-policy defense.
@@ -191,8 +224,43 @@ def main():
  accepted_ports=[1024,14999,15091,65535]
  for port in accepted_ports:
   q=copy.deepcopy(d);q['private_ingress']['backend_target_port']=port;metadata(q,True)
+ # F18 lock: the validator and the renderer each refuse a lock the raw manifests do not prove.
+ image_lock_faults=[];raw={i['manifest_file']:(ROOT/i['manifest_file']).read_bytes() for i in LOCKFILE['images']}
+ def digest_of(b):return 'sha256:'+sha(b)
+ def lock_case(label,edit):
+  lock=copy.deepcopy(LOCKFILE);files=dict(raw);edit(lock,files)
+  for which,fn in [('validator',verify_image_lock),('renderer',image_lock)]:
+   reject(lambda fn=fn:fn(lock,lambda path:files[path]),label+':'+which,image_lock_faults)
+ def entry(lock,purpose):return next(i for i in lock['images'] if i['purpose']==purpose)
+ def rewrite(lock,files,purpose,mutate):
+  # Re-pin a consistently rewritten manifest, so only the targeted rule can reject it.
+  item=entry(lock,purpose);m=json.loads(files[item['manifest_file']]);mutate(m,item);b=json.dumps(m).encode();files[item['manifest_file']]=b;item['digest']=digest_of(b)
+  item['platforms']={c['platform']['os']+'/'+c['platform']['architecture']:{'digest':c['digest'],'media_type':c['mediaType']} for c in m.get('manifests',[])}
+ def drop_amd64(m,item):m['manifests']=[c for c in m['manifests'] if c['platform']['architecture']!='amd64']
+ def single(m,item):m.clear();m.update(schemaVersion=2,mediaType='application/vnd.docker.distribution.manifest.v2+json',config={},layers=[]);item['media_type']=m['mediaType']
+ def schema1(m,item):m['mediaType']='application/vnd.docker.distribution.manifest.v1+prettyjws';item['media_type']=m['mediaType']
+ def child_schema1(m,item):m['manifests'][0]['mediaType']='application/vnd.docker.distribution.manifest.v1+prettyjws'
+ def duplicate(m,item):m['manifests'].append(copy.deepcopy(next(c for c in m['manifests'] if c['platform']['architecture']=='amd64')))
+ for label,edit in [('digest_mismatch',lambda l,f:entry(l,'istio-pilot').update(digest='sha256:'+'0'*64)),
+                    ('raw_manifest_tampered',lambda l,f:f.update({'kubernetes/image-manifests/lbc.index.json':f['kubernetes/image-manifests/lbc.index.json']+b' '})),
+                    ('amd64_missing',lambda l,f:rewrite(l,f,'istio-proxy',drop_amd64)),('single_platform_manifest',lambda l,f:rewrite(l,f,'lbc',single)),
+                    ('unsupported_index_type',lambda l,f:rewrite(l,f,'istio-pilot',schema1)),('unsupported_child_type',lambda l,f:rewrite(l,f,'istio-pilot',child_schema1)),
+                    ('duplicate_platform',lambda l,f:rewrite(l,f,'lbc',duplicate)),('upstream_tag_changed',lambda l,f:entry(l,'istio-pilot').update(tag='1.32.1')),
+                    ('upstream_source_changed',lambda l,f:entry(l,'istio-proxy').update(source='docker.io/other/proxyv2')),('amd64_child_digest_changed',lambda l,f:entry(l,'lbc')['platforms']['linux/amd64'].update(digest='sha256:'+'1'*64)),
+                    ('extra_image',lambda l,f:l['images'].append(dict(entry(l,'lbc'),purpose='busybox'))),('missing_image',lambda l,f:l['images'].remove(entry(l,'lbc'))),
+                    ('tag_reference_contract',lambda l,f:l['registry'].update(reference='tag')),('required_platform_changed',lambda l,f:l.update(required_platform='linux/arm64')),
+                    ('observation_missing',lambda l,f:entry(l,'istio-pilot').pop('observed')),('observation_endpoint_mismatch',lambda l,f:entry(l,'istio-pilot')['observed'].update(endpoint='public.ecr.aws')),
+                    ('manifest_path_changed',lambda l,f:(f.update({'kubernetes/image-manifests/extra/lbc.index.json':f['kubernetes/image-manifests/lbc.index.json']}),entry(l,'lbc').update(manifest_file='kubernetes/image-manifests/extra/lbc.index.json'))),
+                    ('duplicate_image',lambda l,f:l['images'].append(copy.deepcopy(entry(l,'lbc')))),('unknown_field',lambda l,f:entry(l,'istio-proxy').update(note='unreviewed'))]:
+  lock_case(label,edit)
+ # Injection templates: the renderer keeps only sidecar and gateway, byte-for-byte, or stops.
+ injector_text=next(o for o in objects if o['kind']=='ConfigMap' and o['metadata']['name']=='istio-sidecar-injector-test-v1')['data']['config']
+ template_faults=[];upstream=UPSTREAM_INJECTOR['text']
+ need(prune_injection_templates(upstream)==injector_text,'pruning is deterministic and is what the bundle holds')
+ for label,text in [('already_pruned',injector_text),('extra_upstream_template',upstream.rstrip('\n')+'\n  extra: |\n    spec: {}\n'),('reordered',upstream.replace('  sidecar: |','  sidecarx: |',1)),('trailing_top_level_key',upstream.rstrip('\n')+'\npolicy2: enabled\n'),('no_templates_key',upstream.replace('\ntemplates:\n','\ntemplatez:\n',1))]:
+  reject(lambda text=text:prune_injection_templates(text),'template:'+label,template_faults)
  faults=[]
- for key in ['status','complete_v5','actual_helm_renders','helm_sha256','charts','input_sha256','manifest_sha256','resource_count','stages','raw_chart_counts']:
+ for key in ['status','complete_v5','actual_helm_renders','helm_sha256','charts','input_sha256','manifest_sha256','resource_count','stages','raw_chart_counts','image_lock_sha256']:
   q=copy.deepcopy(evidence);q.pop(key);reject(lambda q=q:capture(objects,q,d),'missing:'+key,faults)
  for key,value in [('status','failed'),('actual_helm_renders',3),('helm_sha256','fabricated'),('manifest_sha256','fabricated'),('resource_count',0),('complete_v5',True)]:
   q=copy.deepcopy(evidence);q[key]=value;reject(lambda q=q:capture(objects,q,d),'fabricated:'+key,faults)
@@ -201,11 +269,11 @@ def main():
  for text in ['{broken','{"x":1,"x":2}','{"x":NaN}']:
   reject(lambda text=text:parse(text),'malformed:'+text,faults)
  q=copy.deepcopy(evidence);q.pop('runtime_contract_version');reject(lambda:capture(objects,q,d),'missing_runtime_contract_version',faults)
- for key,value in [('runtime_contract_version',1),('input_sha256','fabricated'),('charts',{})]:
-  q=copy.deepcopy(evidence);q[key]=value;reject(lambda q=q:capture(objects,q,d),'fabricated:'+key,faults)
+ for key,value in [('runtime_contract_version',1),('runtime_contract_version',3),('input_sha256','fabricated'),('charts',{}),('image_lock_sha256','0'*64)]:
+  q=copy.deepcopy(evidence);q[key]=value;reject(lambda q=q:capture(objects,q,d),'fabricated:'+key+':'+str(value)[:8],faults)
  bad=copy.deepcopy(objects);find(bad,'Service','test-gateway')['spec']['ports'][0]['port']=443
  q=copy.deepcopy(evidence);q['manifest_sha256']=sha(json.dumps(bad,sort_keys=True,separators=(',',':')).encode());reject(lambda:capture(bad,q,d),'forged_hash_matching_unsafe_manifest',faults)
- report={'status':'passed','runtime_contract_version':3,'complete_runtime':True,'complete_v5':False,'aws_api_calls':0,'kubernetes_api_calls':0,'actual_helm_renders':8,'positive_configurations':2,'resource_count':count,'inventory':evidence['stages'],'schema_checked_objects':count*2,'semantic_mutations':len(mutations),'detected_mutations':mutations,'network_policy_mutations':len(policy_mutations),'detected_network_policy_mutations':policy_mutations,'gateway_contract_mutations':len(gateway_mutations),'detected_gateway_contract_mutations':gateway_mutations,'accepted_input_boundaries':accepted_ports,'accepted_projects':accepted_projects,'project_named_objects':project_owned,'negative_cases':len(negatives),'rejected_inputs':negatives,'evidence_faults':len(faults),'rejected_evidence':faults,'chart_sha256':evidence['charts']}
+ report={'status':'passed','runtime_contract_version':4,'image_lock_sha256':evidence['image_lock_sha256'],'image_lock_faults':len(image_lock_faults),'rejected_image_locks':image_lock_faults,'injection_template_faults':len(template_faults),'rejected_injection_templates':template_faults,'complete_runtime':True,'complete_v5':False,'aws_api_calls':0,'kubernetes_api_calls':0,'actual_helm_renders':8,'positive_configurations':2,'resource_count':count,'inventory':evidence['stages'],'schema_checked_objects':count*2,'semantic_mutations':len(mutations),'detected_mutations':mutations,'network_policy_mutations':len(policy_mutations),'detected_network_policy_mutations':policy_mutations,'gateway_contract_mutations':len(gateway_mutations),'detected_gateway_contract_mutations':gateway_mutations,'accepted_input_boundaries':accepted_ports,'accepted_projects':accepted_projects,'project_named_objects':project_owned,'negative_cases':len(negatives),'rejected_inputs':negatives,'evidence_faults':len(faults),'rejected_evidence':faults,'chart_sha256':evidence['charts']}
  if args.report:args.report.write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(report,indent=2))
 if __name__=='__main__':main()

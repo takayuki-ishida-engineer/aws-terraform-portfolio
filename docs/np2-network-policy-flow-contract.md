@@ -9,7 +9,7 @@
 > application `default-deny` policies are `<project>-default-deny`. Upstream names
 > (`istio-system`, `kube-system`, `aws-load-balancer-controller`, `cacerts`) are
 > unchanged. Flows, selectors, ports and the policy semantics below are unchanged;
-> renderer evidence is runtime_contract_version 3. See the
+> renderer evidence is runtime_contract_version 4 (F18 pinned the images; F11 used 3). See the
 > [mapping](../kubernetes/README.md#step-1-item-6b-a-project-derived-names-and-dev-certificates).
 > DEV certificates are now generated and registered by `k8s_certs.py` (finding F4);
 > the PKI lifecycle obligations in section 4 still apply.

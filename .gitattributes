@@ -1,0 +1,2 @@
+# Upstream image manifests are kept byte-for-byte: their SHA-256 is the pinned digest.
+kubernetes/image-manifests/*.json -text

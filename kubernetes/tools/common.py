@@ -36,6 +36,38 @@ def fill(obj,project):
  if isinstance(obj,list):return [fill(v,project) for v in obj]
  if isinstance(obj,str):return obj.replace('${project}',project)
  return obj
+# Finding F18: runtime images come from the private ECR mirror, pinned by the upstream
+# index digest that kubernetes/images.lock.json records and the raw manifest proves.
+IMAGE_PURPOSES={'istio-pilot':('docker.io/istio/pilot','istiod'),'istio-proxy':('docker.io/istio/proxyv2','istiod'),'lbc':('public.ecr.aws/eks/aws-load-balancer-controller','controller')}
+INDEX_TYPES={'application/vnd.docker.distribution.manifest.list.v2+json','application/vnd.oci.image.index.v1+json'}
+CHILD_TYPES={'application/vnd.docker.distribution.manifest.v2+json','application/vnd.oci.image.manifest.v1+json'}
+DIGEST=re.compile(r'sha256:[0-9a-f]{64}')
+def image_lock(lock=None,read=None):
+ lock=parse((ROOT/'kubernetes/images.lock.json').read_text()) if lock is None else lock
+ read=read or (lambda path:(ROOT/path).read_bytes())
+ need(set(lock)=={'lock_version','description','registry','required_platform','images'} and lock['lock_version']==1 and lock['required_platform']=='linux/amd64','image lock envelope')
+ need(lock['registry']=={'region':'ca-central-1','host':'${account_id}.dkr.ecr.ca-central-1.amazonaws.com','repository':'${project}-dev-ecr-${purpose}','reference':'digest'},'private ECR registry contract')
+ images={}
+ for item in lock['images']:
+  need(isinstance(item,dict) and set(item)=={'purpose','source','tag','manifest_file','digest','media_type','kind','platforms','observed'} and item['purpose'] in IMAGE_PURPOSES and item['purpose'] not in images,'image lock entry')
+  source,chart=IMAGE_PURPOSES[item['purpose']];version=LOCK['charts'][chart]['app_version']
+  need(item['source']==source and item['tag']==version and item['manifest_file']=='kubernetes/image-manifests/'+item['purpose']+'.index.json','reviewed source and chart-pinned tag')
+  need(item['kind']=='index' and item['media_type'] in INDEX_TYPES and DIGEST.fullmatch(item['digest']),'multi-platform index pinned by digest; single-platform manifests are refused')
+  raw=read(item['manifest_file']);need(sha(raw)==item['digest'][7:],'raw manifest SHA-256 equals the pinned digest')
+  m=parse(raw.decode());need(set(m)=={'schemaVersion','mediaType','manifests'} and m['schemaVersion']==2 and m['mediaType']==item['media_type'],'index manifest structure')
+  platforms={}
+  for e in m['manifests']:
+   need(set(e)<={'mediaType','size','digest','platform','annotations'} and e['mediaType'] in CHILD_TYPES and DIGEST.fullmatch(e['digest']) and set(e['platform'])<={'os','architecture','variant'},'supported child manifest')
+   key=e['platform']['os']+'/'+e['platform']['architecture']+('/'+e['platform']['variant'] if e['platform'].get('variant') else '');need(key not in platforms,'one manifest per platform')
+   platforms[key]={'digest':e['digest'],'media_type':e['mediaType']}
+  need(platforms==item['platforms'] and lock['required_platform'] in platforms,'platform list and linux/amd64 child digest match the raw manifest')
+  need(set(item['observed'])=={'at','endpoint','method'} and re.fullmatch(r'20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z',item['observed']['at']) and item['observed']['endpoint']==('registry-1.docker.io' if source.startswith('docker.io/') else source.split('/')[0]),'recorded observation')
+  images[item['purpose']]=item
+ need(set(images)==set(IMAGE_PURPOSES),'every required image is locked, no other')
+ return images
+def image_refs(d,lock=None,read=None):
+ host=d['controller_identity']['scope']['account_id']+'.dkr.ecr.ca-central-1.amazonaws.com'
+ return host,{k:host+'/'+d['runtime']['project']+'-dev-ecr-'+k+'@'+v['digest'] for k,v in image_lock(lock,read).items()}
 def metadata(d,fixture=False):
  # Input interface 2 adds runtime.project (finding F11); interface 1 inputs are refused.
  need(set(d)=={'interface_version','fixture','controller_identity','private_ingress','runtime'} and d['interface_version']==2 and d['fixture'] is fixture,'manifest/fixture boundary')

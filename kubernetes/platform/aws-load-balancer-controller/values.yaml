@@ -2,13 +2,12 @@
 # and the project-derived ingressClass (<project>-disabled) and watchNamespace
 # (<project>-ingress); this file must not set either.
 # Chart/app pin: 3.6.2/v3.6.2; verified archive digest in dependencies.lock.json.
+# The image is the private ECR mirror pinned by digest (kubernetes/images.lock.json,
+# finding F18); the renderer sets it, so this file sets no image.
 replicaCount: 1
 serviceAccount:
   create: false
   name: aws-load-balancer-controller
-image:
-  repository: public.ecr.aws/eks/aws-load-balancer-controller
-  tag: v3.6.2
 region: ca-central-1
 createIngressClassResource: false
 ingressClassParams:

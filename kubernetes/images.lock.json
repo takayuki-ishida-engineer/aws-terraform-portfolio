@@ -1,0 +1,85 @@
+{
+  "lock_version": 1,
+  "description": "Runtime container images pinned by upstream index digest (finding F18, Step 1 item 6b-B2). The renderer references the private ECR mirror <account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>; the mirror itself (registry root, B1) and the copy script (B3) are not part of this change.",
+  "registry": {
+    "region": "ca-central-1",
+    "host": "${account_id}.dkr.ecr.ca-central-1.amazonaws.com",
+    "repository": "${project}-dev-ecr-${purpose}",
+    "reference": "digest"
+  },
+  "required_platform": "linux/amd64",
+  "images": [
+    {
+      "purpose": "istio-pilot",
+      "source": "docker.io/istio/pilot",
+      "tag": "1.32.0",
+      "manifest_file": "kubernetes/image-manifests/istio-pilot.index.json",
+      "digest": "sha256:5383df363d976589a51ab438831f82e9b5303dfc42128f2fb1f493b3f6acca78",
+      "media_type": "application/vnd.docker.distribution.manifest.list.v2+json",
+      "kind": "index",
+      "platforms": {
+        "linux/arm64": {
+          "digest": "sha256:1312d1d9b4b824067dc5c198e213a66926131a6079bfdc2f603c415a9754f8b4",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json"
+        },
+        "linux/amd64": {
+          "digest": "sha256:13f71f5eaaaa568449966f9c48d73004f5c5557c6d63cf62505beb7ff7cbd7ad",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json"
+        }
+      },
+      "observed": {
+        "at": "2026-11-20T22:01:35Z",
+        "endpoint": "registry-1.docker.io",
+        "method": "Claude Code cloud session: anonymous registry API index GET by tag and by digest (identical bytes; Docker-Content-Digest equals the body SHA-256); linux/amd64 child HEAD"
+      }
+    },
+    {
+      "purpose": "istio-proxy",
+      "source": "docker.io/istio/proxyv2",
+      "tag": "1.32.0",
+      "manifest_file": "kubernetes/image-manifests/istio-proxy.index.json",
+      "digest": "sha256:b8d47c6d8d6e4b3fee7ae1e6f44339ec13091c24dc07f113a35efb0141a688d0",
+      "media_type": "application/vnd.docker.distribution.manifest.list.v2+json",
+      "kind": "index",
+      "platforms": {
+        "linux/arm64": {
+          "digest": "sha256:3a8955db8992f2cbe2fc3474aff6de5ac83b1f8df0339287122adc5d0e21c612",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json"
+        },
+        "linux/amd64": {
+          "digest": "sha256:ad94413f622a84d3c7c4b398f0571df0450d36eab3f57c1793c7dbaa2d8a9f76",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json"
+        }
+      },
+      "observed": {
+        "at": "2026-11-20T22:01:35Z",
+        "endpoint": "registry-1.docker.io",
+        "method": "Claude Code cloud session: anonymous registry API index GET by tag and by digest (identical bytes; Docker-Content-Digest equals the body SHA-256); linux/amd64 child HEAD"
+      }
+    },
+    {
+      "purpose": "lbc",
+      "source": "public.ecr.aws/eks/aws-load-balancer-controller",
+      "tag": "v3.6.2",
+      "manifest_file": "kubernetes/image-manifests/lbc.index.json",
+      "digest": "sha256:fd51f0ec82f8d357837aa57fdfaa4fca7137b75f25a09b421d95c425c9dc2d94",
+      "media_type": "application/vnd.docker.distribution.manifest.list.v2+json",
+      "kind": "index",
+      "platforms": {
+        "linux/amd64": {
+          "digest": "sha256:a2caa8b59970a4a42519a384caaeee2e36b25063878c3621708e71e88297c9f2",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json"
+        },
+        "linux/arm64": {
+          "digest": "sha256:59987bb427afc01d9371b10311cd49327b795cac99f441ed860689af583cb9f6",
+          "media_type": "application/vnd.docker.distribution.manifest.v2+json"
+        }
+      },
+      "observed": {
+        "at": "2026-11-20T22:59:22Z",
+        "endpoint": "public.ecr.aws",
+        "method": "Operator workstation: anonymous skopeo inspect --raw by tag (index body; ECR Public refused the cloud session GET with 429 data limit). Claude Code cloud session: anonymous HEAD by tag returned the same digest at 22:03Z and 22:59Z; linux/amd64 child HEAD; body SHA-256 recomputed"
+      }
+    }
+  ]
+}

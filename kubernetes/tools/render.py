@@ -1,15 +1,30 @@
 #!/usr/bin/env python3
 """Credential-free pinned Helm rendering, reviewed overlays and ordered runtime bundle."""
-import argparse,base64,copy,json,sys
+import argparse,base64,copy,json,re,sys
 from pathlib import Path
-from common import ROOT,LOCK,docs,fill,helm,metadata,names,parse,need,sha
+from common import ROOT,LOCK,docs,fill,helm,image_refs,metadata,names,parse,need,sha
 SENTINELS={'caCert':'EXTERNAL_CA_REFERENCE_ONLY','cert':'EXTERNAL_CERT_REFERENCE_ONLY','key':'EXTERNAL_KEY_REFERENCE_ONLY'}
 READ_CLUSTER=[{'apiGroups':[''],'resources':['nodes','namespaces'],'verbs':['get','list','watch']},{'apiGroups':['networking.k8s.io'],'resources':['ingressclasses'],'verbs':['get','list','watch']},{'apiGroups':['elbv2.k8s.aws'],'resources':['ingressclassparams'],'verbs':['get','list','watch']}]
 def read_namespace(gateway):return [{'apiGroups':[''],'resources':['pods','services','endpoints'],'verbs':['get','list','watch']},{'apiGroups':[''],'resources':['events'],'verbs':['create','patch']},{'apiGroups':[''],'resources':['pods/status'],'verbs':['patch','update']},{'apiGroups':['discovery.k8s.io'],'resources':['endpointslices'],'verbs':['get','list','watch']},{'apiGroups':['networking.k8s.io'],'resources':['ingresses'],'verbs':['get','list','watch']},{'apiGroups':['elbv2.k8s.aws'],'resources':['targetgroupbindings'],'verbs':['get','list','watch']},{'apiGroups':['elbv2.k8s.aws'],'resources':['targetgroupbindings','targetgroupbindings/status'],'resourceNames':[gateway],'verbs':['patch','update']}]
+# Injection templates in the pinned istiod chart, in chart order. Only the default
+# sidecar and the gateway templates are kept (finding F18): the others reference
+# unpinned public images (grpc-agent: busybox) or unused Gateway API/ambient images.
+UPSTREAM_TEMPLATES=['sidecar','gateway','grpc-simple','grpc-agent','waypoint','kube-gateway','agentgateway','agentgateway-waypoint']
+KEPT_TEMPLATES=['sidecar','gateway']
+def prune_injection_templates(text):
+ # Cut the text before the first unused template, so every kept byte is the chart's own;
+ # the parsed result must equal the original minus the unused templates, nothing else.
+ lines=text.split('\n');start=lines.index('templates:')
+ keys=[(i,lines[i][2:-3]) for i in range(start+1,len(lines)) if re.fullmatch(r'  [a-z-]+: \|',lines[i])]
+ need([k for _,k in keys]==UPSTREAM_TEMPLATES,'reviewed upstream injection templates')
+ pruned='\n'.join(lines[:keys[len(KEPT_TEMPLATES)][0]])+'\n'
+ before=docs(text)[0];after=docs(pruned)[0]
+ need(after=={**before,'templates':{k:before['templates'][k] for k in KEPT_TEMPLATES}},'only the unused templates are removed')
+ return pruned
 def resource(kind,name,ns='',api='v1',**body):return dict(apiVersion=api,kind=kind,metadata=dict(name=name,**({'namespace':ns} if ns else {})),**body)
 def render(d,tool,fixture=False):
  metadata(d,fixture);c=d['controller_identity'];p=d['private_ingress'];r=d['runtime'];version=c['kubernetes_version'];stages={};raw_counts={}
- project=r['project'];N=names(project);REV=N['revision'];ING=N['ingress_namespace']
+ project=r['project'];N=names(project);REV=N['revision'];ING=N['ingress_namespace'];host,IMAGES=image_refs(d)
  namespaces=[]
  for name in ['istio-system',ING]:
   n=resource('Namespace',name);n['metadata']['labels']={'istio.io/dataplane-mode':'none','pod-security.kubernetes.io/enforce':'restricted','pod-security.kubernetes.io/enforce-version':'v'+version}
@@ -17,8 +32,9 @@ def render(d,tool,fixture=False):
   namespaces.append(n)
  stages['namespaces']=namespaces
  v=docs((ROOT/'kubernetes/platform/aws-load-balancer-controller/values.yaml').read_text())[0]
- need('ingressClass' not in v and 'watchNamespace' not in v,'project-derived controller scope is set by the renderer')
- v.update(clusterName=c['cluster_name'],vpcId=p['vpc_id'],fullnameOverride='aws-load-balancer-controller',nameOverride='aws-load-balancer-controller',resources=r['resources']['controller'],nodeSelector={'topology.kubernetes.io/zone':c['active_workload_az']},webhookTLS=SENTINELS,ingressClass=N['ingress_class'],watchNamespace=ING)
+ need('ingressClass' not in v and 'watchNamespace' not in v and 'image' not in v,'project-derived controller scope and pinned image are set by the renderer')
+ lbc_repository=IMAGES['lbc'].split('@')[0]
+ v.update(image={'repository':lbc_repository,'tag':LOCK['charts']['controller']['app_version']},clusterName=c['cluster_name'],vpcId=p['vpc_id'],fullnameOverride='aws-load-balancer-controller',nameOverride='aws-load-balancer-controller',resources=r['resources']['controller'],nodeSelector={'topology.kubernetes.io/zone':c['active_workload_az']},webhookTLS=SENTINELS,ingressClass=N['ingress_class'],watchNamespace=ING)
  raw=helm(tool,'controller',v,'kube-system',version);raw_counts['controller']=len(raw);controller=[]
  for obj in raw:
   obj=copy.deepcopy(obj);kind=obj['kind'];name=obj['metadata']['name']
@@ -28,6 +44,8 @@ def render(d,tool,fixture=False):
    continue
   need(kind not in ['Certificate','Issuer'],'no implicit cert-manager')
   if kind=='ClusterRole':obj['rules']=copy.deepcopy(READ_CLUSTER)
+  if kind=='Deployment':
+   container=obj['spec']['template']['spec']['containers'][0];need(container['image']==lbc_repository+':'+LOCK['charts']['controller']['app_version'],'chart image from the private repository');container['image']=IMAGES['lbc']
   if kind in ['MutatingWebhookConfiguration','ValidatingWebhookConfiguration']:
    obj['webhooks']=[w for w in obj['webhooks'] if any('targetgroupbindings' in rule['resources'] for rule in w['rules'])];need(obj['webhooks'],'TGB admission required')
    for w in obj['webhooks']:
@@ -36,18 +54,21 @@ def render(d,tool,fixture=False):
  sa=resource('ServiceAccount','aws-load-balancer-controller','kube-system',automountServiceAccountToken=True);sa['metadata']['annotations']={'eks.amazonaws.com/role-arn':c['role_arn']}
  controller.extend([sa,resource('Role',N['target_registration'],ING,api='rbac.authorization.k8s.io/v1',rules=read_namespace(N['gateway'])),resource('RoleBinding',N['target_registration'],ING,api='rbac.authorization.k8s.io/v1',subjects=[{'kind':'ServiceAccount','name':'aws-load-balancer-controller','namespace':'kube-system'}],roleRef={'apiGroup':'rbac.authorization.k8s.io','kind':'Role','name':N['target_registration']})])
  stages['controller']=controller
- global_values={'hub':'docker.io/istio','tag':'1.32.0','istioNamespace':'istio-system','enableReaderRBAC':False}
+ # Full references are used verbatim by the istiod chart and the injection templates;
+ # hub points at the private registry, so any unpinned fallback cannot reach a public one.
+ global_values={'hub':host,'tag':LOCK['charts']['istiod']['app_version'],'istioNamespace':'istio-system','enableReaderRBAC':False,'proxy':{'image':IMAGES['istio-proxy']},'proxy_init':{'image':IMAGES['istio-proxy']}}
  base=helm(tool,'base',{'global':global_values,'defaultRevision':REV},'istio-system',version);raw_counts['base']=len(base)
  for obj in base:
   if obj['kind']=='ValidatingWebhookConfiguration':
    for webhook in obj['webhooks']:webhook['failurePolicy']='Fail'
  stages['base']=base
- values={'global':global_values,'revision':REV,'autoscaleEnabled':False,'replicaCount':1,'resources':r['resources']['istiod'],'nodeSelector':{'topology.kubernetes.io/zone':c['active_workload_az']},'meshConfig':{'trustDomain':r['trust_domain'],'accessLogFile':'','defaultConfig':{'holdApplicationUntilProxyStarts':True}},'seccompProfile':{'type':'RuntimeDefault'},'env':{'PILOT_ENABLE_GATEWAY_API':'false','PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER':'false'}}
+ values={'global':global_values,'image':IMAGES['istio-pilot'],'revision':REV,'autoscaleEnabled':False,'replicaCount':1,'resources':r['resources']['istiod'],'nodeSelector':{'topology.kubernetes.io/zone':c['active_workload_az']},'meshConfig':{'trustDomain':r['trust_domain'],'accessLogFile':'','defaultConfig':{'holdApplicationUntilProxyStarts':True}},'seccompProfile':{'type':'RuntimeDefault'},'env':{'PILOT_ENABLE_GATEWAY_API':'false','PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER':'false'}}
  istiod=helm(tool,'istiod',values,'istio-system',version);raw_counts['istiod']=len(istiod)
  istiod=[o for o in istiod if '-gateway-controller-' not in o['metadata']['name']]
  for obj in istiod:
   if obj['kind'] in ['MutatingWebhookConfiguration','ValidatingWebhookConfiguration']:
    for webhook in obj['webhooks']:webhook['failurePolicy']='Fail'
+  if obj['kind']=='ConfigMap' and obj['metadata']['name']=='istio-sidecar-injector-'+REV:obj['data']['config']=prune_injection_templates(obj['data']['config'])
   if obj['kind']=='Deployment':
    pod=obj['spec']['template']['spec'];vol=next(v for v in pod['volumes'] if v['name']=='cacerts');vol['secret']={'secretName':r['istio_ca_secret'],'optional':False,'items':[{'key':k,'path':k} for k in ['ca-cert.pem','ca-key.pem','root-cert.pem','cert-chain.pem']]}
    container=pod['containers'][0];container['livenessProbe']={'tcpSocket':{'port':15014},'initialDelaySeconds':30,'periodSeconds':10,'failureThreshold':6}
@@ -56,7 +77,7 @@ def render(d,tool,fixture=False):
  gateway=helm(tool,'gateway',gv,ING,version);raw_counts['gateway']=len(gateway)
  for obj in gateway:
   if obj['kind']=='Deployment':
-   pod=obj['spec']['template']['spec'];container=pod['containers'][0];need(container['image']=='auto','reviewed gateway injection model');container['image']='docker.io/istio/proxyv2:1.32.0';container['ports'].extend([{'name':'https-backend','containerPort':p['backend_target_port'],'protocol':'TCP'},{'name':'status','containerPort':15021,'protocol':'TCP'}]);container['livenessProbe']={'tcpSocket':{'port':15021},'initialDelaySeconds':30,'periodSeconds':10,'failureThreshold':6}
+   pod=obj['spec']['template']['spec'];container=pod['containers'][0];need(container['image']=='auto','reviewed gateway injection model');container['image']=IMAGES['istio-proxy'];container['ports'].extend([{'name':'https-backend','containerPort':p['backend_target_port'],'protocol':'TCP'},{'name':'status','containerPort':15021,'protocol':'TCP'}]);container['livenessProbe']={'tcpSocket':{'port':15021},'initialDelaySeconds':30,'periodSeconds':10,'failureThreshold':6}
  gateway.insert(0,resource('ServiceAccount',N['gateway'],ING,automountServiceAccountToken=False));stages['gateway']=gateway
  # Workload security source is preserved; bind its namespace PSS policy to requested Kube minor.
  security=fill(docs((ROOT/'kubernetes/platform/istio/application-security.yaml').read_text()),project)
@@ -100,7 +121,7 @@ def render(d,tool,fixture=False):
   if isinstance(x,list):return [omit_null(v) for v in x]
   return x
  result=omit_null(result)
- return result,{'status':'rendered','runtime_contract_version':3,'complete_v5':False,'actual_helm_renders':4,'helm_sha256':LOCK['helm']['binary_sha256'],'charts':{k:v['sha256'] for k,v in LOCK['charts'].items()},'input_sha256':sha(json.dumps(d,sort_keys=True,separators=(',',':')).encode()),'raw_chart_counts':raw_counts,'stages':{s:len(stages[s]) for s in order},'manifest_sha256':sha(json.dumps(result,sort_keys=True,separators=(',',':')).encode()),'resource_count':len(result)}
+ return result,{'status':'rendered','runtime_contract_version':4,'image_lock_sha256':sha((ROOT/'kubernetes/images.lock.json').read_bytes()),'complete_v5':False,'actual_helm_renders':4,'helm_sha256':LOCK['helm']['binary_sha256'],'charts':{k:v['sha256'] for k,v in LOCK['charts'].items()},'input_sha256':sha(json.dumps(d,sort_keys=True,separators=(',',':')).encode()),'raw_chart_counts':raw_counts,'stages':{s:len(stages[s]) for s in order},'manifest_sha256':sha(json.dumps(result,sort_keys=True,separators=(',',':')).encode()),'resource_count':len(result)}
 def main():
  a=argparse.ArgumentParser(description=__doc__);a.add_argument('--input',type=Path,required=True);a.add_argument('--helm',required=True);a.add_argument('--fixture',action='store_true');a.add_argument('--output',type=Path,required=True);args=a.parse_args()
  d=parse(args.input.read_text());result,evidence=render(d,args.helm,args.fixture)
