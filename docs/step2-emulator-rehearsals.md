@@ -22,21 +22,41 @@ COMPLETE and PORTFOLIO COMPLETE remain undeclared.
 | --- | --- |
 | [`aws-emulator-rehearsal.yml`](../.github/workflows/aws-emulator-rehearsal.yml) | The exact steps every formal run executes: the run gate (main, the Owner, a public repository), verified downloads, an isolated `--network none` container, strict host cleanup and the job summary |
 | [Workflow runs](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml) and the README badge | Every formal run's log, with every gate row, and its job summary. GitHub deletes logs, job summaries and run records after its retention period: at most 90 days on a public repository, with the actual setting confirmed by the Owner. The badge shows only the latest automatic run. Neither the badge, a run URL nor a job summary is permanent evidence |
-| [Evidence ledger](evidence/emulator-runs/index.md) (v14.4 §13.4) | Every formal run of this workflow and of the representative workflow has a sanitized entry per Run ID and Attempt, whether it passed, failed or stopped early. Each entry records the SHA, versions, roots and resource addresses, the 14 controls, per-operation results, independent API checks, cleanup, failure cause, untested scope and residual risk. The index shows the reconciliation against the Actions run list. The ledger is a third-party-traceable audit record, not a copy of the full logs. It is maintained with [`harvest.py`](../scripts/emulator-evidence/README.md) through reviewed pull requests |
+| [Evidence ledger](evidence/emulator-runs/index.md) (v14.4 §13.4) | Every formal run of this workflow and of the representative workflow has a sanitized entry per Run ID and Attempt, whether it passed, failed or stopped early. Each entry records the SHA, versions, roots and resource addresses, the 14 controls, per-operation results, independent API checks, cleanup, failure cause, untested scope and residual risk. The index compares the ledger with `actions-runs.json`, a static snapshot of the Actions run list committed with the entries. That comparison is only as current as the snapshot and is not a live GitHub API query. The ledger is a third-party-traceable audit record, not a copy of the full logs. It is maintained with [`harvest.py`](../scripts/emulator-evidence/README.md) through reviewed pull requests |
 | This page | The human-readable narrative: the formal run list, per-root status, emulator gaps, untested items and residual risk. Local container runs are recorded here as LOCAL PRELIMINARY, separately from formal runs |
 
 The ledger is authoritative for which runs exist and what each one recorded. A
 formal run never counts as success unless its entry shows it. A run that is late or
 missing from the ledger, or whose evidence cannot be retrieved, is recorded as
-EVIDENCE_GAP or INSUFFICIENT_EVIDENCE, never inferred. All 15 formal runs up to
-2026-11-20 (3 rehearsal, 12 representative) were backfilled and reconciled on
-2026-11-20.
+EVIDENCE_GAP or INSUFFICIENT_EVIDENCE, never inferred. All 15 formal runs in the
+run list snapshot retrieved at 2026-11-20T06:14:06Z (3 rehearsal, 12
+representative) were backfilled, and the ledger matches that snapshot. Runs
+started after that time are not covered until a later pull request registers them
+with an updated snapshot.
+
+**Required before PR #75 merges.** PR #75's harness emits a different
+`summary-record` from the harness this ledger understands:
+- one record covers several roots, under `roots`, with per-root operations
+  (including `teardown_plan` and `teardown` for `api`), per-root resource cleanup
+  and `known_gaps`;
+- there are no top-level `operations` or `resource_cleanup` fields.
+
+The current `harvest.py` rejects that record (`summary-record-keys`), and the new
+harness version is not pinned in `KNOWN_HARNESSES`. Without further work, the
+automatic run that merging PR #75 starts could not be registered, and §13.4 gives
+7 days to register it. Before PR #75 merges, a reviewed change must:
+- extend `harvest.py` to the multi-root format, with per-root inventories for
+  `network` and `api`, the teardown operations and per-root API evidence;
+- pin the new harness version;
+- add tests built from that format.
+
+Until then the tool fails closed: it records nothing rather than a PASS.
 
 ## Formal runs (GitHub Actions)
 
-Reconciled on 2026-11-20 against the Actions run list of
-`aws-emulator-rehearsal.yml`: 3 runs, each on attempt 1, all on `main`, all
-started by the Owner (actor and triggering actor).
+Compared on 2026-11-20 with the Actions run list of
+`aws-emulator-rehearsal.yml` as retrieved at 06:14:06 UTC: 3 runs, each on
+attempt 1, all on `main`, all started by the Owner (actor and triggering actor).
 
 | Run | Trigger | Head SHA | Scenario | Result |
 | --- | --- | --- | --- | --- |

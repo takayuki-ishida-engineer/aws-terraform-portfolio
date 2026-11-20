@@ -23,7 +23,7 @@
   },
   "evidence_gaps": [],
   "harvest": {
-    "harvested_at": "2026-11-20T06:14:06Z",
+    "harvested_at": "2026-11-20T14:08:12Z",
     "registration": "initial-backfill",
     "tool": "scripts/emulator-evidence/harvest.py"
   },
@@ -128,6 +128,13 @@
     {
       "address_source": "resource blocks of scripts/emulator-verification/adapter/main.tf at the tested SHA",
       "api_ids": {},
+      "evidence": {
+        "api_owned_create": null,
+        "api_owned_update": null,
+        "inventory_sha256": "fe26e2bfaf0782cf4a323fc148844335c86f928df50517491e67e27aa0f8406e",
+        "plan_gate": "NOT_TESTED",
+        "plan_resources": null
+      },
       "kind": "disposable-adapter",
       "name": "representative-vpc-proof",
       "operations": {
@@ -181,6 +188,22 @@
     "harness": "scripts/emulator-verification/lifecycle.py",
     "harness_sha256": "fb674aa4c5a3f9dba645dc90c4f2f95492b0342efff6e28a3f93d1ff06fef782",
     "harness_verified_against_git": true,
+    "required_operations": [
+      "initial_state_empty",
+      "plan",
+      "create",
+      "read",
+      "api_create",
+      "update",
+      "api_update",
+      "no_op",
+      "destroy_plan",
+      "destroy",
+      "api_absence",
+      "state_empty",
+      "baseline_preserved",
+      "material_cleanup"
+    ],
     "scenario": "disposable single-VPC adapter lifecycle",
     "scenario_id": "aws_vpc.proof",
     "sha": "406b468c820ed7ed7db86c9d38b578184811453d",

@@ -25,7 +25,7 @@
     "Only the relevant log lines were harvested (excerpt), not the full log"
   ],
   "harvest": {
-    "harvested_at": "2026-11-20T06:14:06Z",
+    "harvested_at": "2026-11-20T14:08:12Z",
     "registration": "initial-backfill",
     "tool": "scripts/emulator-evidence/harvest.py"
   },
@@ -151,6 +151,7 @@
     "harness": "scripts/emulator-rehearsal/rehearse.py",
     "harness_sha256": null,
     "harness_verified_against_git": false,
+    "required_operations": null,
     "scenario": null,
     "scenario_id": null,
     "sha": "0a16e486dd37c40358a122aef47a215a8c6a4ab7",

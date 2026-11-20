@@ -25,7 +25,7 @@
     "No job and no log exist: the reason GitHub created no job is not recorded"
   ],
   "harvest": {
-    "harvested_at": "2026-11-20T06:14:06Z",
+    "harvested_at": "2026-11-20T14:08:12Z",
     "registration": "initial-backfill",
     "tool": "scripts/emulator-evidence/harvest.py"
   },
@@ -103,6 +103,7 @@
     "harness": "scripts/emulator-verification/lifecycle.py",
     "harness_sha256": null,
     "harness_verified_against_git": false,
+    "required_operations": null,
     "scenario": null,
     "scenario_id": null,
     "sha": "78a3ee6d1a2749b4f32c0ec0f538d1ad8bd41d03",

@@ -38,8 +38,26 @@ EXPECTED = {
     **{M + f'aws_vpc_endpoint.interface["{s}"]': 'aws_vpc_endpoint' for s in SERVICES},
 }
 ENDPOINT_TYPES = {'aws_security_group', 'aws_vpc_security_group_ingress_rule', 'aws_vpc_endpoint'}
+OPERATIONS = ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update', 'no_op',
+              'destroy_plan', 'destroy', 'state_empty', 'api_absence', 'baseline_preserved']
 '''
 HARNESS_SHA256 = hashlib.sha256(HARNESS).hexdigest()
+LIFECYCLE = b'# lifecycle\n'
+GATES = ('OPERATIONS = ' + repr(harvest.REPRESENTATIVE_OPERATIONS) + '\n').encode()
+ADDRESSES = ['module.network.aws_subnet.private["private1"]', 'module.network.aws_vpc.this']
+TEST_HARNESSES = {
+    HARNESS_SHA256: {'kind': 'step2-rehearsal', 'format': 'test', 'records_counts': True,
+                     'operations': ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update',
+                                    'no_op', 'destroy_plan', 'destroy', 'state_empty', 'api_absence',
+                                    'baseline_preserved'],
+                     'scenarios': {'no-interface-endpoints': {'root': 'network', 'resources': 2,
+                                                              'inventory_sha256': harvest.inventory_digest(ADDRESSES)}}},
+    hashlib.sha256(LIFECYCLE).hexdigest(): {
+        'kind': 'representative', 'format': 'test', 'records_counts': False,
+        'operations': list(harvest.REPRESENTATIVE_OPERATIONS),
+        'scenarios': {'aws_vpc.proof': {'root': 'representative-vpc-proof', 'resources': 1,
+                                        'inventory_sha256': harvest.inventory_digest(['aws_vpc.proof'])}}},
+}
 ADAPTER = b'resource "aws_vpc" "proof" {\n  cidr_block = "10.0.0.0/16"\n}\n'
 WORKFLOW_SOURCE = '\n'.join('      - name: ' + n for n in [
     'Require main, the Owner and a public repository', 'Checkout reviewed target without credentials',
@@ -55,7 +73,8 @@ def fake_git(repo, sha, path):
     if repo is None or sha != SHA:
         return None
     return {'scripts/emulator-rehearsal/rehearse.py': HARNESS,
-            'scripts/emulator-verification/lifecycle.py': b'# lifecycle\n',
+            'scripts/emulator-verification/lifecycle.py': LIFECYCLE,
+            'scripts/emulator-verification/gates.py': GATES,
             'scripts/emulator-verification/adapter/main.tf': ADAPTER,
             REHEARSAL: WORKFLOW_SOURCE, REPRESENTATIVE: WORKFLOW_SOURCE}.get(path)
 
@@ -107,9 +126,11 @@ def log(rows, extra=()):
     return '\n'.join(lines) + '\n'
 
 
-def step2_rows(rec=None, plan=2, extra=()):
-    return [{'gate': 'plan', 'status': 'PASS', 'resources': plan},
+def step2_rows(rec=None, plan=2, extra=(), drop=()):
+    rows = [{'gate': 'plan', 'status': 'PASS', 'resources': plan},
             {'gate': 'api-identity-create', 'status': 'PASS', 'vpc_id': 'vpc-0000000000000009c', 'owned': 2},
+            {'gate': 'api-identity-updated', 'status': 'PASS', 'vpc_id': 'vpc-0000000000000009c', 'owned': 2}]
+    return [r for r in rows if r['gate'] not in drop] + [
             *extra,
             {'gate': 'summary-record', 'status': 'PASS', 'record': rec or record()},
             {'gate': 'host-cleanup', 'status': 'PASS'}]
@@ -118,10 +139,14 @@ def step2_rows(rec=None, plan=2, extra=()):
 class Harvest(unittest.TestCase):
     def setUp(self):
         self.original = harvest.git_show
+        self.pinned = dict(harvest.KNOWN_HARNESSES)
         harvest.git_show = fake_git
+        harvest.KNOWN_HARNESSES.update(copy.deepcopy(TEST_HARNESSES))
 
     def tearDown(self):
         harvest.git_show = self.original
+        harvest.KNOWN_HARNESSES.clear()
+        harvest.KNOWN_HARNESSES.update(self.pinned)
 
     def build(self, rows, m=None, text=None):
         text = text if text is not None else log(rows)
@@ -143,6 +168,44 @@ class Step2Build(Harvest):
         self.assertTrue(entry['tested']['harness_verified_against_git'])
         self.assertEqual([r['status'] for r in entry['out_of_scope_roots'] if r['name'] == 'tfstate'],
                          ['EMULATOR_COMPATIBILITY_BLOCKED'])
+
+    def assert_insufficient(self, entry, reason):
+        self.assertEqual(entry['result']['overall'], 'INSUFFICIENT_EVIDENCE')
+        self.assertEqual(entry['roots'][0]['result'], 'INSUFFICIENT_EVIDENCE')
+        self.assertTrue(any(reason in gap for gap in entry['evidence_gaps']), entry['evidence_gaps'])
+
+    def test_missing_required_operation_key_is_never_pass(self):
+        for op in ('destroy', 'api_absence', 'baseline_preserved'):
+            ops = {k: 'PASS' for k in OPS if k != op}
+            with self.subTest(op=op):
+                self.assert_insufficient(self.build(step2_rows(record(operations=ops))),
+                                         'Required operations not recorded: ' + op)
+
+    def test_missing_independent_api_or_plan_evidence_is_never_pass(self):
+        self.assert_insufficient(self.build(step2_rows(drop=('api-identity-create', 'api-identity-updated'))),
+                                 'Independent API resource ID missing')
+        self.assert_insufficient(self.build(step2_rows(drop=('api-identity-updated',))),
+                                 'Independent API identity counts missing')
+        self.assert_insufficient(self.build(step2_rows(drop=('plan',))), 'Plan gate evidence missing')
+
+    def test_unpinned_harness_version_is_never_pass(self):
+        harvest.KNOWN_HARNESSES.pop(HARNESS_SHA256)
+        self.assert_insufficient(self.build(step2_rows()), 'Harness version not pinned')
+
+    def test_pinned_operation_list_must_match_the_harness(self):
+        harvest.KNOWN_HARNESSES[HARNESS_SHA256]['operations'] = OPS[:-1]
+        self.assert_insufficient(self.build(step2_rows()), 'differs from the pinned list')
+
+    def test_pinned_inventory_must_match_the_harness(self):
+        harvest.KNOWN_HARNESSES[HARNESS_SHA256]['scenarios']['no-interface-endpoints']['inventory_sha256'] = '0' * 64
+        self.assert_insufficient(self.build(step2_rows()), 'Resource inventory differs')
+
+    def test_multi_root_summary_format_is_rejected_until_supported(self):
+        # PR #75's harness emits roots/known_gaps instead of operations/resource_cleanup.
+        rec = record(roots={'network': {'status': 'PASS', 'operations': {k: 'PASS' for k in OPS}}}, known_gaps={})
+        for key in ('operations', 'resource_cleanup'):
+            rec.pop(key)
+        self.rejects('summary-record-keys', self.build, step2_rows(rec))
 
     def test_failed_control_or_operation_is_never_pass(self):
         for rec in (record(controls=dict({k: 'PASS' for k in harvest.CONTROLS}, **{'7': 'FAIL'})),
@@ -256,11 +319,27 @@ class RepresentativeBuild(Harvest):
                 {'gate': 'lifecycle-evidence-complete', 'status': 'PASS'}, {'gate': 'host-cleanup', 'status': 'PASS'}]
         return out
 
+    def representative(self, rows):
+        text = log(rows)
+        return self.build(None, meta(REPRESENTATIVE, lines=len(text.splitlines())), text)
+
     def test_complete_rows_are_pass(self):
-        text = log(self.rows())
-        entry = self.build(None, meta(REPRESENTATIVE, lines=len(text.splitlines())), text)
+        entry = self.representative(self.rows())
         self.assertEqual(entry['result']['overall'], 'PASS')
         self.assertEqual(entry['roots'][0]['resource_addresses'], ['aws_vpc.proof'])
+        self.assertEqual(entry['tested']['required_operations'], harvest.REPRESENTATIVE_OPERATIONS)
+
+    def test_missing_operation_or_api_id_is_never_pass(self):
+        rows = [r for r in self.rows() if r['gate'] != 'destroy']
+        entry = self.representative(rows)
+        self.assertEqual(entry['result']['overall'], 'INSUFFICIENT_EVIDENCE')
+        self.assertIn('Required operations not recorded: destroy', ' '.join(entry['evidence_gaps']))
+        rows = [dict(r) for r in self.rows()]
+        for r in rows:
+            r.pop('resource_id', None)
+        entry = self.representative(rows)
+        self.assertEqual(entry['result']['overall'], 'INSUFFICIENT_EVIDENCE')
+        self.assertIn('Independent API resource ID missing', ' '.join(entry['evidence_gaps']))
 
     def test_failure_rows_keep_harness_status_and_diagnostic(self):
         rows = self.rows()[:20] + [{'gate': 'auth-invalid-signature', 'status': 'BLOCKED',
@@ -349,6 +428,79 @@ class CommittedLedger(unittest.TestCase):
                 entry = copy.deepcopy(self.passing)
                 mutate(entry)
                 self.rejects(label, entry)
+
+    def test_pass_evidence_mutations(self):
+        def drop_op(e):
+            e['roots'][0]['operations'].pop('destroy')
+
+        def drop_op_and_requirement(e):
+            drop_op(e)
+            e['tested']['required_operations'].remove('destroy')
+
+        def shrink_inventory(e, digest=False, counts=False):
+            root = e['roots'][0]
+            root['resource_addresses'].pop()
+            root['resources'] -= 1
+            if digest:
+                root['evidence']['inventory_sha256'] = harvest.inventory_digest(root['resource_addresses'])
+            if counts:
+                for key in ('plan_resources', 'api_owned_create', 'api_owned_update'):
+                    root['evidence'][key] = root['resources']
+
+        def swap_address(e):
+            root = e['roots'][0]
+            root['resource_addresses'][0] = 'module.network.aws_vpc.other'
+            root['evidence']['inventory_sha256'] = harvest.inventory_digest(root['resource_addresses'])
+
+        cases = [
+            ('pass-needs-every-operation', drop_op),
+            ('pass-required-operations-mismatch', drop_op_and_requirement),
+            ('pass-needs-api-id', lambda e: e['roots'][0]['api_ids'].pop('vpc_id')),
+            ('root-api-id-format', lambda e: e['roots'][0]['api_ids'].update(vpc_id='i-0123')),
+            ('root-api-ids-unknown', lambda e: e['roots'][0]['api_ids'].update(subnet_id='subnet-1')),
+            ('pass-needs-plan-evidence', lambda e: e['roots'][0]['evidence'].update(plan_resources=None)),
+            ('pass-needs-plan-evidence', lambda e: e['roots'][0]['evidence'].update(plan_gate='NOT_TESTED')),
+            ('pass-needs-api-evidence', lambda e: e['roots'][0]['evidence'].update(api_owned_update=None)),
+            ('pass-needs-api-evidence', lambda e: e['roots'][0]['evidence'].update(api_owned_create=15)),
+            ('root-evidence-missing', lambda e: e['roots'][0]['evidence'].pop('plan_gate')),
+            ('root-inventory-digest', lambda e: shrink_inventory(e)),
+            ('pass-inventory-mismatch', lambda e: shrink_inventory(e, digest=True)),
+            ('pass-inventory-mismatch', lambda e: shrink_inventory(e, digest=True, counts=True)),
+            ('pass-inventory-mismatch', swap_address),
+            ('pass-unknown-harness', lambda e: e['tested'].update(harness_sha256='1' * 64)),
+            ('pass-unknown-scenario', lambda e: e['tested'].update(scenario_id='all')),
+            ('pass-inventory-mismatch', lambda e: e['tested'].update(scenario_id='full')),
+            ('tested-required-operations', lambda e: e['tested'].update(required_operations=['plan', 'plan'])),
+        ]
+        for label, mutate in cases:
+            with self.subTest(label=label):
+                entry = copy.deepcopy(self.passing)
+                mutate(entry)
+                self.rejects(label, entry)
+
+    def test_representative_pass_evidence_mutations(self):
+        entry = self.entries[(43791639228, 1)]
+        self.assertEqual(entry['result']['overall'], 'PASS')
+        for label, mutate in [('pass-needs-every-operation', lambda e: e['roots'][0]['operations'].pop('initial_state_empty')),
+                              ('pass-needs-api-id', lambda e: e['roots'][0]['api_ids'].pop('vpc_id')),
+                              ('pass-needs-plan-evidence', lambda e: e['roots'][0]['evidence'].update(plan_gate='FAIL')),
+                              ('pass-unknown-harness', lambda e: e['tested'].update(
+                                  harness_sha256='58a1a15405c945ce23d7e8f04d70df0f38f772bb6e9a32e97c9df34592e4109c')),
+                              ('tested-required-operations', lambda e: e['workflow'].update(
+                                  file=REHEARSAL, kind='step2-rehearsal') or e['job'].update(name='rehearsal')
+                               or e['tested'].update(harness='scripts/emulator-rehearsal/rehearse.py'))]:
+            with self.subTest(label=label):
+                mutated = copy.deepcopy(entry)
+                mutate(mutated)
+                self.rejects(label, mutated)
+
+    def test_reconciliation_is_described_as_a_static_snapshot(self):
+        index = (LEDGER / 'index.md').read_text()
+        self.assertIn('static snapshot', index)
+        self.assertIn('It is not a live', index)
+        self.assertIn('MATCHES THE SNAPSHOT', index)
+        for text in [index, (HERE / 'README.md').read_text(), (REPO / 'docs/step2-emulator-rehearsals.md').read_text()]:
+            self.assertNotRegex(text.lower(), r'reconciled (?:against|with) the (?:live|current|latest) (?:github|actions)')
 
     def test_filename_must_match_run_and_attempt(self):
         self.rejects('filename', copy.deepcopy(self.passing), '1-attempt-1.json')

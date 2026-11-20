@@ -9,20 +9,23 @@ An entry is a structured, sanitized record. It is not a copy of the full log, an
 saved plans, credentials, private keys or secret values. A value the run did not record is absent or
 NOT_TESTED, never inferred. Emulator results are not evidence of real AWS behavior.
 
-## Reconciliation
+## Reconciliation with the run list snapshot
 
-Against the Actions run list snapshot `actions-runs.json` (retrieved 2026-11-20T06:14:06Z): `aws-emulator-rehearsal.yml` 3 runs, `aws-emulator-verification.yml` 12 runs; 15 entries.
+This compares the ledger with `actions-runs.json`, a static snapshot of the GitHub Actions run list that
+the operator retrieved at 2026-11-20T06:14:06Z and committed with the entries. It is not a live
+query: runs started after that time, or anything GitHub changed since, are not covered until a later
+reviewed pull request updates the snapshot. Snapshot: `aws-emulator-rehearsal.yml` 3 runs, `aws-emulator-verification.yml` 12 runs; 15 entries.
 
 | Check | Result |
 | --- | --- |
-| Unregistered runs | none |
+| Runs in the snapshot without an entry | none |
 | Missing attempts | none |
-| Entries not in the run list | none |
-| Entries that disagree with the run list | none |
+| Entries not in the snapshot | none |
+| Entries that disagree with the snapshot | none |
 | Runs still in progress (register after completion) | none |
 | Runs whose log could not be retrieved | none |
 
-Status: RECONCILED
+Status: MATCHES THE SNAPSHOT
 
 ## Runs
 

@@ -10,7 +10,8 @@ reviewed scenarios of an Owner merge-approved pull request (Master Policy v14.4
 at most 90 days. The badge, run URLs and job summaries are therefore not permanent
 evidence. The durable record is the sanitized
 [evidence ledger](docs/evidence/emulator-runs/index.md), with one entry per formal run and
-attempt, reconciled against the Actions run list, together with the
+attempt, compared with a committed static snapshot of the Actions run list (not a
+live query), together with the
 [Step 2 record](docs/step2-emulator-rehearsals.md).
 
 | Item | Value |

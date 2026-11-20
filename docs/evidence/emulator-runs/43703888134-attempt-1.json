@@ -27,7 +27,7 @@
     "The harness recorded no diagnostic code for the failure"
   ],
   "harvest": {
-    "harvested_at": "2026-11-20T06:14:06Z",
+    "harvested_at": "2026-11-20T14:08:12Z",
     "registration": "initial-backfill",
     "tool": "scripts/emulator-evidence/harvest.py"
   },
@@ -132,6 +132,13 @@
     {
       "address_source": "resource blocks of scripts/emulator-verification/adapter/main.tf at the tested SHA",
       "api_ids": {},
+      "evidence": {
+        "api_owned_create": null,
+        "api_owned_update": null,
+        "inventory_sha256": "fe26e2bfaf0782cf4a323fc148844335c86f928df50517491e67e27aa0f8406e",
+        "plan_gate": "NOT_TESTED",
+        "plan_resources": null
+      },
       "kind": "disposable-adapter",
       "name": "representative-vpc-proof",
       "operations": {
@@ -184,6 +191,21 @@
     "harness": "scripts/emulator-verification/lifecycle.py",
     "harness_sha256": "a0d07f7dd0fc04e921e644dec9c0fac68a32435fb16c60e50ed835c39305c469",
     "harness_verified_against_git": true,
+    "required_operations": [
+      "plan",
+      "create",
+      "read",
+      "api_create",
+      "update",
+      "api_update",
+      "no_op",
+      "destroy_plan",
+      "destroy",
+      "api_absence",
+      "state_empty",
+      "baseline_preserved",
+      "material_cleanup"
+    ],
     "scenario": "disposable single-VPC adapter lifecycle",
     "scenario_id": "aws_vpc.proof",
     "sha": "e1c7b4e2faec4215ab82e8bd60553196a2d4d125",

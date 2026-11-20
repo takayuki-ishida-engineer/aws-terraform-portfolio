@@ -19,11 +19,11 @@ ledger starts no Emulator run.
 
 | File | Role |
 | --- | --- |
-| `harvest.py` | `build` turns one run's metadata and job log into an entry. `index` regenerates `index.md`. `check` validates every entry, the index and the reconciliation |
+| `harvest.py` | `build` turns one run's metadata and job log into an entry. `index` regenerates `index.md`. `check` validates every entry, the index and the comparison with the run list snapshot. `KNOWN_HARNESSES` pins the harness versions whose runs can be PASS |
 | `test_harvest.py` | Offline negative, mutation and tamper tests. The `AWS Emulator offline contracts` workflow runs them, and `harvest.py check`, on every pull request and `main` push |
 | `docs/evidence/emulator-runs/<run_id>-attempt-<n>.json` | One entry per run and attempt |
-| `docs/evidence/emulator-runs/actions-runs.json` | Snapshot of the Actions run list of both workflows, used for reconciliation |
-| `docs/evidence/emulator-runs/index.md` | Generated table of every entry, with the reconciliation result |
+| `docs/evidence/emulator-runs/actions-runs.json` | Static snapshot of the Actions run list of both workflows, retrieved by the operator at the time in its `retrieved_at` field and committed with the entries |
+| `docs/evidence/emulator-runs/index.md` | Generated table of every entry, with the result of comparing the ledger with that snapshot |
 
 ## What an entry holds
 
@@ -31,9 +31,9 @@ ledger starts no Emulator run.
 | --- | --- | --- |
 | `workflow`, `run`, `job` | Workflow file, run ID, attempt, number, event, branch, head SHA, conclusion, timestamps, whether the Owner was the actor and the triggering actor, runner label, job steps and their conclusions, run and job URLs | GitHub Actions run and job metadata. Step names are checked against the workflow file at the head SHA |
 | `source` | Whether the full log, a verbatim excerpt or no log was harvested; log line count; structured rows found; whether a `summary-record` row exists | The job log |
-| `tested` | Tested SHA, harness path and SHA-256, whether the harness was read from git at that SHA (and, for Step 2, equals the run's recorded hash), tool versions, scenario | Structured rows, and git at the tested SHA |
+| `tested` | Tested SHA, harness path and SHA-256, whether the harness was read from git at that SHA (and, for Step 2, equals the run's recorded hash), the harness's required lifecycle operations (its `OPERATIONS` list at that SHA), tool versions, scenario | Structured rows, and git at the tested SHA |
 | `controls` | Each of the 14 controls | Structured rows only. NOT_TESTED when the run recorded nothing |
-| `roots` | Each rehearsed root (or the representative disposable adapter): result, Terraform resource addresses and where they come from, per-operation results, independent API IDs, resource cleanup | Structured rows. Addresses come from the reviewed inventory in the harness (or the adapter's resource blocks) at the tested SHA, which the run's plan gate enforces |
+| `roots` | Each rehearsed root (or the representative disposable adapter): result, Terraform resource addresses and where they come from, per-operation results, independent API IDs, resource cleanup. `evidence` holds the plan gate status, the resource count the plan gate recorded, the counts of owned resources the independent API identity checks recorded after create and update, and the SHA-256 of the sorted address list | Structured rows. Addresses come from the reviewed inventory in the harness (or the adapter's resource blocks) at the tested SHA, which the run's plan gate enforces |
 | `out_of_scope_roots` | Every other DEV root, as NOT_TESTED or EMULATOR_COMPATIBILITY_BLOCKED | Fixed. Never PASS |
 | `cleanup` | Resource, material, process and host cleanup receipts | Structured rows |
 | `result` | PASS, FAIL, BLOCKED or INSUFFICIENT_EVIDENCE; the basis (summary record, gate rows or run metadata); the failing step, stage, diagnostic code and cause | Structured rows, otherwise job metadata and fixed log patterns of the run gate |
@@ -60,20 +60,32 @@ ledger starts no Emulator run.
   - A DEV root's path must match its name.
 - **No inferred success.** PASS needs all of the following:
   - a successful run and job, and the full log;
-  - all 14 controls, every operation and every cleanup receipt PASS;
-  - a harness verified against git;
+  - all 14 controls and every cleanup receipt PASS;
+  - a harness verified against git, whose version is pinned in `KNOWN_HARNESSES` for that workflow;
+  - the required operation list of that harness version, recorded and equal to the pinned list, and every one
+    of those operations present and PASS. A missing operation key is never PASS;
+  - a scenario pinned for that harness version, whose resource count and address digest equal the pinned
+    inventory;
+  - plan evidence: the plan gate PASS and, where the harness records counts (Step 2), a plan resource count
+    equal to the inventory;
+  - independent API evidence: the resource ID (`vpc_id`) and, where the harness records counts (Step 2), the
+    owned-resource counts after create and update equal to the inventory;
   - for Step 2, the `summary-record`.
 
-  A run without a structured record keeps all 14 controls NOT_TESTED and is BLOCKED, FAIL or
-  INSUFFICIENT_EVIDENCE.
-- **Reconciliation.** `check` compares the ledger with `actions-runs.json` and reports:
+  At harvest time, measured PASS results with any of this missing become INSUFFICIENT_EVIDENCE, with each
+  missing item listed in `evidence_gaps`. A run without a structured record keeps all 14 controls NOT_TESTED and
+  is BLOCKED, FAIL or INSUFFICIENT_EVIDENCE. Every entry's address digest must match its address list, so a
+  changed count, address list or digest is rejected.
+- **Comparison with the run list snapshot.** `check` compares the ledger with `actions-runs.json`. That file is
+  a static snapshot: the comparison makes no network call, and passing it shows only that the ledger matches
+  the run list as it was at the snapshot's `retrieved_at` time, not the live GitHub run list. `check` reports:
   - unregistered runs and missing earlier attempts;
   - entries that are not in the run list, or that disagree with it;
   - runs still in progress;
   - runs whose log could not be retrieved.
 
-  It fails unless everything except unavailable logs is reconciled. It also fails if `index.md` differs from
-  the regenerated index.
+  It fails unless the ledger matches the snapshot (unavailable logs are only reported). It also fails if
+  `index.md` differs from the regenerated index.
 - **Append-only.** `build` refuses to overwrite an existing entry. A correction is a new reviewed pull
   request that states its reason.
 
@@ -93,7 +105,8 @@ whichever comes first. Anything late or unrecoverable is recorded as EVIDENCE_GA
    python3 scripts/emulator-evidence/harvest.py build --meta META.json --log JOB.log --repo . --out docs/evidence/emulator-runs --harvested-at YYYY-MM-DDTHH:MM:SSZ
    ```
 
-5. Update `actions-runs.json` with the current run list, then regenerate the index and check:
+5. Replace `actions-runs.json` with the run list just retrieved, with its `retrieved_at` time. Then regenerate
+   the index and check:
 
    ```bash
    python3 scripts/emulator-evidence/harvest.py index docs/evidence/emulator-runs
@@ -107,6 +120,22 @@ whichever comes first. Anything late or unrecoverable is recorded as EVIDENCE_GA
 
 The workflows never write the ledger: they keep `contents: read` and push nothing.
 
+## Required before PR #75 merges
+
+PR #75 changes the Step 2 harness to rehearse several roots in one run. Its `summary-record` has `roots` (per
+root: status, operations including `teardown_plan` and `teardown` for `api`, per-root controls and resource
+cleanup) and `known_gaps`. It has no top-level `operations` or `resource_cleanup`. Its harness version is also
+not pinned. The current `harvest.py` therefore rejects that record (`summary-record-keys`, covered by a test) and
+cannot register the automatic run that merging PR #75 starts. Before PR #75 merges, a reviewed change must add
+all of the following, so the run can be registered within the §13.4 deadline:
+
+- multi-root parsing;
+- per-root inventories and their pinned digests for `network` and `api`;
+- the `api` teardown operations;
+- per-root independent API evidence;
+- the pinned harness version and its operation list;
+- tests built from that format.
+
 ## Limitations
 
 - The metadata and the run list snapshot are transcribed from the GitHub API by the operator. The
@@ -114,7 +143,7 @@ The workflows never write the ledger: they keep `contents: read` and push nothin
   - the run identity recorded inside the log;
   - step names against the workflow file;
   - timestamp order;
-  - reconciliation.
+  - comparison with the run list snapshot.
 
   Reviewers can compare any entry with the run page while GitHub keeps the run.
 - Where only part of a log was harvested (`source.log` = `excerpt`), the lines are copied verbatim from the

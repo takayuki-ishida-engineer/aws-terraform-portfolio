@@ -5,8 +5,10 @@ Every run of the Step 2 rehearsal workflow and of the representative workflow is
 recorded once per Run ID and Attempt as a sanitized JSON entry in
 docs/evidence/emulator-runs/. This tool builds an entry from trusted GitHub run
 metadata plus the allowlisted structured rows of the run's job log, validates
-entries, regenerates index.md and reconciles the ledger with a snapshot of the
-GitHub Actions run list.
+entries, regenerates index.md and compares the ledger with actions-runs.json, a
+static snapshot of the GitHub Actions run list taken by the operator. The
+comparison is only as current as that snapshot: it never queries the GitHub API
+and does not show that the ledger matches the live run list at any later time.
 
 The ledger is a third-party-traceable audit record, not a copy of the full log.
 Nothing is inferred: a value that the run did not record is absent or marked
@@ -59,6 +61,44 @@ REPRESENTATIVE_OPERATIONS = ['initial_state_empty', 'plan', 'create', 'read', 'a
                              'no_op', 'destroy_plan', 'destroy', 'api_absence', 'state_empty', 'baseline_preserved',
                              'material_cleanup']
 SYNTHETIC_STEPS = {'Set up job', 'Complete job'}
+
+# Harness versions whose output this tool understands well enough to record a
+# PASS. Keyed by the SHA-256 of the harness file at the tested SHA. Each pins the
+# required lifecycle operations of that version (its OPERATIONS list), the
+# reviewed resource inventory of each scenario (count and the SHA-256 of the
+# sorted addresses joined by newlines) and which independent evidence the
+# harness records. A run of any other harness version can never be PASS: a new
+# version must be reviewed and added here, with tests, before its runs register.
+KNOWN_HARNESSES = {
+    '58a1a15405c945ce23d7e8f04d70df0f38f772bb6e9a32e97c9df34592e4109c': {
+        'kind': 'step2-rehearsal', 'format': 'step2-single-root-v1',
+        'operations': ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update', 'no_op',
+                       'destroy_plan', 'destroy', 'state_empty', 'api_absence', 'baseline_preserved'],
+        'scenarios': {
+            'no-interface-endpoints': {'root': 'network', 'resources': 16, 'inventory_sha256':
+                                       '6070a967904020051d1044a6e742758e19f116924b4696c5e2f5d457f1976953'},
+            'full': {'root': 'network', 'resources': 26, 'inventory_sha256':
+                     '541e7c899f9db30dd2595bbf7a81b3ffb64e95b268c8ca26430710072723f698'},
+        },
+        'records_counts': True,
+    },
+    'fe3588082dee12c8ef5f2401475f74df5db5421e8f52d6c71f0766fc8551e621': {
+        'kind': 'representative', 'format': 'representative-gate-rows-v1',
+        'operations': ['initial_state_empty', 'plan', 'create', 'read', 'api_create', 'update', 'api_update', 'no_op',
+                       'destroy_plan', 'destroy', 'api_absence', 'state_empty', 'baseline_preserved',
+                       'material_cleanup'],
+        'scenarios': {
+            'aws_vpc.proof': {'root': 'representative-vpc-proof', 'resources': 1, 'inventory_sha256':
+                              'fe26e2bfaf0782cf4a323fc148844335c86f928df50517491e67e27aa0f8406e'},
+        },
+        'records_counts': False,
+    },
+}
+VPC_ID = re.compile(r'^vpc-[0-9a-f]{8,17}$')
+
+
+def inventory_digest(addresses):
+    return hashlib.sha256('\n'.join(sorted(addresses)).encode()).hexdigest()
 
 # Text that may appear in an entry: printable ASCII without backslash, braces,
 # angle brackets, backticks or control characters, one line.
@@ -210,14 +250,19 @@ def validate(entry, filename=None):
         exact_keys(result['failure'], ['step', 'stage', 'diagnostic', 'cause'], label='failure')
 
     tested = entry['tested']
-    exact_keys(tested, ['sha', 'harness', 'harness_sha256', 'harness_verified_against_git', 'versions', 'scenario_id',
-                        'scenario'], label='tested')
+    exact_keys(tested, ['sha', 'harness', 'harness_sha256', 'harness_verified_against_git', 'required_operations',
+                        'versions', 'scenario_id', 'scenario'], label='tested')
     require(tested['sha'] == run['head_sha'], 'tested-sha')
     require(tested['harness'] == WORKFLOWS[workflow['file']]['harness'], 'tested-harness')
     require(tested['harness_sha256'] is None or SHA256.match(tested['harness_sha256']), 'tested-harness-hash')
     require(isinstance(tested['harness_verified_against_git'], bool), 'tested-harness-verified')
     require(tested['versions'] is None or set(tested['versions']) == {'emulator', 'terraform', 'awscli', 'provider'},
             'tested-versions')
+    vocabulary = STEP2_OPERATIONS if workflow['kind'] == 'step2-rehearsal' else REPRESENTATIVE_OPERATIONS
+    required_ops = tested['required_operations']
+    require(required_ops is None or (isinstance(required_ops, list) and required_ops
+                                     and len(set(required_ops)) == len(required_ops)
+                                     and set(required_ops) <= set(vocabulary)), 'tested-required-operations')
 
     status_map(entry['controls'], CONTROLS, 'controls')
     require(set(entry['controls']) == set(CONTROLS), 'controls-complete')
@@ -225,20 +270,27 @@ def validate(entry, filename=None):
     names = set()
     for root in entry['roots']:
         exact_keys(root, ['name', 'kind', 'path', 'result', 'resources', 'resource_addresses', 'address_source',
-                          'operations', 'api_ids', 'resource_cleanup'], label='root')
+                          'operations', 'api_ids', 'evidence', 'resource_cleanup'], label='root')
         require(root['kind'] in ('dev-root', 'disposable-adapter'), 'root-kind')
         if root['kind'] == 'dev-root':
             require(DEV_ROOTS.get(root['name']) == root['path'], 'root-mismatch')
         else:
             require(workflow['kind'] == 'representative' and root['path'] == 'scripts/emulator-verification/adapter',
                     'adapter-mismatch')
-        require(root['result'] in STATUSES, 'root-result')
+        require(root['result'] in STATUSES | {'INSUFFICIENT_EVIDENCE'}, 'root-result')
         require(isinstance(root['resources'], int) and len(root['resource_addresses']) == root['resources'],
                 'root-resource-count')
         require(len(set(root['resource_addresses'])) == root['resources'], 'root-resource-duplicates')
-        operations = STEP2_OPERATIONS if workflow['kind'] == 'step2-rehearsal' else REPRESENTATIVE_OPERATIONS
-        status_map(root['operations'], operations, 'root-operations')
-        require(isinstance(root['api_ids'], dict), 'root-api-ids')
+        status_map(root['operations'], required_ops or vocabulary, 'root-operations')
+        exact_keys(root['api_ids'], [], ['vpc_id'], label='root-api-ids')
+        require(all(VPC_ID.match(v) for v in root['api_ids'].values()), 'root-api-id-format')
+        evidence = root['evidence']
+        exact_keys(evidence, ['plan_gate', 'plan_resources', 'api_owned_create', 'api_owned_update', 'inventory_sha256'],
+                   label='root-evidence')
+        require(evidence['plan_gate'] in STATUSES, 'root-evidence-plan-gate')
+        require(all(evidence[k] is None or (isinstance(evidence[k], int) and not isinstance(evidence[k], bool))
+                    for k in ('plan_resources', 'api_owned_create', 'api_owned_update')), 'root-evidence-counts')
+        require(evidence['inventory_sha256'] == inventory_digest(root['resource_addresses']), 'root-inventory-digest')
         require(root['resource_cleanup'] in STATUSES, 'root-cleanup')
         require(root['name'] not in names, 'root-duplicate')
         names.add(root['name'])
@@ -260,11 +312,27 @@ def validate(entry, filename=None):
         require(run['conclusion'] == 'success' and job is not None and job['conclusion'] == 'success', 'pass-needs-success')
         require(source['log'] == 'full' and result['failure'] is None, 'pass-needs-full-log')
         require(all(v == 'PASS' for v in entry['controls'].values()), 'pass-needs-all-controls')
-        require(entry['roots'] and all(r['result'] == 'PASS' and r['resource_cleanup'] == 'PASS'
-                                       and r['operations'] and all(v == 'PASS' for v in r['operations'].values())
-                                       for r in entry['roots']), 'pass-needs-every-operation')
-        require(all(v == 'PASS' for v in cleanup.values()), 'pass-needs-cleanup')
         require(tested['harness_verified_against_git'] and tested['versions'] is not None, 'pass-needs-verified-harness')
+        pinned = KNOWN_HARNESSES.get(tested['harness_sha256'])
+        require(pinned is not None and pinned['kind'] == workflow['kind'], 'pass-unknown-harness')
+        require(required_ops == pinned['operations'], 'pass-required-operations-mismatch')
+        scenario = pinned['scenarios'].get(tested['scenario_id'])
+        require(scenario is not None, 'pass-unknown-scenario')
+        require(len(entry['roots']) == 1 and entry['roots'][0]['name'] == scenario['root'], 'pass-root-scope')
+        for r in entry['roots']:
+            require(r['result'] == 'PASS' and r['resource_cleanup'] == 'PASS'
+                    and list(r['operations']) and set(r['operations']) == set(pinned['operations'])
+                    and all(v == 'PASS' for v in r['operations'].values()), 'pass-needs-every-operation')
+            require(r['resources'] == scenario['resources']
+                    and r['evidence']['inventory_sha256'] == scenario['inventory_sha256'], 'pass-inventory-mismatch')
+            ev = r['evidence']
+            require(ev['plan_gate'] == 'PASS', 'pass-needs-plan-evidence')
+            if pinned['records_counts']:
+                require(ev['plan_resources'] == r['resources'], 'pass-needs-plan-evidence')
+                require(ev['api_owned_create'] == r['resources'] and ev['api_owned_update'] == r['resources'],
+                        'pass-needs-api-evidence')
+            require('vpc_id' in r['api_ids'], 'pass-needs-api-id')
+        require(all(v == 'PASS' for v in cleanup.values()), 'pass-needs-cleanup')
         if workflow['kind'] == 'step2-rehearsal':
             require(source['summary_record'] and result['basis'] == 'summary-record', 'pass-needs-summary-record')
     else:
@@ -365,6 +433,17 @@ def step2_inventory(source, scenario_id):
     return sorted(expected)
 
 
+def operations_literal(source):
+    """The module-level OPERATIONS list of a harness file, evaluated without running it."""
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
+                and node.targets[0].id == 'OPERATIONS':
+            value = Literal({}).value(node.value)
+            require(isinstance(value, list) and value and all(isinstance(v, str) for v in value), 'operations-literal')
+            return value
+    raise Invalid('operations-missing')
+
+
 def adapter_inventory(source):
     text = source.decode()
     found = re.findall(r'^resource\s+"([a-z0-9_]+)"\s+"([a-z0-9_]+)"', text, re.M)
@@ -443,7 +522,8 @@ def base_entry(meta, harvested_at, log_kind, log_lines, rows, has_record):
                     'registration': 'initial-backfill'},
         'result': None,
         'tested': {'sha': run['head_sha'], 'harness': WORKFLOWS[meta['workflow']]['harness'], 'harness_sha256': None,
-                   'harness_verified_against_git': False, 'versions': None, 'scenario_id': None, 'scenario': None},
+                   'harness_verified_against_git': False, 'required_operations': None, 'versions': None,
+                   'scenario_id': None, 'scenario': None},
         'controls': {k: 'NOT_TESTED' for k in CONTROLS},
         'roots': [],
         'out_of_scope_roots': [],
@@ -453,6 +533,40 @@ def base_entry(meta, harvested_at, log_kind, log_lines, rows, has_record):
         'residual_risk': [],
         'evidence_gaps': [],
     }
+
+
+def completeness_gaps(required, operations, pinned, scenario_id, addresses, evidence, api_ids):
+    """Reasons why measured results cannot support PASS (empty when complete)."""
+    gaps = []
+    if required is None:
+        gaps.append('Required operations unknown: the harness operation list at the tested SHA is not available')
+    else:
+        missing = [op for op in required if op not in operations]
+        extra = [op for op in operations if op not in required]
+        if missing:
+            gaps.append('Required operations not recorded: ' + ', '.join(missing))
+        if extra:
+            gaps.append('Operations outside the harness list: ' + ', '.join(extra))
+    if pinned is None:
+        gaps.append('Harness version not pinned in harvest.py KNOWN_HARNESSES: PASS cannot be recorded')
+        return gaps
+    if required is not None and required != pinned['operations']:
+        gaps.append('Harness operation list differs from the pinned list')
+    scenario = pinned['scenarios'].get(scenario_id)
+    if scenario is None:
+        gaps.append('Scenario not pinned for this harness version')
+    elif len(addresses) != scenario['resources'] or inventory_digest(addresses) != scenario['inventory_sha256']:
+        gaps.append('Resource inventory differs from the pinned inventory of the scenario')
+    if evidence['plan_gate'] != 'PASS':
+        gaps.append('Plan gate evidence missing')
+    if pinned['records_counts']:
+        if evidence['plan_resources'] != len(addresses):
+            gaps.append('Plan resource count missing or different from the inventory')
+        if evidence['api_owned_create'] != len(addresses) or evidence['api_owned_update'] != len(addresses):
+            gaps.append('Independent API identity counts missing or different from the inventory')
+    if 'vpc_id' not in api_ids:
+        gaps.append('Independent API resource ID missing')
+    return gaps
 
 
 RECORD_KEYS = {'run_id', 'tested_sha', 'harness_sha256', 'execution', 'scenario', 'versions', 'controls',
@@ -493,32 +607,48 @@ def harvest_step2_record(entry, meta, rows, repo):
     harness = git_show(repo, run['head_sha'], WORKFLOWS[meta['workflow']]['harness'])
     verified = harness is not None and hashlib.sha256(harness).hexdigest() == record.get('harness_sha256')
     require(harness is None or verified, 'summary-harness-hash-mismatch')
+    required = operations_literal(harness.decode()) if verified else None
+    pinned = KNOWN_HARNESSES.get(record.get('harness_sha256')) if verified else None
     entry['tested'].update(harness_sha256=record.get('harness_sha256'), harness_verified_against_git=verified,
-                           versions=dict(versions), scenario_id=scenario_id, scenario=record.get('scenario'))
+                           required_operations=required, versions=dict(versions), scenario_id=scenario_id,
+                           scenario=record.get('scenario'))
     entry['controls'] = dict(controls)
 
     plan = [r for r in rows if r['gate'] == 'plan']
-    identity = [r for r in rows if r['gate'].startswith('api-identity-')]
+    created = [r for r in rows if r['gate'] == 'api-identity-create']
+    updated = [r for r in rows if r['gate'] == 'api-identity-updated']
     addresses = step2_inventory(harness.decode(), scenario_id) if verified else []
-    if plan:
+    if plan and verified:
         require(plan[-1].get('resources') == len(addresses), 'summary-plan-count')
-    for row in identity:
-        require(row.get('owned') == len(addresses), 'summary-owned-count')
+    for row in created + updated:
+        if verified:
+            require(row.get('owned') == len(addresses), 'summary-owned-count')
     api_ids = {}
-    vpc_ids = {r.get('vpc_id') for r in identity if r.get('vpc_id')}
+    vpc_ids = {r.get('vpc_id') for r in created + updated if r.get('vpc_id')}
     if vpc_ids:
-        require(len(vpc_ids) == 1 and re.fullmatch(r'vpc-[0-9a-f]{8,17}', next(iter(vpc_ids))), 'summary-vpc-id')
+        require(len(vpc_ids) == 1 and VPC_ID.match(next(iter(vpc_ids))), 'summary-vpc-id')
         api_ids['vpc_id'] = next(iter(vpc_ids))
+
+    def count(rows_, key):
+        value = rows_[-1].get(key) if rows_ else None
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
+    evidence = {'plan_gate': plan[-1]['status'] if plan else 'NOT_TESTED', 'plan_resources': count(plan, 'resources'),
+                'api_owned_create': count(created, 'owned'), 'api_owned_update': count(updated, 'owned'),
+                'inventory_sha256': inventory_digest(addresses)}
     resource_cleanup = record.get('resource_cleanup', 'NOT_TESTED')
-    ok = record.get('failure') is None and all(v == 'PASS' for v in controls.values()) \
-        and all(v == 'PASS' for v in operations.values()) and resource_cleanup == 'PASS'
+    measured_fail = record.get('failure') is not None or resource_cleanup != 'PASS' \
+        or any(v != 'PASS' for v in controls.values()) or any(v != 'PASS' for v in operations.values())
+    gaps = completeness_gaps(required, operations, pinned, scenario_id, addresses, evidence, api_ids)
+    ok = not measured_fail and not gaps and run['conclusion'] == 'success'
     entry['roots'] = [{
         'name': 'network', 'kind': 'dev-root', 'path': DEV_ROOTS['network'],
-        'result': 'PASS' if ok else 'FAIL', 'resources': len(addresses), 'resource_addresses': addresses,
+        'result': 'PASS' if ok else 'FAIL' if measured_fail else 'INSUFFICIENT_EVIDENCE',
+        'resources': len(addresses), 'resource_addresses': addresses,
         'address_source': ('reviewed inventory EXPECTED and expected_for() in scripts/emulator-rehearsal/rehearse.py at '
                            'the tested SHA, whose SHA-256 equals the run harness_sha256; the plan gate requires exactly '
                            'this inventory' if verified else 'harness not verifiable against git'),
-        'operations': dict(operations), 'api_ids': api_ids, 'resource_cleanup': resource_cleanup}]
+        'operations': dict(operations), 'api_ids': api_ids, 'evidence': evidence, 'resource_cleanup': resource_cleanup}]
+    entry['evidence_gaps'].extend(gaps)
     if not verified:
         entry['evidence_gaps'].append('Harness source at the tested SHA not available: resource addresses not recorded')
     entry['out_of_scope_roots'] = out_of_scope({'network'})
@@ -558,8 +688,12 @@ def harvest_step2_record(entry, meta, rows, repo):
                              'models API state only')
     entry['residual_risk'].append('The refresh allowlist is a reviewed judgment that the observed computed-field '
                                   'convergence is normal; it is covered by offline mutation tests')
-    if ok and run['conclusion'] == 'success':
+    if ok:
         entry['result'] = {'overall': 'PASS', 'basis': 'summary-record', 'failure': None}
+    elif not measured_fail:
+        entry['result'] = {'overall': 'INSUFFICIENT_EVIDENCE', 'basis': 'summary-record', 'failure': {
+            'step': first_failed_step(meta['job']), 'stage': 'evidence completeness', 'diagnostic': 'EVIDENCE_INCOMPLETE',
+            'cause': 'the record cannot support PASS; see evidence_gaps'}}
     else:
         failure = record.get('failure') or {}
         entry['result'] = {'overall': 'FAIL', 'basis': 'summary-record', 'failure': {
@@ -593,9 +727,15 @@ def harvest_representative_rows(entry, meta, rows, repo):
         require(prepared.get('sha') == run['head_sha'], 'gate-preparation-sha')
         entry['tested']['versions'] = {k: prepared.get(k) for k in ('emulator', 'terraform', 'awscli', 'provider')}
     harness = git_show(repo, run['head_sha'], WORKFLOWS[meta['workflow']]['harness'])
+    gates = git_show(repo, run['head_sha'], 'scripts/emulator-verification/gates.py')
+    required = operations_literal(gates.decode()) if gates is not None else None
+    pinned = None
     if harness is not None:
-        entry['tested'].update(harness_sha256=hashlib.sha256(harness).hexdigest(), harness_verified_against_git=True)
-    entry['tested'].update(scenario_id='aws_vpc.proof', scenario='disposable single-VPC adapter lifecycle')
+        digest = hashlib.sha256(harness).hexdigest()
+        pinned = KNOWN_HARNESSES.get(digest)
+        entry['tested'].update(harness_sha256=digest, harness_verified_against_git=True)
+    entry['tested'].update(required_operations=required, scenario_id='aws_vpc.proof',
+                           scenario='disposable single-VPC adapter lifecycle')
     for key in CONTROLS:
         if 'control-' + key in last:
             entry['controls'][key] = last['control-' + key]['status']
@@ -605,19 +745,27 @@ def harvest_representative_rows(entry, meta, rows, repo):
     api_ids = {}
     for row in rows:
         if row.get('resource_id'):
-            require(re.fullmatch(r'vpc-[0-9a-f]{8,17}', row['resource_id']) is not None, 'gate-resource-id')
+            require(VPC_ID.match(row['resource_id']) is not None, 'gate-resource-id')
             api_ids['vpc_id'] = row['resource_id']
+    evidence = {'plan_gate': last['plan']['status'] if 'plan' in last else 'NOT_TESTED', 'plan_resources': None,
+                'api_owned_create': None, 'api_owned_update': None, 'inventory_sha256': inventory_digest(addresses)}
     cleanup = last.get('resource-cleanup', {}).get('status', 'NOT_TESTED')
     execution = last.get('execution')
     complete = last.get('lifecycle-evidence-complete', {}).get('status') == 'PASS'
-    ok = complete and execution is None and all(v == 'PASS' for v in operations.values()) and operations \
+    measured_pass = complete and execution is None and bool(operations) \
+        and all(v == 'PASS' for v in operations.values()) \
         and all(v == 'PASS' for v in entry['controls'].values()) and cleanup == 'PASS'
+    gaps = completeness_gaps(required, operations, pinned, 'aws_vpc.proof', addresses, evidence, api_ids) \
+        if measured_pass else []
+    ok = measured_pass and not gaps and run['conclusion'] == 'success'
     entry['roots'] = [{
         'name': 'representative-vpc-proof', 'kind': 'disposable-adapter', 'path': 'scripts/emulator-verification/adapter',
-        'result': 'PASS' if ok else (execution or {}).get('status', 'BLOCKED') if execution else 'BLOCKED',
+        'result': 'PASS' if ok else 'INSUFFICIENT_EVIDENCE' if measured_pass
+        else (execution or {}).get('status', 'BLOCKED') if execution else 'BLOCKED',
         'resources': len(addresses), 'resource_addresses': addresses,
         'address_source': 'resource blocks of scripts/emulator-verification/adapter/main.tf at the tested SHA',
-        'operations': operations, 'api_ids': api_ids, 'resource_cleanup': cleanup}]
+        'operations': operations, 'api_ids': api_ids, 'evidence': evidence, 'resource_cleanup': cleanup}]
+    entry['evidence_gaps'].extend(gaps)
     entry['out_of_scope_roots'] = out_of_scope(set())
     host = [r['status'] for r in rows if r['gate'] == 'host-cleanup']
     entry['cleanup'] = {'resources': cleanup, 'material': last.get('material_cleanup', {}).get('status', 'NOT_TESTED'),
@@ -630,8 +778,13 @@ def harvest_representative_rows(entry, meta, rows, repo):
         entry['observations'].append('Recovery after the failure: ' + ', '.join(recovery) + ' PASS')
     entry['untested'].append('Every DEV root and module: the representative scenario covers only the disposable '
                              'aws_vpc.proof adapter')
-    if ok and run['conclusion'] == 'success':
+    if ok:
         entry['result'] = {'overall': 'PASS', 'basis': 'gate-rows', 'failure': None}
+        return
+    if measured_pass:
+        entry['result'] = {'overall': 'INSUFFICIENT_EVIDENCE', 'basis': 'gate-rows', 'failure': {
+            'step': first_failed_step(meta['job']), 'stage': 'evidence completeness', 'diagnostic': 'EVIDENCE_INCOMPLETE',
+            'cause': 'the gate rows cannot support PASS; see evidence_gaps'}}
         return
     failed = [r for r in rows if r['status'] in ('FAIL', 'BLOCKED') and r['gate'] not in
               ('execution', 'complete-evidence-and-cleanup')]
@@ -750,7 +903,7 @@ def load_entries(directory):
 
 
 def reconcile(snapshot, entries):
-    """Return a dict of problem lists; every list empty means reconciled."""
+    """Compare the ledger with the static run list snapshot; every list empty means it matches the snapshot."""
     exact_keys(snapshot, ['retrieved_at', 'source', 'workflows'], label='snapshot')
     walk_strings(snapshot, 'snapshot')
     problems = {'unregistered': [], 'not_in_actions': [], 'missing_attempts': [], 'mismatched': [], 'incomplete': [],
@@ -795,18 +948,21 @@ def render_index(entries, snapshot, problems):
            'An entry is a structured, sanitized record. It is not a copy of the full log, and it never holds raw State,',
            'saved plans, credentials, private keys or secret values. A value the run did not record is absent or',
            'NOT_TESTED, never inferred. Emulator results are not evidence of real AWS behavior.', '',
-           '## Reconciliation', '',
-           'Against the Actions run list snapshot `actions-runs.json` (retrieved ' + snapshot['retrieved_at'] + '): ' +
+           '## Reconciliation with the run list snapshot', '',
+           'This compares the ledger with `actions-runs.json`, a static snapshot of the GitHub Actions run list that',
+           'the operator retrieved at ' + snapshot['retrieved_at'] + ' and committed with the entries. It is not a live',
+           'query: runs started after that time, or anything GitHub changed since, are not covered until a later',
+           'reviewed pull request updates the snapshot. Snapshot: ' +
            ', '.join('`%s` %d runs' % (Path(w).name, n) for w, n in sorted(counts.items())) + '; ' +
            '%d entries.' % len(entries), '',
            '| Check | Result |', '| --- | --- |']
-    labels = [('unregistered', 'Unregistered runs'), ('missing_attempts', 'Missing attempts'),
-              ('not_in_actions', 'Entries not in the run list'), ('mismatched', 'Entries that disagree with the run list'),
+    labels = [('unregistered', 'Runs in the snapshot without an entry'), ('missing_attempts', 'Missing attempts'),
+              ('not_in_actions', 'Entries not in the snapshot'), ('mismatched', 'Entries that disagree with the snapshot'),
               ('incomplete', 'Runs still in progress (register after completion)'),
               ('log_unavailable', 'Runs whose log could not be retrieved')]
     for key, label in labels:
         out.append('| ' + label + ' | ' + (', '.join(str(x) for x in problems[key]) if problems[key] else 'none') + ' |')
-    out += ['', 'Status: ' + ('RECONCILED' if not blocking else 'NOT RECONCILED'), '',
+    out += ['', 'Status: ' + ('MATCHES THE SNAPSHOT' if not blocking else 'DOES NOT MATCH THE SNAPSHOT'), '',
             '## Runs', '',
             '| Run | Workflow | Trigger | Head SHA | Scope | Result | Failure | Log | Registered |',
             '| --- | --- | --- | --- | --- | --- | --- | --- | --- |']
@@ -858,7 +1014,8 @@ def main(argv=None):
             (directory / 'index.md').write_text(render_index(entries, snapshot, reconcile(snapshot, entries)))
         elif argv[:1] == ['check'] and len(argv) == 2:
             entries, problems = check(argv[1])
-            print('ledger OK: %d entries, reconciled' % len(entries))
+            print('ledger OK: %d entries; matches the run list snapshot retrieved %s (static, not a live API query)'
+                  % (len(entries), json.loads((Path(argv[1]) / 'actions-runs.json').read_text())['retrieved_at']))
         else:
             raise Invalid('usage')
     except Invalid as error:

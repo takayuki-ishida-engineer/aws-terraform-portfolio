@@ -23,7 +23,7 @@
   },
   "evidence_gaps": [],
   "harvest": {
-    "harvested_at": "2026-11-20T06:14:06Z",
+    "harvested_at": "2026-11-20T14:08:12Z",
     "registration": "initial-backfill",
     "tool": "scripts/emulator-evidence/harvest.py"
   },
@@ -128,6 +128,13 @@
       "api_ids": {
         "vpc_id": "vpc-0000000000000009c"
       },
+      "evidence": {
+        "api_owned_create": 16,
+        "api_owned_update": 16,
+        "inventory_sha256": "6070a967904020051d1044a6e742758e19f116924b4696c5e2f5d457f1976953",
+        "plan_gate": "PASS",
+        "plan_resources": 16
+      },
       "kind": "dev-root",
       "name": "network",
       "operations": {
@@ -195,6 +202,21 @@
     "harness": "scripts/emulator-rehearsal/rehearse.py",
     "harness_sha256": "58a1a15405c945ce23d7e8f04d70df0f38f772bb6e9a32e97c9df34592e4109c",
     "harness_verified_against_git": true,
+    "required_operations": [
+      "plan",
+      "create",
+      "api_create",
+      "read",
+      "update_plan",
+      "update",
+      "api_update",
+      "no_op",
+      "destroy_plan",
+      "destroy",
+      "state_empty",
+      "api_absence",
+      "baseline_preserved"
+    ],
     "scenario": "network root (real vpc module), committed values without interface_endpoints",
     "scenario_id": "no-interface-endpoints",
     "sha": "0a16e486dd37c40358a122aef47a215a8c6a4ab7",
