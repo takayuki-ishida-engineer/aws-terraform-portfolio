@@ -105,6 +105,8 @@ whichever comes first. Anything late or unrecoverable is recorded as EVIDENCE_GA
    python3 scripts/emulator-evidence/harvest.py build --meta META.json --log JOB.log --repo . --out docs/evidence/emulator-runs --harvested-at YYYY-MM-DDTHH:MM:SSZ
    ```
 
+   `--registration` defaults to `regular`; `initial-backfill` was used only for the 2026-11-20 migration.
+
 5. Replace `actions-runs.json` with the run list just retrieved, with its `retrieved_at` time. Then regenerate
    the index and check:
 

@@ -1,6 +1,6 @@
 # AWS Terraform and Kubernetes Portfolio
 
-## Step 2 emulator rehearsal — network root PASS in GitHub Actions
+## Step 2 emulator rehearsal — network and api roots PASS in GitHub Actions
 
 [![AWS Emulator Step 2 rehearsal](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml/badge.svg?branch=main&event=push)](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml?query=branch%3Amain+event%3Apush)
 
@@ -16,11 +16,11 @@ live query), together with the
 
 | Item | Value |
 | --- | --- |
-| What | The real DEV network root (`vpc` module, committed values without interface endpoints, 16 resources) through Plan, Create, Read, Update, No-op and Destroy in the official AWS Emulator, under all fourteen isolation controls |
-| CI runs | [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (Owner-dispatched, 2026-11-18, tested SHA `0a16e486`) and [44664010985](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44664010985) (automatic on main, 2026-11-20, tested SHA `70a58682`), `aws-emulator-rehearsal.yml`. The earlier dispatch 44279371023 stopped BLOCKED at the billing gate before checkout and created nothing |
-| Result | **PASS**: all 14 controls, all 13 lifecycle operations, independent API checks and cleanup |
+| What | The real DEV network root (`vpc` module, committed values without interface endpoints, 16 resources) and api root (`cognito_auth` and `api_gateway_rest`, 7 resources) through Plan, Create, Read, Update, No-op and Destroy in the official AWS Emulator, under all fourteen isolation controls |
+| CI runs | [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (Owner-dispatched, 2026-11-18, tested SHA `0a16e486`) and [44664010985](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44664010985) (automatic on main, 2026-11-20, tested SHA `70a58682`) for network; [44765057461](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44765057461) (automatic on main, 2026-11-20, tested SHA `ddf7f9ff`) for network and api in one run (`all`), `aws-emulator-rehearsal.yml`. The earlier dispatch 44279371023 stopped BLOCKED at the billing gate before checkout and created nothing |
+| Result | **PASS**: all 14 controls, every required lifecycle operation of each root (13 for network; 15 for api, including the teardown switch), independent API checks and cleanup. Each run is registered in the [evidence ledger](docs/evidence/emulator-runs/index.md) |
 | Record | [Step 2 emulator rehearsals](docs/step2-emulator-rehearsals.md): every formal run, status per root, versions, harness hash, the emulator gaps, untested items and residual risk |
-| Other roots | api NOT_TESTED in Actions (local preliminary only); network with interface endpoints and tfstate EMULATOR_COMPATIBILITY_BLOCKED; serverless-api, platform and developer-access NOT_TESTED |
+| Other roots | network with interface endpoints and tfstate EMULATOR_COMPATIBILITY_BLOCKED; serverless-api, platform and developer-access NOT_TESTED |
 
 Measured in the emulator only; not evidence of real AWS behavior. Acceptance needs
 independent review and an Owner decision.

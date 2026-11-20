@@ -16,6 +16,7 @@ NOT_TESTED, and a run without a structured record never gets a 14-control PASS.
 The tool reads files only; it makes no network call and starts no emulator.
 
   harvest.py build --meta META.json [--log JOB.log] --repo REPO --out DIR --harvested-at TS
+                    [--registration regular|initial-backfill]   (default regular)
   harvest.py check DIR      validate every entry, index.md and the reconciliation
   harvest.py index DIR      rewrite index.md from the entries
 """
@@ -615,7 +616,7 @@ def out_of_scope(exclude):
     return rows
 
 
-def base_entry(meta, harvested_at, log_kind, log_lines, rows, has_record):
+def base_entry(meta, harvested_at, log_kind, log_lines, rows, has_record, registration='regular'):
     run, job = meta['run'], meta['job']
     return {
         'schema': SCHEMA,
@@ -624,7 +625,7 @@ def base_entry(meta, harvested_at, log_kind, log_lines, rows, has_record):
         'job': None if job is None else dict(job, url=RUN_URL + str(run['id']) + '/job/' + str(job['id'])),
         'source': {'log': log_kind, 'log_lines': log_lines, 'structured_rows': len(rows), 'summary_record': has_record},
         'harvest': {'harvested_at': harvested_at, 'tool': 'scripts/emulator-evidence/harvest.py',
-                    'registration': 'initial-backfill'},
+                    'registration': registration},
         'result': None,
         'tested': {'sha': run['head_sha'], 'harness': WORKFLOWS[meta['workflow']]['harness'], 'harness_sha256': None,
                    'harness_verified_against_git': False, 'required_operations': None, 'versions': None,
@@ -1157,7 +1158,8 @@ def harvest_metadata_only(entry, meta, text):
     entry['observations'].append('No resource operation ran: no structured record exists for any control or operation')
 
 
-def build(meta, log_text, repo, harvested_at):
+def build(meta, log_text, repo, harvested_at, registration='regular'):
+    require(registration in ('regular', 'initial-backfill'), 'registration')
     check_meta(meta)
     rows, lines = parse_rows(log_text) if log_text is not None else ([], 0)
     if log_text is not None:
@@ -1171,7 +1173,7 @@ def build(meta, log_text, repo, harvested_at):
         step_names_in_workflow(repo, meta)
     kind = WORKFLOWS[meta['workflow']]['kind']
     has_record = any(r['gate'] == 'summary-record' for r in rows)
-    entry = base_entry(meta, harvested_at, meta['log']['kind'], meta['log']['lines'], rows, has_record)
+    entry = base_entry(meta, harvested_at, meta['log']['kind'], meta['log']['lines'], rows, has_record, registration)
     if kind == 'step2-rehearsal' and has_record:
         harvest_step2_record(entry, meta, rows, repo)
     elif kind == 'representative' and rows:
@@ -1303,11 +1305,11 @@ def main(argv=None):
     try:
         if argv[:1] == ['build']:
             args = dict(zip(argv[1::2], argv[2::2]))
-            require(set(args) <= {'--meta', '--log', '--repo', '--out', '--harvested-at'}
+            require(set(args) <= {'--meta', '--log', '--repo', '--out', '--harvested-at', '--registration'}
                     and {'--meta', '--out', '--harvested-at'} <= set(args), 'usage')
             meta = json.loads(Path(args['--meta']).read_text())
             log = Path(args['--log']).read_text(encoding='utf-8-sig') if '--log' in args else None
-            entry = build(meta, log, args.get('--repo'), args['--harvested-at'])
+            entry = build(meta, log, args.get('--repo'), args['--harvested-at'], args.get('--registration', 'regular'))
             target = Path(args['--out']) / ('%d-attempt-%d.json' % (entry['run']['id'], entry['run']['attempt']))
             require(not target.exists(), 'entry-exists-append-only')
             target.write_text(json.dumps(entry, indent=2, sort_keys=True) + '\n')
