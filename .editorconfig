@@ -7,3 +7,8 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
+
+# Raw upstream image manifests (F18): byte-exact, their SHA-256 is the pinned digest.
+[kubernetes/image-manifests/*.json]
+insert_final_newline = false
+trim_trailing_whitespace = false

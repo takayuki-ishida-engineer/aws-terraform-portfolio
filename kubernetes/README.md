@@ -17,7 +17,7 @@ regression result or any Kubernetes Live behavior.
 Finding F11 (2026-11-20): every Kubernetes object the project creates is named
 `<project>-<purpose>` from a new required input, `runtime.project`, which follows the
 DEV roots' project rule. The input moves to interface_version 2 (version 1 is
-refused) and renderer evidence to runtime_contract_version 3. The project must match
+refused) and renderer evidence to runtime_contract_version 3 (4 since F18, below). The project must match
 the Platform output: cluster `<project>-dev-eks` and controller role
 `<project>-dev-role-lbc`. Both gateway Secret names start with `<project>-`.
 
@@ -51,6 +51,63 @@ the four Secrets this runtime references (`cacerts`, `aws-load-balancer-controll
 Nothing enters Git, Terraform or a CI log. Its `public.json` supplies the runtime's
 certificate-derived inputs. The runtime is still not deployable: the nodes cannot
 pull the public images while node egress stays closed (finding F18, open).
+
+## Step 1 item 6b-B2: digest-pinned private images (F18)
+
+Finding F18 (Owner-approved method, 2026-11-20): the runtime pulls its three images
+from a private ECR mirror in the DEV account, pinned by the upstream index digest,
+so node egress stays closed. This change covers the image lock, the renderer and the
+validator only. The `registry` root that creates the repositories (B1) and the
+operator script that copies the images with `skopeo copy --all --preserve-digests`
+(B3) follow in their own pull requests. Nothing is created in AWS by this change.
+
+| Purpose | Upstream (tag) | Index digest | `linux/amd64` child | Platforms |
+| --- | --- | --- | --- | --- |
+| `istio-pilot` | `docker.io/istio/pilot` (`1.32.0`) | `sha256:5383df36…acca78` | `sha256:13f71f5e…cbd7ad` | linux/amd64, linux/arm64 |
+| `istio-proxy` | `docker.io/istio/proxyv2` (`1.32.0`) | `sha256:b8d47c6d…a688d0` | `sha256:ad94413f…8a9f76` | linux/amd64, linux/arm64 |
+| `lbc` | `public.ecr.aws/eks/aws-load-balancer-controller` (`v3.6.2`) | `sha256:fd51f0ec…dc2d94` | `sha256:a2caa8b5…97c9f2` | linux/amd64, linux/arm64 |
+
+- **Lock and proof.** [`images.lock.json`](images.lock.json) records each image's
+  source, chart-pinned tag, index digest and media type (Docker manifest list v2),
+  its platforms and their child digests, and where and when it was observed.
+  [`image-manifests/`](image-manifests/) holds the raw index bytes as fetched
+  anonymously from the registry (metadata only; no layer was pulled). Their SHA-256
+  is the pinned digest, and the tests re-derive every digest, platform and the
+  required `linux/amd64` child from those bytes. A single-platform manifest, an
+  unknown manifest type, a missing `linux/amd64` entry, a tag different from the
+  chart pin or any digest mismatch is refused. The LBC index was read on the
+  operator's workstation because ECR Public refused the cloud session's anonymous GET
+  (data limit); its SHA-256 equals the digest the cloud session observed by HEAD.
+- **References.** The renderer derives
+  `<account_id>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
+  from the input's account and project. It sets istiod's `image`, the injected proxy
+  and init images (`global.proxy.image`, `global.proxy_init.image`), the gateway
+  container and the controller container to these references, and points
+  `global.hub` at the private registry so no unpinned fallback can reach a public
+  one. Evidence moves to runtime_contract_version 4 and records the lock's SHA-256.
+- **Injection templates.** The pinned istiod chart ships eight injection templates.
+  The renderer keeps `sidecar` (the default) and `gateway`, byte-for-byte as in the
+  chart, and removes `grpc-simple`, `grpc-agent` (which uses the public
+  `busybox:1.28`), `waypoint`, `kube-gateway`, `agentgateway` and
+  `agentgateway-waypoint` (Gateway API and ambient, which are disabled). The default
+  template, policy and selectors are unchanged.
+- **Validation.** The validator, written separately from the renderer, re-proves the
+  lock from the raw manifests and requires every image in the bundle to be exactly
+  the reference for its workload. It checks that the injector values and the recorded
+  Istio values use the same references, that only the two templates remain and equal
+  the chart's files, and that no public registry name (or `busybox`) appears anywhere
+  in the bundle. This is offline bundle validation, not Kubernetes admission.
+
+**Verified and not verified.** The tests prove that the rendered bundle contains
+only the pinned references and only the two templates. The following are NOT_TESTED:
+- what Istio does with a Pod that names a removed template (the Istio documentation
+  does not say), and with a `sidecar.istio.io/proxyImage` annotation;
+- admission on a real cluster: no fail-closed behaviour is guaranteed there;
+- the image pull itself, through the ECR endpoints and the S3 path over NAT.
+
+An image allowlist admission policy and node IAM changes are out of scope. The
+allowlist is recorded as a separate security improvement candidate in the
+[audit report](../docs/step1-audit-report.md).
 
 ## NP-2P Gateway port alignment and compatibility
 
@@ -357,9 +414,9 @@ No valid TLS/mTLS handshake or actual target registration is inferred from schem
 ## Offline evidence and limits
 
 [Runtime tests](tests/README.md) perform eight actual Helm renders over two
-positive configurations, validate 124 objects, reject108 rendered security
-mutations (existing77 plus20 NP-2P and11 F11),54 invalid input contracts and26 missing/malformed/fabricated evidence
-cases. Core schemas come from pinned Kubernetes v1.34.1 OpenAPI; CRD schemas are
+positive configurations, validate 124 objects, reject129 rendered security
+mutations (existing77 plus20 NP-2P,11 F11 and21 F18),54 invalid input contracts,29 missing/malformed/fabricated evidence
+cases,38 image-lock faults (19 cases, each refused by the validator and by the renderer) and5 injection-template faults. Core schemas come from pinned Kubernetes v1.34.1 OpenAPI; CRD schemas are
 from the exact pinned charts. NP-1 extends the selected schema definitions with
 NetworkPolicy and its reference closure from the **same** v1.34.1 source, whose
 existing SHA-256 and Git blob identity were checked. Only the derived subset hash

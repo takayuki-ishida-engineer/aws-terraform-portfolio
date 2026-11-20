@@ -14,14 +14,15 @@ RBAC/bindings/admission, TGB refs, private Services, selectors/ports, pinned ima
 resource profiles, external CA dependencies, TLS MUTUAL/clientSPKI and STRICT/
 default-deny policies. CRDs are canonical-hash pinned, not assumed from strings.
 
-108 unsafe rendered mutations are actually submitted to validation: the existing
-58 cases plus19 NP-1,20 NP-2P and11 F11 cases. Existing cases include
+129 unsafe rendered mutations are actually submitted to validation: the existing
+58 cases plus19 NP-1,20 NP-2P,11 F11 and21 F18 cases. Existing cases include
 TLS downgrades/identity removal/plaintext, wrong TGB target/type/VPC/networking,
 LoadBalancer Service, port/selector/ref mistakes, broad RBAC/cluster-admin binding,
 missing guards, controller flags, CA fallback, privilege/image/AZ changes and
 missing/duplicate/forbidden objects.54 invalid minimal inputs are rejected.
-26 evidence faults reject missing/failed/partial/fabricated artifacts, hash/count
-mismatch, malformed/duplicate/nonfinite JSON. Individual labels are emitted in
+29 evidence faults reject missing/failed/partial/fabricated artifacts, hash/count
+mismatch, malformed/duplicate/nonfinite JSON, a missing or forged image lock hash and
+a contract-3 report. Individual labels are emitted in
 the JSON report. Counts derive from executed cases; they are not native Terraform
 passes, simulated communications or a replacement for the153 toolkit tests.
 
@@ -53,7 +54,7 @@ backend ports and the reserved Istio15000–15090 interval; four accepted metada
 boundaries1024/14999/15091/65535 are checked without counting them as Helm renders.
 Five additional evidence faults reject missing/legacy runtime_contract_version,
 forged input/chart hashes and an unsafe manifest with a freshly recomputed hash.
-NP-2P evidence used runtime_contract_version2; F11 (below) raised it to 3. The
+NP-2P evidence used runtime_contract_version2; F11 (below) raised it to 3 and F18 to 4. The
 Platform reference version1 and Kubernetes API versions are unchanged. Report counts are
 derived from executed cases and remain separate from Terraform/toolkit tests.
 The cross-fixture TG swap checks declared reference consistency; an ARN does not
@@ -77,6 +78,33 @@ underscore, eleven characters, `aws`/`amazon`/`cognito`, empty, non-string), a
 cluster or controller role not named `<project>-dev-eks`/`<project>-dev-role-lbc`,
 gateway Secrets without the project prefix and a version1 input. Five accepted
 projects are checked without counting them as Helm renders.
+
+F18 (Step 1 item 6b-B2) pins the three images to the private ECR mirror by digest.
+The 21 new rendered mutations reject:
+- a public, tag-only, tag-plus-digest, child-digest, other-account, other-region,
+  other-project or swapped image on a workload;
+- an extra `busybox` init container, an ephemeral container with an unapproved private
+  reference and a public image in a Pod annotation;
+- a public hub, a tag-only proxy or a public init image in the injector values;
+- a restored `grpc-agent` template, an extra custom template, a changed default
+  template or a changed `sidecar` template;
+- a public or other-account image in the recorded Istio values.
+
+The 38 image-lock faults are 19 lock cases, each refused independently by the
+validator and by the renderer's lock loader:
+- a digest mismatch or tampered raw manifest bytes;
+- a missing `linux/amd64` entry, a single-platform manifest or a schema-1 index or child
+  (each re-pinned consistently, so only the targeted rule can reject it);
+- a duplicate platform, a changed upstream tag or source, a changed `linux/amd64` child
+  digest, an extra, missing, duplicate or extended image entry, a tag-based registry
+  contract or another required platform;
+- a missing observation, an observation from another registry or a moved manifest
+  path with identical bytes.
+
+Five injection-template faults show that the renderer stops instead of pruning an
+already-pruned, extended or reordered injector configuration, one with a top-level key
+after the templates (the cut would drop it, so the parsed comparison fails) or one with
+no templates key. The pruned text is also checked to equal the bundle's ConfigMap.
 
 `complete_runtime=true` means these runtime checks passed. Render/runtime reports
 retain `complete_v5=false`; only final affected-local acceptance after Terraform,

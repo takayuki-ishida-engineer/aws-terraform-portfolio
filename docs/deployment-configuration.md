@@ -329,7 +329,9 @@ approval. The Owner may reorder them.
    `run.py publish-artifact` and the teardown switches. 6b (the Kubernetes runtime:
    certificates, image source, object names) follows. 6b-A delivered the
    certificates (`k8s_certs.py`, finding F4) and the `<project>-<purpose>` object
-   names (F11). The image source (F18) stays open.
+   names (F11). The image source (F18) stays open: 6b-B2 pinned the images to a
+   private ECR mirror by digest; the registry root (B1) and the mirror script (B3)
+   follow.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

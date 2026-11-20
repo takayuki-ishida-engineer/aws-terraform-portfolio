@@ -22,6 +22,13 @@ ending `:role/<project>-dev-role-lbc`. Both gateway Secret names start with
 writes every certificate-derived runtime value (Secret names, SPKI pin, webhook CA
 bundle) to its `public.json`; the resources and Platform values come from elsewhere.
 
+The images need no input (finding F18): the renderer derives
+`<account_id>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
+from `controller_identity.scope.account_id`, `runtime.project` and the reviewed
+[image lock](../../images.lock.json). Those repositories must hold the mirrored images
+before anything is applied; the registry root and the mirror script are separate
+changes.
+
 Each scope is exactly environment/account_id/partition/region; environment=dev,
 partition=aws and region=ca-central-1 must match. Target-group/account/OIDC references
 must agree. Resources requires explicit controller/istiod/gateway requests and
@@ -47,7 +54,7 @@ backend port must be an integer1024–65535 outside the conservatively reserved
 Istio range15000–15090. Platform's general1–65535 schema is unchanged; its wider
 range is not permission to use low/control ports in this runtime profile.
 All Kubernetes Gateway backend ports now use that one input; NLB remains443.
-Generated evidence requires runtime_contract_version3 (F11; NP-2P used 2). Review and migrate old
+Generated evidence requires runtime_contract_version4 (F18; F11 used 3, NP-2P used 2). Review and migrate old
 Service/TGB/Gateway443 consumers as a coordinated versioned bundle; old evidence
 or a partial manifest update is rejected. The [compatibility and rollback contract](../../README.md#np-2p-gateway-port-alignment-and-compatibility)
 does not implement publication or prove any deployed consumer has been migrated.

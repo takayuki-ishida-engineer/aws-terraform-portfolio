@@ -1,6 +1,6 @@
 """Offline OpenAPI structural validation plus independent cross-resource security contracts."""
-import copy,json,re
-from common import ROOT,LOCK,fill,need,names,sha,fastjsonschema,metadata
+import copy,hashlib,io,json,re,tarfile
+from common import ROOT,LOCK,docs,fill,need,names,parse,sha,fastjsonschema,metadata
 _CACHE={}
 def identity(o):return (o['apiVersion'],o['kind'],o['metadata'].get('namespace',''),o['metadata']['name'])
 def normalize(schema):
@@ -42,6 +42,72 @@ def structural(objects):
   _CACHE[digest](copy.deepcopy(obj))
  return len(objects)
 
+# Finding F18, written independently of the renderer: the image lock is re-proved from
+# the raw upstream manifests, and every image reference in the bundle must be one of
+# the three private ECR references pinned by digest. This is offline bundle validation,
+# not Kubernetes admission: nothing here stops a different Pod on a real cluster.
+LOCKED_IMAGES={'istio-pilot':('docker.io/istio/pilot','istiod'),'istio-proxy':('docker.io/istio/proxyv2','istiod'),'lbc':('public.ecr.aws/eks/aws-load-balancer-controller','controller')}
+PUBLIC_REFERENCE=re.compile(r'(?<![A-Za-z0-9.-])(docker\.io|index\.docker\.io|registry-1\.docker\.io|quay\.io|gcr\.io|k8s\.gcr\.io|ghcr\.io|registry\.k8s\.io|public\.ecr\.aws|registry\.istio\.io|mcr\.microsoft\.com|registry\.gitlab\.com|cgr\.dev)(?![A-Za-z0-9-])|busybox')
+def verify_image_lock(lock=None,read=None):
+ lock=json.loads((ROOT/'kubernetes/images.lock.json').read_text()) if lock is None else lock
+ read=read or (lambda path:(ROOT/path).read_bytes())
+ need(isinstance(lock,dict) and sorted(lock)==['description','images','lock_version','registry','required_platform'] and lock['lock_version']==1,'image lock version')
+ need(lock['required_platform']=='linux/amd64' and lock['registry']=={'region':'ca-central-1','host':'${account_id}.dkr.ecr.ca-central-1.amazonaws.com','repository':'${project}-dev-ecr-${purpose}','reference':'digest'},'image lock registry contract')
+ need(isinstance(lock['images'],list) and sorted(i.get('purpose') for i in lock['images'] if isinstance(i,dict))==sorted(LOCKED_IMAGES),'exactly the reviewed images, each once')
+ digests={}
+ for item in lock['images']:
+  source,chart=LOCKED_IMAGES[item['purpose']]
+  need(sorted(item)==['digest','kind','manifest_file','media_type','observed','platforms','purpose','source','tag'],'image lock fields')
+  need(item['source']==source and item['tag']==LOCK['charts'][chart]['app_version'],'upstream source and tag equal the pinned chart')
+  need(item['manifest_file']=='kubernetes/image-manifests/'+item['purpose']+'.index.json','raw manifest path')
+  raw=read(item['manifest_file']);need(re.fullmatch(r'sha256:[0-9a-f]{64}',item['digest']) and 'sha256:'+hashlib.sha256(raw).hexdigest()==item['digest'],'raw manifest bytes prove the pinned digest')
+  index=parse(raw.decode())
+  need(item['kind']=='index' and index.get('schemaVersion')==2 and index.get('mediaType')==item['media_type'] in ('application/vnd.docker.distribution.manifest.list.v2+json','application/vnd.oci.image.index.v1+json'),'multi-platform index; single-platform or unknown manifests are refused')
+  need(sorted(index)==['manifests','mediaType','schemaVersion'] and isinstance(index['manifests'],list) and index['manifests'],'index structure')
+  found={}
+  for child in index['manifests']:
+   need(child.get('mediaType') in ('application/vnd.docker.distribution.manifest.v2+json','application/vnd.oci.image.manifest.v1+json') and re.fullmatch(r'sha256:[0-9a-f]{64}',str(child.get('digest'))),'supported child manifest')
+   platform=child.get('platform',{});key='/'.join([platform.get('os',''),platform.get('architecture','')]+([platform['variant']] if platform.get('variant') else []))
+   need(key not in found,'duplicate platform');found[key]={'digest':child['digest'],'media_type':child['mediaType']}
+  need(item['platforms']==found and 'linux/amd64' in found,'recorded platforms and linux/amd64 child digest equal the raw manifest')
+  need(sorted(item['observed'])==['at','endpoint','method'] and item['observed']['endpoint']==source.split('/')[0].replace('docker.io','registry-1.docker.io'),'observation provenance')
+  digests[item['purpose']]=item['digest']
+ return digests
+def chart_file(chart,name):
+ path=ROOT/LOCK['charts'][chart]['path'];data=path.read_bytes();need(sha(data)==LOCK['charts'][chart]['sha256'],'chart integrity:'+chart)
+ with tarfile.open(fileobj=io.BytesIO(data)) as archive:return archive.extractfile(name).read().decode()
+def images(objects,d,lock=None,read=None):
+ digests=verify_image_lock(lock,read);project=d['runtime']['project'];REV=names(project)['revision'];GW=names(project)['gateway']
+ host=d['controller_identity']['scope']['account_id']+'.dkr.ecr.ca-central-1.amazonaws.com'
+ refs={k:host+'/'+project+'-dev-ecr-'+k+'@'+v for k,v in digests.items()}
+ found=[]
+ def walk(x,owner):
+  if isinstance(x,dict):
+   for k,v in x.items():
+    if k=='image':need(isinstance(v,str),'image reference type');found.append((owner,v))
+    else:walk(v,owner)
+  elif isinstance(x,list):
+   for v in x:walk(v,owner)
+ # CRD schemas define an 'image' property; they are definitions, not references.
+ for o in objects:
+  if o['kind']!='CustomResourceDefinition':walk(o,(o['kind'],o['metadata']['name']))
+ expected=[(('Deployment','aws-load-balancer-controller'),refs['lbc']),(('Deployment','istiod-'+REV),refs['istio-pilot']),(('Deployment',GW),refs['istio-proxy'])]
+ need(sorted(found)==sorted(expected),'every image is the approved private ECR reference pinned by digest, on its own workload; no other image')
+ injector=next(o for o in objects if o['kind']=='ConfigMap' and o['metadata']['name']=='istio-sidecar-injector-'+REV)['data']
+ need(sorted(injector)==['config','values'],'injector ConfigMap keys')
+ g=json.loads(injector['values'])['global']
+ need(g['hub']==host and g['tag']==LOCK['charts']['istiod']['app_version'] and g['variant']=='' and g['proxy']['image']==refs['istio-proxy'] and g['proxy_init']['image']==refs['istio-proxy'],'injected proxy and init images are the pinned private reference')
+ config=docs(injector['config'])[0]
+ need(sorted(config)==['alwaysInjectSelector','defaultTemplates','injectedAnnotations','neverInjectSelector','policy','template','templates'] and config['defaultTemplates']==['sidecar'] and config['policy']=='enabled','default injection contract')
+ need(sorted(config['templates'])==['gateway','sidecar'],'only the default sidecar and gateway injection templates')
+ for key,name in [('sidecar','istiod/files/injection-template.yaml'),('gateway','istiod/files/gateway-injection-template.yaml')]:
+  need(config['templates'][key]==chart_file('istiod',name).strip()+'\n','unchanged pinned chart injection template:'+key)
+ for key in ['original-values','merged-values']:
+  values=json.loads(next(o for o in objects if o['kind']=='ConfigMap' and o['metadata']['name']=='values-'+REV)['data'][key])
+  need(values['image']==refs['istio-pilot'] and values['global']['hub']==host and values['global']['proxy']['image']==refs['istio-proxy'] and values['global']['proxy_init']['image']==refs['istio-proxy'],'recorded Istio values use the pinned private references:'+key)
+ need(not PUBLIC_REFERENCE.search(json.dumps(objects)),'no public registry reference anywhere in the bundle')
+ return refs
+
 def application_network_policy(objects,project):
  # Policies are additive: validating only the named deny policy would overlook
  # a second policy that grants traffic. No other policy is approved in NP-1.
@@ -62,6 +128,7 @@ def verify(objects,d,fixture=False):
  # The inventory holds ${project} tokens for the names the project creates (F11).
  expected=fill(json.loads((ROOT/'kubernetes/tests/expected-inventory.json').read_text()),project);need(set(rows)=={tuple(x) for x in expected},'complete exact ownership inventory')
  structural(objects)
+ refs=images(objects,d)
  def obj(kind,name,ns=''):return next(o for o in objects if o['kind']==kind and o['metadata']['name']==name and o['metadata'].get('namespace','')==ns)
  c=d['controller_identity'];p=d['private_ingress'];r=d['runtime']
  for o in objects:
@@ -77,7 +144,7 @@ def verify(objects,d,fixture=False):
     sc=co['securityContext'];need(not sc.get('privileged') and sc.get('capabilities')=={'drop':['ALL']} and sc.get('seccompProfile',pod.get('securityContext',{}).get('seccompProfile'))=={'type':'RuntimeDefault'},'restricted capabilities/seccomp')
     need('readinessProbe' in co and 'livenessProbe' in co,'explicit probes')
  controller=obj('Deployment','aws-load-balancer-controller','kube-system');cs=controller['spec']['template']['spec'];co=cs['containers'][0]
- need(cs['serviceAccountName']=='aws-load-balancer-controller' and co['image']=='public.ecr.aws/eks/aws-load-balancer-controller:v3.6.2' and co['resources']==r['resources']['controller'],'controller identity/image/resources')
+ need(cs['serviceAccountName']=='aws-load-balancer-controller' and co['image']==refs['lbc'] and co['resources']==r['resources']['controller'],'controller identity/image/resources')
  sa=obj('ServiceAccount','aws-load-balancer-controller','kube-system');need(sa['metadata']['annotations']=={'eks.amazonaws.com/role-arn':c['role_arn']},'IRSA role')
  flags={}
  for arg in co['args']:
@@ -119,7 +186,7 @@ def verify(objects,d,fixture=False):
  noing=obj('ValidatingAdmissionPolicy',N['no_lb_service'])['spec'];need(noing['matchConstraints']=={'namespaceSelector':{'matchLabels':{'portfolio.runtime/ingress':'true'}},'resourceRules':[{'apiGroups':['networking.k8s.io'],'apiVersions':['v1'],'operations':['CREATE','UPDATE'],'resources':['ingresses']},{'apiGroups':[''],'apiVersions':['v1'],'operations':['CREATE','UPDATE'],'resources':['services']}]},'namespace LB guard cannot be bypassed by changed match constraints');need(noing['failurePolicy']=='Fail' and noing['validations']==[{'expression':"request.kind.kind == 'Service' && object.spec.type == 'ClusterIP'",'message':'This namespace permits ClusterIP Services, not Ingress or external LB ownership.'}],'deny duplicate LB paths')
  tgb=obj('TargetGroupBinding',GW,ING);need(tgb['apiVersion']=='elbv2.k8s.aws/v1beta1' and tgb['spec']=={'targetGroupARN':p['target_group_arn'],'targetType':'ip','vpcID':p['vpc_id'],'serviceRef':{'name':GW,'port':p['backend_target_port']},'multiClusterTargetGroup':False},'actual owned TGB no SG networking/assumeRole')
  dep=obj('Deployment',GW,ING);pod=dep['spec']['template'];pc=pod['spec']['containers'][0];svc=obj('Service',GW,ING)['spec']
- need(pod['spec']['serviceAccountName']==GW and pc['image']=='docker.io/istio/proxyv2:1.32.0','gateway identity/image')
+ need(pod['spec']['serviceAccountName']==GW and pc['image']==refs['istio-proxy'],'gateway identity/image')
  need(pod['metadata']['labels']['istio.io/rev']==REV and pod['metadata']['labels']['sidecar.istio.io/inject']=='true' and pod['metadata']['annotations']['inject.istio.io/templates']=='gateway','pinned gateway injection template')
  need(svc['type']=='ClusterIP' and all(pod['metadata']['labels'].get(k)==v for k,v in svc['selector'].items()) and svc['ports']==[{'name':'https-backend','port':p['backend_target_port'],'protocol':'TCP','targetPort':p['backend_target_port']}],'Service selector/backend port/Pod target port')
  need(pc['ports']==[{'containerPort':15090,'protocol':'TCP','name':'http-envoy-prom'},{'name':'https-backend','containerPort':p['backend_target_port'],'protocol':'TCP'},{'name':'status','containerPort':15021,'protocol':'TCP'}] and pc['resources']==r['resources']['gateway'],'exact Pod ports/resources; no duplicate backend or probe binding')
@@ -129,10 +196,10 @@ def verify(objects,d,fixture=False):
  server=gw['servers'][0];need(server['port']=={'number':p['backend_target_port'],'name':'https-backend','protocol':'HTTPS'} and server['hosts']==[r['backend_hostname']],'exact backend hostname/TLS listener')
  need(server['tls']=={'mode':'MUTUAL','credentialName':r['gateway_tls_secret'],'minProtocolVersion':'TLSV1_2','verifyCertificateSpki':r['expected_client_spki'],'caCertCredentialName':r['gateway_client_ca_secret']},'MUTUAL explicit server credential/client CA/identity; no fallback')
  istio=obj('Deployment','istiod-'+REV,'istio-system')['spec']['template']['spec'];ic=istio['containers'][0]
- need(ic['image']=='docker.io/istio/pilot:1.32.0' and ic['resources']==r['resources']['istiod'] and istio['serviceAccountName']=='istiod-'+REV,'pinned Istiod/SA/resources')
+ need(ic['image']==refs['istio-pilot'] and ic['resources']==r['resources']['istiod'] and istio['serviceAccountName']=='istiod-'+REV,'pinned Istiod/SA/resources')
  ca=next(v['secret'] for v in istio['volumes'] if v['name']=='cacerts');need(ca=={'secretName':r['istio_ca_secret'],'optional':False,'items':[{'key':k,'path':k} for k in ['ca-cert.pem','ca-key.pem','root-cert.pem','cert-chain.pem']]},'no unreviewed CA bootstrap fallback')
  env={v['name']:v.get('value') for v in ic['env']};need(env['PILOT_ENABLE_GATEWAY_API']=='false' and env['PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER']=='false','no extra gateway deployment controller')
- mesh=obj('ConfigMap','istio-'+REV,'istio-system')['data']['mesh'];from common import docs
+ mesh=obj('ConfigMap','istio-'+REV,'istio-system')['data']['mesh']
  need(docs(mesh)[0]['trustDomain']==r['trust_domain'],'explicit mesh trust domain')
  app=obj('Namespace',APP)['metadata']['labels'];need(app['istio.io/rev']==REV and app['pod-security.kubernetes.io/enforce']=='restricted','sidecar injection/PSS')
  need(obj('PeerAuthentication',N['peer_authentication'],APP)['spec']=={'mtls':{'mode':'STRICT'}},'STRICT mesh')

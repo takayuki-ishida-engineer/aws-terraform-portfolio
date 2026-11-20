@@ -126,6 +126,10 @@ python3 scripts/local-workflow/run.py api apply
 This part is still not deployable. The nodes cannot pull the Istio and AWS Load
 Balancer Controller images from public registries while node egress stays closed
 (finding F18, open). Do not open node egress to the internet to work around it.
+The rendered runtime already references the private ECR mirror
+`<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
+(item 6b-B2), but the registry root that creates those repositories and the script
+that copies the pinned images into them are not delivered yet.
 
 What is ready (Step 1 item 6b-A):
 - **Object names (F11).** Every object the project creates is named
