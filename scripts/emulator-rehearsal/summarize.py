@@ -29,7 +29,8 @@ CONTROLS = {
     '14': 'Confirmed cleanup (resources, material, process)',
 }
 OPERATIONS = ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update', 'no_op',
-              'destroy_plan', 'destroy', 'state_empty', 'api_absence', 'baseline_preserved']
+              'teardown_plan', 'teardown', 'destroy_plan', 'destroy', 'state_empty', 'api_absence', 'baseline_preserved']
+REQUIRED_OPERATIONS = [o for o in OPERATIONS if not o.startswith('teardown')]
 SAFE = re.compile(r'^[A-Za-z0-9 _.,;:/@()\-\[\]"=+]{0,300}$')
 
 
@@ -80,9 +81,18 @@ def evaluate(rows, env):
                 problems.append('run identity mismatch')
         if any(record.get('controls', {}).get(k) != 'PASS' for k in CONTROLS):
             problems.append('not every control PASS')
-        if any(record.get('operations', {}).get(k) != 'PASS' for k in OPERATIONS):
-            problems.append('not every operation PASS')
-        for key in ('resource_cleanup', 'material_cleanup', 'process_cleanup'):
+        roots = record.get('roots') or {}
+        if not roots:
+            problems.append('no root rehearsed')
+        for name, root in sorted(roots.items()):
+            ops = root.get('operations') or {}
+            if root.get('status') != 'PASS':
+                problems.append('root ' + name + ' ' + str(root.get('status')))
+            if any(ops.get(k) != 'PASS' for k in REQUIRED_OPERATIONS) or any(v != 'PASS' for v in ops.values()):
+                problems.append('root ' + name + ' operations not all PASS')
+            if root.get('resource_cleanup') != 'PASS':
+                problems.append('root ' + name + ' resource cleanup ' + str(root.get('resource_cleanup')))
+        for key in ('material_cleanup', 'process_cleanup'):
             if record.get(key) != 'PASS':
                 problems.append(key.replace('_', ' ') + ' ' + str(record.get(key)))
         if record.get('failure'):
@@ -92,8 +102,8 @@ def evaluate(rows, env):
 
 def render(record, host, problems, rows, env):
     complete = not problems
-    out = ['## AWS Emulator Step 2 rehearsal: network root', '']
-    out.append('**Result: ' + ('PASS** (all 14 controls, all 13 lifecycle operations and cleanup)' if complete
+    out = ['## AWS Emulator Step 2 rehearsal', '']
+    out.append('**Result: ' + ('PASS** (every rehearsed root: all 14 controls, every lifecycle operation and cleanup)' if complete
                                else 'INCOMPLETE** (' + text('; '.join(problems)) + ')'))
     out.append('')
     if record is None:
@@ -122,22 +132,37 @@ def render(record, host, problems, rows, env):
                               'standard runner, $0 Budgets with usage blocking; not API-audited') + ' |',
             '', '### Mandatory controls', '', '| # | Control | Result |', '| --- | --- | --- |']
     out += ['| ' + k + ' | ' + v + ' | ' + text(record.get('controls', {}).get(k, 'MISSING')) + ' |' for k, v in CONTROLS.items()]
-    out += ['', '### Lifecycle operations', '', '| Operation | Result |', '| --- | --- |']
-    out += ['| ' + k + ' | ' + text(record.get('operations', {}).get(k, 'MISSING')) + ' |' for k in OPERATIONS]
+    roots = record.get('roots') or {}
+    names = list(roots)
+    out += ['', '### Roots', '', '| Root | Scenario | Resources | Result | Resource cleanup |', '| --- | --- | --- | --- | --- |']
+    out += ['| ' + text(n) + ' | ' + text(roots[n].get('description')) + ' | ' + text(roots[n].get('resources')) + ' | ' +
+            text(roots[n].get('status')) + ' | ' + text(roots[n].get('resource_cleanup')) + ' |' for n in names]
+    if names:
+        out += ['', '### Lifecycle operations', '', '| Operation | ' + ' | '.join(text(n) for n in names) + ' |',
+                '| --- |' + ' --- |' * len(names)]
+        for op in OPERATIONS:
+            cells = [text((roots[n].get('operations') or {}).get(op, 'n/a')) for n in names]
+            if any(c != 'n/a' for c in cells):
+                out.append('| ' + op + ' | ' + ' | '.join(cells) + ' |')
+    gaps = record.get('known_gaps') or {}
+    if gaps:
+        out += ['', '### Known gaps (not run in `all`; dispatch a single root to see them)', '']
+        out += ['- ' + text(n) + ': ' + text(reason) for n, reason in sorted(gaps.items())]
     out += ['', '### Observations', '']
     for row in rows:
-        if row['gate'] == 'refresh-convergence':
-            out.append('- Refresh: reviewed computed-field convergence on ' +
+        if row['gate'] == 'refresh-convergence' and row.get('drift'):
+            out.append('- Refresh (' + text(row.get('root', '')) + '): reviewed computed-field convergence on ' +
                        text(', '.join(d['address'] for d in row.get('drift', []))) + '; second refresh unchanged')
         if row['gate'] == 'sg-default-egress-probe':
             out.append('- Security group probe: provider-form revoke (ports 0) ' + text(row.get('revoke_provider_form_ports_0')) +
                        ', revoke without ports ' + text(row.get('revoke_without_ports')) + '; interface endpoint API probe ' +
                        text((row.get('interface_endpoint') or {}).get('create')))
         if row['gate'] == 'failure':
-            out.append('- Failure: operation ' + text(row.get('operation')) + ', ' + text(row.get('label')) +
+            out.append('- Failure (' + text(row.get('root', 'setup')) + '): operation ' + text(row.get('operation')) + ', ' + text(row.get('label')) +
                        (', API ' + text(row['api']) if row.get('api') else ''))
     out += ['', '### Cleanup', '', '| Receipt | Result |', '| --- | --- |',
-            '| Resources (Terraform destroy or recovery, verified absent) | ' + text(record.get('resource_cleanup')) + ' |',
+            '| Resources (per root above; Terraform destroy or recovery, verified absent) | ' +
+            text('PASS' if roots and all(r.get('resource_cleanup') == 'PASS' for r in roots.values()) else 'NOT PASS') + ' |',
             '| Material (credentials, CA, State, plans, logs on tmpfs) | ' + text(record.get('material_cleanup')) + ' |',
             '| Emulator process | ' + text(record.get('process_cleanup')) + ' |',
             '| Host (container, image, context) | ' + text(host) + ' |',
@@ -153,7 +178,7 @@ def main(argv=None):
         record, host, problems = evaluate(rows, env)
         markdown = render(record, host, problems, rows, env)
     except (OSError, ValueError, KeyError, IndexError, TypeError, Invalid) as error:
-        markdown = '## AWS Emulator Step 2 rehearsal: network root\n\n**Result: BLOCKED** (evidence unreadable: ' + type(error).__name__ + ')\n'
+        markdown = '## AWS Emulator Step 2 rehearsal\n\n**Result: BLOCKED** (evidence unreadable: ' + type(error).__name__ + ')\n'
         problems = ['unreadable']
     print(markdown)
     if env.get('GITHUB_STEP_SUMMARY'):

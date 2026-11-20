@@ -34,23 +34,19 @@ representative) were backfilled, and the ledger matches that snapshot. Runs
 started after that time are not covered until a later pull request registers them
 with an updated snapshot.
 
-**Required before PR #75 merges.** PR #75's harness emits a different
-`summary-record` from the harness this ledger understands:
-- one record covers several roots, under `roots`, with per-root operations
-  (including `teardown_plan` and `teardown` for `api`), per-root resource cleanup
-  and `known_gaps`;
-- there are no top-level `operations` or `resource_cleanup` fields.
+**Multi-root format (PR #75).** The consolidated harness emits one
+`summary-record` for several roots: `roots` with per-root operations (including
+`teardown_plan` and `teardown` for `api`), per-root controls 9 to 13, resource
+cleanup and `known_gaps`. PR #75 extends `harvest.py` for this format before it
+merges:
+- it pins the harness version and its operation list;
+- it pins the per-root inventories (`network` 16 resources, `api` 7);
+- each root must carry its own plan count, independent API identity counts and IDs
+  (`vpc_id`; `user_pool_id` and `rest_api_id`), and per-root controls.
 
-The current `harvest.py` rejects that record (`summary-record-keys`), and the new
-harness version is not pinned in `KNOWN_HARNESSES`. Without further work, the
-automatic run that merging PR #75 starts could not be registered, and §13.4 gives
-7 days to register it. Before PR #75 merges, a reviewed change must:
-- extend `harvest.py` to the multi-root format, with per-root inventories for
-  `network` and `api`, the teardown operations and per-root API evidence;
-- pin the new harness version;
-- add tests built from that format.
-
-Until then the tool fails closed: it records nothing rather than a PASS.
+A missing root, operation, ID, count or control makes the entry
+INSUFFICIENT_EVIDENCE, never PASS. The automatic run that merging PR #75 starts
+still needs its own registration pull request within the §13.4 deadline.
 
 ## Formal runs (GitHub Actions)
 
@@ -118,6 +114,35 @@ CI run. Accepting it as AWS EMULATOR DEMONSTRATED for this scenario needs
 independent review and an Owner decision; the AGENTS.md status statements are
 unchanged. The security group paths, the 8 interface endpoints through Terraform,
 the `full` scenario and the other roots remain NOT_TESTED (see below).
+
+## Preliminary rehearsal 2: consolidated roots (2026-11-20, Claude Code container) — LOCAL PRELIMINARY
+
+This local run built the consolidated harness (one run, every supported root). It
+is not a CI run; the first automatic run after merge provides the formal record.
+Tested source: main `ce1afa95aa250e11cefd166d753456a53b979638`; same tools and
+isolation as above (network and mount namespace, uid 1000, no capabilities, tmpfs).
+
+| Root | Result | Notes |
+| --- | --- | --- |
+| network (16 resources) | Every operation PASS | Same reviewed refresh convergence and probes as rehearsal 1, now with run tags from a provider `default_tags` override |
+| api (7 resources: user pool, domain, resource server, client, managed login branding, REST API, authorizer) | Every operation PASS, including the teardown switch | First refresh: the pool's `domain` and `last_modified_date` follow the domain resource, and the emulator returns `[]` and `false` where the provider stored null; values checked, then a clean second refresh. Destroy first applies `deletion_protection = false` with a reviewed plan, as the runbook does (finding F19) |
+| `all` (network then api in one emulator) | Every operation and all 14 controls PASS | Cleanup PASS for both roots, material and process |
+| tfstate (7 resources) | Create BLOCKED by a new gap | See below. Recovery could not destroy the bucket for the same reason; it existed only in that local emulator's memory and was discarded when the emulator stopped. That run therefore has resource cleanup FAIL, recorded as such |
+
+Before the S3 Control endpoint was routed to the emulator, the provider tried the
+real `s3-control.ca-central-1.amazonaws.com` and failed because the isolated
+namespace has no route: an incidental confirmation of control 7.
+
+### Emulator gap: S3 Control host prefix
+
+AWS provider 6.72.0 reads and writes S3 bucket tags through S3 Control
+(`ListTagsForResource`). S3 Control prefixes the account ID to the endpoint host,
+giving `000000000000.127.0.0.1:9297`. The emulator certificate covers only
+`localhost`, `127.0.0.1` and `::1`, so strict TLS (control 4) cannot accept that
+host. This is not a Terraform defect, and TLS is not relaxed: S3-bucket roots
+(`tfstate`, `serverless-api`) cannot complete create with this emulator and
+provider pair. They stay listed as known gaps until a later emulator or provider
+release changes this.
 
 ## Preliminary rehearsal 1: network root (2026-11-18, Claude Code container) — LOCAL PRELIMINARY
 

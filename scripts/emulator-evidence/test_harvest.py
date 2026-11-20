@@ -46,18 +46,22 @@ LIFECYCLE = b'# lifecycle\n'
 GATES = ('OPERATIONS = ' + repr(harvest.REPRESENTATIVE_OPERATIONS) + '\n').encode()
 ADDRESSES = ['module.network.aws_subnet.private["private1"]', 'module.network.aws_vpc.this']
 TEST_HARNESSES = {
-    HARNESS_SHA256: {'kind': 'step2-rehearsal', 'format': 'test', 'records_counts': True,
-                     'operations': ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update',
-                                    'no_op', 'destroy_plan', 'destroy', 'state_empty', 'api_absence',
-                                    'baseline_preserved'],
-                     'scenarios': {'no-interface-endpoints': {'root': 'network', 'resources': 2,
-                                                              'inventory_sha256': harvest.inventory_digest(ADDRESSES)}}},
+    HARNESS_SHA256: {'kind': 'step2-rehearsal', 'format': 'test', 'records_counts': True, 'root_controls': False,
+                     'operations': list(harvest.STEP2_BASE_OPERATIONS),
+                     'scenarios': {'no-interface-endpoints': {'network': {
+                         'resources': 2, 'inventory_sha256': harvest.inventory_digest(ADDRESSES),
+                         'operations': list(harvest.STEP2_BASE_OPERATIONS), 'api_ids': ['vpc_id']}}}},
     hashlib.sha256(LIFECYCLE).hexdigest(): {
-        'kind': 'representative', 'format': 'test', 'records_counts': False,
+        'kind': 'representative', 'format': 'test', 'records_counts': False, 'root_controls': False,
         'operations': list(harvest.REPRESENTATIVE_OPERATIONS),
-        'scenarios': {'aws_vpc.proof': {'root': 'representative-vpc-proof', 'resources': 1,
-                                        'inventory_sha256': harvest.inventory_digest(['aws_vpc.proof'])}}},
+        'scenarios': {'aws_vpc.proof': {'representative-vpc-proof': {
+            'resources': 1, 'inventory_sha256': harvest.inventory_digest(['aws_vpc.proof']),
+            'operations': list(harvest.REPRESENTATIVE_OPERATIONS), 'api_ids': ['vpc_id']}}}},
 }
+# The real consolidated (multi-root) harness of this branch, served for SHA_V2.
+SHA_V2 = 'c' * 40
+HARNESS_V2 = (REPO / 'scripts/emulator-rehearsal/rehearse.py').read_bytes()
+HARNESS_V2_SHA256 = hashlib.sha256(HARNESS_V2).hexdigest()
 ADAPTER = b'resource "aws_vpc" "proof" {\n  cidr_block = "10.0.0.0/16"\n}\n'
 WORKFLOW_SOURCE = '\n'.join('      - name: ' + n for n in [
     'Require main, the Owner and a public repository', 'Checkout reviewed target without credentials',
@@ -70,6 +74,8 @@ OPS = ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_upd
 
 
 def fake_git(repo, sha, path):
+    if repo is not None and sha == SHA_V2:
+        return {'scripts/emulator-rehearsal/rehearse.py': HARNESS_V2, REHEARSAL: WORKFLOW_SOURCE}.get(path)
     if repo is None or sha != SHA:
         return None
     return {'scripts/emulator-rehearsal/rehearse.py': HARNESS,
@@ -197,15 +203,11 @@ class Step2Build(Harvest):
         self.assert_insufficient(self.build(step2_rows()), 'differs from the pinned list')
 
     def test_pinned_inventory_must_match_the_harness(self):
-        harvest.KNOWN_HARNESSES[HARNESS_SHA256]['scenarios']['no-interface-endpoints']['inventory_sha256'] = '0' * 64
+        harvest.KNOWN_HARNESSES[HARNESS_SHA256]['scenarios']['no-interface-endpoints']['network']['inventory_sha256'] = '0' * 64
         self.assert_insufficient(self.build(step2_rows()), 'Resource inventory differs')
 
-    def test_multi_root_summary_format_is_rejected_until_supported(self):
-        # PR #75's harness emits roots/known_gaps instead of operations/resource_cleanup.
-        rec = record(roots={'network': {'status': 'PASS', 'operations': {k: 'PASS' for k in OPS}}}, known_gaps={})
-        for key in ('operations', 'resource_cleanup'):
-            rec.pop(key)
-        self.rejects('summary-record-keys', self.build, step2_rows(rec))
+    def test_multi_root_keys_are_refused_on_a_single_root_record(self):
+        self.rejects('summary-record-keys', self.build, step2_rows(record(known_gaps={})))
 
     def test_failed_control_or_operation_is_never_pass(self):
         for rec in (record(controls=dict({k: 'PASS' for k in harvest.CONTROLS}, **{'7': 'FAIL'})),
@@ -301,9 +303,15 @@ class Step2Build(Harvest):
         self.assertEqual(entry['roots'], [])
 
     def test_inventory_evaluator_refuses_code(self):
-        self.rejects('inventory-literal', harvest.step2_inventory,
-                     "M = 'x'\nEXPECTED = {__import__('os').getcwd(): 'aws_vpc'}\nENDPOINT_TYPES = set()\n",
+        # Unevaluable assignments are skipped, never run: the inventory is then missing.
+        self.rejects('inventory-missing', harvest.step2_inventory,
+                     "M = 'x'\nEXPECTED = {__import__('os').getcwd(): 'aws_vpc'}\nENDPOINT_TYPES = []\n",
                      'full')
+        import ast
+        for code in ("__import__('os').getcwd()", "open('x')", "M.upper()", "[1][0]", "{k: v for k in X for v in Y}"):
+            with self.subTest(code=code):
+                self.rejects('inventory-literal', harvest.Literal({'M': 'x', 'X': [], 'Y': []}).value,
+                             ast.parse(code, mode='eval').body)
         self.rejects('inventory-missing', harvest.step2_inventory, "M = 'x'\n", 'full')
 
 
@@ -361,6 +369,199 @@ class RepresentativeBuild(Harvest):
             with self.subTest(label=label):
                 text = log(rows)
                 self.rejects(label, self.build, None, meta(REPRESENTATIVE, lines=len(text.splitlines())), text)
+
+
+TEARDOWN_OPS = harvest.STEP2_TEARDOWN_OPERATIONS
+POOL, REST = 'ca-central-1_AbCd1234', 'a1b2c3d4e5'
+
+
+def v2_root(resources, ops, **changes):
+    root = {'description': 'x', 'resources': resources, 'status': 'PASS', 'operations': {k: 'PASS' for k in ops},
+            'controls': {k: 'PASS' for k in harvest.ROOT_CONTROLS}, 'resource_cleanup': 'PASS', 'unsupported_apis': [],
+            'failure': None}
+    root.update(changes)
+    return root
+
+
+def v2_record(**changes):
+    rec = {'run_id': '%d-1' % RUN_ID, 'tested_sha': SHA_V2, 'harness_sha256': HARNESS_V2_SHA256,
+           'execution': record()['execution'], 'scenario_id': 'all', 'scenario': 'all supported roots: network, api',
+           'versions': record()['versions'], 'controls': {k: 'PASS' for k in harvest.CONTROLS},
+           'roots': {'network': v2_root(16, OPS), 'api': v2_root(7, TEARDOWN_OPS)},
+           'known_gaps': {'tfstate': 'S3 Control host prefix (000000000000.127.0.0.1) not served under strict TLS',
+                          'network-full': 'default egress revoke (InvalidPermission.NotFound)'},
+           'material_cleanup': 'PASS', 'process_cleanup': 'PASS', 'notes': [], 'failure': None}
+    rec.update(changes)
+    return rec
+
+
+def v2_rows(rec=None, api_identity=None, drop=(), network_root_start=True):
+    identity = api_identity or {'user_pool': POOL, 'rest_api': REST}
+    rows = []
+    if network_root_start:
+        rows.append({'gate': 'root-start', 'status': 'PASS', 'root': 'network', 'resources': 16})
+    rows += [{'gate': 'plan', 'status': 'PASS', 'resources': 16},
+             {'gate': 'api-identity-create', 'status': 'PASS', 'vpc_id': 'vpc-0000000000000009c', 'owned': 16},
+             {'gate': 'api-identity-updated', 'status': 'PASS', 'vpc_id': 'vpc-0000000000000009c', 'owned': 16},
+             {'gate': 'root-result', 'status': 'PASS', 'root': 'network', 'resource_cleanup': 'PASS'},
+             {'gate': 'root-start', 'status': 'PASS', 'root': 'api', 'resources': 7},
+             {'gate': 'plan', 'status': 'PASS', 'resources': 7},
+             dict({'gate': 'api-identity-create', 'status': 'PASS', 'root': 'api', 'owned': 7}, **identity),
+             dict({'gate': 'api-identity-updated', 'status': 'PASS', 'root': 'api', 'owned': 7}, **identity),
+             {'gate': 'root-result', 'status': 'PASS', 'root': 'api', 'resource_cleanup': 'PASS'},
+             {'gate': 'summary-record', 'status': 'PASS', 'record': rec or v2_record()},
+             {'gate': 'host-cleanup', 'status': 'PASS'}]
+    return [r for r in rows if (r['gate'], r.get('root')) not in drop]
+
+
+class MultiRootBuild(Harvest):
+    """PR #75's consolidated harness: one summary-record with several roots."""
+
+    def build_v2(self, rows):
+        text = log(rows).replace(SHA, SHA_V2)
+        m = meta(lines=len(text.splitlines()))
+        m['run']['head_sha'] = SHA_V2
+        return harvest.build(m, text, REPO, '2026-11-20T02:00:00Z')
+
+    def test_current_harness_is_pinned_with_matching_inventories(self):
+        pinned = harvest.KNOWN_HARNESSES.get(HARNESS_V2_SHA256)
+        self.assertIsNotNone(pinned, 'rehearse.py changed: review it and pin the new version in KNOWN_HARNESSES')
+        spec = harvest.step2_v2_spec(HARNESS_V2.decode())
+        self.assertEqual(spec['OPERATIONS'], pinned['operations'])
+        for name in spec['ALL']:
+            root = pinned['scenarios']['all'][name]
+            self.assertEqual(harvest.inventory_digest(spec['scenarios'][name]['addresses']), root['inventory_sha256'])
+            self.assertEqual(len(spec['scenarios'][name]['addresses']), root['resources'])
+            expected = harvest.with_teardown(spec['OPERATIONS']) if spec['scenarios'][name]['teardown'] \
+                else spec['OPERATIONS']
+            self.assertEqual(expected, root['operations'])
+
+    def test_complete_multi_root_record_is_pass(self):
+        entry = self.build_v2(v2_rows())
+        self.assertEqual(entry['result']['overall'], 'PASS', entry['evidence_gaps'])
+        roots = {r['name']: r for r in entry['roots']}
+        self.assertEqual(sorted(roots), ['api', 'network'])
+        self.assertEqual(roots['api']['required_operations'], TEARDOWN_OPS)
+        self.assertEqual(roots['api']['api_ids'], {'user_pool_id': POOL, 'rest_api_id': REST})
+        self.assertEqual(roots['network']['api_ids'], {'vpc_id': 'vpc-0000000000000009c'})
+        self.assertEqual(roots['api']['resources'], 7)
+        self.assertNotIn('api', [r['name'] for r in entry['out_of_scope_roots']])
+        reasons = {r['name']: r['reason'] for r in entry['out_of_scope_roots']}
+        self.assertIn('known gap reported by the harness', reasons['tfstate'])
+
+    def assert_insufficient(self, entry, reason):
+        self.assertEqual(entry['result']['overall'], 'INSUFFICIENT_EVIDENCE')
+        self.assertTrue(any(reason in gap for gap in entry['evidence_gaps']), entry['evidence_gaps'])
+
+    def test_missing_teardown_or_other_operation_is_never_pass(self):
+        for op in ('teardown', 'teardown_plan', 'destroy'):
+            roots = v2_record()['roots']
+            roots['api']['operations'].pop(op)
+            with self.subTest(op=op):
+                self.assert_insufficient(self.build_v2(v2_rows(v2_record(roots=roots))),
+                                         'api: Required operations not recorded: ' + op)
+
+    def test_missing_per_root_api_evidence_is_never_pass(self):
+        self.assert_insufficient(self.build_v2(v2_rows(api_identity={'user_pool': POOL})),
+                                 'api: Independent API resource ID missing: rest_api_id')
+        self.assert_insufficient(self.build_v2(v2_rows(drop=(('api-identity-updated', 'api'),))),
+                                 'api: Independent API identity counts missing')
+        self.assert_insufficient(self.build_v2(v2_rows(network_root_start=False)),
+                                 'network: Independent API resource ID missing: vpc_id')
+
+    def test_missing_root_controls_is_never_pass(self):
+        roots = v2_record()['roots']
+        roots['network']['controls'].pop('12')
+        self.assert_insufficient(self.build_v2(v2_rows(v2_record(roots=roots))), 'network: Per-root controls 9 to 13')
+
+    def test_unpinned_multi_root_harness_is_never_pass(self):
+        harvest.KNOWN_HARNESSES.pop(HARNESS_V2_SHA256)
+        self.assert_insufficient(self.build_v2(v2_rows()), 'Harness version not pinned')
+
+    def test_measured_root_failures_keep_their_status(self):
+        roots = v2_record()['roots']
+        roots['api'].update(status='FAIL', failure={'operation': 'destroy', 'label': 'api-delete', 'api': None})
+        roots['api']['operations']['destroy'] = 'FAIL'
+        entry = self.build_v2(v2_rows(v2_record(roots=roots)))
+        self.assertEqual(entry['result']['overall'], 'FAIL')
+        self.assertEqual(entry['result']['failure']['stage'], 'api: destroy')
+        self.assertEqual({r['name']: r['result'] for r in entry['roots']}, {'network': 'PASS', 'api': 'FAIL'})
+        roots = v2_record()['roots']
+        roots['api'].update(status='PARTIAL-SKIP', failure={'operation': 'create', 'label': 'x', 'api': 'CreateX'})
+        self.assertEqual(self.build_v2(v2_rows(v2_record(roots=roots)))['result']['overall'], 'PARTIAL-SKIP')
+
+    def test_multi_root_record_mutations(self):
+        def roots_with(name, **changes):
+            roots = v2_record()['roots']
+            roots[name].update(changes)
+            return roots
+        cases = [
+            ('summary-roots-scope', v2_rows(v2_record(roots={'network': v2_root(16, OPS)}))),
+            ('summary-roots', v2_rows(v2_record(roots={'prod-network': v2_root(16, OPS)}))),
+            ('summary-root-keys', v2_rows(v2_record(roots=roots_with('api', state={'serial': 1})))),
+            ('summary-root-resources', v2_rows(v2_record(roots=roots_with('api', resources=6)))),
+            ('summary-root-operations', v2_rows(v2_record(roots=roots_with('api', operations={'apply_all': 'PASS'})))),
+            ('summary-root-controls', v2_rows(v2_record(roots=roots_with('api', controls={'1': 'PASS'})))),
+            ('summary-record-keys', v2_rows(dict(v2_record(), raw_state='x'))),
+            ('summary-scenario', v2_rows(v2_record(scenario_id='prod'))),
+            ('summary-api-id', v2_rows(api_identity={'user_pool': POOL, 'rest_api': 'bad id'})),
+            ('summary-plan-count', [dict(r, resources=8) if r['gate'] == 'plan' and r.get('resources') == 7 else r
+                                    for r in v2_rows()]),
+            ('root-start-name', [dict(r, root='prod') if r['gate'] == 'root-start' and r['root'] == 'api' else r
+                                 for r in v2_rows()]),
+        ]
+        for label, rows in cases:
+            with self.subTest(label=label):
+                self.rejects(label, self.build_v2, rows)
+
+    def test_inconsistent_identity_across_phases_is_rejected(self):
+        rows = v2_rows()
+        for r in rows:
+            if r['gate'] == 'api-identity-updated' and r.get('root') == 'api':
+                r['rest_api'] = 'z9y8x7w6v5'
+        self.rejects('summary-api-id', self.build_v2, rows)
+
+    def test_pass_entry_mutations(self):
+        base = self.build_v2(v2_rows())
+
+        def api(e):
+            return next(r for r in e['roots'] if r['name'] == 'api')
+
+        def drop_teardown(e):
+            api(e)['operations'].pop('teardown')
+            api(e)['required_operations'].remove('teardown')
+
+        def shrink_api(e):
+            root = api(e)
+            root['resource_addresses'].pop()
+            root['resources'] -= 1
+            root['evidence']['inventory_sha256'] = harvest.inventory_digest(root['resource_addresses'])
+            for key in ('plan_resources', 'api_owned_create', 'api_owned_update'):
+                root['evidence'][key] = root['resources']
+
+        def drop_api_root(e):
+            e['roots'] = [r for r in e['roots'] if r['name'] != 'api']
+            e['out_of_scope_roots'].append({'name': 'api', 'status': 'NOT_TESTED', 'reason': 'x'})
+
+        cases = [
+            ('pass-root-scope', drop_api_root),
+            ('pass-required-operations-mismatch', drop_teardown),
+            ('pass-needs-every-operation', lambda e: api(e)['operations'].pop('teardown')),
+            ('pass-needs-api-id', lambda e: api(e)['api_ids'].pop('rest_api_id')),
+            ('pass-needs-root-controls', lambda e: api(e)['controls'].pop('12')),
+            ('pass-needs-root-controls', lambda e: api(e).pop('controls')),
+            ('pass-inventory-mismatch', shrink_api),
+            ('pass-needs-api-evidence', lambda e: api(e)['evidence'].update(api_owned_update=None)),
+            ('root-api-id-format', lambda e: api(e)['api_ids'].update(rest_api_id='bad id')),
+            ('root-required-operations', lambda e: api(e).update(required_operations=['teardown', 'teardown'])),
+        ]
+        for label, mutate in cases:
+            with self.subTest(label=label):
+                entry = copy.deepcopy(base)
+                mutate(entry)
+                with self.assertRaises(Invalid) as caught:
+                    harvest.validate(entry)
+                self.assertEqual(str(caught.exception), label)
 
 
 class CommittedLedger(unittest.TestCase):
