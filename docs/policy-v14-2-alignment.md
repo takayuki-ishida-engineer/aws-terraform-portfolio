@@ -1,4 +1,35 @@
-# Master Policy v14.2 — owner-authorized alignment record
+# Master Policy — owner-authorized alignment record (v14.4, built on v14.2)
+
+## Master Policy v14.4 alignment (2026-11-20)
+
+On 2026-11-20 (Asia/Tokyo) the Owner adopted Master Policy v14.4, a 19-page
+integrated revision of v14.3. Its evidence baseline is main `70a5868`. All 19
+pages were reviewed. The PDF binary's hash was not independently verified. v14.4
+keeps Architecture v2, the Terraform and security boundaries, zero additional cost
+and the quality and acceptance model below. It formalizes two things:
+- the limited automatic Step 2 rehearsal;
+- the evidence ledger for every formal run.
+
+The PDF's issue authorizes no PR #75 merge, no extra Emulator run, no real AWS
+operation and no new AWS service. The file name of this record stays as it is
+so that existing links keep working. Other documents that cite v14.2 as current
+authority mean this record, as amended by v14.4.
+
+| v14.4 | Aligned in |
+| --- | --- |
+| §12.2 PR order: latest main, new branch, approved change, affected checks, commit/push/PR, exact-HEAD Full CI, independent ChatGPT review, explicit Owner approval, Squash Merge | [AGENTS.md](../AGENTS.md#git-workflow-and-verification) |
+| §13.2 limited standing authorization: automatic runs only for reviewed `all` scenarios in an Owner merge-approved PR. `all` is not every DEV root. New paths, triggers, roots or scenarios need their own PR. Manual dispatch, local or cloud runs, the representative workflow, unapproved scenarios and API trials need separate approval each time. Real AWS is never covered | [AGENTS.md](../AGENTS.md#emulator-verification-workflow-and-evidence), [amendment below](#owner-amendment-2026-11-20-automatic-step-2-rehearsals) |
+| §13.2 result categories: `EMULATOR_COMPATIBILITY_BLOCKED` for a known API, provider, host or TLS mismatch; `PARTIAL-SKIP` only for an operation actually observed as unsupported, such as HTTP 501 | AGENTS.md result classification |
+| §13.3 lifecycle evidence snapshot and per-root status | [Step 2 emulator rehearsals](step2-emulator-rehearsals.md) |
+| §13.4 evidence ledger: every formal run per Run ID and Attempt in `docs/evidence/emulator-runs/`; allowlisted `harvest.py`; reconciliation; EVIDENCE_GAP and INSUFFICIENT_EVIDENCE; LOCAL PRELIMINARY kept separate; README badge, run URL and job summary not permanent | AGENTS.md (obligation). The implementation follows in its own PR (§19.2 item 3) |
+| §14 billing basis of automatic runs: the Owner's standing configuration, not a real-time Billing API audit. The Owner stops automatic runs when a premise fails or becomes uncertain | AGENTS.md, [amendment below](#owner-amendment-2026-11-20-automatic-step-2-rehearsals) |
+| §19.2 order: this docs-only PR; the evidence ledger PR; PR #75 brought up to latest main with `all` = `network` + `api`; then the Step 1 Item 6b and Step 2 completion decision; then Step 3 with Codex | AGENTS.md current authorized task |
+
+§16 to §18 (reference material Day 01–10, the improvement register REF-A01 to
+REF-A06, and rejected options) register improvement candidates only. They
+authorize no new resource, CI permission, real AWS operation or pull request.
+
+## Master Policy v14.2 alignment (2026-11-15)
 
 The owner supplied the full 43-page Master Policy v14.2 text on 2026-11-15
 (Asia/Tokyo); all pages were reviewed, including priority provisions A–T and the
@@ -10,7 +41,7 @@ its architecture, ownership, security, Public governance and Live boundaries rem
 in force except for the expressly revised quality/Emulator acceptance model below.
 Earlier editions and historical evidence do not supersede these current rules.
 
-## Quality and acceptance model
+### Quality and acceptance model
 
 | Track | Required evidence and gate | Limitation |
 | --- | --- | --- |
@@ -37,7 +68,7 @@ All fourteen [Emulator controls](../AGENTS.md#mandatory-official-aws-emulator-sa
 remain mandatory whenever an Emulator operation is attempted. No namespace bypass,
 TLS/authentication weakening, real AWS fallback or secret-value Terraform is allowed.
 
-## Separate PR and approval gates
+### Separate PR and approval gates
 
 1. **Policy Alignment:** dedicated branch from latest main; governance documents
    only. Run documentation checks, commit/push/open the PR, observe exact-HEAD Full
@@ -57,7 +88,7 @@ TLS/authentication weakening, real AWS fallback or secret-value Terraform is all
    after workflow merge and within the separately approved scope. No workflow or
    Emulator execution is authorized by this alignment PR.
 
-## Future optional Emulator workflow constraints
+### Future optional Emulator workflow constraints
 
 Use workflow_dispatch with ubuntu-24.04 on a standard GitHub-hosted runner only,
 under GitHub Free in this Public Repository. No spending beyond the existing Codex
@@ -79,7 +110,7 @@ as verified through an invented API. Preserve the existing required Full CI, its
 read-only permissions, allowed pinned Actions and Branch Protection. Review any
 new Action or permission separately under Public repository governance.
 
-### Owner amendment (2026-11-20): automatic Step 2 rehearsals
+#### Owner amendment (2026-11-20): automatic Step 2 rehearsals
 
 The Step 2 rehearsal workflow `aws-emulator-rehearsal.yml` is an exception to the
 per-run confirmation above. It runs automatically on pushes to `main` that change
@@ -96,6 +127,12 @@ run-time checks of `main`, the Owner, public visibility, the runner and its
 capacity. The representative workflow keeps per-run confirmation. See
 [AGENTS.md](../AGENTS.md#emulator-verification-workflow-and-evidence).
 
+v14.4 §13.2 narrows this amendment to a limited standing authorization. It covers
+only the independently reviewed scenarios in `all` of a pull request whose exact
+HEAD the Owner explicitly approved for Squash Merge. Each manual dispatch, local
+run or unapproved scenario needs the Owner's separate approval. Every formal run,
+automatic or manual, enters the evidence ledger (§13.4).
+
 Docker's independent Network Namespace is a proposed implementation to verify,
 not an existing capability or exemption. Prove no external routes and independent
 real-AWS unreachability; use loopback-only HTTPS, generated credentials/CA, enabled
@@ -107,7 +144,7 @@ Do not log/upload credentials, private keys, raw State or saved plans. Fail clos
 on any unmet safety condition. Do not claim a merged workflow demonstrates lifecycle
 until an actual successful run and cleanup are independently reviewed.
 
-## Preserved technical OPEN items
+### Preserved technical OPEN items
 
 V7 P0-01–P0-04 and applicable P1 decisions remain open for their dependent stages.
 No integration-target ARN, certificate/SNI, manifest publication, DNS, account,

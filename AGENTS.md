@@ -137,7 +137,8 @@ Do not commit or upload raw State, credentials, private keys or saved plans.
 ### Emulator verification workflow and evidence
 
 Preserve all Terraform Native, Mock Plan, Python, Security, Negative and Mutation
-tests. Master Policy v14.2 separates mandatory Core Implementation quality from
+tests. Master Policy v14.4 (2026-11-20, the current master; it keeps v14.2's
+separation) separates mandatory Core Implementation quality from
 portfolio-level representative AWS Emulator demonstration; see the
 [owner-authorized alignment record](docs/policy-v14-2-alignment.md).
 Every Terraform implementation requires affected offline/security verification.
@@ -157,7 +158,7 @@ For a separately approved Emulator demonstration:
    Only actually successful operations may be marked EMULATOR DEMONSTRATED.
 
 Core implementation PRs require all affected offline/security checks, the existing
-Full CI on every PR, independent review and explicit user approval before merge.
+Full CI on every PR, independent ChatGPT review and explicit user approval before merge.
 Report unexecuted Emulator lifecycle as NOT_TESTED and unmet isolation controls
 as environment BLOCKED; neither is a resource-compatibility PASS or API skip.
 
@@ -176,23 +177,97 @@ Do not change the existing required Full CI or Branch Protection. Docker namespa
 isolation is a proposed method, not proof: all fourteen controls above still apply.
 Documentation-only changes do not require lifecycle replay, but still run Full CI.
 
-Owner decision (2026-11-20): the Step 2 rehearsal workflow
-`.github/workflows/aws-emulator-rehearsal.yml` runs automatically on every push to
-`main` that changes Terraform under `infra/` or the rehearsal code, besides the
-Owner's manual dispatch. It needs no per-run billing attestation. The basis is the
-Owner's standing configuration: a public repository on GitHub Free, standard
-GitHub-hosted runners and $0 Budgets with usage blocking for Actions, Codespaces,
-Packages, Git LFS and AI Credits. That configuration is Owner-reported, not a
-run-time Billing audit. At run time the workflow still requires `main`, the Owner
-as actor, a public repository, the first attempt, a standard runner with enough
-capacity and a local Docker daemon, and fails closed otherwise. It stays
-non-required and read-only, with no secrets, artifacts, caches, registry pushes
-or larger or self-hosted runners, and all fourteen controls apply to every run.
-The representative `aws-emulator-verification.yml` keeps manual dispatch with
-per-run attestation. Run logs and job summaries stay in GitHub Actions for its
-retention period. The repository keeps the workflow and harness, a README status
-badge and dated records, with the run link, of each milestone: a root's first
-PASS, a new gap or failure, and its fix.
+Limited standing authorization (Owner decision 2026-11-20, PR #74, adopted by
+Master Policy v14.4 §13.2): the Step 2 rehearsal workflow
+`.github/workflows/aws-emulator-rehearsal.yml` may run automatically, with no
+further per-run approval, on a push to `main` that changes its exact trigger paths:
+`infra/**`, `scripts/emulator-rehearsal/**`, the named shared
+`scripts/emulator-verification` inputs and the workflow itself. It covers only the
+independently reviewed scenarios listed in `all`, in a pull request whose exact HEAD
+the Owner reviewed and explicitly approved for Squash Merge.
+- `all` is the complete set of selected targets. It does not mean every DEV root
+  or every AWS resource. A merge approval never waives the fourteen controls or
+  any other safety gate.
+- Adding a path, trigger, root or scenario needs its own pull request with
+  workflow contract and offline tests, independent review and Owner merge
+  approval. Docs-only merges are outside the trigger paths.
+- Outside the standing authorization, each run needs a separate Owner approval:
+  a manual `workflow_dispatch`, any local or cloud run, the representative
+  `aws-emulator-verification.yml` (which keeps per-run attestation), an unapproved
+  scenario and any additional API trial. Real AWS is never covered.
+
+The billing basis is the Owner's standing configuration: a public repository on
+GitHub Free, standard GitHub-hosted runners and $0 Budgets with usage blocking for
+Actions, Codespaces, Packages, Git LFS and AI Credits. It is Owner-reported, not a
+run-time Billing API audit. If a premise fails, is withdrawn or becomes uncertain,
+the Owner stops automatic runs and reconfirms the settings or revises the policy.
+
+At run time the workflow still requires all of the following, and otherwise fails
+closed before any resource operation:
+- `main` at the exact SHA, with the Owner as actor and triggering actor;
+- a public repository and the first attempt;
+- a standard `ubuntu-24.04` runner with enough capacity and a local Docker daemon;
+- verified packages and CA, an isolated namespace and proven real-AWS
+  unreachability.
+
+A run is PASS only when resource IDs, independent API checks and cleanup are
+measured. No code or workflow change widens the boundary. The workflow stays
+non-required and read-only (`contents: read`), with no secrets, artifacts,
+persistent caches, registry pushes, or larger or self-hosted runners. Full CI and
+the required checks never gain an Emulator lifecycle.
+
+Evidence ledger (v14.4 §13.4): every formal Emulator workflow run is recorded per
+Run ID and Attempt in `docs/evidence/emulator-runs/` as
+`<run_id>-attempt-<n>.json`, listed in `index.md`. This covers Step 2 automatic and
+manual runs and the representative workflow, whether the run passes, fails or
+stops early.
+- **Content.** Each entry holds:
+  - the workflow, run, attempt, head SHA, event and timestamps;
+  - script and input hashes and tool versions;
+  - the rehearsed roots and their Terraform resource addresses, and the
+    out-of-scope roots;
+  - each of the 14 controls and every per-operation lifecycle result;
+  - the independent API IDs and deletion checks, and every cleanup receipt;
+  - the failing step and its cause, and the residual risk;
+  - the source log and job summary URL, and any evidence gap with its provenance.
+- **Honesty.** A value that was not actually observed is never recorded. A run
+  with no `summary-record` is recorded as BLOCKED, FAIL or INSUFFICIENT_EVIDENCE
+  from its GitHub metadata, job steps and logs, and never as a 14-control PASS.
+- **Data safety.** `harvest.py` accepts only trusted run metadata and allowlisted
+  structured records. It rejects:
+  - unknown fields and oversized data;
+  - newline or control characters;
+  - values that look like secrets or personal data;
+  - State, plan, token or private-key forms;
+  - root or account mismatches.
+
+  The allowlist, size limits and anomaly rejection get negative, mutation and
+  tamper tests in the offline contracts. The ledger is a sanitized,
+  third-party-traceable audit record. It is never a permanent copy of the full
+  logs.
+- **Reconciliation.** The Actions run list is reconciled against the ledger to
+  catch unregistered runs, duplicates, missing attempts and log fetch failures.
+  Here the comparison uses `actions-runs.json`, a static snapshot committed with
+  the entries. It is only as current as that snapshot, and never claims to match
+  the live GitHub API.
+  Each entry is submitted in its own pull request before the next `main` change
+  or within 7 days of the run, whichever comes first. Anything late or
+  unrecoverable is recorded EVIDENCE_GAP and never inferred as success. Entries
+  are append-only; a correction keeps its reason, review and history.
+- **Authority.** The workflow never pushes or opens pull requests. Ledger entries
+  go through the normal pull request, Full CI, independent review and Owner merge
+  approval.
+- **Retention.** Logs, job summaries and run records expire under GitHub
+  retention: at most 90 days on a public repository, with the actual setting
+  confirmed by the Owner. A README badge, a run URL or a job summary is never
+  permanent evidence.
+- **Local runs.** Container diagnostics are recorded separately as LOCAL
+  PRELIMINARY and never treated as formal runs.
+
+The ledger is [`docs/evidence/emulator-runs/`](docs/evidence/emulator-runs/index.md),
+maintained with [`scripts/emulator-evidence/harvest.py`](scripts/emulator-evidence/README.md).
+Its tests and `harvest.py check` run in the `AWS Emulator offline contracts`
+workflow. Neither path triggers the rehearsal workflow.
 
 Classify results precisely:
 
@@ -202,7 +277,15 @@ Classify results precisely:
   evidence such as HTTP 501; skip only that operation and record untested behavior.
 - **FAIL**: Terraform code or configuration defect; correct it and retest.
 - **BLOCKED**: installation, connectivity, isolation or runtime prerequisite unmet.
+- **EMULATOR_COMPATIBILITY_BLOCKED**: a known emulator fidelity gap (API,
+  provider, host or TLS mismatch), recorded with its reason. It is not a
+  Terraform defect and never justifies weakening Terraform security.
 - **NOT_TESTED**: operation not executed.
+- **EVIDENCE_GAP** / **INSUFFICIENT_EVIDENCE**: a formal run whose ledger entry
+  is late or unrecoverable, or whose evidence cannot support a result. Neither is
+  ever success.
+- **LOCAL PRELIMINARY**: a local or container diagnostic run, recorded separately
+  from formal GitHub Actions runs.
 
 Unsupported APIs and failed setup are never successful tests. If another external
 download domain is required, stop and request user permission; no unapproved
@@ -244,9 +327,10 @@ remain unchanged. No Live gate is closed by emulator evidence.
 
 - For each new development task, create a new working branch from the latest
   `main`. Never commit directly to `main`.
-- Follow branch -> commit -> push -> PR -> review -> merge. Commit and push
-  changes before creating a PR. Continue review corrections on the existing open
-  PR branch.
+- Follow branch -> commit -> push -> PR -> exact-HEAD Full CI -> independent
+  ChatGPT review -> explicit Owner approval -> Squash merge (v14.4 §12.2). Commit
+  and push changes before creating a PR. Continue review corrections on the
+  existing open PR branch.
 - Require PR review and approval before merge. Do not merge automatically; merge
   only when explicitly authorized, using **Squash and merge** by default.
 - Preserve working branches after merge; do not delete them. Do not reuse a merged
@@ -314,7 +398,7 @@ Terraform lifecycle execution, manual dispatch and subsequent feature developmen
 are retired as current task instructions. Their expiration does not authorize a
 new Emulator run, infrastructure operation or development phase.
 
-Master Policy v14.2 and its [approved alignment](docs/policy-v14-2-alignment.md),
+Master Policy v14.4 and its [approved alignment](docs/policy-v14-2-alignment.md),
 all permanent rules above and all fourteen Emulator safety controls remain fully
 effective and unchanged. This includes strict isolation, TLS/authentication,
 synthetic account guards, no real AWS credentials or authenticated real AWS access
@@ -356,7 +440,19 @@ Owner-approved additions needed to deploy are the SSM developer-access EC2 for
 local access to the private EKS endpoint (and later RDS) and the DEV state bucket
 bootstrap with an optional S3 backend. V7-B/C/D, NP-2B/NP-3 and other new features
 stay paused until Steps 1 and 2 are complete. Step 2 rehearsals run automatically
-on merged `main` under the Owner decision of 2026-11-20 above; adding a root or
-scenario still needs a reviewed pull request and Owner merge approval. Step 3
+on merged `main` only within the limited standing authorization above; adding a
+root or scenario still needs a reviewed pull request and Owner merge approval.
+The v14.4 order (§19.2) is:
+1. this policy alignment;
+2. the evidence ledger pull request (`harvest.py`, reconciliation, tests and the
+   backfill);
+3. bringing PR #75 up to latest main, with `all` limited to `network` and `api`.
+   Before PR #75 merges, `harvest.py` must support PR #75's multi-root
+   `summary-record` and pin its harness version, so that the automatic run its
+   merge starts can be registered. See the
+   [Step 2 record](docs/step2-emulator-rehearsals.md#how-to-read-the-evidence).
+
+Each is its own pull request that stops for Owner approval. Merging PR #75, new
+Emulator runs and Step 1 Item 6b are not authorized yet. Step 3
 onward is handed to Codex with a separate instruction. All permanent rules above
 remain in force.

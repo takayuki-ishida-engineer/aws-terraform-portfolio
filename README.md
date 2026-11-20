@@ -4,17 +4,23 @@
 
 [![AWS Emulator Step 2 rehearsal](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml/badge.svg?branch=main&event=push)](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml?query=branch%3Amain+event%3Apush)
 
-The badge shows the latest automatic run. The rehearsal runs on every `main`
-change to Terraform or the rehearsal code (Owner decision 2026-11-20). Each run's
-log and job summary are in GitHub Actions; milestones are recorded in the docs.
+The badge shows only the latest automatic run. Automatic runs cover only the
+reviewed scenarios of an Owner merge-approved pull request (Master Policy v14.4
+§13.2); `all` is not every DEV root. GitHub keeps run logs and job summaries for
+at most 90 days. The badge, run URLs and job summaries are therefore not permanent
+evidence. The durable record is the sanitized
+[evidence ledger](docs/evidence/emulator-runs/index.md), with one entry per formal run and
+attempt, compared with a committed static snapshot of the Actions run list (not a
+live query), together with the
+[Step 2 record](docs/step2-emulator-rehearsals.md).
 
 | Item | Value |
 | --- | --- |
 | What | The real DEV network root (`vpc` module, committed values without interface endpoints, 16 resources) through Plan, Create, Read, Update, No-op and Destroy in the official AWS Emulator, under all fourteen isolation controls |
-| CI run | [GitHub Actions run 44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (`aws-emulator-rehearsal.yml`, Owner-dispatched, 2026-11-18); its log and job summary show every gate |
-| Tested SHA | `0a16e486dd37c40358a122aef47a215a8c6a4ab7` |
+| CI runs | [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (Owner-dispatched, 2026-11-18, tested SHA `0a16e486`) and [44664010985](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44664010985) (automatic on main, 2026-11-20, tested SHA `70a58682`), `aws-emulator-rehearsal.yml`. The earlier dispatch 44279371023 stopped BLOCKED at the billing gate before checkout and created nothing |
 | Result | **PASS**: all 14 controls, all 13 lifecycle operations, independent API checks and cleanup |
-| Record | [Step 2 emulator rehearsals](docs/step2-emulator-rehearsals.md): versions, harness hash, the emulator security group gap, untested items and residual risk |
+| Record | [Step 2 emulator rehearsals](docs/step2-emulator-rehearsals.md): every formal run, status per root, versions, harness hash, the emulator gaps, untested items and residual risk |
+| Other roots | api NOT_TESTED in Actions (local preliminary only); network with interface endpoints and tfstate EMULATOR_COMPATIBILITY_BLOCKED; serverless-api, platform and developer-access NOT_TESTED |
 
 Measured in the emulator only; not evidence of real AWS behavior. Acceptance needs
 independent review and an Owner decision.
@@ -210,7 +216,9 @@ reachability, controller registration or TLS/mTLS communication.
 - Actual account, State custody, output authenticity, capacity, certificates,
   callback domains, pricing and teardown require separate review and approval.
 
-The owner-authorized **MASTER POLICY v14.2** requirements are recorded in the
+The owner-authorized **MASTER POLICY v14.4** (2026-11-20) is the current master.
+It builds on v14.2, adding the limited automatic Step 2 rehearsal and the evidence
+ledger for every formal Emulator run. Both are recorded in the
 [policy alignment record](docs/policy-v14-2-alignment.md). Mandatory offline quality,
 Full CI on every PR, independent review/user approval and separate representative
 Emulator demonstration are retained; Core Portfolio Complete is a separate scope
@@ -228,7 +236,7 @@ complete removal within **72 hours**. All gates remain OPEN, including the
 unresolved Secrets Manager 30-day recovery-window conflict.
 
 Older v14/v14.1 references below are historical snapshots; current requirements
-are the owner-authorized v14.2 alignment record.
+are the owner-authorized alignment record (v14.4, built on v14.2).
 
 ## Detailed engineering history
 
