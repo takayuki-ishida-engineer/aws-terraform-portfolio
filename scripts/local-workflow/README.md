@@ -163,16 +163,35 @@ register the Secrets:
 KUBECONFIG=~/.kube/<project>-dev-eks.json python3 scripts/local-workflow/k8s_certs.py register --project <project> --material ~/.config/<project>-dev-k8s-certs
 ```
 
+Run it from the repository, so that it can read the applied platform root's output.
 `register` refuses to run in automation (the same markers as above). It requires the
 context `<project>-dev-eks` and checks the material before it contacts the cluster:
 - the material is complete, owner-only and for this project;
-- no certificate expires within a day;
+- `public.json` lists exactly the Secret layout (names, namespaces, types, keys) that
+  will be sent;
+- every certificate is already valid, valid for at most 91 days and for more than a
+  day more, and its expiry equals the one `public.json` records;
+- `backend_hostname` is a DNS name and the gateway certificate's only SAN; the webhook
+  certificate's SANs are exactly the webhook Service names; every SAN is a DNS name;
 - every certificate matches its key and chains to its CA;
-- `public.json` still matches the certificates.
+- `public.json` still matches the certificates (SPKI pin, webhook CA bundle, Secret
+  names).
 
-It then checks that `istio-system`, `kube-system` and `<project>-ingress` exist, and
-applies the Secrets with `kubectl apply --server-side` (no `last-applied`
-annotation). The Secret data goes through stdin, never through arguments or output.
+Then, before any Secret leaves the workstation, it reads the platform root's
+`platform` output (`terraform output`, as `eks_tunnel.py` does) and
+`kubectl config view --minify --raw` for the context. The context must be exactly
+the kubeconfig `eks_tunnel.py kubeconfig` writes for that cluster:
+- one cluster, context and user, all named `<project>-dev-eks`;
+- the API server is the local tunnel `https://127.0.0.1:<port>`;
+- TLS verification stays on: `tls-server-name` is the applied cluster's endpoint host,
+  `certificate-authority-data` is its CA, and there is no `insecure-skip-tls-verify`,
+  CA file, proxy or other cluster field;
+- the only credential is `aws eks get-token --cluster-name <project>-dev-eks --region
+  ca-central-1`, optionally with `--role-arn`; no token, client key or exec environment.
+
+Any difference stops it before a namespace read. `delete` makes the same check. It then
+checks that `istio-system`, `kube-system` and `<project>-ingress` exist, and applies
+the Secrets with `kubectl apply --server-side` (no `last-applied` annotation). The Secret data goes through stdin, never through arguments or output.
 Only `secret/<name> serverside-applied` lines are printed; any other kubectl output
 and every error is redacted. Afterwards it deletes the three server private keys
 from the material directory (`--keep-material` keeps them). Delete the directory

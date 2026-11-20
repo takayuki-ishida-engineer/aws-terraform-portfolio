@@ -960,7 +960,7 @@ jobs:
           sys.path.insert(0, "scripts/local-workflow")
           import test_k8s_certs
           result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_certs))
-          if not result.wasSuccessful() or result.skipped or result.testsRun != 25:
+          if not result.wasSuccessful() or result.skipped or result.testsRun != 28:
               raise SystemExit("Kubernetes certificate script tests failed, skipped or changed the reviewed count.")
           print("Kubernetes certificate script tests passed:", result.testsRun)
           PYCERTS

@@ -153,7 +153,9 @@ What is ready (Step 1 item 6b-A):
   ```
 
   `register` refuses automation and any context other than `<project>-dev-eks`. It
-  applies `cacerts`, `aws-load-balancer-controller-tls`, `<project>-gateway-tls` and
+  checks the material against its `public.json`, and the context against the
+  applied platform output: the tunnel as API server, the cluster's own CA and
+  endpoint host, and `aws eks get-token` for that cluster. It applies `cacerts`, `aws-load-balancer-controller-tls`, `<project>-gateway-tls` and
   `<project>-gateway-client-cacert` through stdin, and prints no key or certificate.
   Afterwards it deletes the server private keys from the material directory. See the
   [script description](../scripts/local-workflow/README.md#kubernetes-certificates-k8s_certspy)

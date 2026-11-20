@@ -16,12 +16,17 @@ Terraform (configuration, variables, State or plans) or a CI log
   except the Istio intermediate key, which istiod needs. ``public.json`` holds only
   public values: the renderer's ``runtime`` fields (SPKI pin, webhook CA bundle,
   Secret names), the Secret layout and the expiry dates.
-- ``register`` (workstation only) checks the material and applies the four Secrets
-  with ``kubectl apply --server-side`` to the context ``<project>-dev-eks`` (the
-  name ``eks_tunnel.py kubeconfig`` writes). The Secret data goes through stdin,
-  never through arguments or output. Afterwards it deletes the server private keys
-  from the material directory unless ``--keep-material`` is given.
-- ``delete`` (workstation only) removes the four Secrets from that context.
+- ``register`` (workstation only) checks the material against ``public.json``
+  (hostname and SANs, validity, Secret layout, keys and chains), then checks that
+  the context ``<project>-dev-eks`` is exactly the kubeconfig ``eks_tunnel.py
+  kubeconfig`` writes for the applied platform root: the loopback tunnel as API
+  server, TLS verification against the cluster's own CA and endpoint host, and
+  ``aws eks get-token`` for that cluster. Only then does it apply the four Secrets
+  with ``kubectl apply --server-side``. The Secret data goes through stdin, never
+  through arguments or output. Afterwards it deletes the server private keys from
+  the material directory unless ``--keep-material`` is given.
+- ``delete`` (workstation only) makes the same kubeconfig check and removes the
+  four Secrets from that context.
 
 Secret names follow ``<project>-<purpose>`` where the project creates them
 (``<project>-gateway-tls``, ``<project>-gateway-client-cacert``) and keep the
@@ -47,6 +52,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import eks_tunnel  # noqa: E402
+import handoff  # noqa: E402
 import preflight  # noqa: E402
 
 FORMAT = "k8s-certs-public-v1"
@@ -65,6 +72,11 @@ MATERIAL = (
     "public.json",
 )
 # Private keys that live in the cluster after register; the client key stays local.
+# Certificates whose validity public.json records, by name.
+DATED = (("istio_root", "istio/root-cert.pem"), ("istio_intermediate", "istio/ca-cert.pem"),
+         ("gateway_server", "gateway/tls.crt"), ("gateway_client", "client/tls.crt"), ("webhook", "webhook/tls.crt"))
+LOOPBACK_SERVER = re.compile(r"https://127\.0\.0\.1:([0-9]{4,5})")
+ROLE_ARN = re.compile(r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]{1,512}")
 SERVER_KEYS = ("istio/ca-key.pem", "gateway/tls.key", "webhook/tls.key")
 KEY_PAIRS = (("istio/ca-cert.pem", "istio/ca-key.pem"), ("gateway/tls.crt", "gateway/tls.key"),
              ("client/tls.crt", "client/tls.key"), ("webhook/tls.crt", "webhook/tls.key"))
@@ -153,10 +165,31 @@ class OpenSSL:
         args = ["pkey", "-pubout", "-in", str(path)] if private else ["x509", "-noout", "-pubkey", "-in", str(path)]
         return self.run(args, "public_key:" + Path(path).name)
 
+    def dates(self, cert):
+        """(notBefore, notAfter) as aware UTC datetimes."""
+        text = self.run(["x509", "-noout", "-startdate", "-enddate", "-in", str(cert)], "dates:" + Path(cert).name)
+        values = dict(line.split("=", 1) for line in text.strip().splitlines() if "=" in line)
+        try:
+            return tuple(datetime.datetime.strptime(values[k], "%b %d %H:%M:%S %Y %Z").replace(
+                tzinfo=datetime.timezone.utc) for k in ("notBefore", "notAfter"))
+        except (KeyError, ValueError):
+            raise CertError("certificate_dates:" + Path(cert).name) from None
+
     def not_after(self, cert):
-        text = self.run(["x509", "-noout", "-enddate", "-in", str(cert)], "enddate:" + Path(cert).name).strip()
-        moment = datetime.datetime.strptime(text.removeprefix("notAfter="), "%b %d %H:%M:%S %Y %Z")
-        return moment.replace(tzinfo=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return timestamp(self.dates(cert)[1])
+
+    def dns_names(self, cert):
+        """The certificate's subjectAltName entries; every entry must be a DNS name."""
+        text = self.run(["x509", "-noout", "-ext", "subjectAltName", "-in", str(cert)], "san:" + Path(cert).name)
+        lines = text.strip().splitlines()
+        entries = [x.strip() for x in " ".join(lines[1:]).split(",") if x.strip()] if lines else []
+        if any(not x.startswith("DNS:") for x in entries):
+            raise CertError("san_not_dns:" + Path(cert).name)
+        return sorted(x[4:] for x in entries)
+
+
+def timestamp(moment):
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def spki_pin(public_pem):
@@ -252,12 +285,8 @@ def generate(project, backend_hostname, trust_domain, out, days=30, openssl="ope
         "format": FORMAT, "project": project,
         "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "runtime": runtime,
-        "secrets": [{"namespace": s["metadata"]["namespace"], "name": s["metadata"]["name"], "type": s["type"],
-                     "keys": sorted(s["data"])} for s in secret_layout(project, None)],
-        "not_after": {name: tool.not_after(target / path) for name, path in (
-            ("istio_root", "istio/root-cert.pem"), ("istio_intermediate", "istio/ca-cert.pem"),
-            ("gateway_server", "gateway/tls.crt"), ("gateway_client", "client/tls.crt"),
-            ("webhook", "webhook/tls.crt"))},
+        "secrets": public_layout(project),
+        "not_after": {name: tool.not_after(target / path) for name, path in DATED},
     }
     previous = os.umask(0o077)
     try:
@@ -292,6 +321,16 @@ def secret_layout(project, material):
     ]
 
 
+def public_layout(project):
+    return [{"namespace": s["metadata"]["namespace"], "name": s["metadata"]["name"], "type": s["type"],
+             "keys": sorted(s["data"])} for s in secret_layout(project, None)]
+
+
+def webhook_names():
+    service = WEBHOOK_SERVICE + ".kube-system.svc"
+    return sorted([service, service + ".cluster.local"])
+
+
 def check_material(project, material, tool, now=None):
     """Refuse material that is incomplete, exposed, foreign, expired or inconsistent."""
     material = Path(material).expanduser().resolve()
@@ -312,11 +351,30 @@ def check_material(project, material, tool, now=None):
     if not isinstance(public, dict) or public.get("format") != FORMAT or public.get("project") != project \
             or not isinstance(public.get("runtime"), dict) or public["runtime"].get("project") != project:
         raise CertError("material_project_mismatch")
+    # What register sends must be exactly the layout public.json records.
+    if public.get("secrets") != public_layout(project):
+        raise CertError("secret_layout_mismatch")
     now = now or datetime.datetime.now(datetime.timezone.utc)
-    for path in ("istio/root-cert.pem", "istio/ca-cert.pem", "gateway/tls.crt", "client/tls.crt", "webhook/tls.crt"):
-        expiry = datetime.datetime.strptime(tool.not_after(material / path), "%Y-%m-%dT%H:%M:%SZ")
-        if expiry.replace(tzinfo=datetime.timezone.utc) < now + datetime.timedelta(days=1):
+    recorded = public.get("not_after")
+    if not isinstance(recorded, dict) or set(recorded) != {name for name, _ in DATED}:
+        raise CertError("not_after_mismatch")
+    for name, path in DATED:
+        start, end = tool.dates(material / path)
+        if start > now:
+            raise CertError("material_not_yet_valid:" + path)
+        if end - start > datetime.timedelta(days=MAX_DAYS + 1):
+            raise CertError("validity_too_long:" + path)
+        if end < now + datetime.timedelta(days=1):
             raise CertError("material_expires_within_a_day:" + path)
+        if recorded[name] != timestamp(end):
+            raise CertError("not_after_mismatch:" + name)
+    host = public["runtime"].get("backend_hostname")
+    if not isinstance(host, str) or len(host) > 253 or not DNS.fullmatch(host):
+        raise CertError("backend_hostname_invalid")
+    if tool.dns_names(material / "gateway/tls.crt") != [host]:
+        raise CertError("gateway_san_mismatch: the gateway certificate is not for " + host)
+    if tool.dns_names(material / "webhook/tls.crt") != webhook_names():
+        raise CertError("webhook_san_mismatch")
     for cert, key in KEY_PAIRS:
         if tool.public_key(material / cert) != tool.public_key(material / key, private=True):
             raise CertError("key_mismatch:" + cert)
@@ -344,6 +402,65 @@ def workstation(project, context, env):
     return None
 
 
+def check_kubeconfig(view, context, platform):
+    """Refuse a context that is not the eks_tunnel.py kubeconfig of the applied platform cluster."""
+    def fail(reason):
+        raise CertError("kubeconfig_mismatch:" + reason)
+    if not isinstance(platform, dict) or platform.get("cluster_name") != context:
+        fail("platform_cluster: the applied platform cluster is not " + context)
+    try:
+        host = eks_tunnel.endpoint_host(platform)
+    except preflight.PreflightError:
+        fail("platform_endpoint")
+    if not isinstance(view, dict) or view.get("current-context") not in (None, "", context):
+        fail("shape")
+    sections = [view.get(k) for k in ("clusters", "contexts", "users")]
+    if not all(isinstance(x, list) and len(x) == 1 and isinstance(x[0], dict) for x in sections):
+        fail("not_a_single_context")
+    clusters, contexts, users = (x[0] for x in sections)
+    binding = contexts.get("context") or {}
+    if contexts.get("name") != context or clusters.get("name") != context or users.get("name") != context \
+            or binding.get("cluster") != context or binding.get("user") != context:
+        fail("context_binding")
+    cluster = clusters.get("cluster")
+    # Only the three fields eks_tunnel.py writes: no insecure-skip-tls-verify, CA file, proxy or extension.
+    if not isinstance(cluster, dict) or set(cluster) != {"server", "certificate-authority-data", "tls-server-name"}:
+        fail("cluster_fields")
+    port = LOOPBACK_SERVER.fullmatch(str(cluster["server"]))
+    if not port or not 1024 <= int(port.group(1)) <= 65535:
+        fail("server: the API server must be the local tunnel https://127.0.0.1:<port>")
+    if cluster["tls-server-name"] != host:
+        fail("tls_server_name: not the applied cluster's endpoint")
+    if cluster["certificate-authority-data"] != platform.get("certificate_authority_data"):
+        fail("certificate_authority: not the applied cluster's CA")
+    user = users.get("user")
+    if not isinstance(user, dict) or set(user) != {"exec"} or not isinstance(user["exec"], dict):
+        fail("user_credentials: only aws eks get-token is accepted")
+    command = user["exec"]
+    if set(command) - {"apiVersion", "command", "args", "env", "provideClusterInfo", "interactiveMode", "installHint"} \
+            or command.get("apiVersion") != "client.authentication.k8s.io/v1beta1" or command.get("command") != "aws" \
+            or command.get("env") or command.get("provideClusterInfo"):
+        fail("exec")
+    expected = ["eks", "get-token", "--cluster-name", context, "--region", preflight.REGION, "--output", "json"]
+    args = command.get("args")
+    if not (args == expected or isinstance(args, list) and len(args) == 10 and args[:8] == expected
+            and args[8] == "--role-arn" and isinstance(args[9], str) and ROLE_ARN.fullmatch(args[9])):
+        fail("cluster_identity: get-token is not for " + context)
+
+
+def verified_context(context, kubectl_binary, terraform, services, environment):
+    """Compare the context with the platform root's output before any Secret leaves the workstation."""
+    platform = handoff.terraform_output(terraform, Path(services) / "platform", "platform", environment)
+    process = kubectl(kubectl_binary, context, ["config", "view", "--minify", "--raw", "-o", "json"], environment)
+    if process.returncode != 0:
+        raise CertError("kubeconfig_mismatch:context_unavailable (run eks_tunnel.py kubeconfig)")
+    try:
+        view = json.loads(process.stdout)
+    except ValueError:
+        raise CertError("kubeconfig_mismatch:shape") from None
+    check_kubeconfig(view, context, platform)
+
+
 def kubectl(binary, context, args, env, stdin=None):
     try:
         return subprocess.run([binary, "--context", context] + args, input=stdin, capture_output=True, text=True,
@@ -362,7 +479,7 @@ def report(process, out_fn, label):
 
 
 def register(project, material, context=None, kubectl_binary="kubectl", openssl="openssl", keep_material=False,
-             env=None, out_fn=print):
+             env=None, out_fn=print, terraform="terraform", services=preflight.SERVICES):
     check_project(project)
     environment = dict(os.environ if env is None else env)
     context = context or project + "-dev-eks"
@@ -371,6 +488,7 @@ def register(project, material, context=None, kubectl_binary="kubectl", openssl=
         out_fn(refusal)
         return 1
     material = check_material(project, material, OpenSSL(openssl))
+    verified_context(context, kubectl_binary, terraform, services, environment)
     namespaces = ["istio-system", "kube-system", project + "-ingress"]
     process = kubectl(kubectl_binary, context, ["get", "namespace"] + namespaces + ["-o", "name"], environment)
     if process.returncode != 0 or sorted(process.stdout.split()) != sorted("namespace/" + n for n in namespaces):
@@ -390,7 +508,8 @@ def register(project, material, context=None, kubectl_binary="kubectl", openssl=
     return 0
 
 
-def delete(project, context=None, kubectl_binary="kubectl", env=None, out_fn=print):
+def delete(project, context=None, kubectl_binary="kubectl", env=None, out_fn=print, terraform="terraform",
+           services=preflight.SERVICES):
     check_project(project)
     environment = dict(os.environ if env is None else env)
     context = context or project + "-dev-eks"
@@ -398,6 +517,7 @@ def delete(project, context=None, kubectl_binary="kubectl", env=None, out_fn=pri
     if refusal:
         out_fn(refusal)
         return 1
+    verified_context(context, kubectl_binary, terraform, services, environment)
     for secret in secret_layout(project, None):
         meta = secret["metadata"]
         process = kubectl(kubectl_binary, context, ["delete", "secret", meta["name"], "-n", meta["namespace"],
@@ -424,20 +544,24 @@ def main(argv=None):
     reg.add_argument("--kubectl", default="kubectl")
     reg.add_argument("--openssl", default="openssl")
     reg.add_argument("--keep-material", action="store_true", help="keep the server private keys afterwards")
+    reg.add_argument("--terraform", default="terraform", help="reads the applied platform root's output")
     rem = sub.add_parser("delete", help="remove the four Secrets (workstation only)")
     rem.add_argument("--project", required=True)
     rem.add_argument("--context", help="kubectl context (must be <project>-dev-eks)")
     rem.add_argument("--kubectl", default="kubectl")
+    rem.add_argument("--terraform", default="terraform", help="reads the applied platform root's output")
     args = parser.parse_args(argv)
     try:
         if args.command == "generate":
             generate(args.project, args.backend_hostname, args.trust_domain, args.out, args.days, args.openssl)
             return 0
         if args.command == "register":
-            return register(args.project, args.material, args.context, args.kubectl, args.openssl, args.keep_material)
-        return delete(args.project, args.context, args.kubectl)
-    except (CertError, preflight.PreflightError, OSError) as error:
-        message = str(error) if isinstance(error, CertError) else type(error).__name__
+            return register(args.project, args.material, args.context, args.kubectl, args.openssl, args.keep_material,
+                            terraform=args.terraform)
+        return delete(args.project, args.context, args.kubectl, terraform=args.terraform)
+    except (CertError, preflight.PreflightError, OSError, json.JSONDecodeError) as error:
+        # CertError and PreflightError messages are fixed codes; other errors show only their type.
+        message = str(error) if isinstance(error, (CertError, preflight.PreflightError)) else type(error).__name__
         print("Stopped: " + message, file=sys.stderr)
         return 2
 

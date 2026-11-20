@@ -26,6 +26,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import eks_tunnel  # noqa: E402
 import k8s_certs  # noqa: E402
 
 sys.path.insert(0, str(HERE.parents[1] / "kubernetes/tools"))
@@ -39,7 +40,12 @@ FAKE_KUBECTL = textwrap.dedent("""\
         log.write(json.dumps({"argv": sys.argv[1:], "stdin": data}) + "\\n")
     mode = os.environ.get("FAKE_KUBECTL_MODE", "ok")
     args = sys.argv[3:]
-    if args[:2] == ["get", "namespace"]:
+    if args[:2] == ["config", "view"]:
+        if mode == "view_fails":
+            sys.stderr.write('error: context "demo-dev-eks" does not exist\\n')
+            sys.exit(1)
+        print(open(os.environ["FAKE_KUBECONFIG_VIEW"]).read())
+    elif args[:2] == ["get", "namespace"]:
         if mode == "missing_namespace":
             sys.stderr.write('Error from server (NotFound): namespaces "x-ingress" not found\\n')
             sys.exit(1)
@@ -55,7 +61,24 @@ FAKE_KUBECTL = textwrap.dedent("""\
     elif args[0] == "delete":
         print('secret "' + args[2] + '" deleted from ' + args[4] + " namespace")
     """)
+FAKE_TERRAFORM = textwrap.dedent("""\
+    #!/usr/bin/env python3
+    import os, sys
+    print(open(os.environ["FAKE_PLATFORM_OUTPUT"]).read())
+    """)
 WORKSTATION = {"PATH": os.environ.get("PATH", "/usr/bin:/bin")}
+# A synthetic applied platform output (no real cluster); eks_tunnel.py builds the kubeconfig from it.
+PLATFORM = {"cluster_name": "demo-dev-eks",
+            "endpoint": "https://0123456789ABCDEF0123456789ABCDEF.gr7.ca-central-1.eks.amazonaws.com",
+            "certificate_authority_data": base64.b64encode(b"SYNTHETIC CLUSTER CA, NOT A CERTIFICATE").decode()}
+ROLE = "arn:aws:iam::000000000000:role/demo-bootstrap-admin"
+
+
+def kubectl_view(platform=PLATFORM, port=8443, role_arn=None):
+    """What `kubectl config view --minify --raw -o json` prints for the kubeconfig eks_tunnel.py writes."""
+    view = eks_tunnel.kubeconfig_document(platform, port, role_arn)
+    view["users"][0]["user"]["exec"].update(env=None, provideClusterInfo=False)
+    return view
 PROJECT = "demo"
 HOST = "backend.demo.invalid"
 TRUST = "demo.invalid"
@@ -95,6 +118,20 @@ class Material:
     def remove(cls):
         if cls.directory is not None:
             shutil.rmtree(cls.parent, ignore_errors=True)
+
+
+class OtherHost(Material):
+    """A second, independent material set for another backend hostname."""
+    directory = None
+    host = "other.demo.invalid"
+
+    @classmethod
+    def create(cls):
+        if cls.directory is None:
+            cls.parent = Path(tempfile.mkdtemp(prefix="k8s-certs-other-"))
+            cls.directory = cls.parent / "material"
+            k8s_certs.generate(PROJECT, cls.host, TRUST, cls.directory, days=30, out_fn=lambda _: None)
+        return cls
 
 
 def openssl(*args):
@@ -253,7 +290,15 @@ class RegisterTests(unittest.TestCase):
         self.kubectl = self.tmp / "kubectl"
         self.kubectl.write_text(FAKE_KUBECTL)
         self.kubectl.chmod(0o755)
-        self.env = dict(WORKSTATION, FAKE_KUBECTL_LOG=str(self.log))
+        self.terraform = self.tmp / "terraform"
+        self.terraform.write_text(FAKE_TERRAFORM)
+        self.terraform.chmod(0o755)
+        self.platform_file = self.tmp / "platform.json"
+        self.platform_file.write_text(json.dumps(PLATFORM))
+        self.view_file = self.tmp / "view.json"
+        self.view_file.write_text(json.dumps(kubectl_view()))
+        self.env = dict(WORKSTATION, FAKE_KUBECTL_LOG=str(self.log), FAKE_PLATFORM_OUTPUT=str(self.platform_file),
+                        FAKE_KUBECONFIG_VIEW=str(self.view_file))
         self.output = []
 
     def tearDown(self):
@@ -264,7 +309,7 @@ class RegisterTests(unittest.TestCase):
 
     def register(self, **kwargs):
         options = dict(project=PROJECT, material=self.material, kubectl_binary=str(self.kubectl), env=self.env,
-                       out_fn=self.output.append)
+                       out_fn=self.output.append, terraform=str(self.terraform), services=self.tmp)
         options.update(kwargs)
         return k8s_certs.register(**options)
 
@@ -278,11 +323,14 @@ class RegisterTests(unittest.TestCase):
         self.assertEqual(self.register(keep_material=True), 0)
         calls = self.calls()
         self.assertEqual([c["argv"][:4] for c in calls],
-                         [["--context", "demo-dev-eks", "get", "namespace"],
+                         [["--context", "demo-dev-eks", "config", "view"],
+                          ["--context", "demo-dev-eks", "get", "namespace"],
                           ["--context", "demo-dev-eks", "apply", "--server-side"]])
-        self.assertEqual(calls[1]["argv"], ["--context", "demo-dev-eks", "apply", "--server-side",
+        self.assertEqual(calls[0]["argv"], ["--context", "demo-dev-eks", "config", "view", "--minify", "--raw", "-o",
+                                            "json"])
+        self.assertEqual(calls[2]["argv"], ["--context", "demo-dev-eks", "apply", "--server-side",
                                             "--field-manager=demo-k8s-certs", "-f", "-"])
-        items = json.loads(calls[1]["stdin"])["items"]
+        items = json.loads(calls[2]["stdin"])["items"]
         layout = {(i["metadata"]["namespace"], i["metadata"]["name"]): (i["type"], sorted(i["data"])) for i in items}
         self.assertEqual(layout, {
             ("istio-system", "cacerts"): ("Opaque", ["ca-cert.pem", "ca-key.pem", "cert-chain.pem", "root-cert.pem"]),
@@ -359,6 +407,20 @@ class RegisterTests(unittest.TestCase):
             ("material_project_mismatch", lambda: self.edit_public(lambda r: None, top={"project": "other"})),
             ("openssl_failed:verify", lambda: (self.material / "gateway/server-ca.crt").write_bytes(
                 (self.material / "webhook/ca.crt").read_bytes())),
+            # public.json must describe exactly the certificates and Secrets that register sends.
+            ("backend_hostname_invalid", lambda: self.edit_public(lambda r: r.update(backend_hostname="*.demo.invalid"))),
+            ("gateway_san_mismatch", lambda: self.edit_public(lambda r: r.update(backend_hostname="other.demo.invalid"))),
+            ("gateway_san_mismatch", lambda: self.adopt_gateway_from(OtherHost)),
+            ("not_after_mismatch:gateway_server", lambda: self.edit_public(lambda r: None, not_after={
+                "gateway_server": "2099-01-01T00:00:00Z"})),
+            ("not_after_mismatch", lambda: self.edit_public(lambda r: None, not_after={"webhook": None})),
+            ("not_after_mismatch", lambda: self.edit_public(lambda r: None, top={"not_after": {}})),
+            ("secret_layout_mismatch", lambda: self.edit_secrets(lambda x: x[2].update(name="other-gateway-tls"))),
+            ("secret_layout_mismatch", lambda: self.edit_secrets(lambda x: x[0].update(namespace="default"))),
+            ("secret_layout_mismatch", lambda: self.edit_secrets(lambda x: x[1].update(type="Opaque"))),
+            ("secret_layout_mismatch", lambda: self.edit_secrets(lambda x: x[0]["keys"].remove("ca-key.pem"))),
+            ("secret_layout_mismatch", lambda: self.edit_secrets(lambda x: x.append(dict(x[3], name="demo-extra")))),
+            ("secret_layout_mismatch", lambda: self.edit_secrets(lambda x: x.pop())),
         ]
         for label, tamper in cases:
             with self.subTest(label=label):
@@ -369,12 +431,140 @@ class RegisterTests(unittest.TestCase):
                     self.register()
         self.assertEqual(self.calls(), [])
 
-    def edit_public(self, change, top=None):
+    def edit_public(self, change, top=None, not_after=None):
         path = self.material / "public.json"
         public = json.loads(path.read_text())
         change(public["runtime"])
         public.update(top or {})
+        for name, value in (not_after or {}).items():
+            if value is None:
+                public["not_after"].pop(name)
+            else:
+                public["not_after"][name] = value
         path.write_text(json.dumps(public))
+
+    def edit_secrets(self, change):
+        path = self.material / "public.json"
+        public = json.loads(path.read_text())
+        change(public["secrets"])
+        path.write_text(json.dumps(public))
+
+    def adopt_gateway_from(self, other):
+        # A consistent server certificate, key and CA, but issued for another hostname.
+        for name in ("gateway/tls.crt", "gateway/tls.key", "gateway/server-ca.crt"):
+            (self.material / name).write_bytes((other.create().directory / name).read_bytes())
+        # Record its real expiry too, so that only the hostname differs.
+        expiry = json.loads((other.directory / "public.json").read_text())["not_after"]["gateway_server"]
+        self.edit_public(lambda r: None, not_after={"gateway_server": expiry})
+
+    def test_refuses_certificate_dates_and_sans_outside_bounds(self):
+        tool = k8s_certs.OpenSSL()
+        start, _ = tool.dates(self.material / "gateway/tls.crt")
+
+        class Stub(k8s_certs.OpenSSL):
+            dates_for, names_for = {}, {}
+
+            def dates(self, cert):
+                return self.dates_for.get(Path(cert).relative_to(cert.parents[1]).as_posix()) or super().dates(cert)
+
+            def dns_names(self, cert):
+                found = self.names_for.get(Path(cert).relative_to(cert.parents[1]).as_posix())
+                return found if found is not None else super().dns_names(cert)
+        cases = [
+            ("validity_too_long:gateway/tls.crt", {"gateway/tls.crt": (start, start + datetime.timedelta(days=92))}, {}),
+            ("webhook_san_mismatch", {}, {"webhook/tls.crt": ["aws-load-balancer-controller-webhook-service.default.svc"]}),
+            ("webhook_san_mismatch", {}, {"webhook/tls.crt": []}),
+            ("gateway_san_mismatch", {}, {"gateway/tls.crt": [HOST, "other.demo.invalid"]}),
+            ("gateway_san_mismatch", {}, {"gateway/tls.crt": []}),
+        ]
+        for label, dates, names in cases:
+            with self.subTest(label=label):
+                stub = Stub()
+                stub.dates_for, stub.names_for = dates, names
+                with self.assertRaisesRegex(k8s_certs.CertError, label):
+                    k8s_certs.check_material(PROJECT, self.material, stub)
+        with self.assertRaisesRegex(k8s_certs.CertError, "material_not_yet_valid"):
+            k8s_certs.check_material(PROJECT, self.material, tool, now=start - datetime.timedelta(hours=1))
+        # Every subjectAltName entry must be a DNS name; an IP or URI entry is refused.
+        fake = k8s_certs.OpenSSL()
+        fake.run = lambda args, step, cwd=None: "X509v3 Subject Alternative Name: \n    DNS:a.invalid, IP Address:10.0.0.1\n"
+        with self.assertRaisesRegex(k8s_certs.CertError, "san_not_dns"):
+            fake.dns_names(self.material / "gateway/tls.crt")
+        self.assertEqual(tool.dns_names(self.material / "gateway/tls.crt"), [HOST])
+        k8s_certs.check_material(PROJECT, self.material, tool)  # the untouched material passes
+
+    def test_kubeconfig_must_be_the_tunnel_to_the_applied_cluster(self):
+        for role in (None, ROLE):
+            k8s_certs.check_kubeconfig(kubectl_view(role_arn=role), "demo-dev-eks", PLATFORM)
+        k8s_certs.check_kubeconfig(kubectl_view(port=1024), "demo-dev-eks", PLATFORM)
+
+        def view(edit):
+            v = kubectl_view()
+            edit(v, v["clusters"][0]["cluster"], v["users"][0]["user"])
+            return v
+        other_endpoint = "FEDCBA9876543210FEDCBA9876543210.gr7.ca-central-1.eks.amazonaws.com"
+        cases = [
+            ("server", view(lambda v, c, u: c.update(server="https://10.40.1.20:443"))),
+            ("server", view(lambda v, c, u: c.update(server=PLATFORM["endpoint"]))),
+            ("server", view(lambda v, c, u: c.update(server="http://127.0.0.1:8443"))),
+            ("server", view(lambda v, c, u: c.update(server="https://127.0.0.1:80"))),
+            ("server", view(lambda v, c, u: c.update(server="https://127.0.0.1:8443/proxy"))),
+            ("cluster_fields", view(lambda v, c, u: c.update({"insecure-skip-tls-verify": True}))),
+            ("cluster_fields", view(lambda v, c, u: c.pop("tls-server-name"))),
+            ("cluster_fields", view(lambda v, c, u: c.update({"proxy-url": "http://127.0.0.1:3128"}))),
+            ("cluster_fields", view(lambda v, c, u: (c.pop("certificate-authority-data"),
+                                                     c.update({"certificate-authority": "/tmp/ca.crt"})))),
+            ("tls_server_name", view(lambda v, c, u: c.update({"tls-server-name": other_endpoint}))),
+            ("certificate_authority", view(lambda v, c, u: c.update({"certificate-authority-data": "T1RIRVI="}))),
+            ("cluster_identity", view(lambda v, c, u: u["exec"]["args"].__setitem__(3, "other-dev-eks"))),
+            ("cluster_identity", view(lambda v, c, u: u["exec"]["args"].__setitem__(5, "us-east-1"))),
+            ("cluster_identity", view(lambda v, c, u: u["exec"].update(args=u["exec"]["args"] + ["--role-arn", "x"]))),
+            ("cluster_identity", view(lambda v, c, u: u["exec"].update(args=u["exec"]["args"][:4]))),
+            ("exec", view(lambda v, c, u: u["exec"].update(command="/tmp/aws"))),
+            ("exec", view(lambda v, c, u: u["exec"].update(env=[{"name": "AWS_PROFILE", "value": "other"}]))),
+            ("exec", view(lambda v, c, u: u["exec"].update(provideClusterInfo=True))),
+            ("user_credentials", view(lambda v, c, u: u.update(token="static"))),
+            ("user_credentials", view(lambda v, c, u: (u.pop("exec"), u.update({"client-key-data": "S0VZ"})))),
+            ("context_binding", view(lambda v, c, u: v["contexts"][0]["context"].update(cluster="other-dev-eks"))),
+            ("context_binding", view(lambda v, c, u: v["clusters"][0].update(name="other-dev-eks"))),
+            ("not_a_single_context", view(lambda v, c, u: v["clusters"].append(copy.deepcopy(v["clusters"][0])))),
+            ("not_a_single_context", view(lambda v, c, u: v.update(users=[]))),
+            ("shape", view(lambda v, c, u: v.update({"current-context": "other-dev-eks"}))),
+        ]
+        for reason, candidate in cases:
+            with self.subTest(reason=reason, candidate=json.dumps(candidate)[:0]):
+                with self.assertRaisesRegex(k8s_certs.CertError, "kubeconfig_mismatch:" + reason):
+                    k8s_certs.check_kubeconfig(candidate, "demo-dev-eks", PLATFORM)
+        for reason, platform in [("platform_cluster", dict(PLATFORM, cluster_name="other-dev-eks")),
+                                 ("platform_endpoint", dict(PLATFORM, endpoint="https://evil.example.com"))]:
+            with self.subTest(reason=reason), self.assertRaisesRegex(k8s_certs.CertError, "kubeconfig_mismatch:" + reason):
+                k8s_certs.check_kubeconfig(kubectl_view(), "demo-dev-eks", platform)
+
+    def test_other_cluster_receives_no_secret(self):
+        # Register and delete stop after reading the kubeconfig: no namespace read, apply or delete follows.
+        bad_view = kubectl_view()
+        bad_view["clusters"][0]["cluster"]["server"] = "https://10.40.1.20:443"
+        for label, setup in [
+                ("kubeconfig_mismatch:server", lambda: self.view_file.write_text(json.dumps(bad_view))),
+                ("kubeconfig_mismatch:platform_cluster", lambda: self.platform_file.write_text(json.dumps(
+                    dict(PLATFORM, cluster_name="other-dev-eks")))),
+                ("kubeconfig_mismatch:context_unavailable", lambda: self.env.update(FAKE_KUBECTL_MODE="view_fails"))]:
+            for command in ("register", "delete"):
+                with self.subTest(label=label, command=command):
+                    self.view_file.write_text(json.dumps(kubectl_view()))
+                    self.platform_file.write_text(json.dumps(PLATFORM))
+                    self.env.pop("FAKE_KUBECTL_MODE", None)
+                    self.log.unlink(missing_ok=True)
+                    setup()
+                    with self.assertRaisesRegex(k8s_certs.CertError, label):
+                        self.register() if command == "register" else delete_with(self, {})
+                    self.assertTrue(all(c["argv"][2] == "config" for c in self.calls()), self.calls())
+        self.assertTrue((self.material / "istio/ca-key.pem").exists())
+        self.log.unlink(missing_ok=True)
+        self.terraform.write_text("#!/bin/sh\nexit 1\n")
+        with self.assertRaisesRegex(k8s_certs.preflight.PreflightError, "terraform_output_failed:platform"):
+            self.register()
+        self.assertEqual(self.calls(), [])
 
     def test_refuses_expired_material(self):
         later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=40)
@@ -389,7 +579,7 @@ class RegisterTests(unittest.TestCase):
         self.env["FAKE_KUBECTL_MODE"] = "missing_namespace"
         with self.assertRaisesRegex(k8s_certs.CertError, "namespaces_missing"):
             self.register()
-        self.assertEqual([c["argv"][2] for c in self.calls()], ["get"])
+        self.assertEqual([c["argv"][2] for c in self.calls()], ["config", "get"])
         self.assertTrue((self.material / "istio/ca-key.pem").exists())
 
     def test_failed_apply_output_is_redacted_and_keys_kept(self):
@@ -411,6 +601,7 @@ class RegisterTests(unittest.TestCase):
         self.assertEqual(delete_with(self, {}), 0)
         argv = [c["argv"] for c in self.calls()]
         self.assertEqual(argv, [
+            ["--context", "demo-dev-eks", "config", "view", "--minify", "--raw", "-o", "json"],
             ["--context", "demo-dev-eks", "delete", "secret", "cacerts", "-n", "istio-system", "--ignore-not-found"],
             ["--context", "demo-dev-eks", "delete", "secret", "aws-load-balancer-controller-tls", "-n", "kube-system",
              "--ignore-not-found"],
@@ -422,8 +613,9 @@ class RegisterTests(unittest.TestCase):
 
 
 def delete_with(test, extra):
-    env = dict(WORKSTATION, FAKE_KUBECTL_LOG=str(test.log), **extra)
-    return k8s_certs.delete(PROJECT, kubectl_binary=str(test.kubectl), env=env, out_fn=test.output.append)
+    env = dict(test.env, **extra)
+    return k8s_certs.delete(PROJECT, kubectl_binary=str(test.kubectl), env=env, out_fn=test.output.append,
+                            terraform=str(test.terraform), services=test.tmp)
 
 
 class CommandLineTests(unittest.TestCase):
@@ -461,6 +653,7 @@ class CommandLineTests(unittest.TestCase):
 
 def tearDownModule():
     Material.remove()
+    OtherHost.remove()
 
 
 if __name__ == "__main__":
