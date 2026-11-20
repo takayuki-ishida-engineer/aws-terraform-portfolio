@@ -9,31 +9,31 @@
     "admissionregistration.k8s.io/v1",
     "MutatingWebhookConfiguration",
     "",
-    "istio-sidecar-injector-portfolio-v1"
+    "istio-sidecar-injector-${project}-v1"
   ],
   [
     "admissionregistration.k8s.io/v1",
     "ValidatingAdmissionPolicy",
     "",
-    "portfolio-no-lb-service"
+    "${project}-no-lb-service"
   ],
   [
     "admissionregistration.k8s.io/v1",
     "ValidatingAdmissionPolicy",
     "",
-    "portfolio-target-registration"
+    "${project}-target-registration"
   ],
   [
     "admissionregistration.k8s.io/v1",
     "ValidatingAdmissionPolicyBinding",
     "",
-    "portfolio-no-lb-service"
+    "${project}-no-lb-service"
   ],
   [
     "admissionregistration.k8s.io/v1",
     "ValidatingAdmissionPolicyBinding",
     "",
-    "portfolio-target-registration"
+    "${project}-target-registration"
   ],
   [
     "admissionregistration.k8s.io/v1",
@@ -45,7 +45,7 @@
     "admissionregistration.k8s.io/v1",
     "ValidatingWebhookConfiguration",
     "",
-    "istio-validator-portfolio-v1-istio-system"
+    "istio-validator-${project}-v1-istio-system"
   ],
   [
     "admissionregistration.k8s.io/v1",
@@ -158,14 +158,14 @@
   [
     "apps/v1",
     "Deployment",
-    "istio-ingress",
-    "portfolio-gateway"
+    "${project}-ingress",
+    "${project}-gateway"
   ],
   [
     "apps/v1",
     "Deployment",
     "istio-system",
-    "istiod-portfolio-v1"
+    "istiod-${project}-v1"
   ],
   [
     "apps/v1",
@@ -176,20 +176,20 @@
   [
     "elbv2.k8s.aws/v1beta1",
     "TargetGroupBinding",
-    "istio-ingress",
-    "portfolio-gateway"
+    "${project}-ingress",
+    "${project}-gateway"
   ],
   [
     "networking.istio.io/v1",
     "Gateway",
-    "istio-ingress",
-    "portfolio-backend"
+    "${project}-ingress",
+    "${project}-backend"
   ],
   [
     "networking.k8s.io/v1",
     "NetworkPolicy",
-    "portfolio-app",
-    "default-deny"
+    "${project}-app",
+    "${project}-default-deny"
   ],
   [
     "rbac.authorization.k8s.io/v1",
@@ -201,7 +201,7 @@
     "rbac.authorization.k8s.io/v1",
     "ClusterRole",
     "",
-    "istiod-clusterrole-portfolio-v1-istio-system"
+    "istiod-clusterrole-${project}-v1-istio-system"
   ],
   [
     "rbac.authorization.k8s.io/v1",
@@ -213,31 +213,31 @@
     "rbac.authorization.k8s.io/v1",
     "ClusterRoleBinding",
     "",
-    "istiod-clusterrole-portfolio-v1-istio-system"
+    "istiod-clusterrole-${project}-v1-istio-system"
   ],
   [
     "rbac.authorization.k8s.io/v1",
     "Role",
-    "istio-ingress",
-    "portfolio-binding-writer"
+    "${project}-ingress",
+    "${project}-binding-writer"
   ],
   [
     "rbac.authorization.k8s.io/v1",
     "Role",
-    "istio-ingress",
-    "portfolio-gateway"
+    "${project}-ingress",
+    "${project}-gateway"
   ],
   [
     "rbac.authorization.k8s.io/v1",
     "Role",
-    "istio-ingress",
-    "portfolio-target-registration"
+    "${project}-ingress",
+    "${project}-target-registration"
   ],
   [
     "rbac.authorization.k8s.io/v1",
     "Role",
     "istio-system",
-    "istiod-portfolio-v1"
+    "istiod-${project}-v1"
   ],
   [
     "rbac.authorization.k8s.io/v1",
@@ -248,26 +248,26 @@
   [
     "rbac.authorization.k8s.io/v1",
     "RoleBinding",
-    "istio-ingress",
-    "portfolio-binding-writer"
+    "${project}-ingress",
+    "${project}-binding-writer"
   ],
   [
     "rbac.authorization.k8s.io/v1",
     "RoleBinding",
-    "istio-ingress",
-    "portfolio-gateway"
+    "${project}-ingress",
+    "${project}-gateway"
   ],
   [
     "rbac.authorization.k8s.io/v1",
     "RoleBinding",
-    "istio-ingress",
-    "portfolio-target-registration"
+    "${project}-ingress",
+    "${project}-target-registration"
   ],
   [
     "rbac.authorization.k8s.io/v1",
     "RoleBinding",
     "istio-system",
-    "istiod-portfolio-v1"
+    "istiod-${project}-v1"
   ],
   [
     "rbac.authorization.k8s.io/v1",
@@ -278,38 +278,38 @@
   [
     "security.istio.io/v1",
     "AuthorizationPolicy",
-    "portfolio-app",
-    "default-deny"
+    "${project}-app",
+    "${project}-default-deny"
   ],
   [
     "security.istio.io/v1",
     "PeerAuthentication",
-    "portfolio-app",
-    "strict"
+    "${project}-app",
+    "${project}-strict-mtls"
   ],
   [
     "v1",
     "ConfigMap",
     "istio-system",
-    "istio-portfolio-v1"
+    "istio-${project}-v1"
   ],
   [
     "v1",
     "ConfigMap",
     "istio-system",
-    "istio-sidecar-injector-portfolio-v1"
+    "istio-sidecar-injector-${project}-v1"
   ],
   [
     "v1",
     "ConfigMap",
     "istio-system",
-    "values-portfolio-v1"
+    "values-${project}-v1"
   ],
   [
     "v1",
     "Namespace",
     "",
-    "istio-ingress"
+    "${project}-ingress"
   ],
   [
     "v1",
@@ -321,19 +321,19 @@
     "v1",
     "Namespace",
     "",
-    "portfolio-app"
+    "${project}-app"
   ],
   [
     "v1",
     "Service",
-    "istio-ingress",
-    "portfolio-gateway"
+    "${project}-ingress",
+    "${project}-gateway"
   ],
   [
     "v1",
     "Service",
     "istio-system",
-    "istiod-portfolio-v1"
+    "istiod-${project}-v1"
   ],
   [
     "v1",
@@ -344,20 +344,20 @@
   [
     "v1",
     "ServiceAccount",
-    "istio-ingress",
-    "portfolio-binding-writer"
+    "${project}-ingress",
+    "${project}-binding-writer"
   ],
   [
     "v1",
     "ServiceAccount",
-    "istio-ingress",
-    "portfolio-gateway"
+    "${project}-ingress",
+    "${project}-gateway"
   ],
   [
     "v1",
     "ServiceAccount",
     "istio-system",
-    "istiod-portfolio-v1"
+    "istiod-${project}-v1"
   ],
   [
     "v1",
@@ -368,7 +368,7 @@
   [
     "v1",
     "ServiceAccount",
-    "portfolio-app",
-    "portfolio-application"
+    "${project}-app",
+    "${project}-application"
   ]
 ]

@@ -14,12 +14,12 @@ RBAC/bindings/admission, TGB refs, private Services, selectors/ports, pinned ima
 resource profiles, external CA dependencies, TLS MUTUAL/clientSPKI and STRICT/
 default-deny policies. CRDs are canonical-hash pinned, not assumed from strings.
 
-97 unsafe rendered mutations are actually submitted to validation: the existing
-58 cases plus19 NP-1 and20 NP-2P cases. Existing cases include
+108 unsafe rendered mutations are actually submitted to validation: the existing
+58 cases plus19 NP-1,20 NP-2P and11 F11 cases. Existing cases include
 TLS downgrades/identity removal/plaintext, wrong TGB target/type/VPC/networking,
 LoadBalancer Service, port/selector/ref mistakes, broad RBAC/cluster-admin binding,
 missing guards, controller flags, CA fallback, privilege/image/AZ changes and
-missing/duplicate/forbidden objects.38 invalid minimal inputs are rejected.
+missing/duplicate/forbidden objects.54 invalid minimal inputs are rejected.
 26 evidence faults reject missing/failed/partial/fabricated artifacts, hash/count
 mismatch, malformed/duplicate/nonfinite JSON. Individual labels are emitted in
 the JSON report. Counts derive from executed cases; they are not native Terraform
@@ -53,12 +53,30 @@ backend ports and the reserved Istio15000–15090 interval; four accepted metada
 boundaries1024/14999/15091/65535 are checked without counting them as Helm renders.
 Five additional evidence faults reject missing/legacy runtime_contract_version,
 forged input/chart hashes and an unsafe manifest with a freshly recomputed hash.
-Generated evidence requires runtime_contract_version2; minimal input/Platform
-reference version1 and Kubernetes API versions are unchanged. Report counts are
+NP-2P evidence used runtime_contract_version2; F11 (below) raised it to 3. The
+Platform reference version1 and Kubernetes API versions are unchanged. Report counts are
 derived from executed cases and remain separate from Terraform/toolkit tests.
 The cross-fixture TG swap checks declared reference consistency; an ARN does not
 encode a port. Actual TG port/existence and trustworthy Platform output provenance
 still require external verification, never authenticated discovery in this test.
+
+F11 (Step 1 item 6b-A) names every object the project creates `<project>-<purpose>`,
+derived from the new `runtime.project` input (input interface_version 2, generated
+evidence runtime_contract_version 3). The second positive render uses project `demo`
+instead of `test`. In both renders an independent naming check, written separately
+from the renderer, accepts each object only if it is `<project>-*` (22 objects) or a
+name the upstream charts fix (the CRDs, `istio-system`, `aws-load-balancer-controller*`
+and Istio's revision-suffixed objects), and neither render may carry the other
+project's names. The11 new rendered mutations reject objects reverted to legacy
+names (`istio-ingress`, `portfolio-backend`, `portfolio-gateway`, `strict`), another
+project's name and a token-mounting application ServiceAccount, plus five direct
+faults of the naming check itself (legacy Namespace name or namespace field,
+unprefixed, other-project and legacy-revision names). The16 new input negatives
+reject a missing or invalid project (uppercase, leading digit, trailing hyphen,
+underscore, eleven characters, `aws`/`amazon`/`cognito`, empty, non-string), a
+cluster or controller role not named `<project>-dev-eks`/`<project>-dev-role-lbc`,
+gateway Secrets without the project prefix and a version1 input. Five accepted
+projects are checked without counting them as Helm renders.
 
 `complete_runtime=true` means these runtime checks passed. Render/runtime reports
 retain `complete_v5=false`; only final affected-local acceptance after Terraform,

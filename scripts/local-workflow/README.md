@@ -15,8 +15,10 @@ markers are a safety net, not the boundary: the rule itself is in `AGENTS.md`.
 | `handoff.py` | `network`: writes the applied network output as `network_reference` into the platform and developer-access `local.auto.tfvars` (account checked) |
 | `eks_tunnel.py` | `kubeconfig`: kubeconfig for `https://127.0.0.1:<port>` with the real `tls-server-name` and `aws eks get-token`; `start`: Session Manager port forwarding to the private EKS endpoint |
 | `empty_bucket.py` | Deletes every object version from `<project>-dev-s3-artifact` or `-tfstate` before teardown, after a typed confirmation |
+| `k8s_certs.py` | `generate`: DEV certificates and keys for the Kubernetes runtime, outside the repository (offline); `register`/`delete`: the four runtime Secrets in the `<project>-dev-eks` context (finding F4) |
 | `test_local_workflow.py` | Offline self-tests with fake `terraform` and `aws` executables (Full CI) |
 | `check_committed_values.py` | Full CI check of the committed values and the preflight against every DEV root |
+| `test_k8s_certs.py` | Offline tests of `k8s_certs.py` with real OpenSSL in temporary directories and a fake `kubectl` (Full CI) |
 
 ## Prepare a root
 
@@ -120,3 +122,68 @@ every root back on local State (or destroyed), every object version deleted
 `run.py` writes the plan to `dev-local.tfplan` inside the root (ignored by Git,
 checked before writing), applies exactly that plan after you type the root name,
 and deletes it afterwards, because a saved plan can contain sensitive values.
+
+## Kubernetes certificates (`k8s_certs.py`)
+
+The Kubernetes runtime references four Secrets that nothing in the repository or in
+Terraform creates (finding F4; [deployment configuration §9](../../docs/deployment-configuration.md#9-step-1-operational-decisions-owner-2026-11-16)):
+
+| Secret | Namespace | Keys | Content |
+| --- | --- | --- | --- |
+| `cacerts` (name fixed by Istio) | `istio-system` | `ca-cert.pem`, `ca-key.pem`, `root-cert.pem`, `cert-chain.pem` | Istio plug-in CA: an RSA 4096 intermediate (`pathlen:0`) signed by a root whose key is deleted after signing |
+| `aws-load-balancer-controller-tls` (name fixed by the chart) | `kube-system` | `ca.crt`, `tls.crt`, `tls.key` | Webhook serving certificate for `aws-load-balancer-controller-webhook-service.kube-system.svc` |
+| `<project>-gateway-tls` | `<project>-ingress` | `tls.crt`, `tls.key` | Gateway server certificate for the backend hostname |
+| `<project>-gateway-client-cacert` | `<project>-ingress` | `ca.crt` | CA of the client certificates the MUTUAL Gateway accepts (public) |
+
+Generate new material on your workstation, in a new directory outside the
+repository (OpenSSL 3 is required; on macOS pass `--openssl` with Homebrew's
+`openssl@3`):
+
+```bash
+python3 scripts/local-workflow/k8s_certs.py generate --project <project> --backend-hostname <backend hostname> --trust-domain <trust domain> --out ~/.config/<project>-dev-k8s-certs
+```
+
+- The directory is 0700 and every file 0600. Validity is 30 days by default and at
+  most 90 (`--days`). Each CA signs and is verified with `openssl verify -x509_strict`.
+  The root and issuing CA private keys are deleted right after signing; only the
+  Istio intermediate key, which istiod signs workload certificates with, is kept.
+- `public.json` holds only public values. Its `runtime` object is exactly the
+  certificate-derived part of the renderer input: the Secret names,
+  `expected_client_spki` (base64 SHA-256 of the client public key, which the Gateway
+  pins) and `webhook_ca_bundle` (base64 of the public webhook CA). Copy them into the
+  runtime input; the other fields come from the platform outputs and your resource
+  choices.
+- `client/tls.crt` and `client/tls.key` are the one client identity the Gateway
+  accepts, for testing the mTLS path through the tunnel.
+
+With the tunnel running (runbook §3) and the runtime's namespaces stage applied,
+register the Secrets:
+
+```bash
+KUBECONFIG=~/.kube/<project>-dev-eks.json python3 scripts/local-workflow/k8s_certs.py register --project <project> --material ~/.config/<project>-dev-k8s-certs
+```
+
+`register` refuses to run in automation (the same markers as above). It requires the
+context `<project>-dev-eks` and checks the material before it contacts the cluster:
+- the material is complete, owner-only and for this project;
+- no certificate expires within a day;
+- every certificate matches its key and chains to its CA;
+- `public.json` still matches the certificates.
+
+It then checks that `istio-system`, `kube-system` and `<project>-ingress` exist, and
+applies the Secrets with `kubectl apply --server-side` (no `last-applied`
+annotation). The Secret data goes through stdin, never through arguments or output.
+Only `secret/<name> serverside-applied` lines are printed; any other kubectl output
+and every error is redacted. Afterwards it deletes the three server private keys
+from the material directory (`--keep-material` keeps them). Delete the directory
+when you no longer need the client identity.
+
+Renewal or a new cluster means new material: run `generate` again into a new
+directory, update the runtime input from its `public.json`, render, then `register`.
+The old CA is no longer trusted. `delete` removes the four Secrets
+(`kubectl delete secret --ignore-not-found`); destroying the cluster removes them too.
+
+`test_k8s_certs.py` runs `generate` with real OpenSSL in temporary directories and
+`register`/`delete` against a fake `kubectl`. It checks, among other things, that no
+key or certificate line reaches arguments or output, that the generated values pass
+the renderer's live-input checks, and that the commands are refused in automation.

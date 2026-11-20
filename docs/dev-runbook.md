@@ -16,7 +16,7 @@ verified teardown within 72 hours all apply.
 
 | Item | Requirement |
 | --- | --- |
-| Tools | Terraform 1.17.x, AWS CLI v2 with the Session Manager plugin, kubectl, Python 3.11 or later, Git |
+| Tools | Terraform 1.17.x, AWS CLI v2 with the Session Manager plugin, kubectl, Python 3.11 or later, Git, OpenSSL 3 (Kubernetes certificates, §6) |
 | Account | The dedicated DEV workload account; budget alarms in place |
 | Operator identity (F6) | Your own AWS CLI profile (`AWS_PROFILE`), never long-lived keys in files. It needs permissions to create and delete everything below. Includes `iam:PassRole` for the EKS cluster, node and Lambda roles and the developer access instance profile. A least-privilege operator role is deferred to Step 3 (finding F10) |
 | EKS bootstrap admin role (F6) | An existing IAM role you can assume for kubectl; its ARN goes into the platform root's `bootstrap_admin_role_arn` |
@@ -123,10 +123,41 @@ python3 scripts/local-workflow/run.py api apply
 
 ## 6. Kubernetes runtime
 
-This part is not deployable yet. The nodes cannot pull the Istio and AWS Load
-Balancer Controller images from public registries (finding F18). The DEV
-certificates and webhook TLS Secrets also have no script yet (finding F4). Step 1
-item 6b covers both, together with the Kubernetes object names (finding F11).
+This part is still not deployable. The nodes cannot pull the Istio and AWS Load
+Balancer Controller images from public registries while node egress stays closed
+(finding F18, open). Do not open node egress to the internet to work around it.
+
+What is ready (Step 1 item 6b-A):
+- **Object names (F11).** Every object the project creates is named
+  `<project>-<purpose>`, for example `<project>-ingress`, `<project>-gateway`,
+  `<project>-app` and revision `<project>-v1`. The renderer input carries
+  `runtime.project`, which must match the platform's `<project>-dev-eks` cluster and
+  `<project>-dev-role-lbc` role. See the
+  [input description](../kubernetes/environments/dev/README.md).
+- **Certificates and Secrets (F4).** Generate the DEV material on your workstation,
+  outside the repository:
+
+  ```bash
+  python3 scripts/local-workflow/k8s_certs.py generate --project <project> --backend-hostname <backend hostname> --trust-domain <trust domain> --out ~/.config/<project>-dev-k8s-certs
+  ```
+
+  Copy the `runtime` values from its `public.json` into the renderer input. Once
+  F18 is resolved, the order is:
+  1. render;
+  2. apply the namespaces stage;
+  3. register the Secrets through the tunnel (§3);
+  4. apply the remaining stages in order.
+
+  ```bash
+  KUBECONFIG=~/.kube/<project>-dev-eks.json python3 scripts/local-workflow/k8s_certs.py register --project <project> --material ~/.config/<project>-dev-k8s-certs
+  ```
+
+  `register` refuses automation and any context other than `<project>-dev-eks`. It
+  applies `cacerts`, `aws-load-balancer-controller-tls`, `<project>-gateway-tls` and
+  `<project>-gateway-client-cacert` through stdin, and prints no key or certificate.
+  Afterwards it deletes the server private keys from the material directory. See the
+  [script description](../scripts/local-workflow/README.md#kubernetes-certificates-k8s_certspy)
+  for the checks, renewal and `delete`.
 
 ## 7. Teardown
 
@@ -170,6 +201,8 @@ NLB blocks `terraform destroy` (finding F19).
    ```
 
 4. **Platform.** Set `deletion_protection = false` in `platform/local.auto.tfvars`, run `run.py platform apply`, then `run.py platform destroy`.
+   The Kubernetes Secrets go with the cluster. If you generated certificate material
+   (§6), delete its directory as well, for example `~/.config/<project>-dev-k8s-certs`.
 
 5. **Network.**
 

@@ -23,8 +23,22 @@ def mapping(loader,node,deep=False):
 Safe.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,mapping)
 def docs(text):return [d for d in yaml.load_all(text,Loader=Safe) if d is not None]
 def sha(data):return hashlib.sha256(data).hexdigest()
+# Same rule as the DEV roots' project variable (finding F11: Kubernetes objects
+# the project creates are named <project>-<purpose>; upstream-mandated names stay).
+PROJECT=r'[a-z]([a-z0-9-]{0,8}[a-z0-9])?'
+def names(project):
+ need(isinstance(project,str) and re.fullmatch(PROJECT,project) and not re.search('aws|amazon|cognito',project),'project name')
+ return {'revision':project+'-v1','ingress_namespace':project+'-ingress','gateway':project+'-gateway','backend':project+'-backend','target_registration':project+'-target-registration','no_lb_service':project+'-no-lb-service','binding_writer':project+'-binding-writer','app_namespace':project+'-app','app_service_account':project+'-application','peer_authentication':project+'-strict-mtls','authorization_policy':project+'-default-deny','network_policy':project+'-default-deny','ingress_class':project+'-disabled'}
+def fill(obj,project):
+ # Replace ${project} in reviewed source templates and the expected inventory.
+ names(project)
+ if isinstance(obj,dict):return {fill(k,project):fill(v,project) for k,v in obj.items()}
+ if isinstance(obj,list):return [fill(v,project) for v in obj]
+ if isinstance(obj,str):return obj.replace('${project}',project)
+ return obj
 def metadata(d,fixture=False):
- need(set(d)=={'interface_version','fixture','controller_identity','private_ingress','runtime'} and d['interface_version']==1 and d['fixture'] is fixture,'manifest/fixture boundary')
+ # Input interface 2 adds runtime.project (finding F11); interface 1 inputs are refused.
+ need(set(d)=={'interface_version','fixture','controller_identity','private_ingress','runtime'} and d['interface_version']==2 and d['fixture'] is fixture,'manifest/fixture boundary')
  c=d['controller_identity'];p=d['private_ingress'];s=c['scope'];r=d['runtime']
  need(s==p['scope'] and set(s)=={'environment','partition','region','account_id'} and s['environment']=='dev' and s['partition']=='aws' and s['region']=='ca-central-1' and re.fullmatch('[0-9]{12}',s['account_id']),'scope')
  need(c['interface_version']==p['interface_version']==1 and c['namespace']=='kube-system' and c['service_account']=='aws-load-balancer-controller','identity interface')
@@ -34,11 +48,14 @@ def metadata(d,fixture=False):
  need(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,39}',c['cluster_name']) and re.fullmatch(r'ca-central-1[a-z]',c['active_workload_az']),'cluster/AZ')
  need(c['kubernetes_version'] in ['1.33','1.34','1.35','1.36','1.37'],'Istio software matrix; live selection remains external')
  need(re.fullmatch(r'vpc-([0-9a-f]{8}|[0-9a-f]{17})',p['vpc_id']) and type(p['backend_target_port']) is int and 1024<=p['backend_target_port']<=65535 and not 15000<=p['backend_target_port']<=15090,'VPC/backend port: integer1024-65535, reserving Istio control/probe range15000-15090')
- need(set(r)=={'backend_hostname','gateway_tls_secret','gateway_client_ca_secret','expected_client_spki','trust_domain','webhook_tls_secret','webhook_ca_bundle','istio_ca_secret','resources'},'runtime fields')
+ need(set(r)=={'project','backend_hostname','gateway_tls_secret','gateway_client_ca_secret','expected_client_spki','trust_domain','webhook_tls_secret','webhook_ca_bundle','istio_ca_secret','resources'},'runtime fields')
+ n=names(r['project'])
+ need(c['cluster_name']==r['project']+'-dev-eks' and c['role_arn'].endswith(':role/'+r['project']+'-dev-role-lbc'),'project matches the platform cluster and controller role names')
  for field in ['backend_hostname','trust_domain']:
   need(len(r[field])<=253 and re.fullmatch(r'[a-z0-9]([a-z0-9.-]*[a-z0-9])?',r[field]) and '.' in r[field] and '*' not in r[field] and '..' not in r[field],'exact DNS:'+field)
  for field in ['gateway_tls_secret','gateway_client_ca_secret','istio_ca_secret','webhook_tls_secret']:need(re.fullmatch(r'[a-z0-9]([a-z0-9-]*[a-z0-9])?',r[field]),'Secret reference:'+field)
  need(r['gateway_client_ca_secret'].endswith('-cacert') and not r['gateway_tls_secret'].endswith('-cacert'),'CA-only SDS suffix must not be a leaf credential')
+ need(all(r[f].startswith(r['project']+'-') for f in ['gateway_tls_secret','gateway_client_ca_secret']),'project-created gateway Secrets are named <project>-<purpose>')
  need(set(c)=={'interface_version','scope','role_arn','oidc_issuer','oidc_provider_arn','namespace','service_account','target_group_arn','cluster_name','kubernetes_version','active_workload_az'} and set(p)=={'interface_version','scope','target_group_arn','vpc_id','backend_target_port'},'minimal reference fields only')
  need(r['istio_ca_secret']=='cacerts' and r['webhook_tls_secret']=='aws-load-balancer-controller-tls' and r['gateway_tls_secret']!=r['gateway_client_ca_secret'],'external CA/credential separation')
  pins=r['expected_client_spki'];need(isinstance(pins,list) and 1<=len(pins)<=2 and len(set(pins))==len(pins) and all(len(base64.b64decode(x,validate=True))==32 for x in pins),'exact SPKI SHA256 pins')

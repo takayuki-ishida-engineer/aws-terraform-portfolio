@@ -1,12 +1,12 @@
 {
   "apiVersion": "elbv2.k8s.aws/v1beta1",
   "kind": "TargetGroupBinding",
-  "metadata": {"name": "portfolio-gateway", "namespace": "istio-ingress"},
+  "metadata": {"name": "${project}-gateway", "namespace": "${project}-ingress"},
   "spec": {
     "targetGroupARN": "${target_group_arn}",
     "targetType": "ip",
     "vpcID": "${vpc_id}",
-    "serviceRef": {"name": "portfolio-gateway", "port": "${backend_target_port}"},
+    "serviceRef": {"name": "${project}-gateway", "port": "${backend_target_port}"},
     "multiClusterTargetGroup": false
   }
 }

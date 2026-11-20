@@ -1,5 +1,5 @@
 {
-  "interface_version": 1,
+  "interface_version": 2,
   "fixture": true,
   "controller_identity": {
     "interface_version": 1,
@@ -9,13 +9,13 @@
       "partition": "aws",
       "account_id": "000000000000"
     },
-    "role_arn": "arn:aws:iam::000000000000:role/test-ingress-lbc",
+    "role_arn": "arn:aws:iam::000000000000:role/test-dev-role-lbc",
     "oidc_issuer": "https://oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
     "oidc_provider_arn": "arn:aws:iam::000000000000:oidc-provider/oidc.eks.ca-central-1.amazonaws.com/id/TESTISSUER",
     "namespace": "kube-system",
     "service_account": "aws-load-balancer-controller",
     "target_group_arn": "arn:aws:elasticloadbalancing:ca-central-1:000000000000:targetgroup/test-ingress-gateway/0123456789abcdef",
-    "cluster_name": "test-eks",
+    "cluster_name": "test-dev-eks",
     "kubernetes_version": "1.34",
     "active_workload_az": "ca-central-1a"
   },
@@ -32,9 +32,10 @@
     "backend_target_port": 8443
   },
   "runtime": {
+    "project": "test",
     "backend_hostname": "backend.portfolio.invalid",
-    "gateway_tls_secret": "test-backend-server",
-    "gateway_client_ca_secret": "test-client-ca-cacert",
+    "gateway_tls_secret": "test-gateway-tls",
+    "gateway_client_ca_secret": "test-gateway-client-cacert",
     "expected_client_spki": [
       "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     ],
