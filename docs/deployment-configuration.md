@@ -297,7 +297,7 @@ runtime is in scope at a minimal development level.
 | Step | Work | Executor |
 | --- | --- | --- |
 | 1 | Make the existing DEV roots and the minimal Kubernetes runtime deploy-ready, without new features except those needed to deploy | Claude Code |
-| 2 | Emulator rehearsals of the real modules, then an end-to-end apply and destroy; each run needs Owner authorization. Recorded in [Step 2 emulator rehearsals](step2-emulator-rehearsals.md) | Claude Code |
+| 2 | Emulator rehearsals of the real modules, then an end-to-end apply and destroy. They run automatically on every `main` change to Terraform or the rehearsal code (Owner decision 2026-11-20). Recorded in [Step 2 emulator rehearsals](step2-emulator-rehearsals.md) | Claude Code |
 | 3 | Add the remaining target services | Codex, after a handover document |
 | 4 | Core acceptance audit | Independent reviewer and Owner |
 

@@ -225,20 +225,29 @@ class WorkflowTests(Quiet):
             s['run'] = s['run'].replace(old, new, 1)
 
         cases = [
-            ('manual-only', lambda w: w['on'].update(push={'branches': ['main']})),
+            ('push-or-dispatch-only', lambda w: w['on'].update(pull_request={'branches': ['main']})),
+            ('push-or-dispatch-only', lambda w: w['on'].update(pull_request_target={})),
+            ('push-main-exact-paths', lambda w: w['on']['push'].update(branches=['**'])),
+            ('push-main-exact-paths', lambda w: w['on']['push'].pop('paths')),
+            ('push-main-exact-paths', lambda w: w['on']['push']['paths'].append('docs/**')),
             ('permissions-concurrency', lambda w: w.update(permissions={'contents': 'write'})),
             ('permissions-concurrency', lambda w: w['concurrency'].update({'cancel-in-progress': 'true'})),
             ('standard-free-runner', lambda w: w['jobs']['rehearsal'].update({'runs-on': 'ubuntu-latest-8-cores'})),
             ('no-extra-runtime-privileges', lambda w: w['jobs']['rehearsal'].update(permissions={'id': 'write'})),
-            ('explicit-owner-confirmation', lambda w: w['on']['workflow_dispatch']['inputs']['owner_billing_confirmed'].update(default='true')),
+            ('job-env-contract', lambda w: w['jobs']['rehearsal']['env'].update(TARGET_SHA='${{ inputs.target_sha }}')),
+            ('job-env-contract', lambda w: w['jobs']['rehearsal']['env'].update(AWS_ACCESS_KEY_ID='x')),
             ('dispatch-contract', lambda w: w['on']['workflow_dispatch']['inputs'].update(extra={'required': 'true'})),
             ('scenario-choice', lambda w: w['on']['workflow_dispatch']['inputs']['scenario'].update(options=['anything'])),
             ('consent-before-checkout', lambda w: steps(w).insert(0, steps(w).pop(1))),
             ('checkout-no-auth-lfs', lambda w: steps(w)[1]['with'].update({'persist-credentials': 'true'})),
             ('pinned-approved-checkout-only', lambda w: steps(w)[1].update(uses='actions/checkout@v4')),
             ('no-external-writes-or-host-network', lambda w: steps(w)[4].update(run=steps(w)[4]['run'] + '\n# actions/upload-artifact')),
-            ('owner-pre-check-e[\'OWNER_BILLING_CONFIRMED\']==\'true\'', lambda w: steps(w)[0].update(
-                run=steps(w)[0]['run'].replace("e['OWNER_BILLING_CONFIRMED']=='true'", 'True'))),
+            ('run-gate-e[\'ACTOR\']==e[\'OWNER\']', lambda w: steps(w)[0].update(
+                run=steps(w)[0]['run'].replace("e['ACTOR']==e['OWNER']", 'True'))),
+            ('run-gate-e[\'GITHUB_RUN_ATTEMPT\']==\'1\'', lambda w: steps(w)[0].update(
+                run=steps(w)[0]['run'].replace("e['GITHUB_RUN_ATTEMPT']=='1'", 'True'))),
+            ('run-gate-e[\'VISIBILITY\']==\'public\'', lambda w: steps(w)[0].update(
+                run=steps(w)[0]['run'].replace("e['VISIBILITY']=='public'", 'True'))),
             ('docker-option-value', lambda w: docker(w, '--network none', '--network bridge')),
             ('unexpected-docker-option', lambda w: docker(w, '--read-only', '--read-only --ipc host')),
             ('docker-options-missing', lambda w: docker(w, ' --read-only', '')),
@@ -257,17 +266,19 @@ class WorkflowTests(Quiet):
                 self.rejects(label, workflow_contract.workflow_gate, w)
 
 
-GITHUB = {'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REPOSITORY': 'owner/repo',
+GITHUB = {'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/main', 'GITHUB_REPOSITORY': 'owner/repo',
           'GITHUB_WORKFLOW_REF': 'owner/repo/.github/workflows/aws-emulator-rehearsal.yml@refs/heads/main'}
 
 
 class ContextTests(Quiet):
     def test_allowed_contexts(self):
         self.assertEqual(step2_prepare.execution_context(GITHUB), 'github-actions')
+        self.assertEqual(step2_prepare.execution_context(dict(GITHUB, GITHUB_EVENT_NAME='workflow_dispatch')), 'github-actions')
         self.assertEqual(step2_prepare.execution_context({}), 'local')
 
     def test_refused_contexts(self):
-        for change in [{'GITHUB_EVENT_NAME': 'push'}, {'GITHUB_EVENT_NAME': 'pull_request'},
+        for change in [{'GITHUB_EVENT_NAME': 'pull_request'}, {'GITHUB_EVENT_NAME': 'schedule'},
+                       {'GITHUB_REF': 'refs/heads/feature'}, {'GITHUB_REF': 'refs/pull/1/merge'},
                        {'GITHUB_WORKFLOW_REF': 'owner/repo/.github/workflows/terraform-offline-ci.yml@refs/heads/main'},
                        {'GITHUB_WORKFLOW_REF': 'owner/repo/.github/workflows/aws-emulator-rehearsal.yml@refs/heads/feature'},
                        {'GITHUB_REPOSITORY': 'fork/repo'}]:
@@ -275,11 +286,24 @@ class ContextTests(Quiet):
                 self.assertIsNone(step2_prepare.execution_context(dict(GITHUB, **change)))
         self.assertIsNone(step2_prepare.execution_context({'CI': 'true'}))
 
+    def test_actions_preflight_refusals(self):
+        head = 'a' * 40
+        good = dict(GITHUB, ACTOR='owner', TRIGGERING_ACTOR='owner', OWNER='owner', VISIBILITY='public',
+                    GITHUB_RUN_ATTEMPT='1', TARGET_SHA=head, GITHUB_SHA=head, RUNNER_KIND='self-hosted',
+                    RUNNER_OS='Linux', RUNNER_ARCH='X64')
+        # With a valid run identity the next gate (runner eligibility) is reached and refuses a self-hosted runner.
+        self.assertEqual(step2_prepare.actions_preflight(good, head), 'runner-eligibility')
+        for change in [{'ACTOR': 'someone'}, {'TRIGGERING_ACTOR': 'someone'}, {'VISIBILITY': 'private'},
+                       {'GITHUB_REF': 'refs/heads/feature'}, {'GITHUB_RUN_ATTEMPT': '2'}, {'TARGET_SHA': 'b' * 40}]:
+            with self.subTest(change=change):
+                self.assertEqual(step2_prepare.actions_preflight(dict(good, **change), head), 'run-identity')
+        self.assertEqual(step2_prepare.actions_preflight(good, 'c' * 40), 'run-identity')
+
 
 def record(**override):
     base = {'run_id': '123-1', 'tested_sha': 'a' * 40, 'harness_sha256': 'b' * 64, 'scenario': 'no-interface-endpoints',
             'versions': {'emulator': '1.0.385', 'terraform': '1.17.0', 'awscli': '2.35.0', 'provider': '6.72.0'},
-            'execution': {'kind': 'github-actions', 'repository': 'owner/repo', 'run_id': '123', 'run_attempt': '1',
+            'execution': {'kind': 'github-actions', 'repository': 'owner/repo', 'run_id': '123', 'run_attempt': '1', 'event': 'push',
                           'run_url': 'https://github.com/owner/repo/actions/runs/123',
                           'workflow_ref': 'owner/repo/.github/workflows/aws-emulator-rehearsal.yml@refs/heads/main',
                           'runner': 'ubuntu-24.04 (GitHub-hosted)'},
@@ -290,7 +314,7 @@ def record(**override):
 
 
 SUMMARY_ENV = dict(GITHUB, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1', TARGET_SHA='a' * 40,
-                   EXECUTION_STATUS='success', OWNER_ATTESTATION_ACCEPTED='true')
+                   EXECUTION_STATUS='success', CONSENT_ACCEPTED='true')
 
 
 def report(rows):
@@ -325,6 +349,8 @@ class SummaryTests(Quiet):
         self.assertIn('**Result: PASS**', text)
         self.assertIn('https://github.com/owner/repo/actions/runs/123', text)
         self.assertIn('aws-emulator-rehearsal.yml@refs/heads/main', text)
+        self.assertIn('automatic on push to main', text)
+        self.assertIn('Owner decision 2026-11-20', text)
         self.assertEqual(sum(1 for line in text.splitlines() if line.endswith('| PASS |') and line.count('|') == 4), 14)
 
     def test_incomplete_or_missing_evidence_fails(self):
@@ -347,7 +373,7 @@ class SummaryTests(Quiet):
                 self.assertIn(problem, text)
         code, text = self.run_summary(self.good(), dict(SUMMARY_ENV, EXECUTION_STATUS='failure'))
         self.assertEqual(code, 1)
-        code, text = self.run_summary(self.good(), dict(SUMMARY_ENV, OWNER_ATTESTATION_ACCEPTED=''))
+        code, text = self.run_summary(self.good(), dict(SUMMARY_ENV, CONSENT_ACCEPTED=''))
         self.assertEqual(code, 1)
         code, text = self.run_summary(self.good() + [{'gate': 'summary-record', 'status': 'PASS', 'record': record()}])
         self.assertEqual(code, 1)

@@ -69,8 +69,8 @@ def evaluate(rows, env):
         problems.append('host cleanup ' + host)
     if env.get('EXECUTION_STATUS', 'success') != 'success':
         problems.append('execution step ' + env.get('EXECUTION_STATUS', ''))
-    if env.get('GITHUB_ACTIONS') == 'true' and env.get('OWNER_ATTESTATION_ACCEPTED') != 'true':
-        problems.append('owner attestation not accepted')
+    if env.get('GITHUB_ACTIONS') == 'true' and env.get('CONSENT_ACCEPTED') != 'true':
+        problems.append('run gate not accepted')
     if record is not None:
         execution = record.get('execution') or {}
         if env.get('GITHUB_ACTIONS') == 'true':
@@ -103,8 +103,10 @@ def render(record, host, problems, rows, env):
         return '\n'.join(out) + '\n'
     execution = record.get('execution') or {}
     if execution.get('kind') == 'github-actions':
+        trigger = {'push': 'automatic on push to main', 'workflow_dispatch': 'manual dispatch by the Owner'}.get(execution.get('event'), 'unknown trigger')
         executed = ('GitHub Actions run [' + text(execution['run_id']) + ' (attempt ' + text(execution['run_attempt']) + ')](' +
-                    text(execution['run_url']) + '), workflow `' + text(execution['workflow_ref']) + '`, ' + text(execution['runner']))
+                    text(execution['run_url']) + '), ' + trigger + ', workflow `' + text(execution['workflow_ref']) + '`, ' +
+                    text(execution['runner']))
     else:
         executed = 'Local operator run (not a CI run)'
     versions = record.get('versions', {})
@@ -115,8 +117,9 @@ def render(record, host, problems, rows, env):
             '| Harness | `scripts/emulator-rehearsal/rehearse.py`, SHA-256 `' + text(record.get('harness_sha256')) + '` |',
             '| Versions | Emulator ' + text(versions.get('emulator')) + ', Terraform ' + text(versions.get('terraform')) +
             ', AWS provider ' + text(versions.get('provider')) + ', AWS CLI ' + text(versions.get('awscli')) + ' |',
-            '| Billing | ' + ('Owner-attested at dispatch; not API-audited' if env.get('OWNER_ATTESTATION_ACCEPTED') == 'true'
-                              else 'not applicable (local)' if execution.get('kind') != 'github-actions' else 'NOT VERIFIED') + ' |',
+            '| Billing | ' + ('not applicable (local)' if execution.get('kind') != 'github-actions' else
+                              'Owner standing configuration (Owner decision 2026-11-20): public repository on GitHub Free, '
+                              'standard runner, $0 Budgets with usage blocking; not API-audited') + ' |',
             '', '### Mandatory controls', '', '| # | Control | Result |', '| --- | --- | --- |']
     out += ['| ' + k + ' | ' + v + ' | ' + text(record.get('controls', {}).get(k, 'MISSING')) + ' |' for k, v in CONTROLS.items()]
     out += ['', '### Lifecycle operations', '', '| Operation | Result |', '| --- | --- |']
