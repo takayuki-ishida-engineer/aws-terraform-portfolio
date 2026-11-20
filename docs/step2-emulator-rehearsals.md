@@ -34,23 +34,19 @@ representative) were backfilled, and the ledger matches that snapshot. Runs
 started after that time are not covered until a later pull request registers them
 with an updated snapshot.
 
-**Required before PR #75 merges.** PR #75's harness emits a different
-`summary-record` from the harness this ledger understands:
-- one record covers several roots, under `roots`, with per-root operations
-  (including `teardown_plan` and `teardown` for `api`), per-root resource cleanup
-  and `known_gaps`;
-- there are no top-level `operations` or `resource_cleanup` fields.
+**Multi-root format (PR #75).** The consolidated harness emits one
+`summary-record` for several roots: `roots` with per-root operations (including
+`teardown_plan` and `teardown` for `api`), per-root controls 9 to 13, resource
+cleanup and `known_gaps`. PR #75 extends `harvest.py` for this format before it
+merges:
+- it pins the harness version and its operation list;
+- it pins the per-root inventories (`network` 16 resources, `api` 7);
+- each root must carry its own plan count, independent API identity counts and IDs
+  (`vpc_id`; `user_pool_id` and `rest_api_id`), and per-root controls.
 
-The current `harvest.py` rejects that record (`summary-record-keys`), and the new
-harness version is not pinned in `KNOWN_HARNESSES`. Without further work, the
-automatic run that merging PR #75 starts could not be registered, and §13.4 gives
-7 days to register it. Before PR #75 merges, a reviewed change must:
-- extend `harvest.py` to the multi-root format, with per-root inventories for
-  `network` and `api`, the teardown operations and per-root API evidence;
-- pin the new harness version;
-- add tests built from that format.
-
-Until then the tool fails closed: it records nothing rather than a PASS.
+A missing root, operation, ID, count or control makes the entry
+INSUFFICIENT_EVIDENCE, never PASS. The automatic run that merging PR #75 starts
+still needs its own registration pull request within the §13.4 deadline.
 
 ## Formal runs (GitHub Actions)
 

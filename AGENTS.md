@@ -447,9 +447,9 @@ The v14.4 order (§19.2) is:
 2. the evidence ledger pull request (`harvest.py`, reconciliation, tests and the
    backfill);
 3. bringing PR #75 up to latest main, with `all` limited to `network` and `api`.
-   Before PR #75 merges, `harvest.py` must support PR #75's multi-root
-   `summary-record` and pin its harness version, so that the automatic run its
-   merge starts can be registered. See the
+   PR #75 itself adds `harvest.py` support for its multi-root `summary-record`
+   and pins its harness version, so the automatic run its merge starts can be
+   registered in its own pull request within the §13.4 deadline. See the
    [Step 2 record](docs/step2-emulator-rehearsals.md#how-to-read-the-evidence).
 
 Each is its own pull request that stops for Owner approval. Merging PR #75, new

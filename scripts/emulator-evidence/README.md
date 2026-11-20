@@ -58,7 +58,7 @@ ledger starts no Emulator run.
   - The harness hash must equal the harness file at the tested SHA.
   - The plan and API resource counts must match the reviewed inventory.
   - A DEV root's path must match its name.
-- **No inferred success.** PASS needs all of the following:
+- **No inferred success.** PASS needs all of the following, for every rehearsed root:
   - a successful run and job, and the full log;
   - all 14 controls and every cleanup receipt PASS;
   - a harness verified against git, whose version is pinned in `KNOWN_HARNESSES` for that workflow;
@@ -120,21 +120,37 @@ whichever comes first. Anything late or unrecoverable is recorded as EVIDENCE_GA
 
 The workflows never write the ledger: they keep `contents: read` and push nothing.
 
-## Required before PR #75 merges
+## Multi-root summary records (consolidated harness)
 
-PR #75 changes the Step 2 harness to rehearse several roots in one run. Its `summary-record` has `roots` (per
-root: status, operations including `teardown_plan` and `teardown` for `api`, per-root controls and resource
-cleanup) and `known_gaps`. It has no top-level `operations` or `resource_cleanup`. Its harness version is also
-not pinned. The current `harvest.py` therefore rejects that record (`summary-record-keys`, covered by a test) and
-cannot register the automatic run that merging PR #75 starts. Before PR #75 merges, a reviewed change must add
-all of the following, so the run can be registered within the §13.4 deadline:
+The consolidated Step 2 harness (`step2-multi-root-v2`) rehearses every root in `all` (`network`, then `api`)
+in one run. Its single `summary-record` has `roots` (per root: status, operations, per-root controls 9 to 13,
+resource cleanup, failure) and `known_gaps`, and no top-level `operations` or `resource_cleanup`. `harvest.py`
+turns it into one entry with one `roots[]` item per rehearsed root:
 
-- multi-root parsing;
-- per-root inventories and their pinned digests for `network` and `api`;
-- the `api` teardown operations;
-- per-root independent API evidence;
-- the pinned harness version and its operation list;
-- tests built from that format.
+- **Scope.** The rehearsed roots must equal the harness's `ALL` (or the dispatched root), read from git at the
+  tested SHA. Every other DEV root is listed out of scope. Its reason is the `known_gaps` text where the harness
+  reports one.
+- **Inventory and operations.** Each root's addresses come from `SCENARIOS[<root>]['expected']`, and its
+  required operations from `OPERATIONS`, with `teardown_plan` and `teardown` added for a root that has a
+  teardown switch (`api`). Both are evaluated from literals, never by running the harness. The root records its
+  own `required_operations`.
+- **Per-root evidence.** Gate rows are attributed to a root by their `root` field or, if they have none, by the
+  latest `root-start` before the next `root-result`. That gives each root its plan count, its independent API
+  identity counts after create and update, and its IDs: `vpc_id` for `network`; `user_pool_id` and
+  `rest_api_id` for `api`. Each ID is format-checked and must not change between create and update.
+- **PASS.** PASS needs every root in the pinned scenario with every required operation, controls 9 to 13, the
+  pinned inventory, plan count, API counts, required IDs and resource cleanup PASS, plus the run-level controls,
+  material, process and host cleanup.
+- **Failures.** A measured root failure keeps the harness status: FAIL, BLOCKED or PARTIAL-SKIP. Missing evidence
+  makes the entry INSUFFICIENT_EVIDENCE.
+
+`test_harvest.py` checks that the current `scripts/emulator-rehearsal/rehearse.py` is pinned with matching
+inventories and operation lists. Changing the harness therefore requires reviewing and pinning the new version
+in `KNOWN_HARNESSES`.
+
+The ID patterns follow the AWS formats, and the emulator's IDs observed in the local preliminary run match them.
+If a later emulator release uses another format, `build` fails closed (`summary-api-id`) until a reviewed
+change updates the pattern.
 
 ## Limitations
 

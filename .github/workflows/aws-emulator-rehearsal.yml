@@ -1,11 +1,12 @@
 name: AWS Emulator Step 2 rehearsal
-# Step 2 rehearsal of every supported real DEV root in the official AWS
-# Emulator under all fourteen controls, in one run. Runs automatically on every push to main
-# that changes Terraform or the rehearsal code, and on Owner-only manual dispatch
-# (Owner decision 2026-11-20; no per-run billing attestation, see AGENTS.md).
-# No AWS credentials, secrets, artifacts, caches or registry pushes. Results stay
-# in this run's log and job summary; milestones are recorded in
-# docs/step2-emulator-rehearsals.md.
+# Step 2 rehearsal of the reviewed DEV roots in `all` (network and api) in the
+# official AWS Emulator under all fourteen controls, in one run. Runs automatically
+# on a push to main that changes the trigger paths below, within the limited standing
+# authorization of Master Policy v14.4 §13.2. A manual dispatch needs the Owner's own
+# approval each time (see AGENTS.md). No AWS credentials, secrets, artifacts, caches or
+# registry pushes. The log and job summary stay in GitHub for its retention period.
+# Every run is then registered, through a reviewed pull request, in the evidence ledger
+# docs/evidence/emulator-runs/ (scripts/emulator-evidence/harvest.py).
 on:
   push:
     branches:

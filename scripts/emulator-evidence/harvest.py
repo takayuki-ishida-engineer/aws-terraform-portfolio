@@ -38,7 +38,7 @@ MAX_ENTRY_BYTES = 64 * 1024
 MAX_TEXT = 400
 MAX_LIST = 64
 STATUSES = {'PASS', 'FAIL', 'BLOCKED', 'NOT_TESTED', 'PARTIAL-SKIP'}
-OVERALL = {'PASS', 'FAIL', 'BLOCKED', 'INSUFFICIENT_EVIDENCE'}
+OVERALL = {'PASS', 'FAIL', 'BLOCKED', 'PARTIAL-SKIP', 'INSUFFICIENT_EVIDENCE'}
 CONTROLS = [str(i) for i in range(1, 15)]
 DEV_ROOTS = {
     'network': 'infra/services/dev/ca-central-1/network',
@@ -69,32 +69,55 @@ SYNTHETIC_STEPS = {'Set up job', 'Complete job'}
 # sorted addresses joined by newlines) and which independent evidence the
 # harness records. A run of any other harness version can never be PASS: a new
 # version must be reviewed and added here, with tests, before its runs register.
+STEP2_BASE_OPERATIONS = ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update', 'no_op',
+                         'destroy_plan', 'destroy', 'state_empty', 'api_absence', 'baseline_preserved']
+STEP2_TEARDOWN_OPERATIONS = ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update', 'no_op',
+                             'teardown_plan', 'teardown', 'destroy_plan', 'destroy', 'state_empty', 'api_absence',
+                             'baseline_preserved']
+NETWORK_16 = {'resources': 16, 'inventory_sha256': '6070a967904020051d1044a6e742758e19f116924b4696c5e2f5d457f1976953',
+              'operations': STEP2_BASE_OPERATIONS, 'api_ids': ['vpc_id']}
 KNOWN_HARNESSES = {
     '58a1a15405c945ce23d7e8f04d70df0f38f772bb6e9a32e97c9df34592e4109c': {
-        'kind': 'step2-rehearsal', 'format': 'step2-single-root-v1',
-        'operations': ['plan', 'create', 'api_create', 'read', 'update_plan', 'update', 'api_update', 'no_op',
-                       'destroy_plan', 'destroy', 'state_empty', 'api_absence', 'baseline_preserved'],
+        'kind': 'step2-rehearsal', 'format': 'step2-single-root-v1', 'operations': STEP2_BASE_OPERATIONS,
+        'records_counts': True, 'root_controls': False,
         'scenarios': {
-            'no-interface-endpoints': {'root': 'network', 'resources': 16, 'inventory_sha256':
-                                       '6070a967904020051d1044a6e742758e19f116924b4696c5e2f5d457f1976953'},
-            'full': {'root': 'network', 'resources': 26, 'inventory_sha256':
-                     '541e7c899f9db30dd2595bbf7a81b3ffb64e95b268c8ca26430710072723f698'},
+            'no-interface-endpoints': {'network': NETWORK_16},
+            'full': {'network': {'resources': 26, 'inventory_sha256':
+                                 '541e7c899f9db30dd2595bbf7a81b3ffb64e95b268c8ca26430710072723f698',
+                                 'operations': STEP2_BASE_OPERATIONS, 'api_ids': ['vpc_id']}},
         },
-        'records_counts': True,
+    },
+    # PR #75: one run rehearses several roots (multi-root summary-record).
+    '6c3b18caa2409cbd10128144788f9751bf0dea605fc90ef65b5ce66e0fe6260f': {
+        'kind': 'step2-rehearsal', 'format': 'step2-multi-root-v2', 'operations': STEP2_BASE_OPERATIONS,
+        'records_counts': True, 'root_controls': True,
+        'scenarios': {
+            'all': {'network': NETWORK_16, 'api': {
+                'resources': 7, 'inventory_sha256': 'baaaad68febd893ec6f016b2fc587224bcca84e3423b8d779bbd85b357b0347a',
+                'operations': STEP2_TEARDOWN_OPERATIONS, 'api_ids': ['user_pool_id', 'rest_api_id']}},
+            'network': {'network': NETWORK_16},
+            'api': {'api': {
+                'resources': 7, 'inventory_sha256': 'baaaad68febd893ec6f016b2fc587224bcca84e3423b8d779bbd85b357b0347a',
+                'operations': STEP2_TEARDOWN_OPERATIONS, 'api_ids': ['user_pool_id', 'rest_api_id']}},
+        },
     },
     'fe3588082dee12c8ef5f2401475f74df5db5421e8f52d6c71f0766fc8551e621': {
         'kind': 'representative', 'format': 'representative-gate-rows-v1',
-        'operations': ['initial_state_empty', 'plan', 'create', 'read', 'api_create', 'update', 'api_update', 'no_op',
-                       'destroy_plan', 'destroy', 'api_absence', 'state_empty', 'baseline_preserved',
-                       'material_cleanup'],
+        'operations': REPRESENTATIVE_OPERATIONS, 'records_counts': False, 'root_controls': False,
         'scenarios': {
-            'aws_vpc.proof': {'root': 'representative-vpc-proof', 'resources': 1, 'inventory_sha256':
-                              'fe26e2bfaf0782cf4a323fc148844335c86f928df50517491e67e27aa0f8406e'},
+            'aws_vpc.proof': {'representative-vpc-proof': {
+                'resources': 1, 'inventory_sha256': 'fe26e2bfaf0782cf4a323fc148844335c86f928df50517491e67e27aa0f8406e',
+                'operations': REPRESENTATIVE_OPERATIONS, 'api_ids': ['vpc_id']}},
         },
-        'records_counts': False,
     },
 }
+ROOT_CONTROLS = ['9', '10', '11', '12', '13']
 VPC_ID = re.compile(r'^vpc-[0-9a-f]{8,17}$')
+API_ID_FORMATS = {
+    'vpc_id': VPC_ID,
+    'user_pool_id': re.compile(r'^[a-z]{2}(?:-[a-z]+)+-[0-9]_[A-Za-z0-9]{1,55}$'),
+    'rest_api_id': re.compile(r'^[A-Za-z0-9]{1,32}$'),
+}
 
 
 def inventory_digest(addresses):
@@ -270,7 +293,8 @@ def validate(entry, filename=None):
     names = set()
     for root in entry['roots']:
         exact_keys(root, ['name', 'kind', 'path', 'result', 'resources', 'resource_addresses', 'address_source',
-                          'operations', 'api_ids', 'evidence', 'resource_cleanup'], label='root')
+                          'operations', 'api_ids', 'evidence', 'resource_cleanup'],
+                   ['required_operations', 'controls'], label='root')
         require(root['kind'] in ('dev-root', 'disposable-adapter'), 'root-kind')
         if root['kind'] == 'dev-root':
             require(DEV_ROOTS.get(root['name']) == root['path'], 'root-mismatch')
@@ -281,9 +305,15 @@ def validate(entry, filename=None):
         require(isinstance(root['resources'], int) and len(root['resource_addresses']) == root['resources'],
                 'root-resource-count')
         require(len(set(root['resource_addresses'])) == root['resources'], 'root-resource-duplicates')
-        status_map(root['operations'], required_ops or vocabulary, 'root-operations')
-        exact_keys(root['api_ids'], [], ['vpc_id'], label='root-api-ids')
-        require(all(VPC_ID.match(v) for v in root['api_ids'].values()), 'root-api-id-format')
+        root_ops = root.get('required_operations', required_ops)
+        require(root_ops is None or (isinstance(root_ops, list) and root_ops and len(set(root_ops)) == len(root_ops)
+                                     and set(root_ops) <= set(vocabulary)), 'root-required-operations')
+        status_map(root['operations'], root_ops or vocabulary, 'root-operations')
+        if 'controls' in root:
+            status_map(root['controls'], ROOT_CONTROLS, 'root-controls')
+        exact_keys(root['api_ids'], [], list(API_ID_FORMATS), label='root-api-ids')
+        require(all(isinstance(v, str) and API_ID_FORMATS[k].match(v) for k, v in root['api_ids'].items()),
+                'root-api-id-format')
         evidence = root['evidence']
         exact_keys(evidence, ['plan_gate', 'plan_resources', 'api_owned_create', 'api_owned_update', 'inventory_sha256'],
                    label='root-evidence')
@@ -318,20 +348,25 @@ def validate(entry, filename=None):
         require(required_ops == pinned['operations'], 'pass-required-operations-mismatch')
         scenario = pinned['scenarios'].get(tested['scenario_id'])
         require(scenario is not None, 'pass-unknown-scenario')
-        require(len(entry['roots']) == 1 and entry['roots'][0]['name'] == scenario['root'], 'pass-root-scope')
+        require(sorted(r['name'] for r in entry['roots']) == sorted(scenario), 'pass-root-scope')
         for r in entry['roots']:
+            spec = scenario[r['name']]
+            require(r.get('required_operations', required_ops) == spec['operations'], 'pass-required-operations-mismatch')
             require(r['result'] == 'PASS' and r['resource_cleanup'] == 'PASS'
-                    and list(r['operations']) and set(r['operations']) == set(pinned['operations'])
+                    and list(r['operations']) and set(r['operations']) == set(spec['operations'])
                     and all(v == 'PASS' for v in r['operations'].values()), 'pass-needs-every-operation')
-            require(r['resources'] == scenario['resources']
-                    and r['evidence']['inventory_sha256'] == scenario['inventory_sha256'], 'pass-inventory-mismatch')
+            require(r['resources'] == spec['resources']
+                    and r['evidence']['inventory_sha256'] == spec['inventory_sha256'], 'pass-inventory-mismatch')
             ev = r['evidence']
             require(ev['plan_gate'] == 'PASS', 'pass-needs-plan-evidence')
             if pinned['records_counts']:
                 require(ev['plan_resources'] == r['resources'], 'pass-needs-plan-evidence')
                 require(ev['api_owned_create'] == r['resources'] and ev['api_owned_update'] == r['resources'],
                         'pass-needs-api-evidence')
-            require('vpc_id' in r['api_ids'], 'pass-needs-api-id')
+            require(all(k in r['api_ids'] for k in spec['api_ids']), 'pass-needs-api-id')
+            if pinned['root_controls']:
+                require(set(r.get('controls') or {}) == set(ROOT_CONTROLS)
+                        and all(v == 'PASS' for v in r['controls'].values()), 'pass-needs-root-controls')
         require(all(v == 'PASS' for v in cleanup.values()), 'pass-needs-cleanup')
         if workflow['kind'] == 'step2-rehearsal':
             require(source['summary_record'] and result['basis'] == 'summary-record', 'pass-needs-summary-record')
@@ -382,18 +417,27 @@ def git_show(repo, sha, path):
 
 
 class Literal(ast.NodeVisitor):
-    """Evaluate the reviewed inventory literals of rehearse.py without running it."""
+    """Evaluate the reviewed literals of a harness file without running it.
+
+    Only constants, names already evaluated, string concatenation, f-strings,
+    list/set/tuple/dict displays (with ** unpacking), single-generator dict
+    comprehensions (optionally over NAME.items() and with in/not in filters)
+    and dict()/set()/list() of one argument are understood. Anything else is
+    refused, so no harness code ever runs.
+    """
 
     def __init__(self, names):
         self.names = names
 
     def value(self, node):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (str, int, bool, type(None))):
             return node.value
         if isinstance(node, ast.Name) and node.id in self.names:
             return self.names[node.id]
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-            return self.value(node.left) + self.value(node.right)
+            left, right = self.value(node.left), self.value(node.right)
+            require(isinstance(left, str) and isinstance(right, str), 'inventory-literal')
+            return left + right
         if isinstance(node, ast.JoinedStr):
             return ''.join(self.value(v.value) if isinstance(v, ast.FormattedValue) else self.value(v)
                            for v in node.values)
@@ -407,26 +451,90 @@ class Literal(ast.NodeVisitor):
                 else:
                     out[self.value(key)] = self.value(val)
             return out
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ('dict', 'set', 'list') \
+                and len(node.args) == 1 and not node.keywords:
+            inner = self.value(node.args[0])
+            require(isinstance(inner, (dict, list)), 'inventory-literal')
+            return dict(inner) if node.func.id == 'dict' else list(inner)
         if isinstance(node, ast.DictComp) and len(node.generators) == 1:
             gen = node.generators[0]
-            require(isinstance(gen.target, ast.Name) and not gen.ifs, 'inventory-comprehension')
             out = {}
-            for item in self.value(gen.iter):
-                inner = Literal(dict(self.names, **{gen.target.id: item}))
-                out[inner.value(node.key)] = inner.value(node.value)
+            for item in self.iterate(gen.iter):
+                inner = Literal(dict(self.names, **self.bind(gen.target, item)))
+                if all(inner.condition(c) for c in gen.ifs):
+                    out[inner.value(node.key)] = inner.value(node.value)
             return out
         raise Invalid('inventory-literal')
 
+    def iterate(self, node):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'items' \
+                and not node.args and not node.keywords:
+            mapping = self.value(node.func.value)
+            require(isinstance(mapping, dict), 'inventory-comprehension')
+            return list(mapping.items())
+        items = self.value(node)
+        require(isinstance(items, list), 'inventory-comprehension')
+        return items
+
+    def bind(self, target, item):
+        if isinstance(target, ast.Name):
+            return {target.id: item}
+        require(isinstance(target, ast.Tuple) and all(isinstance(e, ast.Name) for e in target.elts)
+                and isinstance(item, (tuple, list)) and len(item) == len(target.elts), 'inventory-comprehension')
+        return {e.id: v for e, v in zip(target.elts, item)}
+
+    def condition(self, node):
+        require(isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], (ast.In, ast.NotIn)),
+                'inventory-comprehension')
+        member = self.value(node.left) in self.value(node.comparators[0])
+        return member if isinstance(node.ops[0], ast.In) else not member
+
+
+def module_literals(source):
+    """Every module-level assignment of a harness that Literal can evaluate, in order."""
+    names = {}
+    for node in ast.parse(source).body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        try:
+            if isinstance(target, ast.Name):
+                names[target.id] = Literal(names).value(node.value)
+            elif isinstance(target, ast.Tuple) and all(isinstance(e, ast.Name) for e in target.elts) \
+                    and isinstance(node.value, ast.Tuple) and len(node.value.elts) == len(target.elts):
+                values = [Literal(names).value(v) for v in node.value.elts]
+                names.update({e.id: v for e, v in zip(target.elts, values)})
+        except (Invalid, TypeError, ValueError):
+            continue
+    return names
+
+
+def step2_v2_spec(source):
+    """Roots, inventories and operations of the multi-root harness (PR #75 format)."""
+    names = module_literals(source)
+    require({'SCENARIOS', 'ALL', 'OPERATIONS'} <= set(names), 'v2-spec-missing')
+    require(isinstance(names['ALL'], list) and isinstance(names['OPERATIONS'], list), 'v2-spec-shape')
+    scenarios = {}
+    for sid, spec in names['SCENARIOS'].items():
+        require(isinstance(spec, dict) and isinstance(spec.get('root'), str) and isinstance(spec.get('expected'), dict),
+                'v2-spec-scenario')
+        scenarios[sid] = {'root': spec['root'], 'addresses': sorted(spec['expected']), 'teardown': 'teardown' in spec}
+    require(set(names['ALL']) <= set(scenarios), 'v2-spec-all')
+    return {'ALL': list(names['ALL']), 'OPERATIONS': list(names['OPERATIONS']), 'scenarios': scenarios}
+
+
+def with_teardown(operations):
+    ops = list(operations)
+    require('destroy_plan' in ops, 'v2-spec-operations')
+    position = ops.index('destroy_plan')
+    return ops[:position] + ['teardown_plan', 'teardown'] + ops[position:]
+
 
 def step2_inventory(source, scenario_id):
-    tree = ast.parse(source)
-    names = {}
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            if node.targets[0].id in ('M', 'SERVICES', 'EXPECTED', 'ENDPOINT_TYPES'):
-                names[node.targets[0].id] = Literal(names).value(node.value)
+    names = module_literals(source)
     require({'M', 'EXPECTED', 'ENDPOINT_TYPES'} <= set(names), 'inventory-missing')
     expected = names['EXPECTED']
+    require(isinstance(expected, dict), 'inventory-missing')
     if scenario_id == 'no-interface-endpoints':
         return sorted(a for a, kind in expected.items() if kind not in set(names['ENDPOINT_TYPES']))
     require(scenario_id == 'full', 'inventory-scenario')
@@ -435,13 +543,10 @@ def step2_inventory(source, scenario_id):
 
 def operations_literal(source):
     """The module-level OPERATIONS list of a harness file, evaluated without running it."""
-    for node in ast.parse(source).body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
-                and node.targets[0].id == 'OPERATIONS':
-            value = Literal({}).value(node.value)
-            require(isinstance(value, list) and value and all(isinstance(v, str) for v in value), 'operations-literal')
-            return value
-    raise Invalid('operations-missing')
+    value = module_literals(source).get('OPERATIONS')
+    require(value is not None, 'operations-missing')
+    require(isinstance(value, list) and value and all(isinstance(v, str) for v in value), 'operations-literal')
+    return value
 
 
 def adapter_inventory(source):
@@ -535,18 +640,21 @@ def base_entry(meta, harvested_at, log_kind, log_lines, rows, has_record):
     }
 
 
-def completeness_gaps(required, operations, pinned, scenario_id, addresses, evidence, api_ids):
+def completeness_gaps(required, operations, pinned, scenario_id, addresses, evidence, api_ids, root=None,
+                      root_required=None, root_controls=None):
     """Reasons why measured results cannot support PASS (empty when complete)."""
     gaps = []
-    if required is None:
-        gaps.append('Required operations unknown: the harness operation list at the tested SHA is not available')
+    prefix = root + ': ' if root else ''
+    effective = root_required if root_required is not None else required
+    if effective is None:
+        gaps.append(prefix + 'Required operations unknown: the harness operation list at the tested SHA is not available')
     else:
-        missing = [op for op in required if op not in operations]
-        extra = [op for op in operations if op not in required]
+        missing = [op for op in effective if op not in operations]
+        extra = [op for op in operations if op not in effective]
         if missing:
-            gaps.append('Required operations not recorded: ' + ', '.join(missing))
+            gaps.append(prefix + 'Required operations not recorded: ' + ', '.join(missing))
         if extra:
-            gaps.append('Operations outside the harness list: ' + ', '.join(extra))
+            gaps.append(prefix + 'Operations outside the harness list: ' + ', '.join(extra))
     if pinned is None:
         gaps.append('Harness version not pinned in harvest.py KNOWN_HARNESSES: PASS cannot be recorded')
         return gaps
@@ -555,17 +663,28 @@ def completeness_gaps(required, operations, pinned, scenario_id, addresses, evid
     scenario = pinned['scenarios'].get(scenario_id)
     if scenario is None:
         gaps.append('Scenario not pinned for this harness version')
-    elif len(addresses) != scenario['resources'] or inventory_digest(addresses) != scenario['inventory_sha256']:
-        gaps.append('Resource inventory differs from the pinned inventory of the scenario')
+        return gaps
+    name = root if root is not None else (next(iter(scenario)) if len(scenario) == 1 else None)
+    spec = scenario.get(name)
+    if spec is None:
+        gaps.append(prefix + 'Root not pinned for this scenario')
+        return gaps
+    if effective is not None and effective != spec['operations']:
+        gaps.append(prefix + 'Root operation list differs from the pinned list')
+    if len(addresses) != spec['resources'] or inventory_digest(addresses) != spec['inventory_sha256']:
+        gaps.append(prefix + 'Resource inventory differs from the pinned inventory of the scenario')
     if evidence['plan_gate'] != 'PASS':
-        gaps.append('Plan gate evidence missing')
+        gaps.append(prefix + 'Plan gate evidence missing')
     if pinned['records_counts']:
         if evidence['plan_resources'] != len(addresses):
-            gaps.append('Plan resource count missing or different from the inventory')
+            gaps.append(prefix + 'Plan resource count missing or different from the inventory')
         if evidence['api_owned_create'] != len(addresses) or evidence['api_owned_update'] != len(addresses):
-            gaps.append('Independent API identity counts missing or different from the inventory')
-    if 'vpc_id' not in api_ids:
-        gaps.append('Independent API resource ID missing')
+            gaps.append(prefix + 'Independent API identity counts missing or different from the inventory')
+    for key in spec['api_ids']:
+        if key not in api_ids:
+            gaps.append(prefix + 'Independent API resource ID missing: ' + key)
+    if pinned['root_controls'] and set(root_controls or {}) != set(ROOT_CONTROLS):
+        gaps.append(prefix + 'Per-root controls 9 to 13 not recorded')
     return gaps
 
 
@@ -582,7 +701,8 @@ def harvest_step2_record(entry, meta, rows, repo):
     records = [r for r in rows if r['gate'] == 'summary-record']
     require(len(records) == 1, 'summary-record-count')
     record = records[0].get('record')
-    require(isinstance(record, dict) and set(record) <= RECORD_KEYS, 'summary-record-keys')
+    multi = isinstance(record, dict) and 'roots' in record
+    require(isinstance(record, dict) and set(record) <= (V2_RECORD_KEYS if multi else RECORD_KEYS), 'summary-record-keys')
     execution = record.get('execution') or {}
     require(set(execution) <= EXECUTION_KEYS, 'summary-execution-keys')
     require(record.get('run_id') == '%d-%d' % (run['id'], run['attempt'])
@@ -598,15 +718,17 @@ def harvest_step2_record(entry, meta, rows, repo):
     controls = record.get('controls')
     require(isinstance(controls, dict) and set(controls) == set(CONTROLS)
             and all(v in STATUSES for v in controls.values()), 'summary-controls')
+    harness = git_show(repo, run['head_sha'], WORKFLOWS[meta['workflow']]['harness'])
+    verified = harness is not None and hashlib.sha256(harness).hexdigest() == record.get('harness_sha256')
+    require(harness is None or verified, 'summary-harness-hash-mismatch')
+    if multi:
+        harvest_step2_multi_root(entry, meta, rows, record, versions, controls, harness if verified else None)
+        return
     operations = record.get('operations')
     require(isinstance(operations, dict) and set(operations) <= set(STEP2_OPERATIONS)
             and all(v in STATUSES for v in operations.values()), 'summary-operations')
     scenario_id = record.get('scenario_id')
     require(scenario_id in ('no-interface-endpoints', 'full'), 'summary-scenario')
-
-    harness = git_show(repo, run['head_sha'], WORKFLOWS[meta['workflow']]['harness'])
-    verified = harness is not None and hashlib.sha256(harness).hexdigest() == record.get('harness_sha256')
-    require(harness is None or verified, 'summary-harness-hash-mismatch')
     required = operations_literal(harness.decode()) if verified else None
     pinned = KNOWN_HARNESSES.get(record.get('harness_sha256')) if verified else None
     entry['tested'].update(harness_sha256=record.get('harness_sha256'), harness_verified_against_git=verified,
@@ -698,6 +820,189 @@ def harvest_step2_record(entry, meta, rows, repo):
         failure = record.get('failure') or {}
         entry['result'] = {'overall': 'FAIL', 'basis': 'summary-record', 'failure': {
             'step': first_failed_step(meta['job']), 'stage': failure.get('operation') if isinstance(failure, dict) else None,
+            'diagnostic': failure.get('label') if isinstance(failure, dict) else None,
+            'cause': 'recorded by the harness summary record'}}
+
+
+V2_RECORD_KEYS = {'run_id', 'tested_sha', 'harness_sha256', 'execution', 'scenario_id', 'scenario', 'versions',
+                  'controls', 'roots', 'known_gaps', 'material_cleanup', 'process_cleanup', 'notes', 'failure'}
+V2_ROOT_KEYS = {'description', 'resources', 'status', 'operations', 'controls', 'resource_cleanup', 'unsupported_apis',
+                'failure'}
+V2_IDENTITY_FIELDS = {'vpc_id': 'vpc_id', 'user_pool': 'user_pool_id', 'rest_api': 'rest_api_id'}
+SEVERITY = ['BLOCKED', 'FAIL', 'PARTIAL-SKIP']
+
+
+def segment_rows(rows):
+    """Attribute gate rows to roots: a row names its root, or follows the latest root-start until root-result."""
+    segments, current = {}, None
+    for row in rows:
+        if row['gate'] == 'root-start':
+            require(isinstance(row.get('root'), str) and row['root'] in DEV_ROOTS, 'root-start-name')
+            current = row['root']
+        name = row.get('root', current)
+        if isinstance(name, str):
+            segments.setdefault(name, []).append(row)
+        if row['gate'] == 'root-result':
+            current = None
+    return segments
+
+
+def unique(items):
+    out = []
+    for item in items:
+        if item not in out:
+            out.append(item)
+    return out
+
+
+def harvest_step2_multi_root(entry, meta, rows, record, versions, controls, harness):
+    """The multi-root summary-record of the consolidated harness (PR #75): one entry, one root per rehearsed root."""
+    run = meta['run']
+    roots_record = record.get('roots')
+    require(isinstance(roots_record, dict) and roots_record and all(n in DEV_ROOTS for n in roots_record),
+            'summary-roots')
+    scenario_id = record.get('scenario_id')
+    spec = step2_v2_spec(harness.decode()) if harness is not None else None
+    if spec is not None:
+        require(scenario_id == 'all' or scenario_id in spec['scenarios'], 'summary-scenario')
+        expected_roots = spec['ALL'] if scenario_id == 'all' else [scenario_id]
+        require(sorted(roots_record) == sorted(expected_roots), 'summary-roots-scope')
+    else:
+        require(isinstance(scenario_id, str) and re.fullmatch(r'[a-z-]{1,40}', scenario_id), 'summary-scenario')
+        expected_roots = sorted(roots_record)
+    required = spec['OPERATIONS'] if spec is not None else None
+    pinned = KNOWN_HARNESSES.get(record.get('harness_sha256')) if harness is not None else None
+    if pinned is not None:
+        require(pinned['kind'] == 'step2-rehearsal' and pinned['format'] == 'step2-multi-root-v2', 'summary-format')
+    entry['tested'].update(harness_sha256=record.get('harness_sha256'), harness_verified_against_git=harness is not None,
+                           required_operations=required, versions=dict(versions), scenario_id=scenario_id,
+                           scenario=record.get('scenario'))
+    entry['controls'] = dict(controls)
+    known = record.get('known_gaps') or {}
+    require(isinstance(known, dict) and all(isinstance(v, str) for v in known.values()), 'summary-known-gaps')
+    segments = segment_rows(rows)
+    measured_fail = record.get('failure') is not None or any(v != 'PASS' for v in controls.values()) \
+        or record.get('material_cleanup') != 'PASS' or record.get('process_cleanup') != 'PASS'
+    gaps, statuses, failure_root = [], [], None
+    for name in expected_roots:
+        rr = roots_record[name]
+        require(isinstance(rr, dict) and set(rr) <= V2_ROOT_KEYS, 'summary-root-keys')
+        ops = rr.get('operations')
+        require(isinstance(ops, dict) and set(ops) <= set(STEP2_OPERATIONS)
+                and all(v in STATUSES for v in ops.values()), 'summary-root-operations')
+        root_controls = rr.get('controls') or {}
+        require(isinstance(root_controls, dict) and set(root_controls) <= set(ROOT_CONTROLS)
+                and all(v in STATUSES for v in root_controls.values()), 'summary-root-controls')
+        status, cleanup = rr.get('status'), rr.get('resource_cleanup', 'NOT_TESTED')
+        require(status in STATUSES and cleanup in STATUSES, 'summary-root-status')
+        scenario = spec['scenarios'].get(name) if spec is not None else None
+        if spec is not None:
+            require(scenario is not None and scenario['root'] == DEV_ROOTS[name], 'summary-root-path')
+        addresses = scenario['addresses'] if scenario is not None else []
+        root_required = (with_teardown(required) if scenario['teardown'] else list(required)) if scenario else None
+        if scenario is not None:
+            require(rr.get('resources') == len(addresses), 'summary-root-resources')
+        segment = segments.get(name, [])
+        plan = [r for r in segment if r['gate'] == 'plan']
+        created = [r for r in segment if r['gate'] == 'api-identity-create']
+        updated = [r for r in segment if r['gate'] == 'api-identity-updated']
+        if scenario is not None:
+            if plan:
+                require(plan[-1].get('resources') == len(addresses), 'summary-plan-count')
+            for row in created + updated:
+                require(row.get('owned') == len(addresses), 'summary-owned-count')
+        api_ids = {}
+        for field, key in V2_IDENTITY_FIELDS.items():
+            values = {r.get(field) for r in created + updated if r.get(field) is not None}
+            if values:
+                value = next(iter(values))
+                require(len(values) == 1 and isinstance(value, str) and API_ID_FORMATS[key].match(value), 'summary-api-id')
+                api_ids[key] = value
+
+        def count(rows_, key):
+            value = rows_[-1].get(key) if rows_ else None
+            return value if isinstance(value, int) and not isinstance(value, bool) else None
+        evidence = {'plan_gate': plan[-1]['status'] if plan else 'NOT_TESTED', 'plan_resources': count(plan, 'resources'),
+                    'api_owned_create': count(created, 'owned'), 'api_owned_update': count(updated, 'owned'),
+                    'inventory_sha256': inventory_digest(addresses)}
+        root_fail = status != 'PASS' or cleanup != 'PASS' or rr.get('failure') is not None \
+            or any(v != 'PASS' for v in ops.values()) or any(v != 'PASS' for v in root_controls.values())
+        measured_fail = measured_fail or root_fail
+        if root_fail and status in SEVERITY:
+            statuses.append(status)
+            failure_root = failure_root or (name, rr.get('failure'))
+        root_gaps = completeness_gaps(required, ops, pinned, scenario_id, addresses, evidence, api_ids, root=name,
+                                      root_required=root_required, root_controls=root_controls)
+        gaps.extend(root_gaps)
+        entry['roots'].append({
+            'name': name, 'kind': 'dev-root', 'path': DEV_ROOTS[name],
+            'result': (status if status != 'PASS' else 'FAIL') if root_fail
+            else 'INSUFFICIENT_EVIDENCE' if root_gaps else 'PASS',
+            'resources': len(addresses), 'resource_addresses': addresses,
+            'address_source': ('reviewed inventory SCENARIOS[' + name + '] in scripts/emulator-rehearsal/rehearse.py at the '
+                               'tested SHA, whose SHA-256 equals the run harness_sha256; the plan gate requires exactly '
+                               'this inventory' if scenario is not None else 'harness not verifiable against git'),
+            'operations': dict(ops), 'api_ids': api_ids, 'evidence': evidence, 'resource_cleanup': cleanup,
+            'required_operations': root_required, 'controls': dict(root_controls)})
+        if root_required is None:
+            del entry['roots'][-1]['required_operations']
+    entry['evidence_gaps'].extend(unique(gaps))
+    if harness is None:
+        entry['evidence_gaps'].append('Harness source at the tested SHA not available: resource addresses not recorded')
+    out = []
+    for item in out_of_scope(set(expected_roots)):
+        if item['name'] in known:
+            item['reason'] = (item['status'] + ': known gap reported by the harness: ' + known[item['name']])[:MAX_TEXT]
+        out.append(item)
+    entry['out_of_scope_roots'] = out
+    host = [r['status'] for r in rows if r['gate'] == 'host-cleanup']
+    root_cleanups = [r['resource_cleanup'] for r in entry['roots']]
+    entry['cleanup'] = {'resources': 'PASS' if root_cleanups and all(c == 'PASS' for c in root_cleanups)
+                        else 'FAIL' if 'FAIL' in root_cleanups else 'NOT_TESTED',
+                        'material': record.get('material_cleanup', 'NOT_TESTED'),
+                        'process': record.get('process_cleanup', 'NOT_TESTED'),
+                        'host': host[-1] if len(host) == 1 else 'NOT_TESTED'}
+    if len(host) != 1:
+        entry['evidence_gaps'].append('Host cleanup row missing or duplicated')
+    for note in record.get('notes') or []:
+        probe = note.get('security_group_probe') if isinstance(note, dict) else None
+        if probe is not None:
+            require(set(probe) <= PROBE_KEYS, 'summary-probe-keys')
+            entry['observations'].append(
+                'Security group probe (direct API, not Terraform): provider-form default egress revoke with ports 0 '
+                'returned ' + str(probe.get('revoke_provider_form_ports_0')) + '; revoke without ports '
+                + str(probe.get('revoke_without_ports')))
+    for row in rows:
+        if row['gate'] == 'refresh-convergence' and row.get('drift'):
+            entry['observations'].append(
+                'Refresh (' + str(row.get('root', 'network')) + '): reviewed computed-field convergence on '
+                + ', '.join(sorted(d.get('address', '?') for d in row['drift'])) + '; second refresh unchanged')
+        if row['gate'] in ('auth-reject-secret', 'auth-reject-access'):
+            entry['observations'].append('Authentication probe ' + row['gate'] + ': ' + str(row.get('code')))
+        if row['gate'] == 'external-probe-errno':
+            results = row.get('results') or {}
+            entry['observations'].append('Real AWS endpoint probes: ' + ', '.join(
+                k + ' ' + '/'.join(v) for k, v in sorted(results.items())))
+    if 'network-full' in known:
+        entry['untested'].append(('network: the endpoint security group, its rule and the interface endpoints through '
+                                  'Terraform (known gap: ' + known['network-full'] + ')')[:MAX_TEXT])
+    entry['untested'].append('Packet forwarding, NAT, routing, DNS resolution, Cognito sign-in and REST API invocation: '
+                             'the emulator models API state only')
+    entry['residual_risk'].append('The refresh allowlists are reviewed judgments that the observed computed-field '
+                                  'convergence is normal; they are covered by offline mutation tests')
+    if not measured_fail and not gaps and run['conclusion'] == 'success':
+        entry['result'] = {'overall': 'PASS', 'basis': 'summary-record', 'failure': None}
+    elif not measured_fail:
+        entry['result'] = {'overall': 'INSUFFICIENT_EVIDENCE', 'basis': 'summary-record', 'failure': {
+            'step': first_failed_step(meta['job']), 'stage': 'evidence completeness', 'diagnostic': 'EVIDENCE_INCOMPLETE',
+            'cause': 'the record cannot support PASS; see evidence_gaps'}}
+    else:
+        overall = next((s for s in SEVERITY if s in statuses), 'BLOCKED' if record.get('failure') else 'FAIL')
+        failure = (failure_root[1] if failure_root else record.get('failure')) or {}
+        entry['result'] = {'overall': overall, 'basis': 'summary-record', 'failure': {
+            'step': first_failed_step(meta['job']),
+            'stage': ((failure_root[0] + ': ') if failure_root else '') + str(failure.get('operation', 'unknown'))
+            if isinstance(failure, dict) else None,
             'diagnostic': failure.get('label') if isinstance(failure, dict) else None,
             'cause': 'recorded by the harness summary record'}}
 

@@ -38,8 +38,8 @@ only the provider's reviewed tag transition as drift.
 
 | Mode | Use | Evidence |
 | --- | --- | --- |
-| **GitHub Actions** ([`aws-emulator-rehearsal.yml`](../../.github/workflows/aws-emulator-rehearsal.yml)): automatic on every push to `main` that changes `infra/` or the rehearsal code, or dispatched by the Owner | Formal runs | Each run's log (gate rows) and job summary on GitHub, the README badge, and milestone records in `docs/step2-emulator-rehearsals.md` with the run link. Logs expire, so the record keeps the summary |
-| Local (`launch.sh`) | Preliminary or diagnostic runs | Only the record in the docs; no third-party log |
+| **GitHub Actions** ([`aws-emulator-rehearsal.yml`](../../.github/workflows/aws-emulator-rehearsal.yml)): automatic on a push to `main` that changes the trigger paths (limited standing authorization, v14.4 §13.2), or dispatched by the Owner with the Owner's own approval each time | Formal runs | Each run's log (gate rows) and job summary stay on GitHub for its retention period, at most 90 days. Every formal run, whatever its result, is registered per run and attempt in the [evidence ledger](../../docs/evidence/emulator-runs/index.md) through a reviewed pull request, using [`harvest.py`](../emulator-evidence/README.md). The README badge is not evidence |
+| Local (`launch.sh`) | LOCAL PRELIMINARY or diagnostic runs, with the Owner's approval each time | Only the narrative in `docs/step2-emulator-rehearsals.md`; never a formal run or a ledger entry |
 
 Every push and pull request runs `test_rehearse.py` offline in the
 `AWS Emulator offline contracts` workflow. That workflow never starts the
@@ -87,8 +87,15 @@ The Owner can also start a run manually: Actions → **AWS Emulator Step 2
 rehearsal** → Run workflow on `main`, choosing `scenario` `all` or one root. The
 known-gap scenarios (`network-full`, `tfstate`) stop where the gap is and recover.
 
-Read the job summary. A run that changes a root's status (first PASS, new gap or
-failure, fix) is recorded in
+Read the job summary. Then register the run in the
+[evidence ledger](../../docs/evidence/emulator-runs/index.md) with
+[`harvest.py`](../emulator-evidence/README.md), in its own pull request, before the
+next `main` change or within 7 days, whichever comes first. `harvest.py` reads this
+harness's multi-root `summary-record`. It records PASS only for a harness version
+pinned in its `KNOWN_HARNESSES`, with every required operation, plan, independent API
+and inventory evidence per root. Changing `rehearse.py` changes its hash: pin and
+review the new version there, which the offline ledger tests enforce. Root status
+changes (a first PASS, a new gap or failure, a fix) are also summarized in
 [Step 2 emulator rehearsals](../../docs/step2-emulator-rehearsals.md) with its run link.
 
 ## Local run (Owner-authorized only)
