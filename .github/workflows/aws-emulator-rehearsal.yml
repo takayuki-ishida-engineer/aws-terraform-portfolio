@@ -1,15 +1,26 @@
 name: AWS Emulator Step 2 rehearsal
-# Owner-dispatched Step 2 rehearsal of the real network root (vpc module) in the
-# official AWS Emulator under all fourteen controls. No AWS credentials, secrets,
-# artifacts, caches or registry pushes. Results stay in this run's log and job
-# summary and are recorded in docs/step2-emulator-rehearsals.md.
+# Step 2 rehearsal of the real network root (vpc module) in the official AWS
+# Emulator under all fourteen controls. Runs automatically on every push to main
+# that changes Terraform or the rehearsal code, and on Owner-only manual dispatch
+# (Owner decision 2026-11-20; no per-run billing attestation, see AGENTS.md).
+# No AWS credentials, secrets, artifacts, caches or registry pushes. Results stay
+# in this run's log and job summary; milestones are recorded in
+# docs/step2-emulator-rehearsals.md.
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/**
+      - scripts/emulator-rehearsal/**
+      - scripts/emulator-verification/gates.py
+      - scripts/emulator-verification/runtime_contracts.py
+      - scripts/emulator-verification/prepare.py
+      - scripts/emulator-verification/versions.json
+      - scripts/emulator-verification/awscli-publisher.asc
+      - .github/workflows/aws-emulator-rehearsal.yml
   workflow_dispatch:
     inputs:
-      target_sha:
-        description: Reviewed merged main SHA (40 lowercase hex), must equal this workflow's main SHA
-        required: true
-        type: string
       scenario:
         description: Network root scenario (full stops at create on the known emulator security group gap)
         required: true
@@ -18,15 +29,6 @@ on:
           - no-interface-endpoints
           - full
         default: no-interface-endpoints
-      owner_billing_confirmed:
-        description: Owner just verified merged main CI success, Public/Free/standard runner, all five $0 Budgets and usage blocking; uncertainty means do not run
-        required: true
-        type: boolean
-        default: false
-      owner_checked_at:
-        description: RFC3339 timestamp with timezone of the Owner check, less than 30 minutes ago; create a fresh dispatch instead of rerunning
-        required: true
-        type: string
 permissions:
   contents: read
 concurrency:
@@ -39,26 +41,21 @@ jobs:
     env:
       ACTOR: ${{ github.actor }}
       TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-      OWNER_CHECKED_AT: ${{ inputs.owner_checked_at }}
       OWNER: ${{ github.repository_owner }}
       VISIBILITY: ${{ github.event.repository.visibility }}
-      TARGET_SHA: ${{ inputs.target_sha }}
-      OWNER_BILLING_CONFIRMED: ${{ inputs.owner_billing_confirmed }}
-      SCENARIO: ${{ inputs.scenario }}
+      TARGET_SHA: ${{ github.sha }}
+      SCENARIO: ${{ inputs.scenario || 'no-interface-endpoints' }}
     steps:
-      - name: Require owner cost confirmation and reviewed main SHA
+      - name: Require main, the Owner and a public repository
         id: consent
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import os,re
-          from datetime import datetime,timezone
           e=os.environ
-          assert e['ACTOR']==e['OWNER'] and e['VISIBILITY']=='public'
-          assert e['OWNER_BILLING_CONFIRMED']=='true' and e['TRIGGERING_ACTOR']==e['OWNER'] and e['GITHUB_RUN_ATTEMPT']=='1'
-          stamp=datetime.fromisoformat(e['OWNER_CHECKED_AT'])
-          assert stamp.tzinfo is not None and 0 <= (datetime.now(timezone.utc)-stamp).total_seconds() <= 1800
+          assert e['ACTOR']==e['OWNER'] and e['TRIGGERING_ACTOR']==e['OWNER'] and e['VISIBILITY']=='public'
+          assert e['GITHUB_EVENT_NAME'] in ('push','workflow_dispatch') and e['GITHUB_RUN_ATTEMPT']=='1'
           assert e['GITHUB_REF']=='refs/heads/main' and re.fullmatch('[0-9a-f]{40}',e['TARGET_SHA'])
           assert e['TARGET_SHA']==e['GITHUB_SHA']
           assert e['SCENARIO'] in ('no-interface-endpoints','full')
@@ -67,7 +64,7 @@ jobs:
       - name: Checkout reviewed target without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: false
           lfs: false
@@ -108,7 +105,7 @@ jobs:
       - name: Nonsecret summary
         env:
           EXECUTION_STATUS: ${{ steps.execution.outcome }}
-          OWNER_ATTESTATION_ACCEPTED: ${{ steps.consent.outputs.accepted }}
+          CONSENT_ACCEPTED: ${{ steps.consent.outputs.accepted }}
         if: always()
         run: |
           if test -f scripts/emulator-rehearsal/summarize.py; then

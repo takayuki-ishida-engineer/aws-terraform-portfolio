@@ -79,6 +79,23 @@ as verified through an invented API. Preserve the existing required Full CI, its
 read-only permissions, allowed pinned Actions and Branch Protection. Review any
 new Action or permission separately under Public repository governance.
 
+### Owner amendment (2026-11-20): automatic Step 2 rehearsals
+
+The Step 2 rehearsal workflow `aws-emulator-rehearsal.yml` is an exception to the
+per-run confirmation above. It runs automatically on pushes to `main` that change
+Terraform under `infra/` or the rehearsal code, and on the Owner's manual dispatch,
+with no per-run billing attestation. The Owner relies on the standing
+configuration: a public repository on GitHub Free, standard runners, and $0
+Budgets with usage blocking. That configuration is Owner-reported and not
+API-audited.
+
+Every other constraint in this section still applies to that workflow: no
+artifacts, caches, registry pushes, Git LFS, Packages, paid add-ons or larger or
+self-hosted runners; a read-only token; not a required check; and fail-closed
+run-time checks of `main`, the Owner, public visibility, the runner and its
+capacity. The representative workflow keeps per-run confirmation. See
+[AGENTS.md](../AGENTS.md#emulator-verification-workflow-and-evidence).
+
 Docker's independent Network Namespace is a proposed implementation to verify,
 not an existing capability or exemption. Prove no external routes and independent
 real-AWS unreachability; use loopback-only HTTPS, generated credentials/CA, enabled

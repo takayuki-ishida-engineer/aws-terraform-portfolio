@@ -176,6 +176,24 @@ Do not change the existing required Full CI or Branch Protection. Docker namespa
 isolation is a proposed method, not proof: all fourteen controls above still apply.
 Documentation-only changes do not require lifecycle replay, but still run Full CI.
 
+Owner decision (2026-11-20): the Step 2 rehearsal workflow
+`.github/workflows/aws-emulator-rehearsal.yml` runs automatically on every push to
+`main` that changes Terraform under `infra/` or the rehearsal code, besides the
+Owner's manual dispatch. It needs no per-run billing attestation. The basis is the
+Owner's standing configuration: a public repository on GitHub Free, standard
+GitHub-hosted runners and $0 Budgets with usage blocking for Actions, Codespaces,
+Packages, Git LFS and AI Credits. That configuration is Owner-reported, not a
+run-time Billing audit. At run time the workflow still requires `main`, the Owner
+as actor, a public repository, the first attempt, a standard runner with enough
+capacity and a local Docker daemon, and fails closed otherwise. It stays
+non-required and read-only, with no secrets, artifacts, caches, registry pushes
+or larger or self-hosted runners, and all fourteen controls apply to every run.
+The representative `aws-emulator-verification.yml` keeps manual dispatch with
+per-run attestation. Run logs and job summaries stay in GitHub Actions for its
+retention period. The repository keeps the workflow and harness, a README status
+badge and dated records, with the run link, of each milestone: a root's first
+PASS, a new gap or failure, and its fix.
+
 Classify results precisely:
 
 - **PASS**: operation actually demonstrated.
@@ -337,6 +355,8 @@ and its own pull request, and stops for independent review and Owner merge appro
 Owner-approved additions needed to deploy are the SSM developer-access EC2 for
 local access to the private EKS endpoint (and later RDS) and the DEV state bucket
 bootstrap with an optional S3 backend. V7-B/C/D, NP-2B/NP-3 and other new features
-stay paused until Steps 1 and 2 are complete. Each Step 2 Emulator run needs its
-own Owner authorization. Step 3 onward is handed to Codex with a separate
-instruction. All permanent rules above remain in force.
+stay paused until Steps 1 and 2 are complete. Step 2 rehearsals run automatically
+on merged `main` under the Owner decision of 2026-11-20 above; adding a root or
+scenario still needs a reviewed pull request and Owner merge approval. Step 3
+onward is handed to Codex with a separate instruction. All permanent rules above
+remain in force.

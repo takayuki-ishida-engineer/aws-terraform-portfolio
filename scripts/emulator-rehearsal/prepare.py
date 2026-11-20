@@ -1,9 +1,13 @@
 """Step 2 host preparation (network on, never starts the emulator).
 
-Allowed in two contexts only: an operator's local run, or the Owner-dispatched
-``aws-emulator-rehearsal.yml`` workflow on main. Any other CI is refused. In
-Actions it first runs the representative workflow's own preflight (Owner
-attestation, standard runner, CPU, memory, disk, local Docker).
+Allowed in two contexts only: an operator's local run, or the
+``aws-emulator-rehearsal.yml`` workflow on main (a push to main or the Owner's
+manual dispatch). Any other CI is refused. In Actions it first checks the run
+(main, the Owner, a public repository, the checked-out SHA), a standard
+GitHub-hosted runner with enough CPU, memory and disk, and a local Docker daemon.
+Per the Owner decision of 2026-11-20 there is no per-run billing attestation; the
+Owner's standing configuration is a public repository on GitHub Free with $0
+Budgets and usage blocking.
 
 Downloads the artifacts pinned in scripts/emulator-verification/versions.json,
 verifies SHA-256 and publisher signatures with the repository's own verifier,
@@ -22,7 +26,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 VERIFY = REPO / 'scripts/emulator-verification'
 sys.path.insert(0, str(VERIFY))
-import prepare as repo_prepare  # noqa: E402  (download, verify_signature, preflight)
+import prepare as repo_prepare  # noqa: E402  (download, verify_signature)
 
 WORKFLOW = '.github/workflows/aws-emulator-rehearsal.yml'
 SCENARIOS = ('full', 'no-interface-endpoints')
@@ -36,10 +40,11 @@ def gate(name, status='PASS', **extra):
 
 
 def execution_context(env):
-    """'github-actions' only for the Owner-dispatched rehearsal workflow on main, else 'local' or None."""
+    """'github-actions' only for the rehearsal workflow on main (push or dispatch), else 'local' or None."""
     if env.get('GITHUB_ACTIONS') == 'true':
         expected = env.get('GITHUB_REPOSITORY', '') + '/' + WORKFLOW + '@refs/heads/main'
-        if env.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and env.get('GITHUB_REPOSITORY') and env.get('GITHUB_WORKFLOW_REF') == expected:
+        if (env.get('GITHUB_EVENT_NAME') in ('push', 'workflow_dispatch') and env.get('GITHUB_REF') == 'refs/heads/main'
+                and env.get('GITHUB_REPOSITORY') and env.get('GITHUB_WORKFLOW_REF') == expected):
             return 'github-actions'
         return None
     if env.get('CI'):
@@ -47,10 +52,46 @@ def execution_context(env):
     return 'local'
 
 
+def actions_preflight(env, head):
+    """Run, runner and Docker checks for Actions; returns the first failing gate name or None."""
+    checks = [
+        ('run-identity', env.get('ACTOR') == env.get('OWNER') and env.get('TRIGGERING_ACTOR') == env.get('OWNER')
+         and env.get('VISIBILITY') == 'public' and env.get('GITHUB_REF') == 'refs/heads/main'
+         and env.get('GITHUB_RUN_ATTEMPT') == '1' and env.get('TARGET_SHA') == env.get('GITHUB_SHA') == head),
+        ('runner-eligibility', env.get('RUNNER_KIND') == 'github-hosted' and env.get('RUNNER_OS') == 'Linux'
+         and env.get('RUNNER_ARCH') == 'X64'),
+        ('runner-cpu', (os.cpu_count() or 0) >= 2),
+        ('runner-disk', shutil.disk_usage(env.get('RUNNER_TEMP', '/')).free >= 10 * 1024 ** 3),
+        ('runner-memory', memory_available() >= 8 * 1024 ** 3),
+        ('docker-local-endpoint', env.get('DOCKER_HOST') in (None, 'unix:///var/run/docker.sock')
+         and env.get('DOCKER_CONTEXT') in (None, 'default') and docker_is_local()),
+    ]
+    for name, ok in checks:
+        if not ok:
+            return name
+        gate(name)
+    return None
+
+
+def memory_available():
+    rows = Path('/proc/meminfo').read_text().splitlines()
+    return int(next(r.split()[1] for r in rows if r.startswith('MemAvailable:'))) * 1024
+
+
+def docker_is_local():
+    try:
+        endpoint = json.loads(command(['docker', 'context', 'inspect', '--format', '{{json .Endpoints.docker.Host}}']))
+        command(['docker', 'info'])
+    except (subprocess.CalledProcessError, ValueError, OSError):
+        return False
+    return endpoint == 'unix:///var/run/docker.sock'
+
+
 def run_identity(env, context):
     if context == 'github-actions':
         run_id = env['GITHUB_RUN_ID'] + '-' + env['GITHUB_RUN_ATTEMPT']
         execution = {'kind': 'github-actions', 'repository': env['GITHUB_REPOSITORY'], 'workflow_ref': env['GITHUB_WORKFLOW_REF'],
+                     'event': env['GITHUB_EVENT_NAME'],
                      'run_id': env['GITHUB_RUN_ID'], 'run_attempt': env['GITHUB_RUN_ATTEMPT'],
                      'run_url': env.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + env['GITHUB_REPOSITORY'] + '/actions/runs/' + env['GITHUB_RUN_ID'],
                      'runner': 'ubuntu-24.04 (GitHub-hosted)'}
@@ -122,10 +163,10 @@ def main(argv=None):
         gate('allowed-context', 'BLOCKED')
         return 1
     if context == 'github-actions':
-        try:
-            repo_prepare.preflight()
-        except repo_prepare.PreparationBlocked as error:
-            repo_prepare.report(error.gate, 'BLOCKED', error.diagnostic)
+        head = command(['git', '-C', str(REPO), 'rev-parse', 'HEAD']).strip()
+        failed = actions_preflight(env, head)
+        if failed:
+            gate(failed, 'BLOCKED')
             return 1
     scenario = env.get('SCENARIO', 'full')
     base = Path(env['STEP2_BASE']).resolve() if env.get('STEP2_BASE') else None

@@ -2,6 +2,12 @@
 
 ## Step 2 emulator rehearsal — network root PASS in GitHub Actions
 
+[![AWS Emulator Step 2 rehearsal](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml/badge.svg?branch=main&event=push)](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml?query=branch%3Amain+event%3Apush)
+
+The badge shows the latest automatic run. The rehearsal runs on every `main`
+change to Terraform or the rehearsal code (Owner decision 2026-11-20). Each run's
+log and job summary are in GitHub Actions; milestones are recorded in the docs.
+
 | Item | Value |
 | --- | --- |
 | What | The real DEV network root (`vpc` module, committed values without interface endpoints, 16 resources) through Plan, Create, Read, Update, No-op and Destroy in the official AWS Emulator, under all fourteen isolation controls |

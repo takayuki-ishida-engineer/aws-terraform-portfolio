@@ -16,9 +16,12 @@ COMPLETE and PORTFOLIO COMPLETE remain undeclared.
 
 | Where | What it shows |
 | --- | --- |
-| [`aws-emulator-rehearsal.yml`](../.github/workflows/aws-emulator-rehearsal.yml) | The exact steps the formal runs execute: Owner billing attestation before checkout, verified downloads, an isolated `--network none` container, strict host cleanup and the job summary |
-| The linked GitHub Actions run | Its log has every gate row, and its job summary has the result tables. Third parties can open both. GitHub deletes logs after the retention period, so the summary below is the durable copy |
-| This page | One summary per formal run: which CI run executed it, the tested SHA, tool versions, the 14 controls, the lifecycle operations, cleanup, limitations and residual risk |
+| [`aws-emulator-rehearsal.yml`](../.github/workflows/aws-emulator-rehearsal.yml) | The exact steps every formal run executes: the run gate (main, the Owner, a public repository), verified downloads, an isolated `--network none` container, strict host cleanup and the job summary |
+| [Workflow runs](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml) and the README badge | One run per `main` change to Terraform or the rehearsal code (automatic since the Owner decision of 2026-11-20), plus any manual dispatch. Each log has every gate row; each job summary has the result tables. GitHub deletes them after its retention period |
+| This page | The durable record, one entry per milestone: a root's first PASS, a new gap or failure, and its fix. Each entry names the CI run, the tested SHA, tool versions, the 14 controls, the lifecycle operations, cleanup, limitations and residual risk |
+
+Runs that only repeat an already recorded PASS are not recorded again; their logs
+and summaries remain in GitHub Actions until the retention period ends.
 
 ## Formal runs (GitHub Actions)
 
