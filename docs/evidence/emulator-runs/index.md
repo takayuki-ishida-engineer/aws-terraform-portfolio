@@ -12,9 +12,9 @@ NOT_TESTED, never inferred. Emulator results are not evidence of real AWS behavi
 ## Reconciliation with the run list snapshot
 
 This compares the ledger with `actions-runs.json`, a static snapshot of the GitHub Actions run list that
-the operator retrieved at 2026-11-20T06:14:06Z and committed with the entries. It is not a live
+the operator retrieved at 2026-11-20T15:46:48Z and committed with the entries. It is not a live
 query: runs started after that time, or anything GitHub changed since, are not covered until a later
-reviewed pull request updates the snapshot. Snapshot: `aws-emulator-rehearsal.yml` 3 runs, `aws-emulator-verification.yml` 12 runs; 15 entries.
+reviewed pull request updates the snapshot. Snapshot: `aws-emulator-rehearsal.yml` 4 runs, `aws-emulator-verification.yml` 12 runs; 16 entries.
 
 | Check | Result |
 | --- | --- |
@@ -46,6 +46,7 @@ Status: MATCHES THE SNAPSHOT
 | [44279371023](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279371023) attempt 1 (#1, 2026-11-18) | aws-emulator-rehearsal.yml | workflow_dispatch | `0a16e486dd37` | none | **BLOCKED** | run gate / RUN_GATE_ASSERTION | excerpt | [2026-11-20](44279371023-attempt-1.json) initial-backfill |
 | [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) attempt 1 (#2, 2026-11-18) | aws-emulator-rehearsal.yml | workflow_dispatch | `0a16e486dd37` | network (16) | **PASS** | n/a | full | [2026-11-20](44279751946-attempt-1.json) initial-backfill |
 | [44664010985](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44664010985) attempt 1 (#3, 2026-11-20) | aws-emulator-rehearsal.yml | push | `70a5868272c1` | network (16) | **PASS** | n/a | full | [2026-11-20](44664010985-attempt-1.json) initial-backfill |
+| [44765057461](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44765057461) attempt 1 (#4, 2026-11-20) | aws-emulator-rehearsal.yml | push | `ddf7f9fff972` | network (16), api (7) | **PASS** | n/a | full | [2026-11-20](44765057461-attempt-1.json) regular |
 
 Out-of-scope DEV roots are never PASS: each entry lists them as NOT_TESTED or
 EMULATOR_COMPATIBILITY_BLOCKED. See [Step 2 emulator rehearsals](../../step2-emulator-rehearsals.md).

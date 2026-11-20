@@ -206,6 +206,14 @@ class Step2Build(Harvest):
         harvest.KNOWN_HARNESSES[HARNESS_SHA256]['scenarios']['no-interface-endpoints']['network']['inventory_sha256'] = '0' * 64
         self.assert_insufficient(self.build(step2_rows()), 'Resource inventory differs')
 
+    def test_registration_kind_defaults_to_regular_and_is_validated(self):
+        text = log(step2_rows())
+        m = meta(lines=len(text.splitlines()))
+        self.assertEqual(self.build(step2_rows())['harvest']['registration'], 'regular')
+        self.assertEqual(harvest.build(m, text, REPO, '2026-11-20T02:00:00Z', 'initial-backfill')['harvest']['registration'],
+                         'initial-backfill')
+        self.rejects('registration', harvest.build, m, text, REPO, '2026-11-20T02:00:00Z', 'late')
+
     def test_multi_root_keys_are_refused_on_a_single_root_record(self):
         self.rejects('summary-record-keys', self.build, step2_rows(record(known_gaps={})))
 
