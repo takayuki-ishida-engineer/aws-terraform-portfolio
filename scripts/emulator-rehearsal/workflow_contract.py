@@ -20,7 +20,8 @@ PATHS = ['infra/**', 'scripts/emulator-rehearsal/**', 'scripts/emulator-verifica
          '.github/workflows/aws-emulator-rehearsal.yml']
 JOB_ENV = {'ACTOR': '${{ github.actor }}', 'TRIGGERING_ACTOR': '${{ github.triggering_actor }}',
            'OWNER': '${{ github.repository_owner }}', 'VISIBILITY': '${{ github.event.repository.visibility }}',
-           'TARGET_SHA': '${{ github.sha }}', 'SCENARIO': "${{ inputs.scenario || 'no-interface-endpoints' }}"}
+           'TARGET_SHA': '${{ github.sha }}', 'SCENARIO': "${{ inputs.scenario || 'all' }}"}
+SCENARIOS = ['all', 'network', 'network-full', 'tfstate', 'api']
 TMPFS = sorted(['/opt/step2-work:rw,exec,nosuid,nodev,size=3g,uid=1000,gid=1000,mode=0700',
                 '/opt/step2-evidence:rw,noexec,nosuid,nodev,size=1m,uid=1000,gid=1000,mode=0700',
                 '/tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000'])
@@ -37,8 +38,8 @@ def workflow_gate(w):
     require('permissions' not in j and 'container' not in j and 'services' not in j, 'no-extra-runtime-privileges')
     dispatch = w['on']['workflow_dispatch']['inputs']
     require(set(dispatch) == {'scenario'} and dispatch['scenario']['required'] == 'true', 'dispatch-contract')
-    require(dispatch['scenario']['type'] == 'choice' and dispatch['scenario']['options'] == ['no-interface-endpoints', 'full']
-            and dispatch['scenario']['default'] == 'no-interface-endpoints', 'scenario-choice')
+    require(dispatch['scenario']['type'] == 'choice' and dispatch['scenario']['options'] == SCENARIOS
+            and dispatch['scenario']['default'] == 'all', 'scenario-choice')
     require(j.get('env') == JOB_ENV, 'job-env-contract')
     steps = j['steps']
     require(len(steps) == 5 and steps[0].get('id') == 'consent', 'consent-before-checkout')
@@ -55,7 +56,7 @@ def workflow_gate(w):
             'no-external-writes-or-host-network')
     for token in ["e['ACTOR']==e['OWNER']", "e['TRIGGERING_ACTOR']==e['OWNER']", "e['GITHUB_REF']=='refs/heads/main'",
                   "e['TARGET_SHA']==e['GITHUB_SHA']", "e['GITHUB_RUN_ATTEMPT']=='1'", "e['VISIBILITY']=='public'",
-                  "e['GITHUB_EVENT_NAME'] in ('push','workflow_dispatch')", "e['SCENARIO'] in ('no-interface-endpoints','full')"]:
+                  "e['GITHUB_EVENT_NAME'] in ('push','workflow_dispatch')", "e['SCENARIO'] in ('all','network','network-full','tfstate','api')"]:
         require(token in steps[0]['run'], 'run-gate-' + token)
     run = steps[3]['run']
     require(steps[3].get('id') == 'execution', 'execution-step')

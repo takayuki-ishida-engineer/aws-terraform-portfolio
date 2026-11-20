@@ -5,6 +5,7 @@ Synthetic plan and refresh documents only: no emulator, Terraform, AWS call or
 network access. Each mutation must be rejected with its specific gate label.
 """
 import contextlib
+import re
 import copy
 import io
 import sys
@@ -36,12 +37,14 @@ RUN_ID = '20261118000000-1'
 M = rehearse.M
 
 
-def harness(scenario='full'):
+def harness(scenario='network-full'):
     r = rehearse.Rehearsal.__new__(rehearse.Rehearsal)
     r.run_id = RUN_ID
-    r.scenario = scenario
+    r.scenario = r.name = scenario
+    r.spec = rehearse.SCENARIOS[scenario]
     r.expected = rehearse.expected_for(scenario)
     r.controls = {str(i): 'NOT_TESTED' for i in range(1, 15)}
+    r.root_controls = {}
     r.state_ids = {a: 'id-%d' % i for i, a in enumerate(sorted(r.expected))}
     return r
 
@@ -54,13 +57,14 @@ def tags(phase):
 def plan(r, action, phase='create'):
     changes = []
     for address, kind in r.expected.items():
-        taggable = kind not in rehearse.UNTAGGED
+        taggable = kind not in r.spec['untagged']
         body = {'id': r.state_ids[address], 'cidr_block': '10.40.0.0/16'}
         before = dict(body, **({'tags_all': tags('create')} if taggable else {}))
         after = dict(body, **({'tags_all': tags(phase)} if taggable else {}))
         acts = {'create': ['create'], 'delete': ['delete'], 'no-op': ['no-op'],
                 'update': ['no-op'] if not taggable else ['update']}[action]
-        changes.append({'address': address, 'mode': 'managed', 'type': kind, 'module_address': 'module.network',
+        changes.append({'address': address, 'mode': 'managed', 'type': kind,
+                        'module_address': r.spec['module'] or address.rsplit('.', 2)[0],
                         'provider_name': 'registry.terraform.io/hashicorp/aws',
                         'change': {'actions': acts, 'before': None if action == 'create' else before,
                                    'after': None if action == 'delete' else after}})
@@ -68,7 +72,7 @@ def plan(r, action, phase='create'):
     return {'terraform_version': '1.17.0', 'resource_changes': changes,
             'configuration': {'provider_config': {'aws': {'expressions': {
                 'allowed_account_ids': {'constant_value': ['000000000000']},
-                'endpoints': [{'ec2': dict(endpoint), 'sts': dict(endpoint)}]}}}}}
+                'endpoints': [{e: dict(endpoint) for e in r.spec['endpoints']}]}}}}}
 
 
 def change(doc, address):
@@ -109,8 +113,11 @@ class Quiet(unittest.TestCase):
 
 class InventoryTests(Quiet):
     def test_scenarios(self):
-        self.assertEqual(len(rehearse.expected_for('full')), 26)
-        reduced = rehearse.expected_for('no-interface-endpoints')
+        self.assertEqual(len(rehearse.expected_for('network-full')), 26)
+        self.assertEqual(len(rehearse.expected_for('tfstate')), 7)
+        self.assertEqual(len(rehearse.expected_for('api')), 7)
+        self.assertTrue(set(rehearse.ALL) <= set(rehearse.SCENARIOS) and not set(rehearse.ALL) & set(rehearse.KNOWN_GAPS))
+        reduced = rehearse.expected_for('network')
         self.assertEqual(len(reduced), 16)
         self.assertFalse(set(reduced.values()) & rehearse.ENDPOINT_TYPES)
         self.rejects('scenario', rehearse.expected_for, 'everything')
@@ -129,11 +136,11 @@ class InventoryTests(Quiet):
 
 class PlanTests(Quiet):
     def test_valid_plans_pass(self):
-        for scenario in ('full', 'no-interface-endpoints'):
+        for scenario in rehearse.SCENARIOS:
             r = harness(scenario)
             for action, phase in [('create', 'create'), ('update', 'updated'), ('no-op', 'updated'), ('delete', 'updated')]:
                 r.inspect(plan(r, action, phase), action, phase)
-        self.assertEqual(r.controls['11'], 'PASS')
+        self.assertEqual(r.root_controls['11'], 'PASS')
 
     def test_rejections(self):
         r = harness()
@@ -205,6 +212,86 @@ class RefreshTests(Quiet):
                 doc, nat_row = refresh(r), nat(r)
                 mutate(doc, nat_row)
                 self.rejects(label, r.check_refresh, doc, r.drift_summary(doc), nat_row)
+
+
+POOL = rehearse.CA + 'aws_cognito_user_pool.this'
+CLIENT = rehearse.CA + 'aws_cognito_user_pool_client.this'
+
+
+def teardown_plan(r):
+    doc = plan(r, 'no-op', 'updated')
+    pool = change(doc, POOL)
+    pool['change'].update(actions=['update'])
+    pool['change']['before']['tags_all'] = dict(pool['change']['after']['tags_all'])
+    pool['change']['before']['deletion_protection'] = 'ACTIVE'
+    pool['change']['after']['deletion_protection'] = 'INACTIVE'
+    return doc
+
+
+class TeardownAndTagDriftTests(Quiet):
+    def test_teardown_plan(self):
+        r = harness('api')
+        r.inspect(teardown_plan(r), 'teardown', 'updated')
+        cases = [
+            lambda d: change(d, POOL)['change']['after'].update(mfa_configuration='OFF'),
+            lambda d: change(d, POOL)['change']['after'].update(deletion_protection='ACTIVE'),
+            lambda d: change(d, POOL)['change']['before'].update(deletion_protection='INACTIVE'),
+            lambda d: change(d, POOL)['change'].update(actions=['delete', 'create']),
+            lambda d: change(d, CLIENT)['change'].update(actions=['update']),
+        ]
+        for mutate in cases:
+            with self.subTest(mutate=mutate):
+                doc = teardown_plan(r)
+                mutate(doc)
+                self.rejects('plan-actions-teardown', r.inspect, doc, 'teardown', 'updated')
+
+    def test_tag_transition_drift(self):
+        r = harness('api')
+        good = [{'address': POOL, 'change': {'actions': ['update'], 'before': {'tags': {'Name': 'n'}, 'x': 1},
+                                             'after': {'tags': {'Name': 'n', 'Phase': 'create'}, 'x': 1}}}]
+        r.tag_transition_drift(good, 'update')
+        r.tag_transition_drift([], 'create')
+        for action in ('create', 'no-op', 'delete', 'teardown'):
+            with self.subTest(action=action):
+                self.rejects('plan-drift', r.tag_transition_drift, copy.deepcopy(good), action)
+        for mutate in [lambda d: d[0]['change']['after']['tags'].update(Phase='updated'),
+                       lambda d: d[0]['change']['after']['tags'].update(Owner='x'),
+                       lambda d: d[0]['change']['after'].update(x=2),
+                       lambda d: d[0].update(address=rehearse.CA + 'unknown.this'),
+                       lambda d: d[0]['change'].update(actions=['delete', 'create']),
+                       lambda d: d[0].pop('change')]:
+            with self.subTest(mutate=mutate):
+                doc = copy.deepcopy(good)
+                mutate(doc)
+                self.rejects('plan-drift', r.tag_transition_drift, doc, 'update')
+
+
+def cognito_refresh():
+    schema_before = [{'attribute_data_type': 'String', 'developer_only_attribute': None, 'mutable': True, 'name': 'email'}]
+    schema_after = [{'attribute_data_type': 'String', 'developer_only_attribute': False, 'mutable': True, 'name': 'email'}]
+    return {'output_changes': {}, 'resource_drift': [{'address': POOL, 'change': {'actions': ['update'],
+            'before': {'domain': '', 'last_modified_date': 't1', 'auto_verified_attributes': None, 'schema': schema_before},
+            'after': {'domain': 'step2-dev-auth', 'last_modified_date': 't2', 'auto_verified_attributes': [], 'schema': schema_after}}}]}
+
+
+class CognitoRefreshTests(Quiet):
+    def test_reviewed_convergence_and_rejections(self):
+        r = harness('api')
+        doc = cognito_refresh()
+        r.check_refresh_api(doc, r.drift_summary(doc), 'step2-dev-auth')
+        cases = [
+            ('refresh-cognito-domain', 'step2-dev-other', lambda d: None),
+            ('refresh-cognito-schema', 'step2-dev-auth', lambda d: d['resource_drift'][0]['change']['after']['schema'][0].update(mutable=False)),
+            ('refresh-cognito-auto-verified', 'step2-dev-auth', lambda d: d['resource_drift'][0]['change']['after'].update(auto_verified_attributes=['email'])),
+            ('refresh-drift-unexpected', 'step2-dev-auth', lambda d: d['resource_drift'][0]['change']['after'].update(mfa_configuration='OFF')),
+            ('refresh-drift-unexpected', 'step2-dev-auth', lambda d: d['resource_drift'][0].update(address=CLIENT)),
+            ('refresh-output-changes', 'step2-dev-auth', lambda d: d['output_changes'].update(x={'actions': ['update']})),
+        ]
+        for label, domain, mutate in cases:
+            with self.subTest(label=label):
+                doc = cognito_refresh()
+                mutate(doc)
+                self.rejects(label, r.check_refresh_api, doc, r.drift_summary(doc), domain)
 
 
 def workflow():
@@ -300,15 +387,29 @@ class ContextTests(Quiet):
         self.assertEqual(step2_prepare.actions_preflight(good, 'c' * 40), 'run-identity')
 
 
-def record(**override):
-    base = {'run_id': '123-1', 'tested_sha': 'a' * 40, 'harness_sha256': 'b' * 64, 'scenario': 'no-interface-endpoints',
+def root_record(**override):
+    base = {'description': 'network root', 'resources': 16, 'status': 'PASS',
+            'operations': dict.fromkeys(summarize.REQUIRED_OPERATIONS, 'PASS'), 'controls': {}, 'resource_cleanup': 'PASS',
+            'unsupported_apis': [], 'failure': None}
+    base.update(override)
+    return base
+
+
+def record(roots=None, **override):
+    base = {'run_id': '123-1', 'tested_sha': 'a' * 40, 'harness_sha256': 'b' * 64, 'scenario': 'all supported roots: network, api',
+            'scenario_id': 'all',
             'versions': {'emulator': '1.0.385', 'terraform': '1.17.0', 'awscli': '2.35.0', 'provider': '6.72.0'},
             'execution': {'kind': 'github-actions', 'repository': 'owner/repo', 'run_id': '123', 'run_attempt': '1', 'event': 'push',
                           'run_url': 'https://github.com/owner/repo/actions/runs/123',
                           'workflow_ref': 'owner/repo/.github/workflows/aws-emulator-rehearsal.yml@refs/heads/main',
                           'runner': 'ubuntu-24.04 (GitHub-hosted)'},
-            'controls': {str(i): 'PASS' for i in range(1, 15)}, 'operations': dict.fromkeys(summarize.OPERATIONS, 'PASS'),
-            'resource_cleanup': 'PASS', 'material_cleanup': 'PASS', 'process_cleanup': 'PASS', 'failure': None}
+            'controls': {str(i): 'PASS' for i in range(1, 15)},
+            'roots': roots if roots is not None else {
+                'network': root_record(),
+                'api': root_record(description='api root', resources=7, operations=dict(
+                    dict.fromkeys(summarize.REQUIRED_OPERATIONS, 'PASS'), teardown_plan='PASS', teardown='PASS'))},
+            'known_gaps': {'tfstate': 'S3 Control gap'},
+            'material_cleanup': 'PASS', 'process_cleanup': 'PASS', 'failure': None}
     base.update(override)
     return base
 
@@ -351,19 +452,30 @@ class SummaryTests(Quiet):
         self.assertIn('aws-emulator-rehearsal.yml@refs/heads/main', text)
         self.assertIn('automatic on push to main', text)
         self.assertIn('Owner decision 2026-11-20', text)
-        self.assertEqual(sum(1 for line in text.splitlines() if line.endswith('| PASS |') and line.count('|') == 4), 14)
+        self.assertEqual(sum(1 for line in text.splitlines() if re.fullmatch(r'\| \d+ \| .+ \| PASS \|', line)), 14)
+        self.assertIn('| teardown | n/a | PASS |', text)
+        self.assertIn('tfstate: S3 Control gap', text)
 
     def test_incomplete_or_missing_evidence_fails(self):
+        def roots(**over):
+            return {'network': root_record(**over)}
         cases = [
             ('summary record missing', [r for r in self.good() if r['gate'] != 'summary-record']),
             ('host cleanup MISSING', self.good()[:-1]),
             ('host cleanup FAIL', self.good()[:-1] + [{'gate': 'host-cleanup', 'status': 'FAIL'}]),
             ('not every control PASS', self.good(controls=dict({str(i): 'PASS' for i in range(1, 15)}, **{'7': 'NOT_TESTED'}))),
-            ('not every operation PASS', self.good(operations=dict(dict.fromkeys(summarize.OPERATIONS, 'PASS'), destroy='FAIL'))),
-            ('resource cleanup FAIL', self.good(resource_cleanup='FAIL')),
+            ('root network FAIL', self.good(roots=roots(status='FAIL'))),
+            ('root network operations not all PASS', self.good(roots=roots(operations=dict(
+                dict.fromkeys(summarize.REQUIRED_OPERATIONS, 'PASS'), destroy='FAIL')))),
+            ('root network operations not all PASS', self.good(roots=roots(operations={'plan': 'PASS'}))),
+            ('root network operations not all PASS', self.good(roots=roots(operations=dict(
+                dict.fromkeys(summarize.REQUIRED_OPERATIONS, 'PASS'), teardown='FAIL')))),
+            ('root network resource cleanup FAIL', self.good(roots=roots(resource_cleanup='FAIL'))),
+            ('no root rehearsed', self.good(roots={})),
+            ('material cleanup FAIL', self.good(material_cleanup='FAIL')),
             ('run identity mismatch', self.good(run_id='999-1')),
             ('run identity mismatch', self.good(tested_sha='c' * 40)),
-            ('failure recorded', self.good(failure={'operation': 'create', 'label': 'x', 'api': None})),
+            ('failure recorded', self.good(failure={'operation': 'setup', 'label': 'x', 'api': None})),
         ]
         for problem, rows in cases:
             with self.subTest(problem=problem):

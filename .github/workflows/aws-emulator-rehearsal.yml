@@ -1,6 +1,6 @@
 name: AWS Emulator Step 2 rehearsal
-# Step 2 rehearsal of the real network root (vpc module) in the official AWS
-# Emulator under all fourteen controls. Runs automatically on every push to main
+# Step 2 rehearsal of every supported real DEV root in the official AWS
+# Emulator under all fourteen controls, in one run. Runs automatically on every push to main
 # that changes Terraform or the rehearsal code, and on Owner-only manual dispatch
 # (Owner decision 2026-11-20; no per-run billing attestation, see AGENTS.md).
 # No AWS credentials, secrets, artifacts, caches or registry pushes. Results stay
@@ -22,13 +22,16 @@ on:
   workflow_dispatch:
     inputs:
       scenario:
-        description: Network root scenario (full stops at create on the known emulator security group gap)
+        description: all (every supported root) or one root; network-full stops at create on the known security group gap
         required: true
         type: choice
         options:
-          - no-interface-endpoints
-          - full
-        default: no-interface-endpoints
+          - all
+          - network
+          - network-full
+          - tfstate
+          - api
+        default: all
 permissions:
   contents: read
 concurrency:
@@ -44,7 +47,7 @@ jobs:
       OWNER: ${{ github.repository_owner }}
       VISIBILITY: ${{ github.event.repository.visibility }}
       TARGET_SHA: ${{ github.sha }}
-      SCENARIO: ${{ inputs.scenario || 'no-interface-endpoints' }}
+      SCENARIO: ${{ inputs.scenario || 'all' }}
     steps:
       - name: Require main, the Owner and a public repository
         id: consent
@@ -58,7 +61,7 @@ jobs:
           assert e['GITHUB_EVENT_NAME'] in ('push','workflow_dispatch') and e['GITHUB_RUN_ATTEMPT']=='1'
           assert e['GITHUB_REF']=='refs/heads/main' and re.fullmatch('[0-9a-f]{40}',e['TARGET_SHA'])
           assert e['TARGET_SHA']==e['GITHUB_SHA']
-          assert e['SCENARIO'] in ('no-interface-endpoints','full')
+          assert e['SCENARIO'] in ('all','network','network-full','tfstate','api')
           with open(e['GITHUB_OUTPUT'],'a') as out: out.write('accepted=true\n')
           PY
       - name: Checkout reviewed target without credentials

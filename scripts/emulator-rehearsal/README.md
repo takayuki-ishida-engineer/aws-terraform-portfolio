@@ -9,10 +9,30 @@ Nothing here touches real AWS, an operational root or its State. Since the Owner
 decision of 2026-11-20 the GitHub Actions workflow runs automatically on merged
 `main`; local runs still need the Owner's authorization.
 
-The current scenario is the network root (the real `vpc` module) with its committed
-values. `no-interface-endpoints` leaves the interface endpoints out. The `full`
-scenario stops at create because of an emulator gap; see the
-[rehearsal record](../../docs/step2-emulator-rehearsals.md).
+## Scenarios
+
+One run rehearses every root in `all` (the default, and what automatic runs use),
+one after another in the same emulator. Each root goes through its own plan,
+create, independent API checks, refresh, tag-only update, no-op plan, destroy,
+absence and baseline checks, with recovery if it fails, before the next root
+starts. Roots with a known emulator gap are listed in the job summary instead and
+can be dispatched alone.
+
+| Scenario | Root and modules | Resources | In `all` | Notes |
+| --- | --- | --- | --- | --- |
+| `network` | network root, `vpc` (without interface endpoints) | 16 | Yes | Reviewed NAT and route-table refresh convergence; security group and interface endpoint API probe |
+| `api` | api root, `cognito_auth` and `api_gateway_rest` | 7 | Yes | Reviewed user-pool refresh convergence; the runbook's teardown switch (`deletion_protection = false`, finding F19) is applied with a reviewed plan before destroy |
+| `network-full` | network root with interface endpoints | 26 | No | Known gap: emulator 1.0.385 rejects the provider-form default egress revoke of a new security group |
+| `tfstate` | tfstate root, `tfstate_bucket` | 7 | No | Known gap: the provider reads S3 bucket tags through S3 Control, whose account-ID host prefix the emulator certificate cannot serve under strict TLS |
+
+`serverless-api` (S3, same S3 Control gap), `platform` (security groups) and
+`developer-access` (a security group) are listed as known gaps and have no scenario
+yet. Each scenario's exact resource inventory, endpoints and checks live in
+`rehearse.py` (`SCENARIOS`); adding one needs a reviewed pull request.
+
+Run tags (`VerificationRun`, `Phase`) come from a disposable provider `default_tags`
+override, so roots without a `tags` input are covered too. The update plan may show
+only the provider's reviewed tag transition as drift.
 
 ## Where runs happen
 
@@ -64,8 +84,8 @@ The run gate still requires `main`, the Owner as actor, a public repository, the
 first attempt, a standard runner with enough capacity and a local Docker daemon.
 
 The Owner can also start a run manually: Actions → **AWS Emulator Step 2
-rehearsal** → Run workflow on `main`, choosing `scenario` `no-interface-endpoints`
-or `full`. The `full` scenario stops at create on the known security group gap.
+rehearsal** → Run workflow on `main`, choosing `scenario` `all` or one root. The
+known-gap scenarios (`network-full`, `tfstate`) stop where the gap is and recover.
 
 Read the job summary. A run that changes a root's status (first PASS, new gap or
 failure, fix) is recorded in
@@ -81,7 +101,7 @@ STEP2_BASE=<directory outside the repository> python3 scripts/emulator-rehearsal
 ```
 
 ```bash
-STEP2_BASE=<same directory> TESTED_SHA=<merged main SHA> SCENARIO=no-interface-endpoints bash scripts/emulator-rehearsal/launch.sh
+STEP2_BASE=<same directory> TESTED_SHA=<merged main SHA> SCENARIO=all bash scripts/emulator-rehearsal/launch.sh
 ```
 
 `STEP2_PROVIDER_MIRROR` can point to an existing filesystem mirror with the locked

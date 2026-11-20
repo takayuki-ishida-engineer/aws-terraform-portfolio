@@ -29,8 +29,8 @@ sys.path.insert(0, str(VERIFY))
 import prepare as repo_prepare  # noqa: E402  (download, verify_signature)
 
 WORKFLOW = '.github/workflows/aws-emulator-rehearsal.yml'
-SCENARIOS = ('full', 'no-interface-endpoints')
-SOURCE_PATHS = ('infra/services/dev/ca-central-1/network', 'infra/modules/vpc')
+SCENARIOS = ('all', 'network', 'network-full', 'tfstate', 'api')
+SOURCE_PATHS = ('infra/services/dev/ca-central-1', 'infra/modules')
 HARNESS = ('rehearse.py',)
 SHARED = ('gates.py', 'runtime_contracts.py')
 
@@ -168,7 +168,7 @@ def main(argv=None):
         if failed:
             gate(failed, 'BLOCKED')
             return 1
-    scenario = env.get('SCENARIO', 'full')
+    scenario = env.get('SCENARIO', 'all')
     base = Path(env['STEP2_BASE']).resolve() if env.get('STEP2_BASE') else None
     if scenario not in SCENARIOS:
         gate('scenario', 'BLOCKED')

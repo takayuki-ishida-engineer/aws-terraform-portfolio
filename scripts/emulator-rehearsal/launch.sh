@@ -8,20 +8,20 @@
 #   STEP2_BASE            directory prepared by prepare.py (artifacts, tools, prepared.json)
 #   STEP2_PROVIDER_MIRROR filesystem mirror with the locked AWS provider (default: $STEP2_BASE/mirror)
 #   TESTED_SHA            merged main SHA whose network root and vpc module are rehearsed
-#   SCENARIO              full (default) or no-interface-endpoints
+#   SCENARIO              all (default), network, network-full, tfstate or api
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$HERE" rev-parse --show-toplevel)
 BASE=${STEP2_BASE:?set STEP2_BASE to the prepare.py directory}
 MIRROR=${STEP2_PROVIDER_MIRROR:-$BASE/mirror}
 SHA=${TESTED_SHA:?set TESTED_SHA}
-SCENARIO=${SCENARIO:-full}
+SCENARIO=${SCENARIO:-all}
 T=/opt/step2-tools
 RUN_ID=$(date -u +%Y%m%d%H%M%S)-1
 
 if [ -n "${CI:-}${GITHUB_ACTIONS:-}" ]; then echo '{"gate":"local-only","status":"BLOCKED"}'; exit 1; fi
 [ "$(id -u)" = 0 ] || { echo '{"gate":"root-for-namespaces","status":"BLOCKED"}'; exit 1; }
-case "$SCENARIO" in full|no-interface-endpoints) ;; *) echo '{"gate":"scenario","status":"BLOCKED"}'; exit 1;; esac
+case "$SCENARIO" in all|network|network-full|tfstate|api) ;; *) echo '{"gate":"scenario","status":"BLOCKED"}'; exit 1;; esac
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && git -C "$REPO" merge-base --is-ancestor "$SHA" origin/main \
   || { echo '{"gate":"tested-sha-on-main","status":"BLOCKED"}'; exit 1; }
 
@@ -34,7 +34,7 @@ rm -rf "$BASE/awscli-src"; unzip -q "$BASE/artifacts/awscli.zip" -d "$BASE/awscl
 rm -rf "$BASE/awscli-src"
 cp "$BASE/tools/bin/terraform" "$T/bin/terraform"
 cp -a "$MIRROR" "$T/mirror"
-git -C "$REPO" archive "$SHA" infra/services/dev/ca-central-1/network infra/modules/vpc | tar -x -C "$T/source"
+git -C "$REPO" archive "$SHA" infra/services/dev/ca-central-1 infra/modules | tar -x -C "$T/source"
 cp "$REPO/scripts/emulator-verification/gates.py" "$REPO/scripts/emulator-verification/runtime_contracts.py" \
    "$HERE/rehearse.py" "$T/harness/"
 cp "$BASE/prepared.json" "$T/prepared.json"
