@@ -785,6 +785,62 @@
           "app-b"
         ]
       }
+    },
+    "interface_endpoints_elbv2": {
+      "name_prefix": "test-network",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "app-a": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "app-b": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public-a": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public-b": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "expected_scope": {
+        "partition": "aws",
+        "region": "ca-central-1",
+        "account_id": "000000000000"
+      },
+      "private_routing": {
+        "mode": "per_az",
+        "nat": {
+          "public_subnet_key_by_nat_az": {
+            "ca-central-1a": "public-a"
+          },
+          "nat_az_by_private_az": {
+            "ca-central-1a": "ca-central-1a"
+          }
+        }
+      },
+      "interface_endpoints": {
+        "services": [
+          "ec2",
+          "ec2messages",
+          "ecr.api",
+          "ecr.dkr",
+          "elasticloadbalancing",
+          "logs",
+          "ssm",
+          "ssmmessages",
+          "sts"
+        ],
+        "subnet_keys": [
+          "app-a"
+        ]
+      }
     }
   },
   "child_negative": {
@@ -839,7 +895,8 @@
     "interface_unknown_service": "var.interface_endpoints",
     "interface_empty_subnets": "var.interface_endpoints",
     "interface_unknown_subnet": "aws_vpc.this",
-    "interface_same_az_subnets": "aws_vpc.this"
+    "interface_same_az_subnets": "aws_vpc.this",
+    "interface_unreviewed_elb_variant": "var.interface_endpoints"
   },
   "original_positive": {
     "private_only": {
@@ -955,6 +1012,9 @@
     "interface_same_az_subnets": [
       "aws_eip.nat[\"ca-central-1a\"]",
       "aws_eip.nat[\"ca-central-1b\"]"
+    ],
+    "interface_unreviewed_elb_variant": [
+      "aws_eip.nat[\"ca-central-1a\"]"
     ]
   },
   "partial_outputs": {
@@ -1284,6 +1344,64 @@
       "interface_version",
       "nat_eips_by_az",
       "routing_mode"
+    ],
+    "interface_unreviewed_elb_variant": [
+      "interface_version",
+      "nat_eips_by_az",
+      "routing_mode"
     ]
+  },
+  "root_committed": {
+    "dev_network_committed": {
+      "project": "project",
+      "vpc_cidr": "10.40.0.0/16",
+      "private_subnets": {
+        "private1": {
+          "cidr_block": "10.40.1.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "private2": {
+          "cidr_block": "10.40.2.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "public_subnets": {
+        "public1": {
+          "cidr_block": "10.40.10.0/24",
+          "availability_zone": "ca-central-1a"
+        },
+        "public2": {
+          "cidr_block": "10.40.11.0/24",
+          "availability_zone": "ca-central-1b"
+        }
+      },
+      "gateway_endpoints": {},
+      "aws_account_id": "123456789012",
+      "active_workload_az": "ca-central-1a",
+      "nat": {
+        "public_subnet_key_by_nat_az": {
+          "ca-central-1a": "public1"
+        },
+        "nat_az_by_private_az": {
+          "ca-central-1a": "ca-central-1a"
+        }
+      },
+      "interface_endpoints": {
+        "services": [
+          "ec2",
+          "ec2messages",
+          "ecr.api",
+          "ecr.dkr",
+          "elasticloadbalancing",
+          "logs",
+          "ssm",
+          "ssmmessages",
+          "sts"
+        ],
+        "subnet_keys": [
+          "private1"
+        ]
+      }
+    }
   }
 }

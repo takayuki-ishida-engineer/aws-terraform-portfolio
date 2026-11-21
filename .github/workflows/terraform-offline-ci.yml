@@ -311,7 +311,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "network-verification.json").read_text())
-          expected = {'native_tests': 14, 'positive_plans': 5, 'negative_cases': 9, 'semantic_mutations': 42, 'capture_failure_injections': 22, 'source_dependency_mutations': 10, 'policy_structure_mutations': 33}
+          expected = {'native_tests': 15, 'positive_plans': 6, 'negative_cases': 9, 'semantic_mutations': 84, 'capture_failure_injections': 22, 'source_dependency_mutations': 14, 'policy_structure_mutations': 33}
           if report.get("status") != "passed" or report.get("evidence_type") != "actual_mock_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
               raise SystemExit("Validate DEV network root and actual routing contracts evidence/count contract changed; independent review required.")
           print("Actual network verification:", report)
@@ -476,7 +476,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path(os.environ["RUNNER_TEMP"], "vpc-verification.json").read_text())
-          expected = {'native_tests': 82, 'positive_plans': 17, 'negative_cases': 65, 'semantic_mutations': 45, 'capture_failure_injections': 22, 'source_dependency_mutations': 10, 'policy_structure_mutations': 33}
+          expected = {'native_tests': 84, 'positive_plans': 18, 'negative_cases': 66, 'semantic_mutations': 45, 'capture_failure_injections': 22, 'source_dependency_mutations': 14, 'policy_structure_mutations': 33}
           if report.get("status") != "passed" or report.get("evidence_type") != "actual_mock_plan_verification" or report.get("aws_api_calls") != 0 or any(report.get(key) != value for key, value in expected.items()):
               raise SystemExit("Validate VPC legacy and extension actual mock plans evidence/count contract changed; independent review required.")
           print("Actual vpc verification:", report)

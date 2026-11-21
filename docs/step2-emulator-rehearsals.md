@@ -81,7 +81,7 @@ verified its absence (resource cleanup PASS).
 | Root | Status |
 | --- | --- |
 | network (without interface endpoints) | Formal PASS in runs 44279751946, 44664010985, 44765057461 and 44859280239 |
-| network with interface endpoints (`network-full`) | EMULATOR_COMPATIBILITY_BLOCKED: [default egress revoke gap](#emulator-fidelity-gap-default-egress-rule-revoke) |
+| network with interface endpoints (`network-full`) | EMULATOR_COMPATIBILITY_BLOCKED: [default egress revoke gap](#emulator-fidelity-gap-default-egress-rule-revoke). Since finding F21 the committed values hold nine interface endpoints, while the harness keeps its fixed list of the eight earlier services (unchanged). A dispatch of this scenario would stop at plan inspection (`plan-resource-inventory`) before any resource operation. The `elasticloadbalancing` endpoint is NOT_TESTED in the Emulator |
 | api | Formal PASS in runs 44765057461 (first formal run) and 44859280239. The user pool, domain, resource server, client, managed login branding, REST API and authorizer went through create, independent API checks, refresh, tag-only update, no-op, the teardown switch, destroy, absence and baseline checks. Cognito sign-in and REST API invocation are untested |
 | tfstate | EMULATOR_COMPATIBILITY_BLOCKED: the provider reads bucket tags through S3 Control, whose account-ID host prefix the emulator certificate cannot serve under strict TLS. In the local preliminary trial (PR #75), Terraform resource cleanup was FAIL. Discarding emulator memory at shutdown is not a successful Terraform destroy |
 | serverless-api | NOT_TESTED. The same S3 Control gap is expected but has not been run |

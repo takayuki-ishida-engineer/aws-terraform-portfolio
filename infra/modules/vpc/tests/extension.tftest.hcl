@@ -118,6 +118,26 @@ override_resource {
   override_during = plan
   values          = { "id" : "vpce-sts" }
 }
+override_resource {
+  target          = aws_vpc_endpoint.interface["ec2messages"]
+  override_during = plan
+  values          = { "id" : "vpce-ec2messages" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["elasticloadbalancing"]
+  override_during = plan
+  values          = { "id" : "vpce-elasticloadbalancing" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["ssm"]
+  override_during = plan
+  values          = { "id" : "vpce-ssm" }
+}
+override_resource {
+  target          = aws_vpc_endpoint.interface["ssmmessages"]
+  override_during = plan
+  values          = { "id" : "vpce-ssmmessages" }
+}
 
 run "per_az_isolated" {
   command = plan
@@ -1016,6 +1036,24 @@ run "interface_endpoints_two_azs" {
     error_message = "The selected mode and candidate interface version must be exposed."
   }
 }
+# Finding F21: the reviewed list includes elasticloadbalancing, so the AWS Load
+# Balancer Controller reaches ELB without leaving the VPC; the other eight stay.
+run "interface_endpoints_elbv2" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } } }
+    interface_endpoints = { "services" : ["ec2", "ec2messages", "ecr.api", "ecr.dkr", "elasticloadbalancing", "logs", "ssm", "ssmmessages", "sts"], "subnet_keys" : ["app-a"] }
+  }
+  assert {
+    condition     = length(output.endpoint_ids.interface) == 9 && output.endpoint_ids.interface["elasticloadbalancing"] == "vpce-elasticloadbalancing"
+    error_message = "All nine reviewed interface endpoints, including elasticloadbalancing, must be created."
+  }
+}
 run "interface_legacy_rejected" {
   command = plan
   variables {
@@ -1039,6 +1077,19 @@ run "interface_unknown_service" {
     expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
     private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } } }
     interface_endpoints = { "services" : ["s3"], "subnet_keys" : ["app-a"] }
+  }
+  expect_failures = [var.interface_endpoints]
+}
+run "interface_unreviewed_elb_variant" {
+  command = plan
+  variables {
+    name_prefix         = "test-network"
+    vpc_cidr            = "10.40.0.0/16"
+    private_subnets     = { "app-a" : { "cidr_block" : "10.40.1.0/24", "availability_zone" : "ca-central-1a" }, "app-b" : { "cidr_block" : "10.40.2.0/24", "availability_zone" : "ca-central-1b" } }
+    public_subnets      = { "public-a" : { "cidr_block" : "10.40.10.0/24", "availability_zone" : "ca-central-1a" }, "public-b" : { "cidr_block" : "10.40.11.0/24", "availability_zone" : "ca-central-1b" } }
+    expected_scope      = { "partition" : "aws", "region" : "ca-central-1", "account_id" : "000000000000" }
+    private_routing     = { "mode" : "per_az", "nat" : { "public_subnet_key_by_nat_az" : { "ca-central-1a" : "public-a" }, "nat_az_by_private_az" : { "ca-central-1a" : "ca-central-1a" } } }
+    interface_endpoints = { "services" : ["elasticloadbalancing", "elasticloadbalancingv2"], "subnet_keys" : ["app-a"] }
   }
   expect_failures = [var.interface_endpoints]
 }

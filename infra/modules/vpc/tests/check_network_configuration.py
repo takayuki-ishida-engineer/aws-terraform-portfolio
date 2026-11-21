@@ -17,6 +17,8 @@ REPO = HERE.parents[3]
 MODULE = HERE.parent
 ROOT = REPO / "infra/services/dev/ca-central-1/network"
 PROVIDER = "registry.terraform.io/hashicorp/aws"
+# Finding F21: the root plan from the committed terraform.tfvars alone.
+COMMITTED = "infra/services/dev/ca-central-1/network/tests/committed.tftest.hcl"
 ORIGINAL_SHA256 = "ba1eb4e7881f462b8cebe5c97d766b3fbbcc494d6015f46b5561e2174a35bbdd"  # Step 1 PR 2b: naming/tag rules only; F8: the legacy shared table is now aws_route_table.private[0] (address only, same assertions).
 
 
@@ -323,8 +325,25 @@ def verify_plan(plan, inputs, scope):
     return len(resources)
 
 
+def read_sources():
+    sources = {str(p.relative_to(REPO)): p.read_text() for folder in (MODULE, ROOT) for p in folder.glob("*.tf")}
+    sources[COMMITTED] = (REPO / COMMITTED).read_text()
+    return sources
+
+
+def committed_contract(text):
+    """The committed-values run takes every input from the committed tfvars (finding F21)."""
+    body = re.sub(r"(?m)#.*$", "", text)
+    require(len(re.findall(r'(?m)^mock_provider\s+"aws"\s*\{', body)) == 1 and not re.search(r'(?m)^\s*provider\s+"', body), "committed_mock_provider")
+    require(not re.search(r'(?m)^\s*variables\s*\{', body), "committed_test_sets_variables")
+    require(re.findall(r'(?m)^run\s+"([a-z_]+)"\s*\{', body) == ["dev_network_committed"]
+            and re.findall(r'(?m)^\s*command\s*=\s*(\w+)', body) == ["plan"], "committed_single_plan_run")
+    require("expect_failures" not in body, "committed_positive_only")
+
+
 def source_contract(sources=None):
-    sources = sources or {str(p.relative_to(REPO)): p.read_text() for folder in (MODULE, ROOT) for p in folder.glob("*.tf")}
+    sources = sources or read_sources()
+    committed_contract(sources[COMMITTED])
     def source(path):return re.sub(r"\s+", "", re.sub(r"(?m)#.*$", "", sources[path]))
     child = "infra/modules/vpc/"; root = "infra/services/dev/ca-central-1/network/"
     main=source(child+"main.tf");routing=source(child+"routing.tf");endpoint=source(child+"endpoints.tf")
@@ -373,7 +392,7 @@ def definitions(scope):
         positives = {("tests/extension.tftest.hcl",n):v for n,v in positives.items()} | {("tests/vpc.tftest.hcl",n):v for n,v in originals.items()}
         negatives = {("tests/extension.tftest.hcl",n):v for n,v in negatives.items()} | {("tests/vpc.tftest.hcl",n):v for n,v in manifest["original_negative"].items()}
     else:
-        positives = {("tests/network.tftest.hcl",n):v for n,v in positives.items()}
+        positives = {("tests/network.tftest.hcl",n):v for n,v in positives.items()} | {("tests/committed.tftest.hcl",n):v for n,v in manifest["root_committed"].items()}
         negatives = {("tests/network.tftest.hcl",n):v for n,v in negatives.items()}
         for inputs in positives.values():
             inputs["name_prefix"] = inputs["project"] + "-dev"
@@ -600,6 +619,32 @@ def self_test(events, scope, plans):
     row.update(address=prefix+address('aws_vpc_endpoint','interface','s3'),index='s3');row['change']['after']['id']='vpce-extra'
     p['resource_changes'].append(row)
     semantic.append(rejected(lambda p=p:verify_plan(p,iinputs,scope),'interface_unreviewed_service'))
+    if scope=='root':
+        # F21: every committed interface endpoint, the eight earlier ones and
+        # elasticloadbalancing, keeps its region, private DNS, subnet and group.
+        ckey=('tests/committed.tftest.hcl','dev_network_committed')
+        cplan=plans[ckey];cinputs=positives[ckey];services=sorted(cinputs['interface_endpoints']['services'])
+        require(len(services)==9 and 'elasticloadbalancing' in services,'committed_endpoint_fixture')
+        cpublic=next(r for r in cplan['resource_changes'] if r['address']==prefix+address('aws_subnet','public','public1'))['change']['after']['id']
+        def cmutate(addr,field,value):
+            p=copy.deepcopy(cplan);row=next(r for r in p['resource_changes'] if r['address']==prefix+addr);row['change']['after'][field]=value
+            return p
+        elb=address('aws_vpc_endpoint','interface','elasticloadbalancing')
+        elb_tags=next(r for r in cplan['resource_changes'] if r['address']==prefix+elb)['change']['after']['tags']
+        cases=[('committed_'+name+':'+svc,address('aws_vpc_endpoint','interface',svc),field,value) for svc in services for name,field,value in [
+            ('private_dns_off','private_dns_enabled',False),('wrong_region','service_name','com.amazonaws.us-east-1.'+svc),
+            ('public_subnet','subnet_ids',[cpublic]),('no_security_group','security_group_ids',[])]]
+        cases+=[('committed_elb_wrong_vpc',elb,'vpc_id','vpc-other'),
+            ('committed_elb_name_tag',elb,'tags',dict(elb_tags,Name=cinputs['project']+'-dev-vpce-elb')),
+            ('committed_elb_service_tag',elb,'tags',dict(elb_tags,service='elb')),
+            ('committed_endpoint_rule_world','aws_vpc_security_group_ingress_rule.endpoints_https[0]','cidr_ipv4','0.0.0.0/0')]
+        for name,addr,field,value in cases:
+            semantic.append(rejected(lambda p=cmutate(addr,field,value):verify_plan(p,cinputs,scope),name))
+        p=copy.deepcopy(cplan);p['resource_changes'].remove(next(r for r in p['resource_changes'] if r['address']==prefix+elb))
+        semantic.append(rejected(lambda:verify_plan(p,cinputs,scope),'committed_missing_elasticloadbalancing'))
+        # A committed tfvars change without a reviewed record update is drift.
+        drift=copy.deepcopy(cinputs);drift['interface_endpoints']['services'].remove('elasticloadbalancing')
+        semantic.append(rejected(lambda:verify_plan(cplan,drift,scope),'committed_record_drift'))
     if scope=='child':
         legacy_key=('tests/extension.tftest.hcl','legacy_private_unchanged')
         p=copy.deepcopy(plans[legacy_key])
@@ -627,11 +672,16 @@ def self_test(events, scope, plans):
     faults.append(rejected(lambda:verify_capture(events,scope,1),'terraform_nonzero'))
     for text in ['{broken','{"type":"test_plan","type":"test_summary"}','{"number":NaN}','{"number":Infinity}']:
         faults.append(rejected(lambda text=text:parse(text),'malformed_'+str(len(faults))))
-    sources={str(p.relative_to(REPO)):p.read_text() for folder in (MODULE,ROOT) for p in folder.glob('*.tf')}
+    sources=read_sources()
     source_mutations=[]
     replacements=[('infra/modules/vpc/routing.tf','aws_internet_gateway.this,',''),
         ('infra/modules/vpc/endpoints.tf','cidr_ipv4         = var.vpc_cidr','cidr_ipv4         = "0.0.0.0/0"'),
-        ('infra/modules/vpc/endpoints.tf','private_dns_enabled = true','private_dns_enabled = false'),('infra/modules/vpc/main.tf','depends_on = [aws_route.private_nat, aws_vpc_endpoint.gateway]','depends_on = []'),('infra/services/dev/ca-central-1/network/providers.tf','allowed_account_ids = [var.aws_account_id]','allowed_account_ids = []'),('infra/services/dev/ca-central-1/network/backend.tf','"local"','"s3"')]
+        ('infra/modules/vpc/endpoints.tf','private_dns_enabled = true','private_dns_enabled = false'),('infra/modules/vpc/main.tf','depends_on = [aws_route.private_nat, aws_vpc_endpoint.gateway]','depends_on = []'),('infra/services/dev/ca-central-1/network/providers.tf','allowed_account_ids = [var.aws_account_id]','allowed_account_ids = []'),('infra/services/dev/ca-central-1/network/backend.tf','"local"','"s3"'),
+        # F21: the committed-values run must not set inputs, apply or use a real provider.
+        (COMMITTED,'mock_provider "aws" {','variables {\n  interface_endpoints = null\n}\nmock_provider "aws" {'),
+        (COMMITTED,'command = plan','command = plan\n  variables {\n    interface_endpoints = null\n  }'),
+        (COMMITTED,'command = plan','command = apply'),
+        (COMMITTED,'mock_provider "aws" {','provider "aws" {')]
     for path, expression, replacement in [
         ('infra/modules/vpc/routing.tf', 'allocation_id', 'allocation_id = "eipalloc-a"'),
         ('infra/modules/vpc/routing.tf', 'nat_gateway_id', 'nat_gateway_id = "nat-a"'),

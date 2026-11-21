@@ -3,8 +3,9 @@
 Creates the private ECR repositories that the Kubernetes runtime pulls its images
 from, so node egress stays closed (finding F18, Step 1 item 6b-B1). The renderer
 already references `<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
-(item 6b-B2). The operator copies the pinned images in with the mirror script (B3,
-not delivered yet). Nothing here is created in AWS until an operator applies the root
+(item 6b-B2). The operator copies the pinned images in with the mirror script
+[`mirror_images.py`](../../../../../scripts/local-workflow/README.md#image-mirror-mirror_imagespy)
+(B3, code only, never run against AWS). Nothing here is created in AWS until an operator applies the root
 from a workstation, under the separately approved Live controls.
 
 ## Selected infrastructure

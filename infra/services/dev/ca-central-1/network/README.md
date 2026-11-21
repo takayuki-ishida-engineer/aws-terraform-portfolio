@@ -25,7 +25,7 @@ untracked once copied) and run `run.py <root> migrate-state`.
 | Public subnets | `public1` `10.40.10.0/24` (a), `public2` `10.40.11.0/24` (b) |
 | NAT | One NAT gateway in `ca-central-1a` (`public1`) serving the active AZ |
 | S3 gateway endpoint | Not enabled (`gateway_endpoints` omitted; Module Default). ECR image layers use presigned S3 URLs that the module's mandatory role-ARN endpoint policy would deny, so nodes reach S3 through the NAT gateway |
-| Interface endpoints | `ec2`, `ecr.api`, `ecr.dkr`, `logs`, `sts` for EKS nodes (finding F16) and `ssm`, `ssmmessages`, `ec2messages` for Session Manager on the developer access host (item 5), in `private1` (active AZ only), private DNS, AWS default endpoint policy, security group `<project>-dev-sg-vpce` allowing only TCP 443 from `10.40.0.0/16`; billed per endpoint-hour plus per GB |
+| Interface endpoints | `ec2`, `ecr.api`, `ecr.dkr`, `logs`, `sts` for EKS nodes (finding F16), `elasticloadbalancing` for the AWS Load Balancer Controller (finding F21) and `ssm`, `ssmmessages`, `ec2messages` for Session Manager on the developer access host (item 5): nine endpoints in `private1` (active AZ only), private DNS, AWS default endpoint policy, security group `<project>-dev-sg-vpce` allowing only TCP 443 from `10.40.0.0/16`; billed per endpoint-hour plus per GB |
 | Shared private route table | Not created in `per_az` routing (finding F8) |
 
 ## Ownership and configuration
@@ -48,13 +48,14 @@ OPEN and unimplemented.
 | active_workload_az | string, required | One configured private ca-central-1 AZ; real enabled AZ/quota support must be verified externally |
 | nat | object({public_subnet_key_by_nat_az=map(string), nat_az_by_private_az=map(string)}), required | Exactly one NAT in the active workload AZ and an explicit same-AZ route for it; every additional cross-AZ consumer is visible in the map |
 | gateway_endpoints | Child S3 map/object contract, default {} | Only actual reviewed S3 traffic, selected private AZ tables and explicit read-only endpoint policy; no enabled endpoint by default |
+| interface_endpoints | object({services=set(string), subnet_keys=set(string)}), default null | Forwarded to the child, which allows only `ec2`, `ec2messages`, `ecr.api`, `ecr.dkr`, `elasticloadbalancing`, `logs`, `ssm`, `ssmmessages` and `sts`, existing private subnet keys and at most one subnet per AZ, in per_az routing only |
 | tags | map(string), default {} | Optional extra tags; must not set `project`, `env`, `service`, `managed` or `Name`, which provider `default_tags` and the child own |
 
 | Effective configuration source | Values |
 | --- | --- |
-| Root Override | per_az mode; `name_prefix = <project>-dev`; required account/subnet/AZ/NAT inputs; expected_scope aws/ca-central-1/required account; provider `default_tags` project=`<project>`, env=dev, managed=terraform; child `tags` = caller extra tags only |
+| Root Override | per_az mode; `name_prefix = <project>-dev`; required account/subnet/AZ/NAT inputs; committed `interface_endpoints` with the nine reviewed services in `private1` (child default `null`); expected_scope aws/ca-central-1/required account; provider `default_tags` project=`<project>`, env=dev, managed=terraform; child `tags` = caller extra tags only |
 | Module Default | No S3 endpoint when gateway_endpoints is omitted; caller tags empty |
-| Module Fixed | DNS support/hostnames true, IPv6/automatic public IPs false; retained legacy empty table, per-AZ selected tables, zonal/public NAT, explicit NAT-only private defaults and IGW public default |
+| Module Fixed | DNS support/hostnames true, IPv6/automatic public IPs false; interface endpoints with private DNS, the AWS default endpoint policy and the `<project>-dev-sg-vpce` group allowing only TCP 443 from the VPC CIDR; no shared private table in per_az routing (finding F8), per-AZ selected tables, zonal/public NAT, explicit NAT-only private defaults and IGW public default |
 | Root Fixed | Local backend, Terraform ~>1.17.0, AWS ~>6.72.0, lock selects 6.72.0; no provider credential or assume-role configuration |
 
 Input values follow the [deployment configuration](../../../../../docs/deployment-configuration.md#1-where-values-live):
@@ -86,26 +87,30 @@ Future STG/PROD roots must enforce same-AZ NAT per active workload AZ and suffic
 surviving capacity; the child intentionally does not infer environment policy.
 
 With n private subnets, m public subnets, a distinct private AZs, r explicitly
-mapped private AZs and e selected S3 endpoint (0/1), this root has
-**6+2(n+m)+a+r+e** managed resources:
+mapped private AZs, e selected S3 endpoint (0/1) and i interface endpoints, this root
+has **5+2(n+m)+a+r+e** managed resources, plus **2+i** when interface endpoints are
+selected:
 
 | Child address template (module.network prefix) | Count / ownership |
 | --- | --- |
 | aws_vpc.this | 1 |
 | aws_subnet.private[key] / aws_subnet.public[key] | n / m |
 | aws_internet_gateway.this[0] | 1 |
-| aws_route_table.private | 1 retained compatibility table, unused by per-AZ subnets |
+| aws_route_table.private[0] | 0 in per_az routing (finding F8) |
 | aws_route_table.public[0] | 1, inline IGW IPv4 default |
 | aws_route_table_association.private[key] / public[key] | n / m; actual selected subnet/table IDs |
 | aws_route_table.private_by_az[AZ] | a; no inline route owner |
 | aws_eip.nat[active AZ] / aws_nat_gateway.this[active AZ] | 1 each; actual allocation/subnet references; fixed zonal/public |
 | aws_route.private_nat[private AZ] | r; actual NAT target, explicit IPv4 default |
 | aws_vpc_endpoint.gateway["s3"] | e; exclusive explicit table associations and reviewed policy |
+| aws_security_group.endpoints[0] / aws_vpc_security_group_ingress_rule.endpoints_https[0] | 1 each when interface endpoints are selected; TCP 443 from the VPC CIDR only |
+| aws_vpc_endpoint.interface[service] | i; selected private subnets, the endpoint group, private DNS, AWS default policy |
 
-Mock fixtures observe 17 resources for the two-private/two-public-AZ foundation,
-18 with an explicit second-AZ shared NAT route, and 18 with the selected S3 endpoint.
-These are fixture inventories, not fixed deployed sizing. No interface endpoints,
-security groups, custom NACL, NetworkPolicy, NLB, EKS or application resources exist
+Mock fixtures observe 16 resources for the two-private/two-public-AZ foundation,
+17 with an explicit second-AZ shared NAT route, 17 with the selected S3 endpoint,
+and 27 with the committed values (the foundation plus the endpoint group, its rule
+and nine interface endpoints, finding F21). These are fixture inventories, not
+fixed deployed sizing. Apart from the endpoint group, no security groups, custom NACL, NetworkPolicy, NLB, EKS or application resources exist
 in this root. Workload isolation and real reachability need separately approved
 controls/evidence. EKS control-plane subnets still need AWS multi-AZ/IP requirements
 before any future platform work, regardless of the single active DEV worker AZ.
@@ -137,13 +142,18 @@ commit them or use a shared state writer.
 ## Offline checks and future operational boundary
 
 After init with the committed readonly lock, run fmt/validate and the native suite:
-10 passes (four complete positive integration plans, six intentional input
-rejections), plus seven independently failed missing-required-input processes and seven
+15 passes (six complete positive integration plans, including
+`tests/committed.tftest.hcl`, which plans the committed `terraform.tfvars` without
+setting any variable, and nine intentional input rejections), plus seven independently failed missing-required-input processes and seven
 Root-to-child security-input rejection processes (NAT AZ/Region, broad S3 actions,
 unconditioned wildcard, old Principal object, foreign role and IfExists condition).
 The shared [actual-plan checker](../../../../modules/vpc/tests/check_network_configuration.py)
 verifies complete resources, bindings, policy, outputs and fixed security settings;
-34 semantic mutations, 22 capture faults and eight source/reference/account/backend mutations
+84 semantic mutations (42 of them on the committed plan: private DNS, region,
+subnet and security group for each of the nine interface endpoints, the endpoint
+rule source, and the `elasticloadbalancing` endpoint's VPC, tags, presence and
+record drift), 22 capture
+faults and 14 source/reference/account/backend and committed-test mutations
 must be detected. Independent policy-structure validation also detects 33 cases
 where plan and fixture contain the same invalid policy. The fourth positive case substitutes distinct computed IDs to
 verify real resource/output references. Required-input failures and partial rejected plans are not

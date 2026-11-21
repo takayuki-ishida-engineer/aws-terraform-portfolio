@@ -173,9 +173,9 @@ variable "interface_endpoints" {
   validation {
     condition = var.interface_endpoints == null || try(
       length(var.interface_endpoints.services) > 0 && length(var.interface_endpoints.subnet_keys) > 0 &&
-      length(setsubtract(var.interface_endpoints.services, ["ec2", "ecr.api", "ecr.dkr", "logs", "sts", "ssm", "ssmmessages", "ec2messages"])) == 0,
+      length(setsubtract(var.interface_endpoints.services, ["ec2", "ecr.api", "ecr.dkr", "elasticloadbalancing", "logs", "sts", "ssm", "ssmmessages", "ec2messages"])) == 0,
       false
     )
-    error_message = "interface_endpoints needs at least one subnet key and at least one reviewed service: ec2, ecr.api, ecr.dkr, logs, sts, ssm, ssmmessages or ec2messages."
+    error_message = "interface_endpoints needs at least one subnet key and at least one reviewed service: ec2, ecr.api, ecr.dkr, elasticloadbalancing, logs, sts, ssm, ssmmessages or ec2messages."
   }
 }

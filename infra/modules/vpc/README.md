@@ -123,7 +123,7 @@ The [V1 decision](../../../docs/vpc-extension-decision.md) remains design proven
 | private_routing | object({mode=optional(string,"legacy_shared"), nat=optional(object({public_subnet_key_by_nat_az=map(string), nat_az_by_private_az=map(string)}))}); default {} | Mode legacy_shared/per_az. null NAT means no EIP/NAT/default, including per-AZ isolated mode. Non-null maps must both be nonempty |
 | expected_scope | nullable object({partition=string, region=string, account_id=string}); default null | Required for per-AZ. Initial extension catalog is aws/ca-central-1; actual VPC ARN/ID must match. Legacy defaults gain no account/Region constraint |
 | gateway_endpoints | map(object({private_route_table_azs=set(string), policy_json=string})); default {} | Only explicitly requested s3 is implemented; nonempty existing private AZ selection and reviewed scoped read-only policy |
-| interface_endpoints | object({services=set(string), subnet_keys=set(string)}); default null | per_az only; reviewed services ec2, ecr.api, ecr.dkr, logs, sts, ssm, ssmmessages, ec2messages; existing private subnet keys, at most one per AZ; private DNS; AWS default endpoint policy; VPC-CIDR-only HTTPS security group |
+| interface_endpoints | object({services=set(string), subnet_keys=set(string)}); default null | per_az only; reviewed services ec2, ecr.api, ecr.dkr, elasticloadbalancing, logs, sts, ssm, ssmmessages, ec2messages; existing private subnet keys, at most one per AZ; private DNS; AWS default endpoint policy; VPC-CIDR-only HTTPS security group |
 
 NAT keys are real caller-supplied AZ names, not ordinal indexes. Every NAT AZ must
 have an actual private AZ and a distinct same-AZ public subnet key. A private AZ
@@ -169,14 +169,21 @@ Omitted inline routes also do not audit arbitrary out-of-band route drift.
 
 `interface_endpoints = { services, subnet_keys }` (default `null`, per_az only)
 creates one `aws_vpc_endpoint.interface[<service>]` per reviewed service (`ec2`,
-`ecr.api`, `ecr.dkr`, `logs`, `sts`, `ssm`, `ssmmessages`, `ec2messages`) in the
-selected private subnets, with private DNS so AWS SDKs reach the endpoint without
+`ecr.api`, `ecr.dkr`, `elasticloadbalancing`, `logs`, `sts`, `ssm`, `ssmmessages`,
+`ec2messages`) in the selected private subnets, with private DNS so AWS SDKs reach the endpoint without
 configuration changes. Validation rejects other services and empty lists; a
 precondition rejects unknown subnet keys, more than one subnet per Availability
 Zone and legacy routing. The endpoint policy is the AWS default (IAM still
 authorizes every call): a principal condition would break STS web-identity calls
 for IRSA. Each endpoint is billed per hour per Availability Zone plus per GB, so
 DEV places them in the active workload AZ only.
+
+`elasticloadbalancing` (finding F21) is the Elastic Load Balancing API endpoint
+for the AWS Load Balancer Controller, whose pods run on nodes with egress limited
+to the VPC CIDR. It reuses the same security group, private DNS and default policy
+as the other services. The module only creates the endpoint: a plan or Terraform
+test is not proof that the controller's ELB API calls succeed, and the Emulator
+rehearsal does not exercise this endpoint.
 
 The S3 gateway endpoint is not used for ECR image layers: ECR serves them through
 presigned S3 URLs signed by ECR, which the mandatory `aws:PrincipalArn` role
@@ -258,10 +265,11 @@ actual mixed update/destroy ordering externally; no atomic rollback is promised.
 ## Offline verification and operational limits
 
 `tests/vpc.tftest.hcl` keeps all original 16 cases (address-only F8 change).
-`extension.tftest.hcl` adds 66 cases: 14 positive configurations and 52 intended
+`extension.tftest.hcl` adds 68 cases: 15 positive configurations and 53 intended
 rejections, including interface endpoints (active AZ with the S3 gateway, two AZs,
-legacy, unknown service, empty or unknown subnets, two subnets in one AZ). Together:
-82 native passes, 17 complete positive plans and 65 rejected partial plans.
+all nine reviewed services, legacy, unknown service, an unreviewed ELB service
+name, empty or unknown subnets, two subnets in one AZ). Together: 84 native passes,
+18 complete positive plans and 66 rejected partial plans.
 `tests/check_network_configuration.py` checks actual generated resource identities,
 exact inventories, known critical route/subnet/NAT/endpoint bindings, output
 contracts, policy fields and private IP/DNS defaults. Repeated provider schemas
@@ -271,7 +279,8 @@ configured alternate targets and unknown critical IDs/route targets are rejected
 
 The checker rejects 45 actual-plan semantic mutations (including a shared table in
 per-AZ mode and eight interface endpoint and endpoint-rule faults), 22 capture
-faults and ten source reference/dependency/account/backend mutations. An independent Python policy
+faults and 14 source reference/dependency/account/backend mutations (four of them
+on the DEV root's committed-values test, finding F21). An independent Python policy
 validator also rejects 33 matched-invalid-policy mutations per scope: both the
 actual plan and input are deliberately poisoned identically, so equality cannot
 mask an AWS-invalid or overbroad policy. Rejected-input plans must have their
@@ -392,7 +401,7 @@ tests or proof of runtime readiness.
 
 ## Limitations and future integration
 
-- No interface/DynamoDB endpoints, Flow Logs, IPv6, Transit Gateway,
+- No DynamoDB endpoints, interface endpoints outside the reviewed list, Flow Logs, IPv6, Transit Gateway,
   peering, cross-region networking, Route 53 private hosted zone, VPN, Direct
   Connect, Network Firewall, Security Group, custom Network ACL, or remote backend
   resources are implemented.
