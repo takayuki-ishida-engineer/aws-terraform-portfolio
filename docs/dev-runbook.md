@@ -16,7 +16,7 @@ verified teardown within 72 hours all apply.
 
 | Item | Requirement |
 | --- | --- |
-| Tools | Terraform 1.17.x, AWS CLI v2 with the Session Manager plugin, kubectl, Python 3.11 or later, Git, OpenSSL 3 (Kubernetes certificates, §6) |
+| Tools | Terraform 1.17.x, AWS CLI v2 with the Session Manager plugin, kubectl, Python 3.11 or later, Git, OpenSSL 3 (Kubernetes certificates, §6), skopeo (image mirror, §6) |
 | Account | The dedicated DEV workload account; budget alarms in place |
 | Operator identity (F6) | Your own AWS CLI profile (`AWS_PROFILE`), never long-lived keys in files. It needs permissions to create and delete everything below. Includes `iam:PassRole` for the EKS cluster, node and Lambda roles and the developer access instance profile. A least-privilege operator role is deferred to Step 3 (finding F10) |
 | EKS bootstrap admin role (F6) | An existing IAM role you can assume for kubectl; its ARN goes into the platform root's `bootstrap_admin_role_arn` |
@@ -123,19 +123,39 @@ python3 scripts/local-workflow/run.py api apply
 
 ## 6. Kubernetes runtime
 
-This part is still not deployable. The nodes cannot pull the Istio and AWS Load
-Balancer Controller images from public registries while node egress stays closed
-(finding F18, open). Do not open node egress to the internet to work around it.
-The rendered runtime already references the private ECR mirror
+This part has never been deployed or tested. The nodes cannot pull the Istio and AWS
+Load Balancer Controller images from public registries while node egress stays
+closed (finding F18, in progress). Do not open node egress to the internet to work
+around it. The rendered runtime references the private ECR mirror instead:
 `<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
-(item 6b-B2). The `registry` root (item 6b-B1) creates one private repository per
-purpose in `kubernetes/images.lock.json`: immutable tags, AES-256, no repository or
-lifecycle policy. The script that copies the pinned images into them (B3) is not
-delivered yet, so applying the root gives empty repositories:
+(item 6b-B2).
+
+The `registry` root (item 6b-B1) creates one private repository per purpose in
+`kubernetes/images.lock.json`: immutable tags, AES-256, no repository or lifecycle
+policy. Apply it:
 
 ```bash
 python3 scripts/local-workflow/run.py registry apply
 ```
+
+Then copy the pinned images into the repositories with `mirror_images.py` (item
+6b-B3). It is code only: it has never been run against AWS, a registry or real
+images. The default command is an offline plan:
+
+```bash
+python3 scripts/local-workflow/mirror_images.py
+```
+
+```bash
+python3 scripts/local-workflow/mirror_images.py mirror --project <project> --account-id <account ID>
+```
+
+`mirror` needs skopeo. It checks the lock, the registry root, the caller account,
+the repositories and each upstream tag before it copies, and verifies every index
+digest, platform and child manifest afterwards. It never creates or deletes a
+repository or an image. See the
+[script description](../scripts/local-workflow/README.md#image-mirror-mirror_imagespy)
+for the checks, re-runs and recovery.
 
 What is ready (Step 1 item 6b-A):
 - **Object names (F11).** Every object the project creates is named
