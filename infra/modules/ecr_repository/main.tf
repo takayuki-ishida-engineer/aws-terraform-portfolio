@@ -23,8 +23,10 @@ resource "aws_ecr_repository" "this" {
     encryption_type = "AES256"
   }
 
-  # Scanning stays off: its cost is not stated in the official documentation, and
-  # the images are pinned by upstream digest (residual risk in the README).
+  # Repository-level scan on push only. It does not decide the effective scanning:
+  # the account's registry-level scanning configuration (basic, or enhanced with
+  # Amazon Inspector, which may charge) is outside this module and unverified
+  # (README, Image scanning).
   image_scanning_configuration {
     scan_on_push = false
   }

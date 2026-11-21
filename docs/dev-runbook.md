@@ -256,7 +256,7 @@ Billing console for running costs.
 | Managed node group (`m6i.large`) | Hourly, plus its EBS volume |
 | NAT gateway | Hourly plus per GB processed |
 | Interface endpoints | 8 in one AZ, each hourly plus per GB |
-| ECR private repositories (`registry` root) | Storage per GB-month of the mirrored images; no charge for the empty repositories. The image sizes and the ca-central-1 price are not yet verified |
+| ECR private repositories (`registry` root) | Storage per GB-month of the mirrored images. If the account's registry-level enhanced scanning is on, Amazon Inspector may also charge for scanning them. The image sizes, the ca-central-1 price and the effective scanning configuration are not yet verified |
 | Developer access host | `t3.micro`, hourly |
 | NLB | Hourly plus capacity units |
 

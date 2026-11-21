@@ -33,11 +33,31 @@ Deliberately absent:
 | `image_tag_mutability` | `IMMUTABLE`, no exclusion filter: a tag can never point to another image | Module Fixed |
 | Encryption | `AES256` (Amazon ECR managed); no customer managed KMS key | Module Fixed |
 | `force_delete` | `false`: Terraform will not delete a repository that still holds images | Module Default `false`; the root's teardown switch may set `true` |
-| Image scanning | `scan_on_push = false`. The official documentation does not state the cost of scanning, and the images are pinned by upstream digest. Scanning stays a separate decision | Module Fixed |
+| Repository-level scan on push | `scan_on_push = false`. It does not guarantee that no image is scanned or that scanning is free; see [Image scanning](#image-scanning) | Module Fixed (repository setting only) |
+| Registry-level scanning | Not managed or read; the account's existing configuration applies | Outside this module (NOT_TESTED) |
 | Account and Region guard | Postcondition: the repository's Region, registry ID, ARN and URL must match `expected_scope` | Module Fixed |
 | Tags | Caller `tags` plus module-owned `Name = <repository name>` and `service = ecr` | Module Default `{}` for `tags`; `Name`/`service` Module Fixed |
 
 The root's provider `default_tags` add `project`, `env` and `managed`.
+
+## Image scanning
+
+- **Repository setting only.** `scan_on_push = false` is the only scanning setting
+  here. It does not guarantee that scanning is off in real AWS, or that no scanning
+  charge arises.
+- **Registry-wide configuration.** Amazon ECR configures scanning per registry, which
+  means per account and Region. The configuration selects basic or enhanced scanning,
+  with scan rules and repository filters.
+  - Enhanced scanning uses Amazon Inspector and may add Inspector charges.
+  - Where a registry-level configuration applies, the repository setting may not be
+    the one that takes effect.
+- **Not managed here.** This module neither manages nor reads the registry scanning
+  configuration (`aws_ecr_registry_scanning_configuration`), and its offline checks
+  reject any resource other than the repositories.
+- **Separate decision.** Whether to use basic scanning, and any change to the
+  registry-wide setting, is a separate security decision.
+- **NOT_TESTED.** The registry's effective scanning configuration and the Amazon
+  Inspector billing conditions, to confirm in a future Live verification.
 
 ## Inputs and validation
 
@@ -67,7 +87,7 @@ The root's provider `default_tags` add `project`, `env` and `managed`.
 and values. With `--self-test` it requires 23 semantic mutations and 12 capture
 failures to be rejected. The mutations include:
 - mutable tags or an exclusion filter, forced deletion by default, KMS encryption,
-  scanning;
+  scan on push;
 - another name, account or Region, or a public URL;
 - an extra repository, a repository or registry policy, a lifecycle policy or a pull
   through cache rule.

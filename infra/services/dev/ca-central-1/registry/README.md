@@ -13,7 +13,8 @@ from a workstation, under the separately approved Live controls.
 | --- | --- | --- |
 | Module | [`ecr_repository`](../../../../modules/ecr_repository/README.md) | Root selection |
 | Repositories | One per purpose in [`kubernetes/images.lock.json`](../../../../../kubernetes/images.lock.json), the only image inventory: `<project>-dev-ecr-istio-pilot`, `<project>-dev-ecr-istio-proxy`, `<project>-dev-ecr-lbc` | Root Override (`purposes`, read from the lock) |
-| Private visibility, `IMMUTABLE` tags, `AES256`, no scanning, no repository or lifecycle policy | Fixed protections | Module Fixed |
+| Private visibility, `IMMUTABLE` tags, `AES256`, repository-level `scan_on_push = false`, no repository or lifecycle policy | Fixed protections | Module Fixed |
+| Registry-level scanning (basic, or enhanced with Amazon Inspector) | Not managed or read. The account's existing configuration applies and may scan the images and charge for it. Changing it is a separate security decision; see the [module README](../../../../modules/ecr_repository/README.md#image-scanning) | Outside this root (NOT_TESTED) |
 | `force_delete` | `false`; `true` only through the teardown switch | Root Override (`force_delete`, default `false`) of the Module Default `false` |
 | Account and Region guard | `allowed_account_ids = [aws_account_id]`, Region `ca-central-1`, and the module's postcondition on each repository's Region, registry ID, ARN and URL | Root Fixed, Module Fixed |
 | Image lock contract | Output precondition: lock version 1, registry `ca-central-1`, repository `${project}-dev-ecr-${purpose}`, digest references, each purpose once | Root Fixed |
@@ -77,6 +78,10 @@ an extra or missing purpose or a tag-based contract, and a leaking output. Full 
 also mock-plans the committed values, checks the preflight and the backend examples,
 and runs all of these. No AWS API is called.
 
-Not tested: creating the repositories in real AWS, the pull through the ECR endpoints
-and S3 over NAT, and the emulator lifecycle. This root is outside the Step 2
-rehearsal's `all`.
+Not tested:
+- creating the repositories in real AWS;
+- the pull through the ECR endpoints and S3 over NAT;
+- the registry's effective scanning configuration and the Amazon Inspector billing
+  conditions (future Live verification);
+- the emulator lifecycle. This root is outside the Step 2 rehearsal's `all`, and no
+  emulator evidence covers it: its lifecycle is NOT_TESTED, never PASS.
