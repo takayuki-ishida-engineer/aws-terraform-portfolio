@@ -1,0 +1,9 @@
+# Optional DEV S3 backend (docs/deployment-configuration.md section 3).
+# Copy to backend_override.tf (untracked) together with backend.s3.tfbackend,
+# then move this root's State with the local workflow:
+#   python3 scripts/local-workflow/run.py <root> migrate-state
+# Terraform replaces the tracked local backend with this one. Keep the block
+# empty: every setting belongs in the untracked backend.s3.tfbackend.
+terraform {
+  backend "s3" {}
+}

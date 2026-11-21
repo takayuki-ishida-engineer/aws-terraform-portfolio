@@ -42,7 +42,7 @@ python3 scripts/local-workflow/run.py network apply
 ```
 
 Apply in the order `tfstate` (only for the optional S3 backend), `network`,
-`platform`, `developer-access`, then `serverless-api` and `api`; destroy in the
+`registry`, `platform`, `developer-access`, then `serverless-api` and `api`; destroy in the
 reverse order. The [DEV runbook](../../docs/dev-runbook.md) gives the complete
 sequence, including `run.py serverless-api publish-artifact`, the hand-off, the
 EKS tunnel and the teardown switches. The platform and developer-access roots need the network output in their
@@ -65,6 +65,7 @@ Offline (no AWS call):
   | api | `project`, `aws_account_id`, `callback_urls`, `logout_urls`, `default_redirect_uri` |
   | tfstate | `project`, `aws_account_id` |
   | developer-access | `project`, `aws_account_id`, `network_reference` |
+  | registry | `project`, `aws_account_id` |
 
 - No effective value of those inputs is a documented placeholder, an unedited
   example value or the Emulator's synthetic account `000000000000`, and every

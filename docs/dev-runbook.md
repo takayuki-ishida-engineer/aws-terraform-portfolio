@@ -128,8 +128,14 @@ Balancer Controller images from public registries while node egress stays closed
 (finding F18, open). Do not open node egress to the internet to work around it.
 The rendered runtime already references the private ECR mirror
 `<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
-(item 6b-B2), but the registry root that creates those repositories and the script
-that copies the pinned images into them are not delivered yet.
+(item 6b-B2). The `registry` root (item 6b-B1) creates one private repository per
+purpose in `kubernetes/images.lock.json`: immutable tags, AES-256, no repository or
+lifecycle policy. The script that copies the pinned images into them (B3) is not
+delivered yet, so applying the root gives empty repositories:
+
+```bash
+python3 scripts/local-workflow/run.py registry apply
+```
 
 What is ready (Step 1 item 6b-A):
 - **Object names (F11).** Every object the project creates is named
@@ -210,13 +216,19 @@ NLB blocks `terraform destroy` (finding F19).
    The Kubernetes Secrets go with the cluster. If you generated certificate material
    (§6), delete its directory as well, for example `~/.config/<project>-dev-k8s-certs`.
 
-5. **Network.**
+5. **Registry**, if applied. A repository that still holds images is not deleted
+   unless the teardown switch is set: put `force_delete = true` in
+   `registry/local.auto.tfvars`, run `run.py registry apply`, then
+   `run.py registry destroy`. This switch is the only approved way to delete the
+   mirrored images.
+
+6. **Network.**
 
    ```bash
    python3 scripts/local-workflow/run.py network destroy
    ```
 
-6. **State bucket**, if used. Move every root back to local State first: delete
+7. **State bucket**, if used. Move every root back to local State first: delete
    both override files and run `terraform -chdir=<root> init -migrate-state`. Then:
 
    ```bash
@@ -244,6 +256,7 @@ Billing console for running costs.
 | Managed node group (`m6i.large`) | Hourly, plus its EBS volume |
 | NAT gateway | Hourly plus per GB processed |
 | Interface endpoints | 8 in one AZ, each hourly plus per GB |
+| ECR private repositories (`registry` root) | Storage per GB-month of the mirrored images; no charge for the empty repositories. The image sizes and the ca-central-1 price are not yet verified |
 | Developer access host | `t3.micro`, hourly |
 | NLB | Hourly plus capacity units |
 

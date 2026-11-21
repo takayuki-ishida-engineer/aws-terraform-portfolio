@@ -1,0 +1,10 @@
+# Copy to backend.s3.tfbackend (untracked) and replace "project" with your project.
+# The values come from the tfstate root output:
+#   terraform -chdir=../tfstate output -json backend_settings
+# Never put credentials, a profile or a role ARN here; Terraform uses your own AWS
+# CLI session. The local workflow accepts exactly these five settings.
+bucket       = "project-dev-s3-tfstate"
+key          = "project/dev/ca-central-1/registry/terraform.tfstate"
+region       = "ca-central-1"
+use_lockfile = true
+encrypt      = true

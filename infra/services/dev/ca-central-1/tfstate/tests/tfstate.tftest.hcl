@@ -35,6 +35,7 @@ run "bootstrap_state_bucket" {
         "serverless-api"   = "test/dev/ca-central-1/serverless-api/terraform.tfstate"
         api                = "test/dev/ca-central-1/api/terraform.tfstate"
         "developer-access" = "test/dev/ca-central-1/developer-access/terraform.tfstate"
+        registry           = "test/dev/ca-central-1/registry/terraform.tfstate"
       }
     }
     error_message = "backend_settings must give the bucket, Region, native locking, encryption and one <project>/dev/ca-central-1/<root>/terraform.tfstate key per root."
