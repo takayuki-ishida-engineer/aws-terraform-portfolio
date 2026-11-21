@@ -47,11 +47,12 @@ ENVIRONMENT_INPUTS = {
     "api": ("project", "aws_account_id", "callback_urls", "logout_urls", "default_redirect_uri"),
     "tfstate": ("project", "aws_account_id"),
     "developer-access": ("project", "aws_account_id", "network_reference"),
+    "registry": ("project", "aws_account_id"),
 }
 BACKEND_OVERRIDE = "backend_override.tf"
 BACKEND_CONFIG = "backend.s3.tfbackend"
 # Roots that may use the optional S3 backend; the tfstate bootstrap root may not.
-BACKEND_ROOTS = ("network", "platform", "serverless-api", "api", "developer-access")
+BACKEND_ROOTS = ("network", "platform", "serverless-api", "api", "developer-access", "registry")
 BACKEND_SETTINGS = ("bucket", "key", "region", "use_lockfile", "encrypt")
 EMPTY_S3_BACKEND = 'terraform{backend"s3"{}}'
 # Signals that the process runs in automation or an agent cloud session, where

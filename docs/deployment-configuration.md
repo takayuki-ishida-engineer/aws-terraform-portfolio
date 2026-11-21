@@ -76,8 +76,8 @@ It checks paths only, never file contents, and makes no AWS call.
 - The [local workflow](../scripts/local-workflow/README.md) runs `init`, the offline
   and live preflight, a saved plan, a typed confirmation and the apply of exactly
   that plan, for one root at a time. Apply `tfstate` (only for the optional S3
-  backend), `network`, `platform`, `developer-access`, then `serverless-api` and
-  `api`; destroy in the reverse order. The live preflight makes
+  backend), `network`, `registry`, `platform`, `developer-access`, then
+  `serverless-api` and `api`; destroy in the reverse order. The live preflight makes
   only read-only calls (caller account, State bucket versioning and public access
   block, EKS add-on catalog, node AMI parameter) and is refused in CI, in Claude
   Code or Codex cloud sessions and with the cloud session's placeholder credentials.
@@ -150,6 +150,7 @@ several resource types uses the type. New tokens follow the same principle.
 | --- | --- |
 | Network | `vpc` VPC, `subnet` subnet, `rtb` route table, `igw` internet gateway, `nat` NAT gateway, `eip` Elastic IP, `vpce` VPC endpoint, `sg` security group |
 | Compute | `ec2` instance, `lt` launch template, `eks` EKS cluster, `ng` EKS node group, `lambda` function |
+| Containers | `ecr` ECR private repository |
 | IAM | `role` role, `policy` managed or inline policy, `profile` instance profile, `oidc` OIDC identity provider |
 | Load balancing and API | `nlb` Network Load Balancer, `alb` Application Load Balancer, `tg` target group, `apigw` API Gateway API |
 | Identity | `cognito` user pool, `client` app client, `auth` Cognito domain prefix |
@@ -206,6 +207,7 @@ they are, for example `private`, `public`, `node`, `cluster`, `artifact`, `basti
 | API Gateway APIs | `project-dev-apigw-http`, `project-dev-apigw-rest` |
 | Cognito | user pool `project-dev-cognito`, app client `project-dev-client`, domain `project-dev-auth` |
 | S3 buckets | `project-dev-s3-artifact`, `project-dev-s3-tfstate` |
+| ECR repositories (one per purpose in `kubernetes/images.lock.json`) | `project-dev-ecr-istio-pilot`, `project-dev-ecr-istio-proxy`, `project-dev-ecr-lbc` |
 | VPC endpoints and their security group | `project-dev-vpce-ecr-api`, `project-dev-vpce-sts`, `project-dev-sg-vpce` |
 | Developer access host | `project-dev-ec2-bastion`, `project-dev-role-bastion`, `project-dev-profile-bastion`, `project-dev-sg-bastion` |
 | Secret | `/project/dev/secret/app` |
@@ -330,8 +332,9 @@ approval. The Owner may reorder them.
    certificates, image source, object names) follows. 6b-A delivered the
    certificates (`k8s_certs.py`, finding F4) and the `<project>-<purpose>` object
    names (F11). The image source (F18) stays open: 6b-B2 pinned the images to a
-   private ECR mirror by digest; the registry root (B1) and the mirror script (B3)
-   follow.
+   private ECR mirror by digest; 6b-B1 added the `registry` root and the
+   `ecr_repository` module (code only, nothing created in AWS); the mirror script
+   (B3) follows.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

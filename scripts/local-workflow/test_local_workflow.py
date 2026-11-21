@@ -449,6 +449,20 @@ class RunTests(unittest.TestCase):
             self.assertEqual((code, steps, workspace.calls()), (1, [], []))
             self.assertTrue(messages[0].startswith("Refused (live_refused_"))
 
+    def test_every_root_is_refused_in_ci_and_cloud_before_any_tool(self):
+        self.assertIn("registry", preflight.ENVIRONMENT_INPUTS)
+        for root_name in sorted(preflight.ENVIRONMENT_INPUTS):
+            for extra, code_name in (({"GITHUB_ACTIONS": "true"}, "live_refused_in_ci"),
+                                     ({"CLAUDE_CODE_REMOTE": "true"}, "live_refused_in_cloud_session")):
+                workspace = Workspace(root_name=root_name)
+                self.addCleanup(workspace.close)
+                messages = []
+                code = run.run(root_name, "apply", workspace.terraform, workspace.aws, services=workspace.services,
+                               env=dict(workspace.env, **extra), confirm=lambda _prompt, name=root_name: name,
+                               out=messages.append)
+                self.assertEqual((root_name, code, workspace.calls()), (root_name, 1, []))
+                self.assertTrue(messages[0].startswith("Refused (" + code_name + ")"))
+
     def test_s3_backend_init_passes_backend_settings(self):
         workspace = Workspace()
         self.addCleanup(workspace.close)

@@ -47,6 +47,7 @@ HEADERS = {
     "api": "auth.tftest.hcl",
     "tfstate": "tfstate.tftest.hcl",
     "developer-access": "developer_access.tftest.hcl",
+    "registry": "registry.tftest.hcl",
 }
 NETWORK_REFERENCE = """{
   interface_version = 1
@@ -70,6 +71,7 @@ SYNTHETIC_LOCAL = {
     "tfstate": {},
     # The full network output, as an operator pastes it; extra fields are ignored.
     "developer-access": {"network_reference": NETWORK_REFERENCE},
+    "registry": {},
 }
 
 
