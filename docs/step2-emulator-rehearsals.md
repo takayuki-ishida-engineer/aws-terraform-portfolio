@@ -32,8 +32,11 @@ EVIDENCE_GAP or INSUFFICIENT_EVIDENCE, never inferred. All 15 formal runs in the
 run list snapshot retrieved at 2026-11-20T06:14:06Z (3 rehearsal, 12
 representative) were backfilled, and the ledger matched that snapshot. Run
 44765057461 (the first consolidated run) was then registered with a snapshot
-retrieved at 2026-11-20T15:46:48Z. Runs started after a snapshot are not covered
-until a later pull request registers them with an updated snapshot.
+retrieved at 2026-11-20T15:46:48Z. Run 44859280239 (the automatic run after the
+B1 merge, PR #81) was registered with a snapshot retrieved at
+2026-11-21T03:34:26Z, so the ledger now holds 17 entries. Runs started after a
+snapshot are not covered until a later pull request registers them with an
+updated snapshot.
 
 **Multi-root format (PR #75).** The consolidated harness emits one
 `summary-record` for several roots: `roots` with per-root operations (including
@@ -51,8 +54,8 @@ still needs its own registration pull request within the §13.4 deadline.
 
 ## Formal runs (GitHub Actions)
 
-Compared on 2026-11-20 with the Actions run list of
-`aws-emulator-rehearsal.yml` as retrieved at 15:46:48 UTC (static snapshot): 4
+Compared on 2026-11-21 with the Actions run list of
+`aws-emulator-rehearsal.yml` as retrieved at 03:34:26 UTC (static snapshot): 5
 runs, each on attempt 1, all on `main`, all started by the Owner (actor and
 triggering actor).
 
@@ -62,6 +65,7 @@ triggering actor).
 | [44279751946](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44279751946) (attempt 1, 2026-11-18 09:50 UTC) | Manual dispatch with per-run billing attestation | `0a16e486dd37c40358a122aef47a215a8c6a4ab7` | Network root without interface endpoints (16 resources) | **PASS** (network only): all 14 controls, all 13 lifecycle operations and every cleanup receipt ([details](#formal-run-1-network-root-without-interface-endpoints)) |
 | [44664010985](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44664010985) (attempt 1, 2026-11-20 02:54 UTC) | Automatic, on the push of PR #74 to `main` | `70a5868272c19d0d0803e2eabd3fa92ce781d32b` | The same network root scenario (16 resources), with the harness on that commit | **PASS** (network only): the job concluded `success`. `summarize.py` exits non-zero unless every control, lifecycle operation and cleanup receipt is PASS. Its field-level entry is part of the ledger backfill |
 | [44765057461](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44765057461) (attempt 1, 2026-11-20 15:37 UTC) | Automatic, on the push of PR #75 to `main` | `ddf7f9fff972e43bdc1eba09e33ab8d64f8e0246` | `all`: network (16 resources), then api (7 resources), in one emulator; consolidated harness `6c3b18ca…` | **PASS** (network and api only): all 14 controls; every required operation of each root, including the api teardown pair; plan and API counts equal to each pinned inventory; IDs `vpc-0000000000000009b`, `ca-central-1_178323a8f` and `if6ws3i2f2`; per-root controls 9 to 13; resource, material, process and host cleanup ([ledger entry](evidence/emulator-runs/44765057461-attempt-1.json)) |
+| [44859280239](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44859280239) (attempt 1, 2026-11-21 03:05 UTC) | Automatic, on the push of PR #81 (B1, `registry` root) to `main` | `bb317d7543a71c7e8e31692a54bd68261b211c4c` | `all`: network (16 resources), then api (7 resources), in one emulator; the same consolidated harness `6c3b18ca…` | **PASS** (network and api only): all 14 controls; every required operation of each root, including the api teardown pair; plan and API counts equal to each pinned inventory; IDs `vpc-0000000000000009c`, `ca-central-1_6b73e52ca` and `vgh2exlacv`; per-root controls 9 to 13; resource, material, process and host cleanup ([ledger entry](evidence/emulator-runs/44859280239-attempt-1.json)). The `registry` root was not rehearsed: its lifecycle is NOT_TESTED |
 
 The representative workflow's accepted run
 [43791639228](portfolio-verification-policy.md#representative-emulator-run-43791639228)
@@ -76,17 +80,40 @@ verified its absence (resource cleanup PASS).
 
 | Root | Status |
 | --- | --- |
-| network (without interface endpoints) | Formal PASS in runs 44279751946, 44664010985 and 44765057461 |
+| network (without interface endpoints) | Formal PASS in runs 44279751946, 44664010985, 44765057461 and 44859280239 |
 | network with interface endpoints (`network-full`) | EMULATOR_COMPATIBILITY_BLOCKED: [default egress revoke gap](#emulator-fidelity-gap-default-egress-rule-revoke) |
-| api | Formal PASS in run 44765057461 (first formal run). The user pool, domain, resource server, client, managed login branding, REST API and authorizer went through create, independent API checks, refresh, tag-only update, no-op, the teardown switch, destroy, absence and baseline checks. Cognito sign-in and REST API invocation are untested |
+| api | Formal PASS in runs 44765057461 (first formal run) and 44859280239. The user pool, domain, resource server, client, managed login branding, REST API and authorizer went through create, independent API checks, refresh, tag-only update, no-op, the teardown switch, destroy, absence and baseline checks. Cognito sign-in and REST API invocation are untested |
 | tfstate | EMULATOR_COMPATIBILITY_BLOCKED: the provider reads bucket tags through S3 Control, whose account-ID host prefix the emulator certificate cannot serve under strict TLS. In the local preliminary trial (PR #75), Terraform resource cleanup was FAIL. Discarding emulator memory at shutdown is not a successful Terraform destroy |
 | serverless-api | NOT_TESTED. The same S3 Control gap is expected but has not been run |
 | platform, developer-access | NOT_TESTED in Actions. The security group gap is expected; EKS and AMI paths are untested |
+| registry (B1, PR #81) | NOT_TESTED. It is outside `all` and has no scenario. It is not listed in any ledger entry ([below](#ledger-coverage-of-new-roots)) |
 
 A known gap that keeps a root out of scope is not a formal FAIL measured in a
 run. Real AWS IAM, networking, EKS, cost, deletion and availability are not
 verified for any root. `all` covers only `network` and `api`. It is not evidence
 for the other roots.
+
+### Ledger coverage of new roots
+
+An entry's out-of-scope list comes from `harvest.py` `DEV_ROOTS`. That list holds
+the six DEV roots that existed when the ledger was created. The `registry` root
+(B1) is not in it, so no entry lists `registry`, run 44859280239 included. That
+run was on a commit that contains the root.
+
+This is a known limitation of the ledger's root list, not a result:
+- `registry` was never rehearsed;
+- an entry that omits it never means PASS;
+- its emulator lifecycle is NOT_TESTED.
+
+`DEV_ROOTS` is deliberately unchanged. Adding `registry` would make the 16 earlier
+entries fail `harvest.py check` (`roots-not-accounted`), because they were recorded
+before the root existed.
+
+Covering new roots needs a reviewed design for two things:
+- **Schema versioning.** For example, a root list keyed to the tested SHA or the
+  entry schema version.
+- **Historical evidence migration.** How earlier entries stay valid without being
+  rewritten. Entries are append-only.
 
 ### Formal run 1: network root without interface endpoints
 
