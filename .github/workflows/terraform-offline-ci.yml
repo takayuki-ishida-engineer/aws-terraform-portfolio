@@ -966,6 +966,31 @@ jobs:
           print("Kubernetes certificate script tests passed:", result.testsRun)
           PYCERTS
 
+      - name: Verify the private ECR image mirror script offline (finding F18)
+        id: image_mirror
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          umask 077
+          # Fake aws, skopeo and terraform only: no registry, image pull or push and no
+          # AWS API. plan runs with process creation and sockets disabled, mirror is
+          # refused in CI, and a source mutation removing each guard must be detected.
+          python3 - <<'PYMIRROR'
+          import sys, unittest
+          sys.path.insert(0, "scripts/local-workflow")
+          import test_mirror_images
+          result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_mirror_images))
+          if not result.wasSuccessful() or result.skipped or result.testsRun != 29 or len(test_mirror_images.MUTATIONS) != 29:
+              raise SystemExit("Image mirror script tests failed, skipped or changed the reviewed counts.")
+          print("Image mirror script tests passed:", result.testsRun, "- guard mutations detected:", len(test_mirror_images.MUTATIONS))
+          PYMIRROR
+          python3 scripts/local-workflow/mirror_images.py plan
+          if python3 scripts/local-workflow/mirror_images.py mirror --project acme --account-id 444455556666 --aws /nonexistent --skopeo /nonexistent; then
+            echo "mirror must be refused in CI" >&2
+            exit 1
+          fi
+
       - name: Verify V6 cognito actual Cognito plans and security
         id: cognito
         working-directory: infra/modules/cognito_auth
@@ -1262,6 +1287,7 @@ jobs:
           API_PASSED: ${{ steps.api.outputs.passed }}
           RUNTIME_RESULT: ${{ steps.kubernetes_runtime.outcome }}
           CERTIFICATES_RESULT: ${{ steps.kubernetes_certificates.outcome }}
+          IMAGE_MIRROR_RESULT: ${{ steps.image_mirror.outcome }}
           INGRESS_RESULT: ${{ steps.private_ingress.outcome }}
           INGRESS_PASSED: ${{ steps.private_ingress.outputs.passed }}
           EKS_RESULT: ${{ steps.eks_platform.outcome }}
@@ -1312,6 +1338,7 @@ jobs:
             ("DEV API root Cognito integration", "API_RESULT", os.environ.get("API_PASSED", "")),
             ("Kubernetes pinned Helm/schema/TLS/RBAC/mutations", "RUNTIME_RESULT", ""),
             ("Kubernetes DEV certificate script (F4), offline", "CERTIFICATES_RESULT", ""),
+            ("Private ECR image mirror script (F18), offline", "IMAGE_MIRROR_RESULT", ""),
             ("Private ingress/TCP/SG/ownership/plans/source mutations", "INGRESS_RESULT", os.environ.get("INGRESS_PASSED", "")),
             ("EKS child/IAM/SG/access/addons/plans/source mutations", "EKS_RESULT", os.environ.get("EKS_PASSED", "")),
             ("VPC init/validate/legacy and routing/endpoint plans/mutations", "VPC_RESULT", os.environ.get("VPC_PASSED", "")),
