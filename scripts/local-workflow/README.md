@@ -19,6 +19,8 @@ markers are a safety net, not the boundary: the rule itself is in `AGENTS.md`.
 | `test_local_workflow.py` | Offline self-tests with fake `terraform` and `aws` executables (Full CI) |
 | `check_committed_values.py` | Full CI check of the committed values and the preflight against every DEV root |
 | `test_k8s_certs.py` | Offline tests of `k8s_certs.py` with real OpenSSL in temporary directories and a fake `kubectl` (Full CI) |
+| `mirror_images.py` | `plan` (default, offline): verifies `kubernetes/images.lock.json` and prints the copy plan; `mirror`: copies the three locked images into the `registry` root's private ECR repositories and verifies them (finding F18) |
+| `test_mirror_images.py` | Offline tests of `mirror_images.py` with fake `aws`, `skopeo` and `terraform` executables, and source mutations of its guards (Full CI) |
 
 ## Prepare a root
 
@@ -207,3 +209,161 @@ The old CA is no longer trusted. `delete` removes the four Secrets
 `register`/`delete` against a fake `kubectl`. It checks, among other things, that no
 key or certificate line reaches arguments or output, that the generated values pass
 the renderer's live-input checks, and that the commands are refused in automation.
+
+## Image mirror (`mirror_images.py`)
+
+The Kubernetes runtime pulls its three images from private ECR repositories by digest,
+so node egress stays closed (finding F18). The parts fit together like this:
+- [`kubernetes/images.lock.json`](../../kubernetes/images.lock.json) is the only image
+  inventory (B2);
+- the [`registry` root](../../infra/services/dev/ca-central-1/registry/README.md)
+  creates one repository per locked purpose (B1);
+- this script copies the images in (B3).
+
+It is code only: it has never been run against AWS, a registry or real images.
+
+| Purpose | Copied from (pinned digest) | Copied to |
+| --- | --- | --- |
+| `istio-pilot` | `docker.io/istio/pilot@sha256:5383df36…` (tag `1.32.0`) | `<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-istio-pilot:1.32.0` |
+| `istio-proxy` | `docker.io/istio/proxyv2@sha256:b8d47c6d…` (tag `1.32.0`) | `…/<project>-dev-ecr-istio-proxy:1.32.0` |
+| `lbc` | `public.ecr.aws/eks/aws-load-balancer-controller@sha256:fd51f0ec…` (tag `v3.6.2`) | `…/<project>-dev-ecr-lbc:v3.6.2` |
+
+### Commands
+
+The default command is an offline plan. It re-proves the lock with the Kubernetes
+validator's own check (`verify_image_lock`: raw manifest bytes, index digests, every
+platform and child manifest, the pinned chart versions) and prints each copy. It
+starts no process and makes no network, registry or AWS call, so it also runs in CI:
+
+```bash
+python3 scripts/local-workflow/mirror_images.py
+```
+
+`--project`, `--account-id` and `--purpose <purpose>` (repeatable) fill in or narrow
+the plan. A purpose that is not in the lock is refused.
+
+`mirror` copies and verifies, from the operator's workstation only. Prerequisites:
+- skopeo with `--preserve-digests`;
+- AWS CLI v2 with your own profile;
+- the applied `registry` root, with its `local.auto.tfvars`.
+
+Run it from the repository:
+
+```bash
+python3 scripts/local-workflow/mirror_images.py mirror --project <project> --account-id <account ID>
+```
+
+### Checks before anything is copied
+
+Any failed check stops the run with a fixed `Stopped:` or `Refused (...)` code.
+1. **Where it runs.** `mirror` is refused with the same markers as `run.py`: CI, cloud
+   sessions, the placeholder credentials, an AWS endpoint override. It is also refused
+   when `AWS_REGION` or `AWS_DEFAULT_REGION` names another Region.
+2. **Values.** The project and account must be valid and not placeholders. They must
+   equal the registry root's `local.auto.tfvars` and its applied `registry` output:
+   - the host;
+   - the repository name, ARN and URL for every locked purpose;
+   - nothing else.
+3. **Caller.** `aws sts get-caller-identity` must return that account.
+4. **Repositories.** `aws ecr describe-repositories` must find the three repositories
+   in that account, each with:
+   - the expected ARN and URL;
+   - `IMMUTABLE` tags without exclusions;
+   - AES256 encryption.
+
+   The script never creates a repository; a missing one stops the run.
+5. **Upstream tags.** Each upstream tag must still resolve to the locked index, byte
+   for byte (`skopeo inspect --raw --no-creds`). A moved tag stops the run before any
+   copy. Updating the lock is a reviewed change to `kubernetes/images.lock.json` and
+   its raw manifest.
+6. **Destination state.** For each repository (`aws ecr describe-images`):
+   - The locked tag on the locked index is already done: it is skipped and verified.
+   - The locked tag on any other digest stops the run (`destination_tag_conflict`).
+     The tags are immutable, and the script never overwrites one.
+   - An image that is neither the locked index nor one of its child manifests, or a
+     tag other than the locked one, also stops the run.
+
+After a typed confirmation (the project name), each missing image is copied by the
+locked digest, never by the tag:
+
+```bash
+skopeo --policy <temporary policy> copy --all --preserve-digests --src-no-creds --src-tls-verify=true --dest-tls-verify=true --dest-authfile <temporary authfile> docker://<source>@<digest> docker://<host>/<project>-dev-ecr-<purpose>:<tag>
+```
+
+- **All platforms.** `--all` keeps every platform in the index; the copy is never
+  reduced to `linux/amd64`.
+- **No conversion.** `--preserve-digests` makes skopeo fail rather than change a
+  manifest. No conversion, recompression or signature option is passed, and the script
+  refuses such options in any skopeo call.
+- **Policy.** The temporary policy rejects every image except the three locked
+  upstream repositories. Integrity comes from the pinned digests, not from signatures.
+
+### Verification after each copy
+
+The copy is read back in two independent ways:
+- **Raw bytes.** The index from ECR (`skopeo inspect --raw`) must equal the committed
+  raw manifest, so its SHA-256, media type, platforms and child digests equal the lock.
+- **ECR API.** `aws ecr describe-images` must list exactly:
+  - the locked index, with the locked tag;
+  - every child manifest, each with its media type.
+
+Anything else is not success. A converted or single-platform copy, or a missing child
+manifest, stops the run.
+
+### Credentials
+
+- **ECR token.** It goes from `aws ecr get-login-password` straight into `skopeo login
+  --password-stdin`. It never appears in an argument, in output, in Git or in
+  Terraform.
+- **Work directory.** The authfile and the policy live in a new 0700 directory under
+  `TMPDIR`, which must be outside the repository. The directory is deleted when the
+  run ends, also after a failure or `SIGTERM`.
+- **Upstream access.** Upstream registries are read anonymously, and TLS verification
+  stays on everywhere.
+- **AWS calls.** Only the read-only `sts get-caller-identity`, `ecr
+  describe-repositories` and `ecr describe-images`, plus `ecr get-login-password`, are
+  allowed. Pushing happens only through `skopeo copy` into the three locked
+  repositories.
+
+### Re-runs and recovery
+
+`mirror` is idempotent. It stops at the first failure and reports:
+- which images are verified;
+- which image failed;
+- which images were not attempted.
+
+It never reports a partial copy as success, and it never deletes or overwrites an
+image or a repository. It never sets `force_delete`.
+
+| Stopped with | What to do |
+| --- | --- |
+| `copy_failed`, `interrupted`, `upstream_unavailable`, `ecr_login_failed`, `registry_login_failed` | Fix the cause (network, credentials) and run `mirror` again. Verified images are skipped. Child manifests that a failed copy left behind belong to the locked index and are accepted |
+| `upstream_tag_moved` | Copy nothing. Re-pinning is a reviewed lock change (B2 procedure), never a script option |
+| `destination_tag_conflict`, `destination_unexpected_image`, `destination_unexpected_tag` | Copy nothing more. Find out what wrote the image. Removing it needs an Owner decision, for example the registry root's teardown switch (runbook §7); the script deletes nothing |
+| `destination_digest_mismatch`, `destination_index_mismatch`, `destination_children_missing` | Do not use the image. The copy changed or lost a manifest (check the skopeo version). Clean-up needs an Owner decision, as above |
+| `repository_missing`, `repository_*`, `registry_root_values_mismatch`, `registry_output_mismatch`, `caller_account_mismatch` | Apply the registry root with the same project and account, or correct the values or the AWS profile |
+
+### Not covered
+
+These are NOT_TESTED and outside this script:
+- creating the repositories in real AWS;
+- real image pulls and pushes, and a multi-platform mirror into ECR;
+- the nodes' pull through the ECR interface endpoints and S3 over NAT;
+- admission and an image allowlist (F20, an improvement candidate);
+- the registry-level scanning configuration and its Amazon Inspector charges.
+
+OCI referrers are not copied or verified. Nothing here claims that signatures, SBOMs
+or attestations reached ECR.
+
+`test_mirror_images.py` (Full CI) covers the plan with process creation and sockets
+disabled, and the mirror against fake `aws`, `skopeo` and `terraform` executables:
+- the exact copy arguments and the verified result;
+- re-runs and partial failures;
+- moved tags, conflicting tags, unexpected images, converted, single-platform and
+  incomplete copies;
+- account, Region, project and repository mismatches;
+- the token and the authfile;
+- the refusal in CI and cloud sessions.
+
+It also applies source mutations that each remove one guard, and requires every one
+to be detected.

@@ -333,8 +333,9 @@ approval. The Owner may reorder them.
    certificates (`k8s_certs.py`, finding F4) and the `<project>-<purpose>` object
    names (F11). The image source (F18) stays open: 6b-B2 pinned the images to a
    private ECR mirror by digest; 6b-B1 added the `registry` root and the
-   `ecr_repository` module (code only, nothing created in AWS); the mirror script
-   (B3) follows.
+   `ecr_repository` module (code only, nothing created in AWS); 6b-B3 added the
+   mirror script `mirror_images.py` (code only, never run against AWS). Live
+   verification follows.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
