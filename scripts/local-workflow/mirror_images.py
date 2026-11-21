@@ -30,8 +30,12 @@ pulls ``<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>
 
 The ECR token goes from ``aws ecr get-login-password`` through stdin into ``skopeo
 login``, into an authfile in a private temporary directory outside the repository,
-which is deleted when the run ends, also on failure. The token never appears in an
-argument, in output, in Git or in Terraform. TLS verification stays on, and a
+which is deleted when the run ends, also on failure. If it cannot be deleted, the run
+fails (``authfile_cleanup_failed``), and the umask and signal handlers are restored
+in every case. The token never appears in an argument, in output, in Git or in
+Terraform. Every AWS CLI call runs with ``AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true``,
+so an ``endpoint_url`` in the operator's AWS config cannot redirect it, and
+``AWS_ENDPOINT_URL*`` variables are refused. TLS verification stays on, and a
 temporary skopeo policy accepts only the three locked upstream repositories. A
 failed run leaves whatever was already copied; it is never reported as success, and a
 re-run skips what is verified (README, "Image mirror").
@@ -175,10 +179,20 @@ def execute(arguments, env, stdin=None, binary=False):
         raise MirrorError("tool_unavailable:" + Path(arguments[0]).name) from None
 
 
+def aws_environment(env):
+    """The AWS CLI's environment: no pager, and no endpoint URL from a profile, config file or variable.
+
+    AWS_ENDPOINT_URL* variables are refused before anything runs; this also stops an
+    ``endpoint_url`` in the operator's AWS config from redirecting a call. No command
+    passes --endpoint-url.
+    """
+    return dict(env, AWS_PAGER="", AWS_IGNORE_CONFIGURED_ENDPOINT_URLS="true")
+
+
 def run_aws(aws, arguments, env):
     if tuple(arguments[:2]) not in READ_ONLY_AWS:
         raise MirrorError("aws_command_not_allowed:" + " ".join(arguments[:2]))
-    process = execute([aws] + arguments + ["--region", REGION, "--output", "json"], env)
+    process = execute([aws] + arguments + ["--region", REGION, "--output", "json"], aws_environment(env))
     if process.returncode != 0:
         if "RepositoryNotFoundException" in process.stderr:
             raise MirrorError("repository_missing (apply the registry root first; this script never creates "
@@ -310,7 +324,7 @@ def verify_destination(plan, image, project, account_id, aws, skopeo, authfile, 
 
 def login(aws, skopeo, host, workdir, env):
     """ECR token: aws stdout -> skopeo stdin -> a 0600 authfile in the private work directory."""
-    process = execute([aws, "ecr", "get-login-password", "--region", REGION], env)
+    process = execute([aws, "ecr", "get-login-password", "--region", REGION], aws_environment(env))
     token = process.stdout.strip() if process.returncode == 0 else ""
     if not token:
         raise MirrorError("ecr_login_failed")
@@ -339,15 +353,42 @@ def new_workdir(env):
     base = Path(env.get("TMPDIR") or tempfile.gettempdir()).resolve()
     if base == preflight.REPOSITORY or preflight.REPOSITORY in base.parents:
         raise MirrorError("workdir_inside_repository (set TMPDIR outside the repository)")
-    workdir = Path(tempfile.mkdtemp(prefix="mirror-images-", dir=str(base))).resolve()
-    workdir.chmod(0o700)
+    try:
+        workdir = Path(tempfile.mkdtemp(prefix="mirror-images-", dir=str(base))).resolve()
+        workdir.chmod(0o700)
+    except OSError:
+        raise MirrorError("workdir_unavailable") from None
     return workdir
 
 
-def remove_workdir(workdir, out_fn):
-    shutil.rmtree(workdir, ignore_errors=True)
-    if Path(workdir).exists():
-        out_fn("Could not delete " + str(workdir) + "; delete it now: it holds an ECR login.")
+def remove_workdir(workdir):
+    """Delete the work directory (authfile and policy); True only when it is verifiably gone."""
+    try:
+        shutil.rmtree(workdir)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return False
+    return not Path(workdir).exists()
+
+
+def cleanup(workdir, previous, old_umask, out_fn, failure=None):
+    """Delete the ECR login, then always restore the umask and signal handlers; fail closed if deletion failed."""
+    removed = True
+    try:
+        if workdir is not None:
+            removed = remove_workdir(workdir)
+    except Exception:  # noqa: BLE001 - any failure to delete counts as not deleted
+        removed = False
+    finally:
+        if old_umask is not None:
+            os.umask(old_umask)
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+    if not removed:
+        out_fn("The ECR login could not be deleted: delete " + str(workdir) + " now. The run is not successful.")
+        cause = " after " + str(failure) if isinstance(failure, MirrorError) else ""
+        raise MirrorError("authfile_cleanup_failed" + cause)
 
 
 def raise_on_signal(signum, _frame):
@@ -361,10 +402,10 @@ def mirror(project, account_id, purposes=None, aws="aws", skopeo="skopeo", terra
     if refusal:
         out_fn("Refused (" + refusal + "): images are mirrored only from the operator's workstation.")
         return 1
-    environment["AWS_PAGER"] = ""
     plan = lock_plan(purposes, lock, read)
     for tool, name in ((aws, "aws"), (skopeo, "skopeo")):
-        if execute([tool, "--version"], environment).returncode != 0:
+        tool_env = aws_environment(environment) if name == "aws" else environment
+        if execute([tool, "--version"], tool_env).returncode != 0:
             raise MirrorError("tool_unavailable:" + name)
     check_registry_root(plan, project, account_id, terraform, services, environment)
     identity = run_aws(aws, ["sts", "get-caller-identity"], environment)
@@ -372,55 +413,63 @@ def mirror(project, account_id, purposes=None, aws="aws", skopeo="skopeo", terra
         raise MirrorError("caller_account_mismatch")
     check_repositories(plan, project, account_id, aws, environment)
     host = plan.host(account_id)
-    previous = {sig: signal.signal(sig, raise_on_signal) for sig in (signal.SIGTERM, signal.SIGHUP)}
-    old_umask = os.umask(0o077)
-    workdir = new_workdir(environment)
+    previous, old_umask, workdir = {}, None, None
     try:
-        authfile = login(aws, skopeo, host, workdir, environment)
-        policy = write_policy(plan, workdir)
-        for image in plan.images:
-            check_upstream(skopeo, image, environment)
-        states = {}
-        for image in plan.images:
-            states[image.purpose], _held = destination_state(aws, account_id, plan.repository(project, image), image,
-                                                             environment)
-        to_copy = [image for image in plan.images if states[image.purpose] != "present"]
-        if to_copy:
-            answer = confirm(f"Type the project name ({project}) to copy {len(to_copy)} image(s) into {host}: ")
-            if answer.strip() != project:
-                out_fn("Not confirmed; nothing was copied.")
-                return 1
-        verified = []
-        for image in plan.images:
-            try:
-                if states[image.purpose] == "present":
-                    verify_destination(plan, image, project, account_id, aws, skopeo, authfile, environment)
-                    out_fn(f"{image.purpose}: already present, verified ({image.digest}).")
-                else:
-                    target = destination(plan, image, project, account_id)
-                    process = execute(copy_arguments(skopeo, policy, authfile, image, target), environment)
-                    if process.returncode != 0:
-                        for line in redact(process.stderr):
-                            out_fn("  " + line)
-                        raise MirrorError("copy_failed:" + image.purpose)
-                    verify_destination(plan, image, project, account_id, aws, skopeo, authfile, environment)
-                    out_fn(f"{image.purpose}: copied and verified ({image.digest}, "
-                           f"{len(image.platforms)} platforms).")
-                verified.append(image.purpose)
-            except MirrorError:
-                remaining = [i.purpose for i in plan.images if i.purpose not in verified and i is not image]
-                out_fn(f"Not mirrored: {image.purpose} failed; verified: {', '.join(verified) or 'none'}; "
-                       f"not attempted: {', '.join(remaining) or 'none'}. Nothing was deleted. "
-                       "Fix the cause and run mirror again; verified images are skipped.")
-                raise
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            previous[sig] = signal.signal(sig, raise_on_signal)
+        old_umask = os.umask(0o077)
+        workdir = new_workdir(environment)
+        code, verified = copy_and_verify(plan, project, account_id, aws, skopeo, workdir, environment, confirm, out_fn)
+    except BaseException as error:
+        cleanup(workdir, previous, old_umask, out_fn, error)
+        raise
+    cleanup(workdir, previous, old_umask, out_fn)
+    if code == 0:
         out_fn(f"Mirrored {len(verified)} image(s) into {host}: every index digest, platform and child manifest "
-               "matches kubernetes/images.lock.json.")
-        return 0
-    finally:
-        remove_workdir(workdir, out_fn)
-        os.umask(old_umask)
-        for sig, handler in previous.items():
-            signal.signal(sig, handler)
+               "matches kubernetes/images.lock.json. The ECR login was deleted.")
+    return code
+
+
+def copy_and_verify(plan, project, account_id, aws, skopeo, workdir, environment, confirm, out_fn):
+    """(exit code, verified purposes). Runs inside mirror's cleanup guard."""
+    host = plan.host(account_id)
+    authfile = login(aws, skopeo, host, workdir, environment)
+    policy = write_policy(plan, workdir)
+    for image in plan.images:
+        check_upstream(skopeo, image, environment)
+    states = {}
+    for image in plan.images:
+        states[image.purpose], _held = destination_state(aws, account_id, plan.repository(project, image), image,
+                                                         environment)
+    to_copy = [image for image in plan.images if states[image.purpose] != "present"]
+    if to_copy:
+        answer = confirm(f"Type the project name ({project}) to copy {len(to_copy)} image(s) into {host}: ")
+        if answer.strip() != project:
+            out_fn("Not confirmed; nothing was copied.")
+            return 1, []
+    verified = []
+    for image in plan.images:
+        try:
+            if states[image.purpose] == "present":
+                verify_destination(plan, image, project, account_id, aws, skopeo, authfile, environment)
+                out_fn(f"{image.purpose}: already present, verified ({image.digest}).")
+            else:
+                target = destination(plan, image, project, account_id)
+                process = execute(copy_arguments(skopeo, policy, authfile, image, target), environment)
+                if process.returncode != 0:
+                    for line in redact(process.stderr):
+                        out_fn("  " + line)
+                    raise MirrorError("copy_failed:" + image.purpose)
+                verify_destination(plan, image, project, account_id, aws, skopeo, authfile, environment)
+                out_fn(f"{image.purpose}: copied and verified ({image.digest}, {len(image.platforms)} platforms).")
+            verified.append(image.purpose)
+        except MirrorError:
+            remaining = [i.purpose for i in plan.images if i.purpose not in verified and i is not image]
+            out_fn(f"Not mirrored: {image.purpose} failed; verified: {', '.join(verified) or 'none'}; "
+                   f"not attempted: {', '.join(remaining) or 'none'}. Nothing was deleted. "
+                   "Fix the cause and run mirror again; verified images are skipped.")
+            raise
+    return 0, verified
 
 
 def main(argv=None):

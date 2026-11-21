@@ -318,12 +318,22 @@ manifest, stops the run.
 - **Work directory.** The authfile and the policy live in a new 0700 directory under
   `TMPDIR`, which must be outside the repository. The directory is deleted when the
   run ends, also after a failure or `SIGTERM`.
+- **Deletion is checked.** If the directory cannot be deleted, or still exists
+  afterwards, the run is never successful. It stops with `authfile_cleanup_failed`
+  and a non-zero exit code. The code is followed by the original stop code if there
+  was one, and the output names the directory to delete. A failure to create the
+  directory stops with `workdir_unavailable` before any login. Either way, the umask
+  and signal handlers the script changed are restored. No message contains the token.
 - **Upstream access.** Upstream registries are read anonymously, and TLS verification
   stays on everywhere.
 - **AWS calls.** Only the read-only `sts get-caller-identity`, `ecr
   describe-repositories` and `ecr describe-images`, plus `ecr get-login-password`, are
   allowed. Pushing happens only through `skopeo copy` into the three locked
   repositories.
+- **No endpoint redirection.** `AWS_ENDPOINT_URL*` variables are refused before
+  anything runs. Every AWS CLI call also runs with
+  `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true`, so an `endpoint_url` in your AWS config
+  or profile cannot send it elsewhere. No call passes `--endpoint-url`.
 
 ### Re-runs and recovery
 
@@ -342,6 +352,8 @@ image or a repository. It never sets `force_delete`.
 | `destination_tag_conflict`, `destination_unexpected_image`, `destination_unexpected_tag` | Copy nothing more. Find out what wrote the image. Removing it needs an Owner decision, for example the registry root's teardown switch (runbook §7); the script deletes nothing |
 | `destination_digest_mismatch`, `destination_index_mismatch`, `destination_children_missing` | Do not use the image. The copy changed or lost a manifest (check the skopeo version). Clean-up needs an Owner decision, as above |
 | `repository_missing`, `repository_*`, `registry_root_values_mismatch`, `registry_output_mismatch`, `caller_account_mismatch` | Apply the registry root with the same project and account, or correct the values or the AWS profile |
+| `authfile_cleanup_failed` | Delete the directory named in the output now: it holds an ECR login, valid for up to 12 hours. Treat the run as failed even if images were copied. Run `mirror` again to verify them |
+| `workdir_unavailable`, `workdir_inside_repository` | Point `TMPDIR` to a writable directory outside the repository and run `mirror` again |
 
 ### Not covered
 
@@ -362,7 +374,9 @@ disabled, and the mirror against fake `aws`, `skopeo` and `terraform` executable
 - moved tags, conflicting tags, unexpected images, converted, single-platform and
   incomplete copies;
 - account, Region, project and repository mismatches;
-- the token and the authfile;
+- the token and the authfile, including a failed deletion of the authfile and a failed creation of the work
+  directory, with the umask and signal handlers restored;
+- a profile `endpoint_url` in the AWS config, which must not redirect any AWS CLI call;
 - the refusal in CI and cloud sessions.
 
 It also applies source mutations that each remove one guard, and requires every one

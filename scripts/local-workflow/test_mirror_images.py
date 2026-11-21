@@ -21,6 +21,8 @@ import importlib.util
 import io
 import json
 import os
+import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -28,6 +30,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
@@ -168,8 +171,23 @@ FAKE_SKOPEO = textwrap.dedent("""\
 FAKE_AWS = textwrap.dedent("""\
     import json, os, sys
     args = sys.argv[1:]
+    # Like AWS CLI v2: a profile's endpoint_url applies unless AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true.
+    ignore = os.environ.get("AWS_IGNORE_CONFIGURED_ENDPOINT_URLS")
+    endpoint, section = None, None
+    if os.environ.get("AWS_CONFIG_FILE") and os.path.isfile(os.environ["AWS_CONFIG_FILE"]):
+        wanted = os.environ.get("AWS_PROFILE", "default")
+        wanted = "default" if wanted == "default" else "profile " + wanted
+        for line in open(os.environ["AWS_CONFIG_FILE"]):
+            line = line.strip()
+            if line.startswith("["):
+                section = line.strip("[]")
+            elif section == wanted and line.replace(" ", "").startswith("endpoint_url="):
+                endpoint = line.split("=", 1)[1].strip()
+    entry = {"tool": "aws", "argv": args, "ignore_configured_endpoint_urls": ignore}
+    if endpoint and ignore != "true":
+        entry["custom_endpoint"] = endpoint
     with open(os.environ["FAKE_LOG"], "a") as log:
-        log.write(json.dumps({"tool": "aws", "argv": args}) + "\\n")
+        log.write(json.dumps(entry) + "\\n")
     state = json.load(open(os.environ["FAKE_STATE"]))
     def fail(message, code=254):
         sys.stderr.write(message + "\\n")
@@ -311,9 +329,31 @@ def run(module, fixture, confirm=PROJECT, project=PROJECT, account=ACCOUNT, purp
                              terraform=fixture.terraform, services=fixture.services, env=environment, confirm=answer,
                              out_fn=output.append)
         message = ""
-    except (module.MirrorError, preflight.PreflightError) as error:
+    except (module.MirrorError, preflight.PreflightError, OSError) as error:
         code, message = 2, str(error)
     return code, "\n".join(output), message
+
+
+class ProcessState:
+    """Known umask and signal handlers around a run, to prove mirror restores them."""
+
+    def __init__(self, case):
+        self.case = case
+        self.handlers = {sig: (lambda *_: None) for sig in (signal.SIGTERM, signal.SIGHUP)}
+
+    def __enter__(self):
+        self.saved = {sig: signal.signal(sig, handler) for sig, handler in self.handlers.items()}
+        self.saved_umask = os.umask(0o022)
+        return self
+
+    def __exit__(self, *_exc):
+        current = os.umask(self.saved_umask)
+        restored = {sig: signal.getsignal(sig) for sig in self.handlers}
+        for sig, handler in self.saved.items():
+            signal.signal(sig, handler)
+        self.case.assertEqual(oct(current), oct(0o022))
+        self.case.assertEqual(restored, self.handlers)
+        return False
 
 
 def assert_complete(case, fixture, purposes=PURPOSES):
@@ -597,6 +637,60 @@ def scenario_workdir_in_repository(case, module):
     case.assertFalse([e for e in fixture.calls("skopeo") if e["argv"][:1] == ["login"]])
 
 
+def scenario_cleanup_failure(case, module):
+    """The authfile cannot be deleted: never success, a fixed code, no token, process state restored."""
+    for variant in ("raises", "silently_kept"):
+        for copy_fails in (False, True):
+            fixture = Fixture(case)
+            real_rmtree = shutil.rmtree
+
+            def failing_rmtree(path, *args, **kwargs):
+                if Path(path).resolve().parent == fixture.tmp.resolve():
+                    if variant == "raises":
+                        raise PermissionError(13, "Permission denied")
+                    return None
+                return real_rmtree(path, *args, **kwargs)
+            env = {"FAKE_FAIL_COPY": f"{PROJECT}-dev-ecr-lbc"} if copy_fails else {}
+            with ProcessState(case), mock.patch.object(shutil, "rmtree", failing_rmtree):
+                code, output, message = run(module, fixture, env=env)
+            expected = "authfile_cleanup_failed" + (" after copy_failed:lbc" if copy_fails else "")
+            case.assertEqual((code, message), (2, expected), (variant, copy_fails))
+            case.assertIn("The ECR login could not be deleted", output)
+            case.assertNotIn("Mirrored 3 image(s)", output)
+            case.assertNotIn(TOKEN, output + message)
+            case.assertEqual(len(os.listdir(fixture.tmp)), 1)
+
+
+def scenario_workdir_failure(case, module):
+    """The work directory cannot be created (or would be in the repository): stop, nothing sent, state restored."""
+    fixture = Fixture(case)
+    with ProcessState(case), mock.patch.object(tempfile, "mkdtemp", side_effect=OSError(28, "No space left")):
+        code, _output, message = run(module, fixture)
+    case.assertEqual((code, message), (2, "workdir_unavailable"))
+    with ProcessState(case):
+        code, _output, message = run(module, fixture, env={"TMPDIR": str(preflight.REPOSITORY)})
+    case.assertEqual(code, 2)
+    case.assertTrue(message.startswith("workdir_inside_repository"), message)
+    case.assertFalse([e for e in fixture.calls("skopeo") if e["argv"][:1] == ["login"]])
+    case.assertFalse([e for e in fixture.calls("aws") if e["argv"][:2] == ["ecr", "get-login-password"]])
+    assert_no_writes(case, fixture)
+
+
+def scenario_configured_endpoint(case, module):
+    """A profile endpoint_url in the operator's AWS config never redirects an AWS CLI call."""
+    fixture = Fixture(case)
+    config = fixture.base / "aws-config"
+    config.write_text("[profile operator]\nregion = ca-central-1\nendpoint_url = https://endpoint.attacker.invalid\n")
+    code, _output, message = run(module, fixture, env={"AWS_PROFILE": "operator", "AWS_CONFIG_FILE": str(config)})
+    case.assertEqual((code, message), (0, ""))
+    calls = fixture.calls("aws")
+    case.assertTrue(len(calls) >= 6)
+    for call in calls:
+        case.assertEqual(call["ignore_configured_endpoint_urls"], "true", call["argv"])
+        case.assertNotIn("custom_endpoint", call)
+        case.assertFalse([arg for arg in call["argv"] if arg.startswith("--endpoint-url")])
+
+
 class PlanTests(unittest.TestCase):
     def offline(self, argv):
         def blocked(*_args, **_kwargs):
@@ -731,6 +825,15 @@ class MirrorTests(unittest.TestCase):
     def test_work_directory_inside_repository_is_refused(self):
         scenario_workdir_in_repository(self, mirror_images)
 
+    def test_authfile_cleanup_failure_is_not_success_and_restores_state(self):
+        scenario_cleanup_failure(self, mirror_images)
+
+    def test_work_directory_failure_stops_and_restores_state(self):
+        scenario_workdir_failure(self, mirror_images)
+
+    def test_configured_endpoint_url_is_ignored(self):
+        scenario_configured_endpoint(self, mirror_images)
+
 
 class CommandLineTests(unittest.TestCase):
     def test_cli_refuses_mirror_in_ci_and_cloud_sessions(self):
@@ -773,22 +876,34 @@ MUTATIONS = [
     ("repository_arn_unchecked", '!= f"arn:aws:ecr:{REGION}:{account_id}:repository/{name}"',
      '!= repository.get("repositoryArn")', scenario_repository_identity),
     ("token_in_arguments", '"--password-stdin",', '"--password", token,', scenario_token_hidden),
-    ("authfile_kept", "    shutil.rmtree(workdir, ignore_errors=True)\n    if Path(workdir).exists():",
-     "    pass\n    if Path(workdir).exists():", scenario_token_hidden),
+    ("authfile_kept", "        shutil.rmtree(workdir)\n", "        pass\n", scenario_token_hidden),
     ("unsafe_arguments_allowed", "        if FORBIDDEN_ARGUMENT.search(str(argument)):\n", "        if False:\n",
      scenario_guards),
     ("write_commands_allowed", "    if tuple(arguments[:2]) not in READ_ONLY_AWS:\n", "    if False:\n",
      scenario_guards),
-    ("confirmation_skipped", "            if answer.strip() != project:\n", "            if False:\n",
+    ("confirmation_skipped", "        if answer.strip() != project:\n", "        if False:\n",
      scenario_wrong_confirmation),
-    ("present_images_copied_again", '                if states[image.purpose] == "present":\n',
-     "                if False:\n", scenario_idempotent),
+    ("present_images_copied_again", '            if states[image.purpose] == "present":\n',
+     "            if False:\n", scenario_idempotent),
     ("other_region_allowed", "        if env.get(key) and env[key] != REGION:\n", "        if False:\n",
      scenario_region_env),
     ("placeholder_account_allowed", "    if account_id in preflight.PLACEHOLDER_ACCOUNTS:\n", "    if False:\n",
      scenario_placeholders),
     ("workdir_in_repository_allowed", "    if base == preflight.REPOSITORY or preflight.REPOSITORY in base.parents:\n",
      "    if False:\n", scenario_workdir_in_repository),
+    # Review fixes: fail-closed authfile cleanup, restored process state, ignored configured endpoints.
+    ("cleanup_failure_ignored", "    if not removed:\n", "    if False:\n", scenario_cleanup_failure),
+    ("cleanup_result_unchecked", "    return not Path(workdir).exists()\n", "    return True\n",
+     scenario_cleanup_failure),
+    ("umask_not_restored", "            os.umask(old_umask)\n", "            pass\n", scenario_cleanup_failure),
+    ("signal_handlers_not_restored", "            signal.signal(sig, handler)\n", "            pass\n",
+     scenario_cleanup_failure),
+    ("failure_path_not_restored", "        cleanup(workdir, previous, old_umask, out_fn, error)\n        raise\n",
+     "        raise\n", scenario_workdir_failure),
+    ("workdir_error_unconverted", "    except OSError:\n        raise MirrorError(\"workdir_unavailable\") from None\n",
+     "    except ValueError:\n        raise MirrorError(\"workdir_unavailable\") from None\n", scenario_workdir_failure),
+    ("configured_endpoint_used", ', AWS_IGNORE_CONFIGURED_ENDPOINT_URLS="true")', ")",
+     scenario_configured_endpoint),
 ]
 
 
@@ -805,7 +920,7 @@ def mutant(old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 22)
+        self.assertEqual(len(MUTATIONS), 29)
         undetected = []
         for name, old, new, scenario in MUTATIONS:
             module = mutant(old, new)

@@ -981,7 +981,7 @@ jobs:
           sys.path.insert(0, "scripts/local-workflow")
           import test_mirror_images
           result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_mirror_images))
-          if not result.wasSuccessful() or result.skipped or result.testsRun != 26 or len(test_mirror_images.MUTATIONS) != 22:
+          if not result.wasSuccessful() or result.skipped or result.testsRun != 29 or len(test_mirror_images.MUTATIONS) != 29:
               raise SystemExit("Image mirror script tests failed, skipped or changed the reviewed counts.")
           print("Image mirror script tests passed:", result.testsRun, "- guard mutations detected:", len(test_mirror_images.MUTATIONS))
           PYMIRROR
