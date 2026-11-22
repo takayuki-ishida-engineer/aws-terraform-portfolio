@@ -22,8 +22,9 @@ markers are a safety net, not the boundary: the rule itself is in `AGENTS.md`.
 | `mirror_images.py` | `plan` (default, offline): verifies `kubernetes/images.lock.json` and prints the copy plan; `mirror`: copies the three locked images into the `registry` root's private ECR repositories and verifies them (finding F18) |
 | `test_mirror_images.py` | Offline tests of `mirror_images.py` with fake `aws`, `skopeo` and `terraform` executables, and source mutations of its guards (Full CI) |
 | `k8s_runtime_input.py` | Builds the Kubernetes runtime renderer input from the applied root outputs, `public.json` and the operator's resource selections, cross-checked, outside the repository (item 6c-A) |
-| `k8s_runtime.py` | `plan` (offline): renders and validates the runtime with the pinned Helm and shows the 9 apply stages, their objects, actors, Secrets, prerequisites and readiness conditions; executes nothing (item 6c-A) |
+| `k8s_runtime.py` | `plan` (offline): renders and validates the runtime with the pinned Helm and shows the 9 apply stages, their objects, actors, Secrets, prerequisites and readiness conditions; executes nothing (item 6c-A). `status` (workstation only, read-only): the state of the 62 objects in the `<project>-dev-eks` cluster after a preflight safety gate (item 6c-B1) |
 | `test_k8s_runtime.py` | Offline tests of both with a fake `terraform`, synthetic `public.json` and the pinned Helm, and source mutations of their guards (Full CI) |
+| `test_k8s_runtime_status.py` | Offline tests of `status` with a fake `kubectl` serving a synthetic cluster, and source mutations of its guards (Full CI) |
 
 ## Prepare a root
 
@@ -215,8 +216,9 @@ the renderer's live-input checks, and that the commands are refused in automatio
 
 ## Kubernetes runtime input and plan (`k8s_runtime_input.py`, `k8s_runtime.py`)
 
-Step 1 item 6c-A. Code only: nothing here has been run against a real cluster or AWS
-account. `status`, `apply` and `destroy` do not exist yet, so nothing is applied.
+Step 1 items 6c-A and 6c-B1. Code only: nothing here has been run against a real
+cluster or AWS account. `status` only reads; `apply` and `destroy` do not exist yet,
+so nothing is applied.
 
 ### Build the input (workstation only)
 
@@ -329,6 +331,152 @@ read or shown. It covers:
 - evidence and stage table tampering, and a skipped validator.
 
 39 source mutations each remove one guard, and every one must be detected.
+
+### Status (read-only, workstation only)
+
+Start the tunnel first (§3 of the runbook), then:
+
+```bash
+KUBECONFIG=~/.kube/<project>-dev-eks.json python3 scripts/local-workflow/k8s_runtime.py status --input ~/.config/<project>-dev-runtime-input/runtime-input.json --helm <pinned helm>
+```
+
+`--format json` prints the report. `--timeout` sets the per-request limit (5 to 120
+seconds, default 20). `--context` may only name `<project>-dev-eks`.
+
+**Preflight safety gate.** Before any object is read, `status` stops (exit 2) or
+refuses (exit 1) unless all of these hold:
+
+1. It is not run in CI, in a Claude Code or Codex cloud session, with the
+   placeholder credentials or with an AWS endpoint override. This is checked before
+   any tool starts.
+2. The input is operational (`fixture: false`) and passes the renderer contract.
+   The context is exactly `<project>-dev-eks`; a foreign context is refused before
+   rendering.
+3. The input renders, validates and splits into the 9 reviewed stages exactly as
+   `plan` does (same code), so the input, the manifest and the expected inventory
+   agree.
+4. The four applied Terraform outputs pass the same cross-checks as
+   `k8s_runtime_input.py`: dev, the input's account, ca-central-1, the cluster
+   `<project>-dev-eks`, OIDC, controller role, target group and VPC. The input's
+   `controller_identity` and `private_ingress` must equal them.
+5. The context is exactly the kubeconfig that `eks_tunnel.py kubeconfig` writes for
+   the applied cluster: the loopback tunnel as API server, the cluster's own CA and
+   endpoint host, and `aws eks get-token` for that cluster. Static tokens, client
+   keys, `insecure-skip-tls-verify` and any other server are refused (the same check
+   as `k8s_certs.py register`).
+6. The server's major.minor version equals the input's `kubernetes_version`.
+
+**Read-only commands.** Every kubectl call has the form
+`kubectl --context <project>-dev-eks --request-timeout=<n>s <command>`, and
+`<command>` is one of exactly three shapes:
+- `config view --minify --raw -o json`;
+- `version -o json`;
+- `get <kind.version.group> <name> [-n <namespace>] --ignore-not-found -o json`.
+
+Anything else is refused before it starts, including:
+- `apply`, `delete`, `patch`, `create` and `auth`;
+- any read of a Secret;
+- `--as`, `--as-group`, `--token`, `--server`, `--kubeconfig` and
+  `--insecure-skip-tls-verify`.
+
+kubectl's output and error text are never printed. Only fixed codes are shown.
+
+**Output contract.** For each of the 62 objects, in stage order:
+- identity: `apiVersion`, `kind`, `namespace`, `name`, `stage`, and `actor` (the
+  operator, or the binding-writer ServiceAccount for the TargetGroupBinding);
+- `presence`: `PRESENT`, `MISSING` or `UNKNOWN`;
+- `generation`, `observed_generation`, and `observed`: true or false, or null where
+  the kind has no status generation;
+- `readiness`:
+  - `READY`: the Kubernetes conditions are met (Namespace Active; CRD Established and
+    NamesAccepted; Deployment Available with every replica updated, ready and
+    available and the generation observed; ValidatingAdmissionPolicy observed without
+    type-checking warnings);
+  - `NOT_READY`;
+  - `NOT_APPLICABLE`: the kind has no readiness condition, so only its existence is
+    checked;
+  - `NOT_VERIFIABLE`: the TargetGroupBinding, because target registration and
+    health are NOT_TESTED;
+  - `UNKNOWN`;
+- `reasons`: fixed codes, for example `missing`, `generation_not_observed`,
+  `deployment_not_available`, `crd_not_established`, `identity_mismatch`,
+  `api_forbidden`, `api_unreachable`, `api_timeout`, `incomplete_response`.
+
+Each stage is then reported with one state:
+- `APPLIED_READY`, `NOT_READY`, `PARTIAL`, `NOT_APPLIED`;
+- `UNKNOWN`, whenever any object in the stage is unknown;
+- for the ingress stage only:
+  - `BLOCKED` while the TargetGroupBinding does not exist;
+  - `UNVERIFIED` once it does, because its target health cannot be checked.
+
+**Exit codes.**
+- `0`: every object's state was determined. This is not the same as ready.
+- `1`: refused.
+- `2`: stopped by the gate.
+- `3`: incomplete, because at least one object is unknown. A state that cannot be
+  determined is never reported as success.
+
+**What a report does and does not show.** Existing, observed and ready are separate
+facts, and none of them shows that the application or network works.
+- `runtime_ready` is always false.
+- `functional` is always `NOT_TESTED`.
+- `status` does not check, and lists as not checked:
+  - Secret presence and contents (Secrets are never read);
+  - Pod image digests;
+  - webhook serving and admission behaviour;
+  - binding-writer RBAC and impersonation;
+  - target registration and health (F21);
+  - application and network behaviour.
+
+### Apply and destroy: preconditions and open decisions (not implemented)
+
+`apply` and `destroy` are not implemented. This records what they must respect,
+taken from the reviewed plan and the 6c design. The items marked **open** need an
+Owner decision; nothing here decides an execution method.
+
+- **Ownership.**
+  - The runtime owns `<project>-ingress`, `<project>-app` and `istio-system`, the 15
+    Istio CRDs and the 2 AWS Load Balancer Controller CRDs. `kube-system` is never
+    created or deleted.
+  - An object that already exists without the runtime's field manager must stop
+    apply (`foreign_owner`) and must never be deleted.
+  - Namespaced objects are deleted only by exact identity, never with `--all`,
+    label selectors, `--force` or `--grace-period=0`. Cluster-scoped objects (CRDs,
+    webhook configurations, ClusterRoles and bindings, admission policies) are
+    deleted only if the runtime owns them.
+- **CRDs.** Destroy keeps every CRD by default. Deleting a CRD removes every
+  custom resource of that kind in the cluster, so CRD deletion needs a separate
+  approval (**open**).
+- **Order and readiness.** Stages apply in plan order, and each stage must be
+  ready before the next starts. The controller and istiod webhooks fail closed, so
+  their Deployments and webhook endpoints must be ready before objects that pass
+  through those webhooks are applied. `status` reports these conditions but does not
+  wait for them.
+- **Secrets and certificates.** `k8s_certs.py register` applies the four Secrets
+  after the namespaces stage. The runtime never creates, reads or deletes Secret
+  contents. The certificates are verified only by `k8s_certs.py register`;
+  `public.json` dates are not proof of validity.
+- **Ingress stop condition.** The ingress stage stays BLOCKED until all of these
+  are approved and in place:
+  - a way for the operator to act as `<project>-binding-writer`. Impersonation is
+    NOT_TESTED and TokenRequest is not approved (**open**);
+  - the `elasticloadbalancing` endpoint in the network output (finding F21);
+  - a decision on whether target health is read from AWS (**open**).
+- **Destroy order and finalizers.** Destroy runs in reverse stage order:
+  - delete the TargetGroupBinding first, and wait (bounded) for the controller to
+    remove its finalizer and deregister the targets. Never strip a finalizer;
+  - delete the admission policies only when no TargetGroupBinding remains;
+  - delete webhook configurations before their Deployments, so a fail-closed webhook
+    is never left without a server;
+  - delete Namespaces last, only when nothing outside the inventory remains in them.
+    Allowed leftovers are the default ServiceAccount, the CA ConfigMaps the cluster
+    and Istio create, and the k8s_certs Secrets.
+- **Partial failure.** Neither apply nor destroy rolls back automatically. A failed
+  stage stops the run. A rerun must re-verify every earlier stage (presence, field
+  manager, diff, readiness) before continuing, and `status` shows where a run
+  stopped. Cleanup after a partial apply is a destroy limited to the applied stages.
+  Whether a version change of the bundle may be upgraded in place is **open**; the
+  initial design stops on any difference.
 
 ## Image mirror (`mirror_images.py`)
 

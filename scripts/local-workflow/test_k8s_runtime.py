@@ -621,7 +621,7 @@ def scenario_plan_report(case, module):
                                           (project + "-ingress", project + "-gateway-client-cacert")])
     case.assertEqual(secrets["namespaces"], [])
     case.assertIn("NOT_TESTED", report["actors"]["binding_writer_method"])
-    case.assertEqual(report["not_implemented"], ["status", "apply", "destroy"])
+    case.assertEqual(report["not_implemented"], ["apply", "destroy"])
     case.assertTrue(any("elasticloadbalancing" in x for x in report["stages"][-1]["prerequisites"]))
 
 

@@ -945,7 +945,7 @@ jobs:
           print("Observed Kubernetes runtime checks (not Terraform native cases):", report)
           PYRUNTIME
 
-      - name: Verify the Kubernetes runtime input builder and offline plan (item 6c-A)
+      - name: Verify the Kubernetes runtime input builder, offline plan and read-only status (items 6c-A, 6c-B1)
         id: kubernetes_runtime_plan
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -956,7 +956,8 @@ jobs:
           # Fake terraform, synthetic public.json and the pinned Helm installed above only:
           # no cluster, no kubectl and no AWS API. The input builder is refused in CI; the
           # plan may start no process but the pinned Helm, and a source mutation removing
-          # each guard must be detected. status, apply and destroy do not exist yet.
+          # each guard must be detected. status reads only a fake kubectl's synthetic cluster here
+          # and is refused in CI; apply and destroy do not exist.
           export K8S_RUNTIME_HELM="$RUNNER_TEMP/v5-tools/helm"
           python3 - <<'PYRUNTIMEPLAN'
           import sys, unittest
@@ -966,6 +967,11 @@ jobs:
           if not result.wasSuccessful() or result.skipped or result.testsRun != 29 or len(test_k8s_runtime.MUTATIONS) != 39:
               raise SystemExit("Kubernetes runtime input/plan tests failed, skipped or changed the reviewed counts.")
           print("Kubernetes runtime input/plan tests passed:", result.testsRun, "- guard mutations detected:", len(test_k8s_runtime.MUTATIONS))
+          import test_k8s_runtime_status
+          status_result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_runtime_status))
+          if not status_result.wasSuccessful() or status_result.skipped or status_result.testsRun != 18 or len(test_k8s_runtime_status.MUTATIONS) != 24:
+              raise SystemExit("Kubernetes runtime status tests failed, skipped or changed the reviewed counts.")
+          print("Kubernetes runtime status tests passed (fake kubectl only):", status_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_status.MUTATIONS))
           PYRUNTIMEPLAN
           python3 scripts/local-workflow/k8s_runtime.py plan --input kubernetes/tests/fixtures/runtime.json --helm "$K8S_RUNTIME_HELM" --fixture --format json > "$RUNNER_TEMP/runtime-plan.json"
           python3 - <<'PYPLANREPORT'
@@ -976,12 +982,16 @@ jobs:
           expected = [("namespaces", 2), ("base", 16), ("controller", 13), ("istiod", 12), ("gateway", 5), ("mesh_security", 5), ("admission", 4), ("binding_writer", 3), ("ingress", 2)]
           if report.get("status") != "planned" or report.get("executed") is not False or report.get("kubernetes_api_calls") != 0 or report.get("aws_api_calls") != 0 \
                   or report.get("resource_count") != 62 or stages != expected or report["stages"][-1]["execution"] != "BLOCKED (binding-writer method not approved)" \
-                  or report.get("not_implemented") != ["status", "apply", "destroy"]:
+                  or report.get("not_implemented") != ["apply", "destroy"]:
               raise SystemExit("Kubernetes runtime offline plan evidence changed; independent review required.")
           print("Kubernetes runtime offline plan (fixture, nothing executed):", stages)
           PYPLANREPORT
           if python3 scripts/local-workflow/k8s_runtime_input.py --project acme --account-id 444455556666 --material /nonexistent --selections /nonexistent --out-dir /nonexistent --terraform /nonexistent; then
             echo "k8s_runtime_input.py must be refused in CI" >&2
+            exit 1
+          fi
+          if python3 scripts/local-workflow/k8s_runtime.py status --input /nonexistent --helm /nonexistent --kubectl /nonexistent --terraform /nonexistent; then
+            echo "k8s_runtime.py status must be refused in CI" >&2
             exit 1
           fi
 
@@ -1378,7 +1388,7 @@ jobs:
             ("Cognito actual plans/security", "COGNITO_RESULT", os.environ.get("COGNITO_PASSED", "")),
             ("DEV API root Cognito integration", "API_RESULT", os.environ.get("API_PASSED", "")),
             ("Kubernetes pinned Helm/schema/TLS/RBAC/mutations", "RUNTIME_RESULT", ""),
-            ("Kubernetes runtime input builder and offline plan (6c-A), nothing executed", "RUNTIME_PLAN_RESULT", ""),
+            ("Kubernetes runtime input builder, offline plan and fake-kubectl status (6c-A, 6c-B1), nothing executed", "RUNTIME_PLAN_RESULT", ""),
             ("Kubernetes DEV certificate script (F4), offline", "CERTIFICATES_RESULT", ""),
             ("Private ECR image mirror script (F18), offline", "IMAGE_MIRROR_RESULT", ""),
             ("Private ingress/TCP/SG/ownership/plans/source mutations", "INGRESS_RESULT", os.environ.get("INGRESS_PASSED", "")),

@@ -191,6 +191,17 @@ What is ready (Step 1 item 6b-A):
   python3 scripts/local-workflow/k8s_runtime.py plan --input ~/.config/<project>-dev-runtime-input/runtime-input.json --helm <pinned helm>
   ```
 
+  With the tunnel running (§3), read the cluster's state without changing anything
+  (item 6c-B1):
+
+  ```bash
+  KUBECONFIG=~/.kube/<project>-dev-eks.json python3 scripts/local-workflow/k8s_runtime.py status --input ~/.config/<project>-dev-runtime-input/runtime-input.json --helm <pinned helm>
+  ```
+
+  `status` refuses automation and stops unless the input, the applied outputs, the
+  kubeconfig and the server version agree. It reports each object as present,
+  missing or unknown, with its generation and readiness, and exits 3 when anything
+  could not be determined.
   See the [script description](../scripts/local-workflow/README.md#kubernetes-runtime-input-and-plan-k8s_runtime_inputpy-k8s_runtimepy).
   Applying the stages is not implemented yet (no `apply`), and the ingress stage is
   blocked until the binding-writer method is approved. Once F18 is resolved and
