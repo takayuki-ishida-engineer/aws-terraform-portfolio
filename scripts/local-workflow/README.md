@@ -373,9 +373,15 @@ refuses (exit 1) unless all of these hold:
 - `version -o json`;
 - `get <kind.version.group> <name> [-n <namespace>] --ignore-not-found -o json`.
 
-Anything else is refused before it starts, including:
+For `get`, the resource type must be one of the 19 types of the reviewed inventory,
+spelled exactly as `kind.version.group`. The name and namespace must be valid
+Kubernetes names that cannot start with `-`. The object must be one of the 62
+objects of this bundle. Anything else is refused before it starts, including:
 - `apply`, `delete`, `patch`, `create` and `auth`;
-- any read of a Secret;
+- any read of a Secret, through `secret`, `secrets` or any `secret.*` or
+  `secrets.*` spelling;
+- other resource types or aliases (`pod`, `all`, `sa`, plural forms);
+- `-A` and `--all-namespaces`, and flags placed where the name or namespace belongs;
 - `--as`, `--as-group`, `--token`, `--server`, `--kubeconfig` and
   `--insecure-skip-tls-verify`.
 
@@ -388,10 +394,12 @@ kubectl's output and error text are never printed. Only fixed codes are shown.
 - `generation`, `observed_generation`, and `observed`: true or false, or null where
   the kind has no status generation;
 - `readiness`:
-  - `READY`: the Kubernetes conditions are met (Namespace Active; CRD Established and
-    NamesAccepted; Deployment Available with every replica updated, ready and
-    available and the generation observed; ValidatingAdmissionPolicy observed without
-    type-checking warnings);
+  - `READY`: the observed Kubernetes conditions are met (Namespace Active; CRD
+    Established and NamesAccepted; Deployment Available with every replica updated,
+    ready and available and the generation observed; ValidatingAdmissionPolicy
+    observed without type-checking warnings). An object with
+    `metadata.deletionTimestamp` is never `READY`; it is `NOT_READY` with the reason
+    `deletion_pending`;
   - `NOT_READY`;
   - `NOT_APPLICABLE`: the kind has no readiness condition, so only its existence is
     checked;
@@ -402,12 +410,29 @@ kubectl's output and error text are never printed. Only fixed codes are shown.
   `deployment_not_available`, `crd_not_established`, `identity_mismatch`,
   `api_forbidden`, `api_unreachable`, `api_timeout`, `incomplete_response`.
 
-Each stage is then reported with one state:
-- `APPLIED_READY`, `NOT_READY`, `PARTIAL`, `NOT_APPLIED`;
-- `UNKNOWN`, whenever any object in the stage is unknown;
-- for the ingress stage only:
-  - `BLOCKED` while the TargetGroupBinding does not exist;
-  - `UNVERIFIED` once it does, because its target health cannot be checked.
+Each stage reports what was observed and, separately, whether it may be executed:
+- `state`, the observation only:
+  - `OBSERVED_CONDITIONS_MET`: every object exists, and every condition status can
+    observe is met. It is not readiness for apply;
+  - `NOT_READY`, `PARTIAL`, `NOT_APPLIED`;
+  - `UNKNOWN`, whenever any object in the stage is unknown;
+  - `UNVERIFIED`: the ingress stage once the TargetGroupBinding exists, because its
+    target health cannot be checked.
+- `unverified_conditions`: what status does not observe for the stage, for example
+  webhook endpoint serving, the k8s_certs Secrets, running Pod image digests,
+  injection, field ownership and drift, and target registration and health.
+- `execution_gate`, independent of the observation:
+  - `BLOCKED` for ingress, whether or not the TargetGroupBinding exists, until the
+    Owner approves the binding-writer method;
+  - `NOT_AVAILABLE` for every other stage, because `apply` is not implemented.
+
+The report-level `execution_gate` records:
+- ingress `BLOCKED`;
+- impersonation `NOT_TESTED`, TokenRequest `NOT_APPROVED`, live RBAC `NOT_TESTED`;
+- F21 target registration and health `NOT_TESTED`;
+- `status_is_sufficient_for_apply: false`.
+
+A status result is never a sufficient condition for a future apply.
 
 **Exit codes.**
 - `0`: every object's state was determined. This is not the same as ready.

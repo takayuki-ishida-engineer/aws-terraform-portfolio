@@ -969,7 +969,7 @@ jobs:
           print("Kubernetes runtime input/plan tests passed:", result.testsRun, "- guard mutations detected:", len(test_k8s_runtime.MUTATIONS))
           import test_k8s_runtime_status
           status_result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_runtime_status))
-          if not status_result.wasSuccessful() or status_result.skipped or status_result.testsRun != 18 or len(test_k8s_runtime_status.MUTATIONS) != 24:
+          if not status_result.wasSuccessful() or status_result.skipped or status_result.testsRun != 21 or len(test_k8s_runtime_status.MUTATIONS) != 32:
               raise SystemExit("Kubernetes runtime status tests failed, skipped or changed the reviewed counts.")
           print("Kubernetes runtime status tests passed (fake kubectl only):", status_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_status.MUTATIONS))
           PYRUNTIMEPLAN

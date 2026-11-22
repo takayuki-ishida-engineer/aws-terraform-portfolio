@@ -27,7 +27,9 @@ commands run. Object bodies, Secrets, tokens and kubectl error text are never
 printed. Every object is reported as present, missing or unknown, with its
 generation, observedGeneration and readiness; a state that cannot be determined is
 never reported as success. Existing, observed and ready are reported separately, and
-none of them is evidence that the application or network works (NOT_TESTED).
+none of them is evidence that the application or network works (NOT_TESTED). Each
+stage's observation is reported separately from its execution gate: ingress stays
+BLOCKED whatever the cluster shows, and no status result permits an apply.
 
 ``apply`` and ``destroy`` are not implemented. The TargetGroupBinding's actor is the
 binding-writer ServiceAccount. How the operator acts as it is not approved, and
@@ -283,8 +285,23 @@ NOT_CHECKED = ["presence and contents of the four k8s_certs Secrets (Secrets are
                "target registration and health (finding F21)", "application and network behaviour"]
 
 
-def check_kubectl_command(args):
-    """Refuse anything but the three read-only command shapes this tool uses."""
+def resource_argument(api_version, kind):
+    """kind.version.group for kubectl get; the core group has no suffix."""
+    if "/" in api_version:
+        group, version = api_version.split("/", 1)
+        return kind.lower() + "." + version + "." + group
+    return kind.lower()
+
+
+# The only resource types status may read: those of the 62 reviewed objects, in exactly this spelling.
+ALLOWED_RESOURCES = frozenset(resource_argument(row[0], row[1])
+                              for row in common.parse(INVENTORY.read_text(encoding="utf-8")))
+# A Kubernetes object or namespace name: DNS-1123, never starting with "-" (no flag can hide in it).
+OBJECT_NAME = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
+
+
+def check_kubectl_command(args, targets=None):
+    """Refuse anything but the three read-only command shapes and the reviewed objects."""
     need(isinstance(args, list) and all(isinstance(a, str) for a in args), "kubectl_command_shape")
     if args[:2] == ["config", "view"]:
         need(args == ["config", "view", "--minify", "--raw", "-o", "json"], "kubectl_command_not_read_only")
@@ -293,16 +310,22 @@ def check_kubectl_command(args):
     elif args[:1] == ["get"]:
         need(len(args) in (6, 8) and args[-3:] == ["--ignore-not-found", "-o", "json"]
              and (len(args) == 6 or args[3] == "-n"), "kubectl_command_not_read_only")
-        need(args[1].split(".")[0] != "secret", "kubectl_secret_read_refused")
+        need(args[1].split(".")[0] not in ("secret", "secrets"), "kubectl_secret_read_refused")
+        need(args[1] in ALLOWED_RESOURCES, "kubectl_resource_not_allowed")
     else:
         raise StatusError("kubectl_command_not_read_only")
     for argument in args:
         need(not FORBIDDEN_KUBECTL.fullmatch(argument), "kubectl_argument_refused")
+    if args[:1] == ["get"]:
+        need(OBJECT_NAME.fullmatch(args[2]) is not None, "kubectl_name_invalid")
+        namespace = args[4] if len(args) == 8 else ""
+        need(len(args) == 6 or OBJECT_NAME.fullmatch(namespace) is not None, "kubectl_namespace_invalid")
+        need(targets is None or (args[1], namespace, args[2]) in targets, "kubectl_object_not_in_inventory")
 
 
-def run_kubectl(binary, context, args, env, timeout=STATUS_TIMEOUT_SECONDS):
+def run_kubectl(binary, context, args, env, timeout=STATUS_TIMEOUT_SECONDS, targets=None):
     """Run one allowlisted read-only kubectl command; None when it did not finish in time."""
-    check_kubectl_command(args)
+    check_kubectl_command(args, targets)
     command = [binary, "--context", context, "--request-timeout=" + str(timeout) + "s"] + args
     try:
         return subprocess.run(command, capture_output=True, text=True, check=False, env=env, timeout=timeout + 15)
@@ -310,14 +333,6 @@ def run_kubectl(binary, context, args, env, timeout=STATUS_TIMEOUT_SECONDS):
         return None
     except OSError:
         raise StatusError("kubectl_unavailable") from None
-
-
-def resource_argument(api_version, kind):
-    """kind.version.group for kubectl get; the core group has no suffix."""
-    if "/" in api_version:
-        group, version = api_version.split("/", 1)
-        return kind.lower() + "." + version + "." + group
-    return kind.lower()
 
 
 def preflight_gate(document, context, kubectl_binary, terraform, services, environment, timeout):
@@ -445,24 +460,57 @@ def object_status(row, stage, process):
     result["readiness"] = readiness_of(row, obj, result["reasons"])
     if result["observed"] is False and result["readiness"] == "READY":
         result["readiness"] = "NOT_READY"
+    if obj["metadata"].get("deletionTimestamp"):
+        # Being deleted is never ready, whatever its conditions say.
+        result["reasons"].append("deletion_pending")
+        result["readiness"] = "NOT_READY"
     return result
 
 
 def stage_state(name, objects):
+    """What was observed, nothing more: OBSERVED_CONDITIONS_MET is not readiness for apply."""
     presence = [o["presence"] for o in objects]
     if "UNKNOWN" in presence:
         return "UNKNOWN"
-    if name == "ingress" and any(o["kind"] == "TargetGroupBinding" and o["presence"] != "PRESENT" for o in objects):
-        return "BLOCKED"
     if all(p == "MISSING" for p in presence):
         return "NOT_APPLIED"
     if "MISSING" in presence:
         return "PARTIAL"
-    if any(o["readiness"] == "NOT_VERIFIABLE" for o in objects):
-        return "UNVERIFIED"
     if any(o["readiness"] == "NOT_READY" or o["observed"] is False for o in objects):
         return "NOT_READY"
-    return "APPLIED_READY"
+    if any(o["readiness"] == "NOT_VERIFIABLE" for o in objects):
+        return "UNVERIFIED"
+    return "OBSERVED_CONDITIONS_MET"
+
+
+def execution_gate(name):
+    """Whether a future apply may run the stage. Independent of what the cluster shows."""
+    if name == "ingress":
+        return "BLOCKED"
+    return "NOT_AVAILABLE"
+
+
+# Conditions status does not observe, per stage; a stage's observed state says nothing about them.
+UNVERIFIED_CONDITIONS = {
+    "namespaces": ["Pod Security and istio.io/rev labels", "field ownership and drift"],
+    "base": ["istiod-default-validator serving", "field ownership and drift"],
+    "controller": ["webhook endpoint serving on 9443", "Secret aws-load-balancer-controller-tls",
+                   "running Pod image digest", "IRSA annotation value", "field ownership and drift"],
+    "istiod": ["webhook endpoints on 15017 and 15012", "Secret cacerts", "running Pod image digest",
+               "validation dry-run", "field ownership and drift"],
+    "gateway": ["gateway Secrets", "revision injection on the Pod", "running Pod image digest",
+                "field ownership and drift"],
+    "mesh_security": ["object content drift", "field ownership"],
+    "admission": ["policy enforcement dry-run", "field ownership and drift"],
+    "binding_writer": ["writer RBAC on the cluster (NOT_TESTED)", "field ownership and drift"],
+    "ingress": ["gateway Secrets for SDS", "target registration and health (finding F21, NOT_TESTED)",
+                "field ownership and drift"],
+}
+EXECUTION_GATE = {"ingress": "BLOCKED", "reason": "the binding-writer method is not approved by the Owner",
+                  "impersonation": "NOT_TESTED", "token_request": "NOT_APPROVED", "live_rbac": "NOT_TESTED",
+                  "f21_target_registration_and_health": "NOT_TESTED",
+                  "other_stages": "NOT_AVAILABLE (apply is not implemented)",
+                  "status_is_sufficient_for_apply": False}
 
 
 def status(input_path, helm, context=None, kubectl_binary="kubectl", terraform="terraform",
@@ -482,20 +530,26 @@ def status(input_path, helm, context=None, kubectl_binary="kubectl", terraform="
     report = {"status": "collected", "changes_made": False, "project": project, "context": context,
               "server_version": server, "manifest_sha256": bundle["manifest_sha256"],
               "input_sha256": bundle["input_sha256"], "stages": [], "runtime_ready": False,
-              "functional": "NOT_TESTED", "binding_writer_method": WRITER_METHOD, "not_checked": NOT_CHECKED}
+              "functional": "NOT_TESTED", "binding_writer_method": WRITER_METHOD, "execution_gate": EXECUTION_GATE,
+              "not_checked": NOT_CHECKED}
     counts = {"objects": 0, "present": 0, "missing": 0, "unknown": 0, "ready": 0, "not_ready": 0, "existence_only": 0,
               "not_verifiable": 0}
     readiness_counter = {"READY": "ready", "NOT_READY": "not_ready", "NOT_APPLICABLE": "existence_only",
                          "NOT_VERIFIABLE": "not_verifiable"}
+    # Exactly the 62 reviewed objects of this bundle may be read, nothing else.
+    targets = {(resource_argument(r["apiVersion"], r["kind"]), r["namespace"], r["name"])
+               for stage in bundle["stages"] for r in stage["objects"]}
     for stage in bundle["stages"]:
         rows = []
         for row in stage["objects"]:
             args = ["get", resource_argument(row["apiVersion"], row["kind"]), row["name"]]
             args += (["-n", row["namespace"]] if row["namespace"] else []) + ["--ignore-not-found", "-o", "json"]
             rows.append(object_status(row, stage["name"], run_kubectl(kubectl_binary, context, args, environment,
-                                                                      timeout)))
+                                                                      timeout, targets)))
         state = stage_state(stage["name"], rows)
-        report["stages"].append({"index": stage["index"], "name": stage["name"], "state": state, "objects": rows,
+        report["stages"].append({"index": stage["index"], "name": stage["name"], "state": state,
+                                 "execution_gate": execution_gate(stage["name"]),
+                                 "unverified_conditions": UNVERIFIED_CONDITIONS[stage["name"]], "objects": rows,
                                  "required_secrets": [s["namespace"] + "/" + s["name"] for s in
                                                       stage["required_secrets"]],
                                  "secrets_checked": False})
@@ -516,7 +570,8 @@ def status_text(report):
              "Bundle: manifest sha256 " + report["manifest_sha256"] + ", input sha256 " + report["input_sha256"]]
     for stage in report["stages"]:
         lines.append("")
-        lines.append("Stage " + str(stage["index"]) + " " + stage["name"] + ": " + stage["state"])
+        lines.append("Stage " + str(stage["index"]) + " " + stage["name"] + ": observed " + stage["state"] +
+                     ", execution gate " + stage["execution_gate"])
         for row in stage["objects"]:
             where = row["namespace"] + "/" if row["namespace"] else ""
             observed = "" if row["observed_generation"] is None else \
@@ -525,10 +580,16 @@ def status_text(report):
                          row["readiness"] + observed + (" (" + ", ".join(row["reasons"]) + ")" if row["reasons"] else ""))
         for secret in stage["required_secrets"]:
             lines.append("  Secret " + secret + ": NOT_CHECKED (never read)")
+        lines.append("  not observed: " + "; ".join(stage["unverified_conditions"]))
     summary = report["summary"]
     lines.append("")
     lines.append("Objects: " + ", ".join(k + " " + str(v) for k, v in summary.items()) + ". Status: " +
                  report["status"] + ". Runtime ready: no. Application and network behaviour: NOT_TESTED.")
+    gate = report["execution_gate"]
+    lines.append("Execution gate: ingress " + gate["ingress"] + " (" + gate["reason"] + "; impersonation " +
+                 gate["impersonation"] + ", TokenRequest " + gate["token_request"] + ", live RBAC " + gate["live_rbac"] +
+                 ", F21 target registration and health " + gate["f21_target_registration_and_health"] +
+                 "); other stages " + gate["other_stages"] + ". This status is not sufficient to permit an apply.")
     lines.append("Binding writer: " + report["binding_writer_method"] + ".")
     lines.append("Not checked: " + "; ".join(report["not_checked"]) + ".")
     return "\n".join(lines)

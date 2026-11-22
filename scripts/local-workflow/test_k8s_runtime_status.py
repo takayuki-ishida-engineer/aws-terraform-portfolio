@@ -222,8 +222,15 @@ def scenario_ready(case, module):
         stages = by_name(report)
         case.assertEqual([s["name"] for s in report["stages"]], [n for n, _ in k8s_runtime.STAGE_COUNTS])
         for name, _ in k8s_runtime.STAGE_COUNTS[:-1]:
-            case.assertEqual(stages[name]["state"], "APPLIED_READY", name)
-        case.assertEqual(stages["ingress"]["state"], "BLOCKED")
+            case.assertEqual(stages[name]["state"], "OBSERVED_CONDITIONS_MET", name)
+            case.assertEqual(stages[name]["execution_gate"], "NOT_AVAILABLE", name)
+        # Observation and execution are separate: the gateway exists, the binding does not, and the gate is shut.
+        case.assertEqual((stages["ingress"]["state"], stages["ingress"]["execution_gate"]), ("PARTIAL", "BLOCKED"))
+        for stage in report["stages"]:
+            case.assertTrue(any("field ownership" in item for item in stage["unverified_conditions"]), stage["name"])
+        case.assertIn("running Pod image digest", stages["controller"]["unverified_conditions"])
+        case.assertIn("webhook endpoint serving on 9443", stages["controller"]["unverified_conditions"])
+        case.assertFalse(report["execution_gate"]["status_is_sufficient_for_apply"])
         case.assertEqual((report["status"], report["changes_made"], report["runtime_ready"], report["functional"]),
                          ("collected", False, False, "NOT_TESTED"))
         case.assertEqual(report["summary"], {"objects": 62, "present": 61, "missing": 1, "unknown": 0, "ready": 25,
@@ -258,6 +265,8 @@ def scenario_ready(case, module):
             case.assertNotIn(TOKEN_MARKER, output)
             case.assertNotIn("certificate-authority-data", output)
         case.assertIn("Application and network behaviour: NOT_TESTED", text)
+        case.assertIn("This status is not sufficient to permit an apply.", text)
+        case.assertNotIn("APPLIED_READY", json.dumps(report) + text)
 
 
 def scenario_empty(case, module):
@@ -265,9 +274,8 @@ def scenario_empty(case, module):
         cluster.edit(lambda s: s["objects"].clear())
         code, report, _, error, _ = run(module, cluster)
         case.assertEqual((code, error), (0, None))
-        states = {s["name"]: s["state"] for s in report["stages"]}
-        case.assertEqual(states.pop("ingress"), "BLOCKED")
-        case.assertEqual(set(states.values()), {"NOT_APPLIED"})
+        case.assertEqual({s["state"] for s in report["stages"]}, {"NOT_APPLIED"})
+        case.assertEqual(by_name(report)["ingress"]["execution_gate"], "BLOCKED")
         case.assertEqual(report["summary"]["missing"], 62)
 
 
@@ -464,6 +472,86 @@ def scenario_target_group_binding(case, module):
         case.assertFalse(report["runtime_ready"])
 
 
+def scenario_execution_gate(case, module):
+    """An existing TargetGroupBinding never opens the gate: observation and execution approval are separate."""
+    with cluster_for(case) as cluster:
+        objects, _ = Cluster.bundle(cluster.document)
+        binding = next(o for o in objects if o["kind"] == "TargetGroupBinding")
+        cluster.state["objects"][key_of(cluster.row("TargetGroupBinding"))] = make_ready(binding)
+        cluster.save()
+        code, report, _, _, _ = run(module, cluster)
+        ingress = by_name(report)["ingress"]
+        case.assertEqual((code, ingress["state"], ingress["execution_gate"]), (0, "UNVERIFIED", "BLOCKED"))
+        case.assertEqual(find(report, "TargetGroupBinding")["presence"], "PRESENT")
+        gate = report["execution_gate"]
+        case.assertEqual((gate["ingress"], gate["impersonation"], gate["token_request"], gate["live_rbac"],
+                          gate["f21_target_registration_and_health"], gate["status_is_sufficient_for_apply"]),
+                         ("BLOCKED", "NOT_TESTED", "NOT_APPROVED", "NOT_TESTED", "NOT_TESTED", False))
+        case.assertIn("Execution gate: ingress BLOCKED", module.status_text(report))
+    with cluster_for(case) as cluster:
+        _, report, _, _, _ = run(module, cluster)
+        case.assertEqual(by_name(report)["ingress"]["execution_gate"], "BLOCKED")
+        case.assertEqual({module.execution_gate(n) for n, _ in k8s_runtime.STAGE_COUNTS if n != "ingress"},
+                         {"NOT_AVAILABLE"})
+
+
+def scenario_deletion(case, module):
+    with cluster_for(case) as cluster:
+        for kind, name in (("Namespace", "acme-ingress"), ("ConfigMap", "values-acme-v1"),
+                           ("CustomResourceDefinition", "gateways.networking.istio.io")):
+            cluster.object(kind, name)["metadata"]["deletionTimestamp"] = "2026-11-22T00:00:00Z"
+        cluster.save()
+        code, report, _, _, _ = run(module, cluster)
+        case.assertEqual(code, 0)
+        for kind, name in (("Namespace", "acme-ingress"), ("ConfigMap", "values-acme-v1"),
+                           ("CustomResourceDefinition", "gateways.networking.istio.io")):
+            row = find(report, kind, name)
+            case.assertEqual((row["presence"], row["readiness"]), ("PRESENT", "NOT_READY"), name)
+            case.assertIn("deletion_pending", row["reasons"])
+        case.assertEqual({by_name(report)[s]["state"] for s in ("namespaces", "base", "istiod")}, {"NOT_READY"})
+
+
+def scenario_allowlist(case, module):
+    reviewed = {("deployment.v1.apps", "kube-system", "aws-load-balancer-controller")}
+    refused = {
+        "kubectl_secret_read_refused": [
+            ["get", "secrets", "cacerts", "-n", "istio-system", "--ignore-not-found", "-o", "json"],
+            ["get", "secrets.v1", "cacerts", "-n", "istio-system", "--ignore-not-found", "-o", "json"],
+            ["get", "secret.v1", "cacerts", "-n", "istio-system", "--ignore-not-found", "-o", "json"]],
+        "kubectl_resource_not_allowed": [
+            ["get", "pod", "x", "-n", "kube-system", "--ignore-not-found", "-o", "json"],
+            ["get", "deployments.v1.apps", "aws-load-balancer-controller", "-n", "kube-system", "--ignore-not-found",
+             "-o", "json"],
+            ["get", "all", "x", "--ignore-not-found", "-o", "json"],
+            ["get", "sa", "x", "-n", "kube-system", "--ignore-not-found", "-o", "json"]],
+        "kubectl_name_invalid": [
+            ["get", "deployment.v1.apps", "-A", "--ignore-not-found", "-o", "json"],
+            ["get", "deployment.v1.apps", "--all-namespaces", "--ignore-not-found", "-o", "json"],
+            ["get", "namespace", "-ojson", "--ignore-not-found", "-o", "json"]],
+        "kubectl_namespace_invalid": [
+            ["get", "deployment.v1.apps", "x", "-n", "-A", "--ignore-not-found", "-o", "json"],
+            ["get", "deployment.v1.apps", "x", "-n", "--all-namespaces", "--ignore-not-found", "-o", "json"],
+            ["get", "deployment.v1.apps", "x", "-n", "-l", "--ignore-not-found", "-o", "json"]],
+        "kubectl_command_not_read_only": [
+            ["get", "deployment.v1.apps", "x", "-A", "--ignore-not-found", "-o", "json"],
+            ["get", "deployment.v1.apps", "--ignore-not-found", "-o", "json"]],
+        "kubectl_object_not_in_inventory": [
+            ["get", "deployment.v1.apps", "istiod-other-v1", "-n", "kube-system", "--ignore-not-found", "-o", "json"]],
+    }
+    for reason, cases in refused.items():
+        for args in cases:
+            with case.assertRaises(Exception, msg=str(args)) as raised:
+                module.check_kubectl_command(args, reviewed)
+            case.assertIn(reason, str(raised.exception), args)
+    # The reviewed commands still pass.
+    module.check_kubectl_command(["config", "view", "--minify", "--raw", "-o", "json"])
+    module.check_kubectl_command(["version", "-o", "json"])
+    module.check_kubectl_command(["get", "deployment.v1.apps", "aws-load-balancer-controller", "-n", "kube-system",
+                                  "--ignore-not-found", "-o", "json"], reviewed)
+    case.assertEqual(len(module.ALLOWED_RESOURCES), 19)
+    case.assertTrue(all(not r.startswith("secret") for r in module.ALLOWED_RESOURCES))
+
+
 def scenario_guard(case, module):
     refused = [["apply", "-f", "-"], ["delete", "deployment", "x"], ["patch", "deployment", "x", "-p", "{}"],
                ["create", "token", "acme-binding-writer"], ["auth", "can-i", "--list"],
@@ -480,9 +568,13 @@ def scenario_guard(case, module):
                ["get", "deployment.v1.apps", "--token=abc", "--ignore-not-found", "-o", "json"],
                ["get", "namespace", "--server=https://evil", "--ignore-not-found", "-o", "json"],
                ["get", "namespace", "x", "-n", "--insecure-skip-tls-verify", "--ignore-not-found", "-o", "json"]]
-    for args in refused:
-        with case.assertRaises(Exception, msg=str(args)):
+    reasons = (["kubectl_command_not_read_only"] * 5 + ["kubectl_secret_read_refused"] +
+               ["kubectl_command_not_read_only"] * 4 + ["kubectl_command_not_read_only"] * 2 +
+               ["kubectl_argument_refused"] * 4)
+    for args, reason in zip(refused, reasons, strict=True):
+        with case.assertRaises(Exception, msg=str(args)) as raised:
             module.check_kubectl_command(args)
+        case.assertIn(reason, str(raised.exception), args)
     module.check_kubectl_command(["get", "namespace", "istio-system", "--ignore-not-found", "-o", "json"])
 
 
@@ -538,6 +630,15 @@ class StatusTests(unittest.TestCase):
     def test_target_group_binding_is_never_ready(self):
         scenario_target_group_binding(self, k8s_runtime)
 
+    def test_execution_gate_stays_blocked_with_an_existing_binding(self):
+        scenario_execution_gate(self, k8s_runtime)
+
+    def test_deletion_pending_is_not_ready(self):
+        scenario_deletion(self, k8s_runtime)
+
+    def test_allowlist_resource_types_secrets_and_flag_injection(self):
+        scenario_allowlist(self, k8s_runtime)
+
     def test_only_read_only_kubectl_commands(self):
         scenario_guard(self, k8s_runtime)
 
@@ -587,9 +688,7 @@ MUTATIONS = [
     ("policy_warnings_ignored", "        if warnings:\n", "        if False:\n", scenario_namespace_policy),
     ("unknown_not_first", '    if "UNKNOWN" in presence:\n        return "UNKNOWN"\n', "", scenario_identity),
     ("unknown_exit_zero", '    return (3 if counts["unknown"] else 0), report', "    return 0, report", scenario_identity),
-    ("ingress_not_blocked",
-     '    if name == "ingress" and any(o["kind"] == "TargetGroupBinding" and o["presence"] != "PRESENT" for o in objects):\n'
-     '        return "BLOCKED"\n', "", scenario_ready),
+    ("execution_gate_opened", '    if name == "ingress":\n        return "BLOCKED"\n', "", scenario_execution_gate),
     ("binding_claimed_ready", '        reasons.append("target_registration_and_health_not_tested")\n        return "NOT_VERIFIABLE"',
      '        return "READY"', scenario_target_group_binding),
     ("functional_claimed", '"functional": "NOT_TESTED"', '"functional": "PASS"', scenario_ready),
@@ -597,8 +696,26 @@ MUTATIONS = [
      "    else:\n        return\n", scenario_guard),
     ("forbidden_arguments_allowed", '        need(not FORBIDDEN_KUBECTL.fullmatch(argument), "kubectl_argument_refused")\n',
      "        pass\n", scenario_guard),
-    ("secret_reads_allowed", '        need(args[1].split(".")[0] != "secret", "kubectl_secret_read_refused")\n', "",
+    ("secret_reads_allowed",
+     '        need(args[1].split(".")[0] not in ("secret", "secrets"), "kubectl_secret_read_refused")\n', "",
      scenario_guard),
+    ("secret_plural_allowed", 'not in ("secret", "secrets"), "kubectl_secret_read_refused")',
+     '!= "secret", "kubectl_secret_read_refused")', scenario_allowlist),
+    ("resource_types_unrestricted", '        need(args[1] in ALLOWED_RESOURCES, "kubectl_resource_not_allowed")\n', "",
+     scenario_allowlist),
+    ("name_injection_allowed", '        need(OBJECT_NAME.fullmatch(args[2]) is not None, "kubectl_name_invalid")\n', "",
+     scenario_allowlist),
+    ("namespace_injection_allowed",
+     '        need(len(args) == 6 or OBJECT_NAME.fullmatch(namespace) is not None, "kubectl_namespace_invalid")\n', "",
+     scenario_allowlist),
+    ("inventory_targets_unchecked",
+     '        need(targets is None or (args[1], namespace, args[2]) in targets, "kubectl_object_not_in_inventory")\n', "",
+     scenario_allowlist),
+    ("deletion_ignored", '    if obj["metadata"].get("deletionTimestamp"):\n', "    if False:\n", scenario_deletion),
+    ("apply_sufficiency_claimed", '"status_is_sufficient_for_apply": False', '"status_is_sufficient_for_apply": True',
+     scenario_execution_gate),
+    ("unverified_conditions_hidden", '"unverified_conditions": UNVERIFIED_CONDITIONS[stage["name"]],',
+     '"unverified_conditions": [],', scenario_ready),
 ]
 
 
@@ -615,7 +732,7 @@ def mutant(old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_status_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 24)
+        self.assertEqual(len(MUTATIONS), 32)
         undetected = []
         for name, old, new, scenario in MUTATIONS:
             module = mutant(old, new)
