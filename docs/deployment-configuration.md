@@ -348,8 +348,12 @@ approval. The Owner may reorder them.
    the apply and destroy design, the mandatory corrections C1 (Istio `caBundle`
    ownership, finding F23) and G9 (safe Secret cleanup, finding F22) and the Owner
    Decision Matrix D1–D23 in the [design record](k8s-runtime-apply-destroy-design.md),
-   as documentation only. No decision is adopted, and 6c-B3a onward each need their
-   own Owner approval.
+   as documentation only. 6c-B3a added the receipt, write-ahead journal and crash
+   reconciliation (`k8s_runtime_receipt.py`), the D19 transport contract with a fake
+   only (`k8s_runtime_transport.py`) and a read-only `k8s_runtime.py receipt verify`,
+   under the Owner's D7, D8, D10, D16, D17, D19 (interface only) and partial D3
+   decisions, as code only. `apply` and `destroy` still refuse; 6c-B3b, G9 and 6c-B4
+   each need their own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

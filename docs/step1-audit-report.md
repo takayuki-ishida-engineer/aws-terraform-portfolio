@@ -22,7 +22,9 @@ resolved, and what remains open with its owning item or the Owner decision it ne
   interface endpoint. Item 6c-A, 2026-11-22: the runtime input builder and the
   offline staged plan, code only. Item 6c-B1: the read-only runtime status and its
   preflight safety gate, code only. Item 6c-B2: the apply and destroy design record
-  and new findings F22 and F23, documentation only; item 6c stays open).
+  and new findings F22 and F23, documentation only. Item 6c-B3a: the receipt,
+  journal, crash reconciliation and transport contract, code only; F22 and F23 stay
+  open; item 6c stays open).
 
 ## 1. Delivered in item 2
 
