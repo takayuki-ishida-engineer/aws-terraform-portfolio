@@ -631,6 +631,130 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - Secret cleanup (G9);
 - the Istio `caBundle` renderer change (C1).
 
+### Fake apply engine for the first two stages (item 6c-B3b-Apply-A, offline only)
+
+`k8s_runtime_apply.py` applies the `namespaces` (2 objects) and `base` (16 objects)
+stages, and nothing else.
+- It runs only against an in-memory `FakeAdapter` and `FakeClock`.
+- It has no command line. `k8s_runtime.py apply` still refuses
+  (`operation_not_approved`).
+- Any other adapter is refused, and `RealAdapter` cannot be constructed.
+- No kubectl, API call, cluster, AWS or Emulator is involved.
+
+It implements the Owner decisions of 2026-11-22 for Source/Offline use only. None
+of them is Live evidence.
+- **D2.** Secrets stay metadata-only fakes. The first two stages read none.
+- **D3.**
+  - The apply read scope is limited to the approved stages' objects and the
+    `kube-system` namespace. The fake refuses anything else
+    (`read_out_of_scope`).
+  - The Pods, Nodes, EndpointSlices and ConfigMap reads of later stages are
+    design scope only.
+  - Destroy discovery and inventory reads are not approved.
+- **D9.** `classify_admission` reduces a dry-run or probe answer to exactly one
+  class:
+  - `allowed`
+  - `authz_denied`
+  - `webhook_denied:<name>`
+  - `vap_denied:<name>`
+  - `schema_invalid`
+  - `webhook_unreachable`
+  - `dry_run_unsupported`
+  - `unknown`
+
+  A probe passes only on the exact expected class. `dry_run_permitted` requires
+  every webhook to declare `None` or `NoneOnDryRun` side effects.
+- **D11.** Timeouts are applied through the fake clock, with no unbounded retry:
+
+  | Wait | Value | On expiry |
+  | --- | --- | --- |
+  | API read | 20 s | `api_timeout`, exit 3 |
+  | CRD established | 120 s | `crd_not_established`, exit 5 |
+  | Deployment ready | 600 s | Defined; unused by these stages |
+  | CRD poll interval | 5 s | Not a timeout; a cadence inside the 120 s bound |
+
+- **D13.** `d13_ownership` implements the section 10 allowlist.
+  - Verified: only the structural status rule, which is a `status`-subresource
+    Update touching only `f:status` on a kind with status.
+  - The istiod and controller manager names are unverified, so their entries
+    give `OWNERSHIP_NOT_VERIFIED`.
+  - Any other manager or field gives `FOREIGN_FIELD`.
+  - Conflicts are never forced.
+
+**Flow.**
+1. Gate: fake adapter, approved stage.
+2. Pins, plus the hash of the given manifests against the plan's manifest SHA-256,
+   plus the receipt HEADER pins.
+3. D17 fingerprint.
+4. Receipt reconcile, using the D13 ownership hook. Stops before any write:
+
+   | Verdict | Exit and reason |
+   | --- | --- |
+   | QUARANTINED | 4 |
+   | QUARANTINE_REQUIRED | Quarantine recorded, then 4 |
+   | UID_CHANGED | 4 |
+   | NOT_OWNED | 4 `foreign_owner` |
+   | OWNERSHIP_NOT_VERIFIED | 4 |
+   | FOREIGN_FIELD | 4 |
+   | UNKNOWN | 3 |
+
+   An interrupted INTENT whose object is provably safe gets a `failed` RESULT (not
+   confirmed) before a new INTENT. Recorded ownership is kept.
+5. Per stage:
+   - pre-apply: `base` needs `namespaces` accepted, and no Istio webhook may carry
+     a `caBundle` (C1);
+   - a fake server-side dry-run of every object;
+   - per object: INTENT, then fake server-side apply without force, then RESULT
+     with the UID read back, then the D13 ownership check;
+   - minimal completion: Namespace Active with its labels, CRD Established and
+     NamesAccepted, webhook without a runtime `caBundle`;
+   - STAGE_DONE.
+
+   A closed stage is re-verified on a rerun, not re-applied.
+
+**Results.**
+- `base` leaves the istiod-default-validator serving deferred to the `istiod`
+  stage. A full run therefore ends in exit 6 `APPLIED_WITH_DEFERRED`, with `base`
+  final acceptance `DEFERRED` and runtime final acceptance `NOT_REACHED`, never
+  PASS.
+- `namespaces` alone ends in exit 0.
+- Other exits:
+
+  | Code | Status | Meaning |
+  | --- | --- | --- |
+  | 1 | REFUSED | Gate refused the request |
+  | 2 | STOPPED | Pins, fingerprint or receipt |
+  | 3 | UNDETERMINED | Timeout or unknown observation |
+  | 4 | APPLY_FAILED | Conflict, foreign ownership, UID change, quarantine, C1 or denied dry-run |
+  | 5 | READINESS_TIMEOUT | A readiness wait expired |
+
+**Journal schema: unchanged.** No record type was added.
+- Deferral is derived from the journal: a closed stage whose resolving stage is not
+  closed.
+- The only new use of an existing record is the `failed` RESULT that closes an
+  interrupted INTENT.
+- `receipt verify` keeps its strict ownership. The D13 hook (`ownership_fn`) is
+  used only by the engine.
+
+**Tests.** `test_k8s_runtime_apply.py` has 20 tests and 31 source mutations, each
+detected for its intended reason. It covers:
+- success with deferred readiness, and the namespaces-only run;
+- a rerun without writes, and an allowed status manager;
+- pins, a changed bundle, tampered manifests and the fingerprint;
+- the gates and plan order;
+- a damaged or missing journal;
+- a crash before and after the apply (re-apply, then quarantine);
+- UID changes, including a race before the write;
+- a foreign owner, a foreign field (after the run and during the apply), and an
+  unverified manager;
+- an SSA conflict and stage order;
+- the CRD timeout and API read timeout, and an inactive Namespace;
+- C1;
+- dry-run denial and the D9 classes;
+- D13 cases;
+- the fake's read scope and force refusal, the `apply` CLI refusal, and no
+  network or process imports.
+
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
 `apply` and `destroy` are not implemented (6c-B3a added only the receipt foundation

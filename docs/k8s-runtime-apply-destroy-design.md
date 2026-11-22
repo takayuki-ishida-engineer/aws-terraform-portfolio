@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation implemented offline.**
+**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A fake engine implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -20,6 +20,14 @@ of Step 1 item 6c. It has four parts:
   - a read-only `receipt verify`.
 
   See the [script description](../scripts/local-workflow/README.md#receipt-crash-recovery-and-transport-boundary-item-6c-b3a-offline-foundation).
+- 6c-B3b-Apply-A (Owner, 2026-11-22) added a fake-only apply engine for the
+  `namespaces` and `base` stages, with no command line. See the
+  [script description](../scripts/local-workflow/README.md#fake-apply-engine-for-the-first-two-stages-item-6c-b3b-apply-a-offline-only).
+  - It ends in exit 6 `APPLIED_WITH_DEFERRED`, because `base`'s validator serving
+    waits for `istiod`.
+  - Deviation from section 4.1: deferral is derived from the journal (a closed
+    stage whose resolving stage is not closed) instead of a new `DEFERRED` record.
+    The journal schema is unchanged.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.
@@ -758,10 +766,26 @@ Deleting the EKS cluster alone is not complete teardown.
   runtime never claims it, the controller webhook keeps its public CA, there is no
   `--force-conflicts`, and the renderer moves to contract 5. istiod's field manager,
   real CA rotation and webhook serving stay NOT_VERIFIED.
+- **Approved (Owner, 2026-11-22), for the 6c-B3b-Apply-A Source/Offline
+  implementation only** (none of these is Live evidence):
+  - **D2**: Secrets are metadata-only fakes. Their Live content, ownership and
+    presence stay NOT_VERIFIED, and full Secret reads are forbidden.
+  - **D3**: the apply read contract adds Pods, Nodes, EndpointSlices and the named
+    ConfigMap, strictly limited by namespace and label, as design scope. There is
+    no real cluster access. Destroy discovery and inventory reads stay unapproved.
+  - **D9**: server-side dry-run and admission probe classification, against fakes
+    only. Live use needs D20.
+  - **D11**: API read 20 s, CRD established 120 s, Deployment ready 600 s, tested
+    with a fake clock, with no unbounded retry. Any other timeout is presented
+    before it is implemented. The 5 s CRD poll interval is a cadence inside
+    the 120 s bound.
+  - **D13**: the section 10 allowlist as a Source/Offline contract.
+    - Unconfirmed manager names and field paths are not treated as confirmed.
+    - An unknown manager, a foreign field or unclear ownership fails closed.
+    - There is no `--force-conflicts`.
 - **Every other row is OPEN (not decided).** That includes:
-  - the rest of D3;
-  - D13, so other field managers leave ownership NOT_VERIFIED;
-  - D2, D5, D6, D9, D11, D12 and D18;
+  - the rest of D3 (destroy discovery and inventory reads);
+  - D5, D6, D12 and D18;
   - every Category 2 and 3 decision.
 
 ### Category 1: before Source/Offline implementation

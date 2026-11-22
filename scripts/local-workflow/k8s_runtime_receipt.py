@@ -580,11 +580,14 @@ def ownership(observed, runtime_manager):
     return "OWNED" if len(runtime) == len(managers) else "OWNERSHIP_NOT_VERIFIED"
 
 
-def reconcile(state, plan, observe, runtime_manager):
+def reconcile(state, plan, observe, runtime_manager, ownership_fn=None):
     """Classify every planned object against the journal; read-only, never adopts or releases anything.
 
     ``observe(identity)`` returns ("absent", None), ("present", {"uid", "managers"}) or ("unknown", code).
+    ``ownership_fn`` replaces the strict default (only the runtime Apply entry) where a caller applies the
+    reviewed field-ownership allowlist (decision D13); ``receipt verify`` keeps the strict default.
     """
+    owns = ownership_fn or ownership
     verdicts = []
     open_intent = state["open_intent"]
     for stage in plan.stage_order:
@@ -607,14 +610,14 @@ def reconcile(state, plan, observe, runtime_manager):
                     verdict = "UID_CHANGED"
                 else:
                     # D7: the same UID is not enough; the runtime's field ownership must also hold.
-                    owned_prior = ownership(observed, runtime_manager)
+                    owned_prior = owns(observed, runtime_manager)
                     verdict = "REAPPLY_SAFE" if owned_prior == "OWNED" else owned_prior
             elif obj["owned_uid"] is None:
                 verdict = "NOT_APPLIED" if presence == "absent" else "QUARANTINE_REQUIRED"
             elif presence == "absent" or observed["uid"] != obj["owned_uid"]:
                 verdict = "UID_CHANGED"
             else:
-                owned = ownership(observed, runtime_manager)
+                owned = owns(observed, runtime_manager)
                 verdict = "CONSISTENT" if owned == "OWNED" else owned
             verdicts.append({"stage": stage, "identity": identity, "verdict": verdict})
     return verdicts

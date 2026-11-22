@@ -945,7 +945,7 @@ jobs:
           print("Observed Kubernetes runtime checks (not Terraform native cases):", report)
           PYRUNTIME
 
-      - name: Verify the Kubernetes runtime input builder, offline plan, read-only status and receipt safety foundation (items 6c-A, 6c-B1, 6c-B3a)
+      - name: Verify the Kubernetes runtime input builder, offline plan, read-only status, receipt safety foundation and fake apply engine (items 6c-A, 6c-B1, 6c-B3a, 6c-B3b-Apply-A)
         id: kubernetes_runtime_plan
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -959,6 +959,7 @@ jobs:
           # each guard must be detected. status reads only a fake kubectl's synthetic cluster here
           # and is refused in CI. The 6c-B3a receipt, journal and transport-contract tests use
           # temporary local stores and fakes only; apply and destroy are refused before any input is read.
+          # The 6c-B3b-Apply-A engine runs only against an in-memory fake adapter and fake clock.
           export K8S_RUNTIME_HELM="$RUNNER_TEMP/v5-tools/helm"
           python3 - <<'PYRUNTIMEPLAN'
           import sys, unittest
@@ -978,6 +979,11 @@ jobs:
           if not receipt_result.wasSuccessful() or receipt_result.skipped or receipt_result.testsRun != 39 or len(test_k8s_runtime_receipt.MUTATIONS) != 58:
               raise SystemExit("Kubernetes runtime receipt/transport tests failed, skipped or changed the reviewed counts.")
           print("Kubernetes runtime receipt, recovery and transport-contract tests passed (local fakes only):", receipt_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_receipt.MUTATIONS))
+          import test_k8s_runtime_apply
+          apply_result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_runtime_apply))
+          if not apply_result.wasSuccessful() or apply_result.skipped or apply_result.testsRun != 20 or len(test_k8s_runtime_apply.MUTATIONS) != 31:
+              raise SystemExit("Kubernetes runtime fake apply engine tests failed, skipped or changed the reviewed counts.")
+          print("Kubernetes runtime fake apply engine tests passed (namespaces and base stages, fake adapter only):", apply_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_apply.MUTATIONS))
           PYRUNTIMEPLAN
           python3 scripts/local-workflow/k8s_runtime.py plan --input kubernetes/tests/fixtures/runtime.json --helm "$K8S_RUNTIME_HELM" --fixture --format json > "$RUNNER_TEMP/runtime-plan.json"
           python3 - <<'PYPLANREPORT'
@@ -1408,7 +1414,7 @@ jobs:
             ("Cognito actual plans/security", "COGNITO_RESULT", os.environ.get("COGNITO_PASSED", "")),
             ("DEV API root Cognito integration", "API_RESULT", os.environ.get("API_PASSED", "")),
             ("Kubernetes pinned Helm/schema/TLS/RBAC/mutations", "RUNTIME_RESULT", ""),
-            ("Kubernetes runtime input builder, offline plan, fake-kubectl status and receipt safety foundation (6c-A, 6c-B1, 6c-B3a), nothing executed", "RUNTIME_PLAN_RESULT", ""),
+            ("Kubernetes runtime input builder, offline plan, fake-kubectl status, receipt foundation and fake apply engine (6c-A, 6c-B1, 6c-B3a, 6c-B3b-Apply-A), nothing executed", "RUNTIME_PLAN_RESULT", ""),
             ("Kubernetes DEV certificate script (F4), offline", "CERTIFICATES_RESULT", ""),
             ("Private ECR image mirror script (F18), offline", "IMAGE_MIRROR_RESULT", ""),
             ("Private ingress/TCP/SG/ownership/plans/source mutations", "INGRESS_RESULT", os.environ.get("INGRESS_PASSED", "")),
