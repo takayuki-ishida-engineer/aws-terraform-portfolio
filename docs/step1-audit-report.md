@@ -20,7 +20,8 @@ resolved, and what remains open with its owning item or the Owner decision it ne
   `ecr_repository` module, code only. Item 6b-B3: the image mirror script, code only.
   2026-11-21: new finding F21, resolved in code by the Elastic Load Balancing
   interface endpoint. Item 6c-A, 2026-11-22: the runtime input builder and the
-  offline staged plan, code only; item 6c stays open).
+  offline staged plan, code only. Item 6c-B1: the read-only runtime status and its
+  preflight safety gate, code only; item 6c stays open).
 
 ## 1. Delivered in item 2
 

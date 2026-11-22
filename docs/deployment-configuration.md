@@ -341,9 +341,10 @@ approval. The Owner may reorder them.
    `ecr.dkr`, `elasticloadbalancing`, `logs`, `ssm`, `ssmmessages` and `sts`.
    6c (the staged runtime apply and destroy) is in progress. 6c-A delivered the
    renderer input builder `k8s_runtime_input.py` and the offline `k8s_runtime.py plan`
-   (9 stages, 62 objects, exact identities), as code only. `status`, `apply` and
-   `destroy` are not implemented, and the binding-writer method is not approved
-   (impersonation NOT_TESTED).
+   (9 stages, 62 objects, exact identities), as code only. 6c-B1 added the read-only
+   `k8s_runtime.py status` with its preflight safety gate, as code only, never run
+   against a cluster. `apply` and `destroy` are not implemented, and the
+   binding-writer method is not approved (impersonation NOT_TESTED).
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
