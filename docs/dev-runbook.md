@@ -130,10 +130,13 @@ around it. The rendered runtime references the private ECR mirror instead:
 `<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
 (item 6b-B2).
 
-The AWS Load Balancer Controller reaches the Elastic Load Balancing API through
-the network root's `elasticloadbalancing` interface endpoint (finding F21), with
-private DNS in `private1`. This endpoint exists as Terraform code only: no
-controller call through it has been verified in AWS or in the Emulator.
+After provisioning, the AWS Load Balancer Controller is configured to reach the
+Elastic Load Balancing (ELBv2) API by private DNS through the network root's
+`elasticloadbalancing` interface endpoint in `private1` (finding F21). It uses that
+path to register and deregister Pod IPs in the target group that Terraform
+(`private_ingress`) owns, through TargetGroupBinding. The actual communication is
+not verified: no controller call through this endpoint has been made in AWS or in
+the Emulator.
 
 The `registry` root (item 6b-B1) creates one private repository per purpose in
 `kubernetes/images.lock.json`: immutable tags, AES-256, no repository or lifecycle

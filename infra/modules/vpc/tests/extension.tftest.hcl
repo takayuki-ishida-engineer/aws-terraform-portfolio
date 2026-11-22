@@ -1036,8 +1036,9 @@ run "interface_endpoints_two_azs" {
     error_message = "The selected mode and candidate interface version must be exposed."
   }
 }
-# Finding F21: the reviewed list includes elasticloadbalancing, so the AWS Load
-# Balancer Controller reaches ELB without leaving the VPC; the other eight stay.
+# Finding F21: the reviewed list accepts elasticloadbalancing next to the other
+# eight services. This mock plan checks the configuration only; it does not prove
+# that the AWS Load Balancer Controller can reach the ELB API.
 run "interface_endpoints_elbv2" {
   command = plan
   variables {
