@@ -16,6 +16,12 @@ of Step 1 item 6c. It has four parts:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.
   - Same day: review of the revision, CONDITIONAL APPROVE.
+  - Pull request review of this record, REQUEST CHANGES (documentation only).
+    That review added:
+    - the stage lifecycle (4.1);
+    - the destroy inventory verification (5.1);
+    - the distinction between the current `status` and future drift verification;
+    - the operational D22.
 - The Owner approved only the creation of this documentation pull request.
 - No decision D1–D23 is adopted. Every recommendation below is a proposal until the
   Owner approves it explicitly, at the time given in the matrix.
@@ -41,9 +47,19 @@ statements. Neither implies the other.
 Rules:
 - Completing 6c-B3b, or 6c-B4, is Source/Offline PASS only. It is never described
   as "Live deploy ready" or "deployable".
-- A mandatory precondition that is NOT_VERIFIED fails closed. This covers Secrets,
-  webhooks, ECR images, ownership, digests and the TLS boundary. The command stops
-  before changing anything. It never proceeds on an assumption.
+- A mandatory condition that is NOT_VERIFIED fails closed, at the point the
+  section 4.1 lifecycle assigns to it. It never proceeds on an assumption.
+  - Conditions include Secrets, webhooks, ECR images, ownership, digests and the
+    TLS boundary.
+  - A NOT_VERIFIED pre-apply condition stops the run before that stage changes
+    anything.
+  - A NOT_VERIFIED in-stage readiness item stops the run before the next stage
+    starts.
+  - A deferred item that its resolving stage cannot verify stops the run there.
+- Bootstrap needs this staging. The namespaces exist before the Secrets can be
+  registered, and the base stage's webhook cannot serve before the istiod stage
+  runs. So a single "verify everything first" gate cannot work.
+- Deferred readiness is never a final PASS.
 - Results use the repository vocabulary: PASS, FAIL, BLOCKED, NOT_TESTED,
   NOT_VERIFIED, UNVERIFIED. An emulator result is never Live evidence; the
   Kubernetes runtime is outside the Emulator scope.
@@ -189,15 +205,18 @@ k8s_runtime.py apply --input <runtime-input.json> --helm <pinned helm> --expect-
    - admission probes, where Live approval exists (section 11);
    - `STAGE_DONE`.
 6. **Preconditions.**
-   - Mandatory: Secrets, the public CA, image digests in ECR, webhook endpoints,
-     Ready nodes in the selected zones, and the ELBv2 endpoint for ingress.
-   - Any of these that is NOT_VERIFIED stops the run (section 1). It is never
+   - Every condition belongs to one stage and one lifecycle point (section 4.1):
+     pre-apply, minimal completion, deferred readiness or final acceptance.
+   - There is no global "verify everything first" gate, because it cannot
+     bootstrap.
+   - A NOT_VERIFIED condition stops the run at its point (section 1). It is never
      treated as met.
 7. **Exit codes.**
 
    | Code | Meaning |
    | --- | --- |
-   | 0 | Applied and observed ready |
+   | 0 | Every stage in the range reached final acceptance; no deferred item remains |
+   | 6 | Applied, but deferred readiness remains for a stage outside the range. Not a PASS |
    | 1 | Refused |
    | 2 | Preflight stop |
    | 3 | Undetermined or NOT_VERIFIED |
@@ -214,6 +233,8 @@ k8s_runtime.py apply --input <runtime-input.json> --helm <pinned helm> --expect-
    - `secret_metadata_only_unsupported`
    - `dry_run_unsupported`
    - `digest_not_verified`
+   - `deferred_readiness_unresolved`
+   - `pre_apply_not_verified`
 8. **No automatic rollback and no adoption.**
    - A rerun with `--from` re-verifies every earlier stage.
    - A bundle that differs from the applied one stops (D10).
@@ -224,12 +245,68 @@ Readiness by kind:
 | --- | --- |
 | Namespace | Active, with the expected labels |
 | CRD | Established and NamesAccepted |
-| Webhook configurations | Their Deployment and endpoints are ready, and the C1 condition holds for the Istio webhooks |
+| Webhook configurations | Object applied (minimal). **Serving** is separate and may be deferred (section 4.1). Serving means all of: the backing Deployment is ready; its Service has ready endpoints; the `caBundle` is populated and owned as in C1; and a probe classifies correctly. A CRD being Established says nothing about webhook serving |
 | Deployment | Available, `observedGeneration` current, all Pods ready, digest checked (section 9) |
 | Service | It has endpoints |
 | RBAC | Present, with no diff |
 | ValidatingAdmissionPolicy | Type checking has no warnings, its binding is `Deny`, and the probes classify correctly |
 | TargetGroupBinding | BLOCKED (D1) |
+
+### 4.1 Stage lifecycle and bootstrap
+
+Each stage's conditions sit at five points:
+
+1. **Pre-apply**: verified before the stage changes anything. A NOT_VERIFIED
+   result stops the run (`pre_apply_not_verified`).
+2. **Minimal completion**: checked right after the stage is applied. The next stage
+   may start only after it passes.
+3. **Deferred readiness**: cannot be true until a later stage has run. It is
+   recorded in the journal as `DEFERRED` with its resolving stage, and checked
+   when that stage completes. If it cannot be verified there, the run stops
+   (`deferred_readiness_unresolved`).
+4. **Final acceptance**: minimal completion, in-stage readiness and every deferred
+   item verified. Only this counts as PASS for the stage.
+5. **Stop on NOT_VERIFIED**: where the run stops, as listed in each row.
+
+The 9 stages and 62 objects are unchanged.
+
+`k8s_certs.py register` runs between the namespaces and base stages. It needs
+`istio-system`, `kube-system` and `<project>-ingress` to exist. It is a manual
+step outside the runtime command, and the runtime does not assume it happened.
+The stages that consume a Secret check its presence in their own pre-apply
+condition.
+
+Abbreviations in the table:
+- **Ownership**: the receipt UID plus only the allowed managers (section 10).
+- **Secret presence**: metadata-only presence plus the `<project>-k8s-certs`
+  manager and label. Its method is still open (D2), so until D2 is decided this
+  condition is NOT_VERIFIED, and every stage that needs it stops before apply.
+- **Digest**: classification per section 9.
+- **Nodes**: Ready nodes in the selected zones (D3).
+- **ECR**: the AWS read in D4.
+
+| Stage | 1. Pre-apply | 2. Minimal completion | 3. Deferred readiness (resolved by) | 4. Final acceptance | 5. Stop on NOT_VERIFIED |
+| --- | --- | --- | --- | --- | --- |
+| namespaces (2) | • Gate, pinning, preflight, fingerprint<br>• Receipt reconciled<br>• Both namespaces absent, or present with ownership | Active; expected labels; UID recorded | None | Minimal completion plus ownership | Fingerprint or ownership: stop before apply |
+| *(manual)* `k8s_certs.py register` | Namespaces minimal completion | Exit 0 of `register` (E3); nothing is assumed from it | — | — | — |
+| base (16) | • Namespaces accepted<br>• CRDs absent, or present with ownership<br>• C1 implemented (no `caBundle` claim), else refused | • 15 CRDs Established and NamesAccepted<br>• `istiod-default-validator` applied with runtime-owned fields only (no `caBundle`) | **Validator serving** (resolved by istiod):<br>• `caBundle` populated and owned only by the allowed Istio manager<br>• istiod Service has endpoints<br>• probe F (Live, D20) | All CRD conditions plus validator serving verified | • CRD conditions unknown: stop before controller<br>• Validator serving not verified after istiod: stop before gateway and mesh_security. With `caBundle` empty and `failurePolicy: Fail`, every Istio resource write fails |
+| controller (13) | • Base minimal completion (not its deferred items)<br>• Webhook TLS Secret presence in `kube-system`<br>• Bundle `caBundle` equals the input's public CA (plan)<br>• LBC index and amd64 digests in ECR<br>• Nodes | • 2 CRDs Established and NamesAccepted<br>• RBAC, ServiceAccount and IRSA annotation present<br>• Deployment applied | **LBC webhook serving** (resolved by admission): probe B reaches the policy, not `webhook_unreachable` (Live, D20).<br>**IRSA and AWS calls** (resolved by ingress): BLOCKED | • In-stage: Deployment Available, observed generation, Pods ready, Service endpoints, `MATCH_PLATFORM`<br>• Webhook `caBundle` owned only by the runtime<br>• Deferred items verified | • Secret, ECR or nodes: stop before apply<br>• Digest NOT_VERIFIED or Pods not ready: stop before istiod |
+| istiod (12) | • Base minimal completion<br>• `cacerts` presence in `istio-system`<br>• istio-pilot digests in ECR<br>• Nodes | Objects applied with runtime-owned fields only (no `caBundle` on the validator or injector) | **CA in use** (resolved after this stage, Live): `istio-ca-root-cert` equals the local public root (D21).<br>**Injection** (resolved by gateway, or probe G) | • In-stage: Deployment Available, Pods ready, endpoints on 15017 and 15012, digest<br>• `caBundle` populated on the istiod validator and injector, and on the base validator (resolving base)<br>• Deferred items verified | • `caBundle` not populated within the timeout, or Pods not ready: stop before gateway and mesh_security |
+| gateway (5) | • istiod in-stage readiness, including the injector `caBundle`<br>• Both gateway Secrets present in `<project>-ingress`<br>• istio-proxy digests in ECR | Deployment applied | **Gateway TLS serving** (resolved by ingress): BLOCKED, so NOT_VERIFIED | • In-stage: Deployment Available, Pods injected with the bundle proxy image, digest<br>• Deferred item verified, which is impossible while ingress is BLOCKED | • Injection missing or digest NOT_VERIFIED: stop before mesh_security<br>• Final acceptance stays NOT_VERIFIED while ingress is BLOCKED |
+| mesh_security (5) | • Base validator serving resolved<br>• istiod in-stage readiness | `<project>-app` Active; Istio policies present with no diff | **Enforcement** (mTLS and authorization): needs traffic, NOT_TESTED | Present, no diff, ownership. Enforcement is recorded as NOT_TESTED, never PASS | Validator not serving: stop before apply |
+| admission (4) | Controller minimal completion (the TargetGroupBinding CRD Established) | Policies type-checked without warnings; bindings `Deny` | **Probes A, A' and B** (Live, D20) | Probes classified exactly (section 11) | Probe class unexpected or unknown: stop before binding_writer |
+| binding_writer (3) | Admission minimal completion | Present; no diff; ServiceAccount `automountServiceAccountToken: false` | **Effective permissions and impersonation** (D1, Live): NOT_TESTED | Not reachable until D1 | Never treated as PASS without D1 |
+| ingress (2) | BLOCKED (D1, F21, D4) | — | — | — | Refused (`ingress_execution_gate_blocked`) |
+
+**Run results.**
+- A run whose range ends with DEFERRED items exits 6 (`APPLIED_WITH_DEFERRED`).
+  That is not a PASS.
+- The runtime as a whole has no final PASS today. While ingress is BLOCKED, none
+  of these can reach final acceptance:
+  - the controller (IRSA and AWS calls);
+  - gateway TLS;
+  - binding_writer;
+  - ingress.
 
 ## 5. Destroy design contract
 
@@ -266,13 +343,9 @@ Readiness by kind:
    | `<project>-app` | • The receipt UID matches<br>• it holds no k8s_certs Secret, and **any** Secret or any object outside the inventory stops destroy, because it protects future applications |
    | `kube-system` | Never deleted. The webhook TLS Secret is cleaned up explicitly and confirmed absent, as its own completion condition. Controller leases are reported, not deleted |
 
-   The allowed leftovers are:
-   - the default ServiceAccount;
-   - the ConfigMaps `kube-root-ca.crt` and `istio-ca-root-cert`;
-   - istiod leader leases and ConfigMaps;
-   - Events;
-   - ReplicaSets, Pods and EndpointSlices whose `ownerReferences` chain to a
-     receipt UID.
+   "Only allowed leftovers remain" is decided by the inventory verification in
+   section 5.1, never assumed. Its result must be COMPLETE. UNKNOWN or BLOCKED
+   stops destroy before the namespace is deleted.
 
    Deleting a namespace that still holds a Secret needs a separate explicit Owner
    approval (D18).
@@ -280,12 +353,119 @@ Readiness by kind:
    - Runtime destroy is complete when all of these hold:
      - the 45 non-CRD objects are absent;
      - the four Secrets are absent;
-     - every one of the 17 CRDs has zero custom resources;
+     - every one of the 17 CRDs has zero custom resources, by the section 5.1
+       CRD check with result COMPLETE;
      - the retained CRDs are listed.
    - The CRDs go with the EKS cluster.
+   - Deleting any CRD (only with separate D5 approval) also requires a COMPLETE
+     zero-count result for that CRD.
 7. **Partial failure.**
    - Absent objects are confirmed by NotFound and UID before being skipped.
    - A rerun continues from the receipt.
+
+### 5.1 Inventory verification for destroy (D3, D19)
+
+Destroy must prove two negatives before it deletes a namespace or a CRD:
+- nothing unknown is left in the namespace;
+- no custom resource of a CRD exists.
+
+A read that cannot prove the negative is never read as "none".
+
+**Common rules.**
+- **Transport.** Every list uses the limited direct API of D19 with
+  `Accept: application/json;as=PartialObjectMetadataList;g=meta.k8s.io;v=v1`.
+  - It returns object metadata only, for every kind, so no ConfigMap data and no
+    Secret value is transferred.
+  - kubectl cannot set that header, so these reads depend on the D19 transport and
+    on the D3 read scope.
+- **Secrets.**
+  - Listed metadata-only like every other kind.
+  - A response whose `kind` is not `PartialObjectMetadataList`, or that contains
+    `data` or `stringData`, is discarded unprinted. The result is BLOCKED
+    (`secret_metadata_only_unsupported`).
+  - Reading full Secret objects is forbidden, and there is no fallback.
+- **Expected response.**
+  - HTTP 200 with `kind: PartialObjectMetadataList` and `apiVersion: meta.k8s.io/v1`.
+  - Items carry `metadata.name`, `uid`, `ownerReferences`, `labels`,
+    `managedFields` and `deletionTimestamp`.
+  - Paging uses `limit=500` and `continue`; the list is complete only when the
+    final page has no `continue` token.
+- **Completeness.**
+
+  | Response | Result |
+  | --- | --- |
+  | 403 | BLOCKED (`inventory_forbidden`) |
+  | 404 for a listed resource | UNKNOWN |
+  | 410 Gone while paging | Restart that list from the beginning, at most twice, then UNKNOWN |
+  | Timeout, 5xx, or a response that is not a `PartialObjectMetadataList` | UNKNOWN |
+  | Any failing API group in discovery | UNKNOWN for the whole namespace, because an unreadable group could hold objects |
+
+- **Identity and permissions.** The operator's own identity, never impersonation.
+  - Needed: `get` and `list` on the resources below, plus discovery.
+  - Not needed: `watch`, and any write.
+  - Whether the access policy grants these is NOT_VERIFIED until Live. A 403 is
+    BLOCKED, never "empty".
+- **No ownership inference.**
+  - Only the 62 runtime objects, matched by receipt UID, are runtime-owned.
+  - Everything else found is classified below, and is never adopted.
+  - Destroy never deletes an object found only through this inventory.
+
+**Namespace inventory.** Runs for `istio-system`, `<project>-ingress` and
+`<project>-app` immediately before each namespace deletion.
+
+1. **Discovery.** `GET /api` and `GET /apis`, then each group version's resource
+   list.
+   - Keep every resource with `namespaced: true` and the `list` verb, excluding
+     subresources (names containing `/`).
+   - A namespaced resource without `list` is UNKNOWN, unless it is in the fixed
+     allowlist of virtual, non-persisted resources:
+     - `bindings` (core);
+     - `localsubjectaccessreviews.authorization.k8s.io`.
+   - `events` (core) and `events.events.k8s.io` are the same objects; both are
+     listed.
+2. **List.** For each kept resource, `GET /api/v1/namespaces/<ns>/<resource>` or
+   `GET /apis/<group>/<version>/namespaces/<ns>/<resource>`, using the preferred
+   version.
+3. **Classification of every item:**
+
+   | Class | Rule | Effect |
+   | --- | --- | --- |
+   | `runtime_object` | One of the 62 objects whose UID equals the receipt UID | Must already be deleted by its stage; if present, stop |
+   | `owned_child` | `ownerReferences` with `controller: true` chain to a receipt UID (ReplicaSet → Deployment, Pod → ReplicaSet, EndpointSlice → Service) | Must be gone or terminating within the D11 timeout after its owner was deleted; otherwise stop. Never deleted directly |
+   | `allowed_leftover` | Exact allowlist: ServiceAccount `default`; ConfigMaps `kube-root-ca.crt` and `istio-ca-root-cert`; Events | Allowed |
+   | `istiod_leftover` | istiod leader election Leases and ConfigMaps in `istio-system`, by exact name | Allowed only after the names are confirmed Live and added to the allowlist by review. Until then they are `unknown_object` |
+   | `k8s_certs_secret` | One of the four Secrets | Must have been cleaned up first (G9). If present, stop |
+   | `unknown_object` | Anything else, including any other Secret, in any namespace and especially in `<project>-app` | Stop |
+
+4. **Result.**
+   - COMPLETE (namespace may be deleted) only when discovery and every list are
+     complete and every item is `allowed_leftover`, or a confirmed
+     `istiod_leftover`.
+   - Otherwise UNKNOWN, BLOCKED or `inventory_not_empty`. The namespace is not
+     deleted.
+
+**CRD custom-resource count.** Runs for each of the 17 CRDs before the run reports
+completion, and before any CRD deletion that D5 may approve.
+
+1. Read the CRD itself, one of the 62 objects, and check:
+   - it is Established;
+   - its UID matches the receipt;
+   - its group, plural, scope and storage version.
+2. List cluster-wide:
+   `GET /apis/<group>/<storage version>/<plural>?limit=1`, metadata-only.
+   - For a namespaced CRD this is the all-namespaces list. It is allowlisted only
+     for these 17 plurals; the `status` allowlist keeps refusing
+     `--all-namespaces`.
+3. Expect HTTP 200, `items: []` and no `continue` token, which is a zero count.
+   - Any item means `crd_instances_remain`, and the run stops.
+   - 403 means BLOCKED.
+   - 404, or a CRD that is not Established, means UNKNOWN, never zero.
+   - The 15 Istio CRDs and the 2 controller CRDs are checked separately, and each
+     needs its own COMPLETE result.
+
+`kube-system` is never inventoried for deletion. Only the controller's runtime
+objects (by receipt UID) and the webhook TLS Secret (metadata-only, G9) are read
+there.
 
 ## 6. Ownership receipt and crash recovery (D7, D16, D17)
 
@@ -445,7 +625,11 @@ How drift is handled:
 - A drifted runtime-owned field is restored by re-apply.
 - A field the runtime shares with another manager at a different value is a
   conflict, so apply stops (D8, D13).
-- `status` reports DRIFT.
+- The current read-only `status` (6c-B1) does **not** verify field ownership or
+  drift. It lists both as unverified conditions, so they stay NOT_VERIFIED in its
+  output.
+- Drift verification is a future capability, planned for 6c-B3b and subject to
+  D13. Only once it is implemented and reviewed may a command report DRIFT.
 - Destroy tolerates drift in runtime-owned fields, but stops when another manager
   owns any spec field.
 
@@ -525,7 +709,7 @@ Complete teardown within 72 hours requires **all** of:
   - kubeconfig;
   - the runtime input directory;
   - the certificate material;
-  - receipts, kept or archived per D22;
+  - receipts, kept during operation per D22 and archived per the D22 archive part;
 - a Billing check.
 
 Deleting the EKS cluster alone is not complete teardown.
@@ -545,9 +729,9 @@ which the Owner must decide.
 | D10 | Applying a different bundle version | Stop on any difference | Upgrades need a later design | 6c-B3a | Before 6c-B3a starts |
 | D16 | Releasing QUARANTINED objects | Strict: an explicit Owner action with the expected UID only | Manual work after a crash | 6c-B3a | Before 6c-B3a starts |
 | D17 | Cluster fingerprint | `kube-system` namespace UID plus the cluster ARN | Needs a small read-scope addition (D3) | 6c-B3a | Before 6c-B3a starts |
-| D19 | DELETE with a UID precondition | Limited direct API (section 3) | Own TLS and HTTP code to review | 6c-B3a (design of the transport boundary), G9, 6c-B4 | Before 6c-B3a starts (method); DELETE stays disabled until implemented |
+| D19 | Transport for DELETE with a UID precondition and for metadata-only reads (Secrets, section 5.1 inventory) | Limited direct API (section 3) | Own TLS and HTTP code to review | 6c-B3a (design of the transport boundary), G9, 6c-B4 | Before 6c-B3a starts (method); DELETE and the inventory reads stay disabled until implemented |
 | D23 | Istio `caBundle` ownership (C1) | Omit the empty `caBundle` on the three Istio webhooks (renderer contract 5) | A renderer contract change | 6c-B3b | Before 6c-B3b starts |
-| D3 | Read-scope expansion (Pods, Nodes, EndpointSlices, the `istio-ca-root-cert` ConfigMap, the `kube-system` namespace) | Fixed namespaces and labels only | A wider read surface | 6c-B3a (fingerprint), 6c-B3b | Before 6c-B3a starts (fingerprint part); before 6c-B3b (rest) |
+| D3 | Read-scope expansion. Apply: Pods, Nodes, EndpointSlices, the `istio-ca-root-cert` ConfigMap and the `kube-system` namespace. Destroy (section 5.1): discovery, metadata-only lists of every listable namespaced resource in the three runtime namespaces (Secrets metadata-only, never full objects), and cluster-wide metadata-only lists of the 17 CRD plurals | Apply reads limited to fixed namespaces and labels. Destroy reads metadata-only, limited to those three namespaces and 17 plurals; incomplete results are UNKNOWN or BLOCKED | A wider read surface; future application metadata in `<project>-app` becomes visible (names only) | 6c-B3a (fingerprint), 6c-B3b, 6c-B4 | Before 6c-B3a starts (fingerprint part); before 6c-B3b (apply reads); before 6c-B4 (destroy inventory) |
 | D2 | Secret verification method | Not in 6c-B3b: report NOT_VERIFIED, which fails closed for operational apply; never read full Secrets | Operational apply stays blocked until a method is proven | 6c-B3b, G9 | Before 6c-B3b starts |
 | D13 | Allowed secondary managers | Section 10 table | False stops until Live names are confirmed | 6c-B3b | Before 6c-B3b starts |
 | D9 | Dry-run and probe design | Implemented and tested against fakes only; Live use is D20 | Audit-log entries once used Live | 6c-B3b | Before 6c-B3b starts |
@@ -566,13 +750,14 @@ which the Owner must decide.
 | D15 | Controller IAM sufficiency | Verify Live; any gap in a separate Terraform pull request | Reconcile failure | Live, a possible Terraform pull request | Before Live verification |
 | D20 | Running server-side dry-run and probes against the real cluster | Inside the approved Live scope only | Audit-log entries; webhook-side AWS reads | Live verification | Before Live verification |
 | D21 | Adding the public Istio root to the input provenance | Add (input contract change) | A contract change | A later input pull request | Before Live verification of `cacerts` |
+| D22 | Operational receipt and journal policy: protection, retention while the runtime exists, and recovery when lost | Protection: the section 6 local store only (0700 and 0600, outside the repository, never uploaded to CI, GitHub or a ticket); an optional operator-held copy is encrypted and outside the repository. Retention: from the first apply until complete teardown is verified. Loss: never reconstructed from the cluster or adopted; destroy stops (`receipt_missing`); recovery is the platform destroy or an Owner-approved procedure | Loss blocks destroy (by design); a leaked receipt exposes identities and UIDs, never secrets | 6c-B3a (store), 6c-B4, Live | Before the first Live apply |
 
 ### Category 3: can wait for later features
 
 | ID | Decision | Recommended (proposal) | Risk | Affects | Needed by |
 | --- | --- | --- | --- | --- | --- |
 | D14 | Apply only the Gateway resource of the ingress stage early | No; ingress stays BLOCKED as a whole | A partial state | Ingress | When ingress is enabled |
-| D22 | Receipt retention and archiving | Keep until complete teardown, then archive locally outside the repository | Lost evidence | Destroy and teardown | Before the first Live teardown |
+| D22 (archive part only) | What happens to the receipt and journal after complete teardown is verified | Archive locally outside the repository, or delete with a recorded reason | Lost historical evidence | Teardown records | After the first verified teardown |
 
 The alternatives stay open in Category 3:
 - `--delete-crds` for D5;
@@ -588,9 +773,9 @@ independent review and Owner Squash Merge approval.
 | --- | --- | --- | --- |
 | 6c-B2 (this) | Design record, runbook, step plan and audit report | Docs only; Full CI and Offline Contracts pass on the exact HEAD | Code, renderer, CI or workflow changes |
 | 6c-B3a | Gate, pinning, cluster fingerprint, journal and receipt store, reconciliation, QUARANTINED, read-only `receipt verify`, and the D19 transport boundary if the Owner decides it here. **`apply` stays refused** | Fake tests (negative and mutation) for:<br>• crash between INTENT and RESULT<br>• UID change<br>• missing receipt<br>• modes, symlinks and owners<br>• secret-like values<br>• atomic replace<br>Existing plan 29/39 and status 21/32 kept; Full CI and Offline Contracts pass | Any need for `infra/**`, renderer, RBAC or admission changes; enabling `apply` |
-| 6c-B3b | `apply` for stages 1–8, ingress refused, plus C1 (renderer contract 5), readiness, ownership table, digest classification, probe classification against fakes, and the read scope | Fake tests (negative and mutation) for:<br>• conflict<br>• foreign field<br>• C1 refusal<br>• digest mismatch or NOT_VERIFIED<br>• probe misclassification<br>• timeout<br>• `dry_run_unsupported`<br>• ingress refusal<br>• NOT_VERIFIED preconditions failing closed<br>Plan tests pin contract 5. It is Source/Offline PASS only, never "Live deploy ready" | Enabling ingress; impersonation or TokenRequest code; reading full Secrets |
+| 6c-B3b | `apply` for stages 1–8, ingress refused, plus C1 (renderer contract 5), the section 4.1 lifecycle (pre-apply, minimal completion, deferred readiness, final acceptance), ownership table, digest classification, probe classification against fakes, and the read scope | Fake tests (negative and mutation) for:<br>• conflict<br>• foreign field<br>• C1 refusal<br>• digest mismatch or NOT_VERIFIED<br>• probe misclassification<br>• timeout<br>• `dry_run_unsupported`<br>• ingress refusal<br>• NOT_VERIFIED preconditions failing closed at their lifecycle point<br>• deferred items never reported as PASS (exit 6)<br>Plan tests pin contract 5. It is Source/Offline PASS only, never "Live deploy ready" | Enabling ingress; impersonation or TokenRequest code; reading full Secrets |
 | G9 (independent, recommended) | Safe Secret cleanup and the registration UID receipt in `k8s_certs.py`, using the D19 transport | Fake-API tests for:<br>• UID mismatch<br>• foreign manager<br>• missing label<br>• absence after delete<br>• no full Secret read<br>• no fallback | Namespace deletion stays BLOCKED until merged |
-| 6c-B4 | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
+| 6c-B4 | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, the section 5.1 inventory verification, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted<br>• inventory reads that are incomplete, forbidden, paged with a stale continue token, missing a discovery group, or answered with a full Secret, each UNKNOWN or BLOCKED and never empty<br>• unknown objects never adopted<br>• a non-zero or unknown CRD count | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
 | 6c-B5 | Source/offline closure audit of item 6c | Docs; lists every NOT_TESTED, BLOCKED and NOT_VERIFIED item | No COMPLETE declaration |
 | Live verification (separate) | Sections 7, 8, 9 and 11, F18, F21, D15 | Owner-approved procedure, budget and G01–G07, outside Codex Cloud | Never in Codex Cloud |
 
@@ -605,7 +790,9 @@ gateway, mesh_security, admission and binding_writer second.
   - apply of the base and istiod stages until C1;
   - DELETE until D19;
   - namespace deletion until G9;
-  - operational apply while any mandatory precondition is NOT_VERIFIED.
+  - operational apply while any mandatory precondition is NOT_VERIFIED;
+  - namespace and CRD deletion until the section 5.1 inventory returns COMPLETE;
+  - final acceptance of the runtime as a whole while ingress is BLOCKED.
 - **NOT_VERIFIED:**
   - the AWS documentation statement on impersonation (could not be read in this
     session);
@@ -617,6 +804,8 @@ gateway, mesh_security, admission and binding_writer second.
   - istiod and controller manager names and paths;
   - side effects of webhooks outside the bundle;
   - which digest `imageID` reports;
+  - the access policy granting the destroy inventory reads, discovery completeness
+    on EKS, and the exact istiod leader-election object names;
   - tag-search coverage of IAM and other types;
   - controller IAM sufficiency;
   - State freshness;

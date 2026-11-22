@@ -487,11 +487,15 @@ there is **open**; nothing here decides an execution method.
 - **CRDs.** Destroy keeps every CRD by default. Deleting a CRD removes every
   custom resource of that kind in the cluster, so CRD deletion needs a separate
   approval (**open**). The CRDs go with the EKS cluster.
-- **Order and readiness.** Stages apply in plan order, and each stage must be
-  ready before the next starts. The controller and istiod webhooks fail closed, so
+- **Order and readiness.** Stages apply in plan order. Each stage has pre-apply
+  conditions, a minimal completion, deferred readiness that a later stage resolves,
+  and a final acceptance (design record §4.1). This is needed to bootstrap: the
+  namespaces must exist before the Secrets are registered, and the base stage's
+  Istio webhook cannot serve until the istiod stage runs. Deferred readiness is
+  never a final PASS. The controller and istiod webhooks fail closed, so
   their Deployments and webhook endpoints must be ready before objects that pass
-  through those webhooks are applied. `status` reports these conditions but does not
-  wait for them.
+  through those webhooks are applied. The current `status` reports Deployment
+  readiness, lists webhook serving as an unverified condition, and does not wait.
 - **Secrets and certificates.**
   - `k8s_certs.py register` applies the four Secrets after the namespaces stage. It
     does not read them back, so what is stored in the cluster stays NOT_VERIFIED.
@@ -522,8 +526,9 @@ there is **open**; nothing here decides an execution method.
     is never left without a server;
   - clean up the Secrets and confirm they are absent before deleting their
     namespace;
-  - delete Namespaces last, only when no Secret and nothing outside the inventory
-    remains in them. `<project>-app` stops on any Secret or unknown object.
+  - delete Namespaces last, only when a metadata-only inventory of every listable
+    resource in them is complete, with no Secret and nothing outside the inventory
+    left. An incomplete or forbidden read is UNKNOWN or BLOCKED, never empty. `<project>-app` stops on any Secret or unknown object.
     Deleting a namespace that still holds a Secret needs a separate Owner approval.
 - **Partial failure.**
   - Neither apply nor destroy rolls back automatically. A failed stage stops the
@@ -531,7 +536,10 @@ there is **open**; nothing here decides an execution method.
   - A write-ahead journal records each object's intent and result. After a crash,
     an object whose creation cannot be proven is quarantined, not adopted.
   - A rerun re-verifies every earlier stage (presence, ownership, diff, readiness)
-    before continuing, and `status` shows where a run stopped.
+    before continuing.
+  - The current `status` only reports observed objects. It does not read the
+    receipt, and it leaves field ownership and drift NOT_VERIFIED. Showing where a
+    run stopped, and verifying drift, are future capabilities.
   - Whether a version change of the bundle may be upgraded in place is **open**;
     the initial design stops on any difference.
 
