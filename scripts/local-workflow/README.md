@@ -496,6 +496,14 @@ There is no recovery, release or adoption command.
     missing, and the run stops (`receipt_snapshot_missing`).
   - An inconsistent snapshot is never regenerated. `receipt verify` never repairs
     anything.
+  - A missing journal is never a fresh start. A new journal is created only in a
+    directory that the writing Store has just created and that holds nothing but
+    its lock file.
+    - A journal missing next to a snapshot stops (`journal_missing`), and the
+      snapshot bytes are left untouched.
+    - An older directory with neither file stops (`receipt_directory_not_new`).
+      The operator must investigate; nothing is recreated automatically.
+    - A corrupt journal stops and is never replaced.
   - A snapshot ahead of the journal is `journal_truncated`; any other difference is
     `receipt_journal_mismatch`.
 - **Journal rules.** Every one stops on violation:
@@ -580,7 +588,7 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - no Secrets without G9.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 33 tests and 52 source mutations, each
+**Tests.** `test_k8s_runtime_receipt.py` has 36 tests and 56 source mutations, each
 detected. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -594,6 +602,9 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - a crash between the HEADER and the first snapshot: recreated only for a verified
   HEADER-only journal, never with other records, never over an inconsistent
   snapshot, and never by `receipt verify`;
+- a missing journal next to a snapshot, an existing directory without either file,
+  a non-empty new directory and a corrupt journal: none is reinitialised or
+  overwritten;
 - a crash between INTENT and RESULT, and `REAPPLY_SAFE` only with both the UID and
   the runtime's field ownership;
 - UID changes, quarantine without release, adoption refusal and field-manager

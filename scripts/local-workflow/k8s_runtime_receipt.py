@@ -25,7 +25,11 @@ Receipt (``receipt.json``)
   rename, directory fsync). On disagreement the journal wins; a snapshot behind the
   journal is reported STALE, anything else is a mismatch. The writer recreates a
   missing snapshot only for a journal that holds nothing but a verified HEADER (a
-  crash right after the first write); otherwise a missing snapshot stops.
+  crash right after the first write); otherwise a missing snapshot stops. A missing
+  journal is never a fresh start: a new journal is created only in a directory the
+  writer itself has just created and that is still empty; a journal missing next to
+  a snapshot stops (``journal_missing``), and an older directory without either
+  stops (``receipt_directory_not_new``).
 
 Ownership (D7)
   An object is the runtime's only when its identity is in the plan, its live UID
@@ -402,7 +406,8 @@ def load(directory, plan, expected):
     """Read-only: validate the store, the journal chain, the snapshot and the header expectations."""
     directory = Path(directory)
     check_dir(directory)
-    need(os.path.lexists(directory / JOURNAL), "receipt_missing")
+    if not os.path.lexists(directory / JOURNAL):
+        raise ReceiptError("journal_missing" if os.path.lexists(directory / RECEIPT) else "receipt_missing")
     records, digests = parse_journal(read_checked(directory / JOURNAL, MAX_RECORDS * MAX_LINE_BYTES), plan)
     state = derive(records, plan)
     need(directory.name == state["header"]["fingerprint_id"], "receipt_directory_mismatch")
@@ -435,6 +440,9 @@ class Store:
                          "input_sha256": input_sha256}
         make_dir(root)
         self.dir = root / fp["id"]
+        # Only a directory this Store creates itself may be initialised; any earlier directory may
+        # have held ownership evidence, so a missing journal there is never treated as a fresh start.
+        self.created_here = not os.path.lexists(self.dir)
         make_dir(self.dir)
         self.lock_fd = None
 
@@ -510,6 +518,9 @@ class Store:
             self._write_snapshot(snapshot(records, digests, self.plan))
             return "SNAPSHOT_CREATED"
         if not records:
+            need(not os.path.lexists(self.dir / RECEIPT), "journal_missing")  # never overwrite evidence
+            need(self.created_here, "receipt_directory_not_new")
+            need(set(os.listdir(self.dir)) <= {LOCK}, "receipt_directory_not_new")
             fp = self.expected["fingerprint"]
             self._append({"type": "HEADER", "format": FORMAT, "project": self.expected["project"],
                           "cluster_arn": fp["cluster_arn"], "kube_system_uid": fp["kube_system_uid"],

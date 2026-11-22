@@ -483,6 +483,60 @@ def scenario_missing_snapshot_with_operations(case, mods):
         case.assertFalse(os.path.lexists(env.dir / "receipt.json"))
 
 
+def scenario_journal_missing(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        written(env, store)
+        snapshot_bytes = (env.dir / "receipt.json").read_bytes()
+        os.unlink(env.dir / "journal.jsonl")
+        again = env.store()
+        with again.lock():
+            case.assertEqual(error_of(again.begin, mods.receipt.ReceiptError), "journal_missing")
+        with store.lock():
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "journal_missing")
+        case.assertEqual((env.dir / "receipt.json").read_bytes(), snapshot_bytes)
+        case.assertFalse(os.path.lexists(env.dir / "journal.jsonl"))
+        case.assertEqual(error_of(env.load, mods.receipt.ReceiptError), "journal_missing")
+
+
+def scenario_existing_directory_not_new(case, mods):
+    with env_for(mods) as env:
+        first = env.store()
+        second = env.store()  # the directory already exists for this Store
+        with second.lock():
+            case.assertEqual(error_of(second.begin, mods.receipt.ReceiptError), "receipt_directory_not_new")
+        case.assertEqual(sorted(os.listdir(env.dir)), ["lock"])
+        with first.lock():
+            case.assertEqual(first.begin(), "CREATED")
+        case.assertEqual(env.load()["receipt"], "CURRENT")
+
+
+def scenario_new_directory_must_be_empty(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        stray = env.dir / "stray"
+        stray.write_text("unexpected")
+        os.chmod(stray, 0o600)
+        with store.lock():
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "receipt_directory_not_new")
+        case.assertFalse(os.path.lexists(env.dir / "journal.jsonl"))
+        case.assertFalse(os.path.lexists(env.dir / "receipt.json"))
+
+
+def scenario_corrupt_journal_not_reinitialised(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        written(env, store)
+        (env.dir / "journal.jsonl").write_bytes(b"corrupt\n")
+        journal_bytes = (env.dir / "journal.jsonl").read_bytes()
+        snapshot_bytes = (env.dir / "receipt.json").read_bytes()
+        for candidate in (store, env.store()):
+            with candidate.lock():
+                case.assertEqual(error_of(candidate.begin, mods.receipt.ReceiptError), "journal_corrupt:not_json")
+        case.assertEqual((env.dir / "journal.jsonl").read_bytes(), journal_bytes)
+        case.assertEqual((env.dir / "receipt.json").read_bytes(), snapshot_bytes)
+
+
 def scenario_tampered_snapshot_not_regenerated(case, mods):
     with env_for(mods) as env:
         store = env.store()
@@ -1003,6 +1057,16 @@ class ReceiptTests(unittest.TestCase):
         scenario_header_crash_recovery(self, real_mods())
         scenario_header_crash_checks(self, real_mods())
 
+    def test_journal_missing_never_reinitialised(self):
+        scenario_journal_missing(self, real_mods())
+
+    def test_only_a_new_empty_directory_is_initialised(self):
+        scenario_existing_directory_not_new(self, real_mods())
+        scenario_new_directory_must_be_empty(self, real_mods())
+
+    def test_corrupt_journal_not_reinitialised(self):
+        scenario_corrupt_journal_not_reinitialised(self, real_mods())
+
     def test_missing_or_tampered_snapshot_not_regenerated(self):
         scenario_missing_snapshot_with_operations(self, real_mods())
         scenario_tampered_snapshot_not_regenerated(self, real_mods())
@@ -1130,6 +1194,14 @@ MUTATIONS = [
      "            pass", scenario_header_crash_checks),
     ("repair_only_when_missing", R, "        if records and not os.path.lexists(self.dir / RECEIPT):",
      "        if records:", scenario_tampered_snapshot_not_regenerated),
+    ("journal_missing", R, '            need(not os.path.lexists(self.dir / RECEIPT), "journal_missing")  # never overwrite evidence',
+     "            pass", scenario_journal_missing),
+    ("directory_not_new", R, '            need(self.created_here, "receipt_directory_not_new")', "            pass",
+     scenario_existing_directory_not_new),
+    ("directory_not_empty", R, '            need(set(os.listdir(self.dir)) <= {LOCK}, "receipt_directory_not_new")',
+     "            pass", scenario_new_directory_must_be_empty),
+    ("load_journal_missing", R, 'raise ReceiptError("journal_missing" if os.path.lexists(directory / RECEIPT) else "receipt_missing")',
+     'raise ReceiptError("receipt_missing")', scenario_journal_missing),
     ("reapply_ownership", R, 'verdict = "REAPPLY_SAFE" if owned_prior == "OWNED" else owned_prior', 'verdict = "REAPPLY_SAFE"',
      scenario_reapply_owned),
     ("release", R, '        raise ReceiptError("quarantine_release_not_approved")', "        return None",
@@ -1187,7 +1259,7 @@ def mutant(filename, old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 52)
+        self.assertEqual(len(MUTATIONS), 56)
         undetected = []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = real_mods()
