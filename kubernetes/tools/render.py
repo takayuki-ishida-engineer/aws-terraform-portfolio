@@ -57,12 +57,16 @@ def render(d,tool,fixture=False):
  # Full references are used verbatim by the istiod chart and the injection templates;
  # hub points at the private registry, so any unpinned fallback cannot reach a public one.
  global_values={'hub':host,'tag':LOCK['charts']['istiod']['app_version'],'istioNamespace':'istio-system','enableReaderRBAC':False,'proxy':{'image':IMAGES['istio-proxy']},'proxy_init':{'image':IMAGES['istio-proxy']}}
- base=helm(tool,'base',{'global':global_values,'defaultRevision':REV},'istio-system',version);raw_counts['base']=len(base)
+ # C1 (Owner decision D23, contract 5): istiod writes the caBundle of its own webhooks at run
+ # time, so the runtime's server-side apply must never own that field. The empty values are
+ # pinned here (not left to chart defaults) and every Istio webhook is checked below.
+ base=helm(tool,'base',{'global':global_values,'defaultRevision':REV,'base':{'validationCABundle':''}},'istio-system',version);raw_counts['base']=len(base)
  for obj in base:
   if obj['kind']=='ValidatingWebhookConfiguration':
    for webhook in obj['webhooks']:webhook['failurePolicy']='Fail'
  stages['base']=base
  values={'global':global_values,'image':IMAGES['istio-pilot'],'revision':REV,'autoscaleEnabled':False,'replicaCount':1,'resources':r['resources']['istiod'],'nodeSelector':{'topology.kubernetes.io/zone':c['active_workload_az']},'meshConfig':{'trustDomain':r['trust_domain'],'accessLogFile':'','defaultConfig':{'holdApplicationUntilProxyStarts':True}},'seccompProfile':{'type':'RuntimeDefault'},'env':{'PILOT_ENABLE_GATEWAY_API':'false','PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER':'false'}}
+ values.update(base={'validationCABundle':''},istiodRemote={'injectionCABundle':''})
  istiod=helm(tool,'istiod',values,'istio-system',version);raw_counts['istiod']=len(istiod)
  istiod=[o for o in istiod if '-gateway-controller-' not in o['metadata']['name']]
  for obj in istiod:
@@ -73,6 +77,9 @@ def render(d,tool,fixture=False):
    pod=obj['spec']['template']['spec'];vol=next(v for v in pod['volumes'] if v['name']=='cacerts');vol['secret']={'secretName':r['istio_ca_secret'],'optional':False,'items':[{'key':k,'path':k} for k in ['ca-cert.pem','ca-key.pem','root-cert.pem','cert-chain.pem']]}
    container=pod['containers'][0];container['livenessProbe']={'tcpSocket':{'port':15014},'initialDelaySeconds':30,'periodSeconds':10,'failureThreshold':6}
  stages['istiod']=istiod
+ for obj in base+istiod:
+  if obj['kind'] in ['MutatingWebhookConfiguration','ValidatingWebhookConfiguration']:
+   for webhook in obj['webhooks']:need('caBundle' not in webhook['clientConfig'],'Istio webhook caBundle belongs to istiod (C1)')
  gv={'name':N['gateway'],'revision':REV,'global':global_values,'replicaCount':1,'autoscaling':{'enabled':False},'serviceAccount':{'create':False,'name':N['gateway']},'labels':{'istio':N['gateway'],'app':N['gateway'],'istio.io/dataplane-mode':'none'},'service':{'type':'ClusterIP','ports':[{'name':'https-backend','port':p['backend_target_port'],'protocol':'TCP','targetPort':p['backend_target_port']}]},'resources':r['resources']['gateway'],'nodeSelector':{'topology.kubernetes.io/zone':c['active_workload_az']},'readinessProbe':{'httpGet':{'path':'/healthz/ready','port':15021},'periodSeconds':5},'containerSecurityContext':{'runAsNonRoot':True,'runAsUser':1337,'allowPrivilegeEscalation':False,'readOnlyRootFilesystem':True,'capabilities':{'drop':['ALL']},'seccompProfile':{'type':'RuntimeDefault'}}}
  gateway=helm(tool,'gateway',gv,ING,version);raw_counts['gateway']=len(gateway)
  for obj in gateway:
@@ -121,7 +128,7 @@ def render(d,tool,fixture=False):
   if isinstance(x,list):return [omit_null(v) for v in x]
   return x
  result=omit_null(result)
- return result,{'status':'rendered','runtime_contract_version':4,'image_lock_sha256':sha((ROOT/'kubernetes/images.lock.json').read_bytes()),'complete_v5':False,'actual_helm_renders':4,'helm_sha256':LOCK['helm']['binary_sha256'],'charts':{k:v['sha256'] for k,v in LOCK['charts'].items()},'input_sha256':sha(json.dumps(d,sort_keys=True,separators=(',',':')).encode()),'raw_chart_counts':raw_counts,'stages':{s:len(stages[s]) for s in order},'manifest_sha256':sha(json.dumps(result,sort_keys=True,separators=(',',':')).encode()),'resource_count':len(result)}
+ return result,{'status':'rendered','runtime_contract_version':5,'image_lock_sha256':sha((ROOT/'kubernetes/images.lock.json').read_bytes()),'complete_v5':False,'actual_helm_renders':4,'helm_sha256':LOCK['helm']['binary_sha256'],'charts':{k:v['sha256'] for k,v in LOCK['charts'].items()},'input_sha256':sha(json.dumps(d,sort_keys=True,separators=(',',':')).encode()),'raw_chart_counts':raw_counts,'stages':{s:len(stages[s]) for s in order},'manifest_sha256':sha(json.dumps(result,sort_keys=True,separators=(',',':')).encode()),'resource_count':len(result)}
 def main():
  a=argparse.ArgumentParser(description=__doc__);a.add_argument('--input',type=Path,required=True);a.add_argument('--helm',required=True);a.add_argument('--fixture',action='store_true');a.add_argument('--output',type=Path,required=True);args=a.parse_args()
  d=parse(args.input.read_text());result,evidence=render(d,args.helm,args.fixture)

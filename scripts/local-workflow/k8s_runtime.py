@@ -73,7 +73,7 @@ import validate  # noqa: E402
 STAGE_TABLE = preflight.REPOSITORY / "kubernetes/tests/expected-stages.json"
 INVENTORY = preflight.REPOSITORY / "kubernetes/tests/expected-inventory.json"
 STAGES_FORMAT = "k8s-runtime-stages-v1"
-CONTRACT_VERSION = 4
+CONTRACT_VERSION = 5  # C1 (D23): Istio webhook caBundle left to istiod
 # Written independently of the renderer's evidence and of the stage table file.
 STAGE_COUNTS = (("namespaces", 2), ("base", 16), ("controller", 13), ("istiod", 12), ("gateway", 5),
                 ("mesh_security", 5), ("admission", 4), ("binding_writer", 3), ("ingress", 2))

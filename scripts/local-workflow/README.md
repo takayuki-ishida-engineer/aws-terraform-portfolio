@@ -290,7 +290,7 @@ python3 scripts/local-workflow/k8s_runtime.py plan --input ~/.config/<project>-d
 ```
 
 `plan` renders with the pinned Helm (`kubernetes/tools/install_helm.py`), runs the
-existing validator and re-checks the render evidence (contract version 4, image lock,
+existing validator and re-checks the render evidence (contract version 5, image lock,
 pinned Helm and charts, input and manifest SHA-256). It then cuts the bundle into the
 9 stages of [`kubernetes/tests/expected-stages.json`](../../kubernetes/tests/expected-stages.json):
 namespaces 2, base 16, controller 13, istiod 12, gateway 5, mesh_security 5,
@@ -658,11 +658,13 @@ there is **open**; nothing here decides an execution method.
     finalizer.
   - No DELETE is enabled until the Owner decides how a UID-precondition delete is
     sent (D19).
-- **Istio `caBundle` (C1, finding F23).** The current bundle would make the
-  runtime own an empty `caBundle` on the Istio validating webhooks, which istiod
-  fills in at run time, so a re-apply would conflict. Apply of the base and istiod
-  stages stays refused until the renderer omits that field (contract 5). The
-  conflict is never forced.
+- **Istio `caBundle` (C1, finding F23).**
+  - Renderer contract 5 (6c-B3b-C1, Owner decision D23) guarantees that the three
+    Istio webhooks carry no `caBundle`, so the runtime never owns the field istiod
+    writes.
+  - The controller webhook keeps its public CA.
+  - A conflict is never forced.
+  - istiod's real behaviour stays NOT_VERIFIED.
 - **CRDs.** Destroy keeps every CRD by default. Deleting a CRD removes every
   custom resource of that kind in the cluster, so CRD deletion needs a separate
   approval (**open**). The CRDs go with the EKS cluster.

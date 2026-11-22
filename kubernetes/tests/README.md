@@ -14,15 +14,27 @@ RBAC/bindings/admission, TGB refs, private Services, selectors/ports, pinned ima
 resource profiles, external CA dependencies, TLS MUTUAL/clientSPKI and STRICT/
 default-deny policies. CRDs are canonical-hash pinned, not assumed from strings.
 
-129 unsafe rendered mutations are actually submitted to validation: the existing
-58 cases plus19 NP-1,20 NP-2P,11 F11 and21 F18 cases. Existing cases include
+139 unsafe rendered mutations are actually submitted to validation: the existing
+58 cases plus19 NP-1,20 NP-2P,11 F11,21 F18 and10 C1 cases. Existing cases include
 TLS downgrades/identity removal/plaintext, wrong TGB target/type/VPC/networking,
 LoadBalancer Service, port/selector/ref mistakes, broad RBAC/cluster-admin binding,
 missing guards, controller flags, CA fallback, privilege/image/AZ changes and
 missing/duplicate/forbidden objects.54 invalid minimal inputs are rejected.
-29 evidence faults reject missing/failed/partial/fabricated artifacts, hash/count
+30 evidence faults reject missing/failed/partial/fabricated artifacts, hash/count
 mismatch, malformed/duplicate/nonfinite JSON, a missing or forged image lock hash and
-a contract-3 report. Individual labels are emitted in
+contract-3 and contract-4 reports.
+
+C1 (finding F23, Owner decision D23, contract 5) covers the three Istio webhooks.
+- The 10 C1 mutations reject:
+  - an empty or non-empty `caBundle` on each Istio webhook entry;
+  - an external URL in place of the istiod service;
+  - an added, renamed or removed Istio webhook entry;
+  - a removed or changed controller public CA.
+- Removing the validator guard lets the four `caBundle` cases pass, so the
+  rejection comes from that guard and not from a side effect.
+- Three renderer faults inject a `caBundle` into each Istio chart's webhook output,
+  and the renderer itself stops.
+- istiod's Live field manager, CA rotation and webhook serving are NOT_VERIFIED. Individual labels are emitted in
 the JSON report. Counts derive from executed cases; they are not native Terraform
 passes, simulated communications or a replacement for the153 toolkit tests.
 

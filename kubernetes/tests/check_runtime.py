@@ -11,7 +11,7 @@ from validate import verify,application_network_policy,structural,verify_image_l
 
 def capture(objects,evidence,d):
  need(evidence['status']=='rendered' and evidence['complete_v5'] is False and evidence['actual_helm_renders']==4,'fresh complete render evidence')
- need(type(evidence['runtime_contract_version']) is int and evidence['runtime_contract_version']==4,'F18 digest-pinned private images: contract4; legacy reports are not compatible')
+ need(type(evidence['runtime_contract_version']) is int and evidence['runtime_contract_version']==5,'contract5 (C1 Istio webhook caBundle left to istiod, F18 digest-pinned images); legacy reports are not compatible')
  need(evidence['image_lock_sha256']==sha((ROOT/'kubernetes/images.lock.json').read_bytes()),'image lock evidence')
  need(evidence['helm_sha256']==LOCK['helm']['binary_sha256'] and evidence['charts']=={k:v['sha256'] for k,v in LOCK['charts'].items()},'pinned artifacts')
  need(evidence['input_sha256']==sha(json.dumps(d,sort_keys=True,separators=(',',':')).encode()),'input evidence')
@@ -115,6 +115,20 @@ def main():
  change('untrusted_binding_actor','RoleBinding','test-binding-writer',['subjects'],[{'kind':'Group','name':'system:authenticated','apiGroup':'rbac.authorization.k8s.io'}])
  change('bypassed_namespace_guard','ValidatingAdmissionPolicy','test-no-lb-service',['spec','matchConstraints','namespaceSelector'],{'matchLabels':{'unmatched':'true'}})
  change('Istio_webhook_fail_open','MutatingWebhookConfiguration','istio-sidecar-injector-test-v1',['webhooks',0,'failurePolicy'],'Ignore')
+ # C1 (D23, contract 5): istiod owns the Istio webhook caBundle; the bundle may never claim it,
+ # empty or not, and the reviewed webhook entries and the controller's public CA stay exact.
+ CA=base64.b64encode(b'SYNTHETIC UNREVIEWED CA').decode()
+ for label,kind,name,index,value in [('C1_default_validator_empty_caBundle','ValidatingWebhookConfiguration','istiod-default-validator',0,''),
+                                     ('C1_revision_validator_caBundle','ValidatingWebhookConfiguration','istio-validator-test-v1-istio-system',0,CA),
+                                     ('C1_injector_namespace_caBundle','MutatingWebhookConfiguration','istio-sidecar-injector-test-v1',0,CA),
+                                     ('C1_injector_object_caBundle','MutatingWebhookConfiguration','istio-sidecar-injector-test-v1',1,'')]:
+  change(label,kind,name,['webhooks',index,'clientConfig','caBundle'],value)
+ change('C1_istio_webhook_external_url','ValidatingWebhookConfiguration','istio-validator-test-v1-istio-system',['webhooks',0,'clientConfig'],{'url':'https://istiod.invalid/validate'})
+ cases.append(('C1_extra_istio_webhook',lambda q:find(q,'ValidatingWebhookConfiguration','istiod-default-validator')['webhooks'].append(dict(copy.deepcopy(find(q,'ValidatingWebhookConfiguration','istiod-default-validator')['webhooks'][0]),name='extra.validation.istio.io'))))
+ change('C1_renamed_istio_webhook','ValidatingWebhookConfiguration','istio-validator-test-v1-istio-system',['webhooks',0,'name'],'other.validation.istio.io')
+ cases.append(('C1_removed_istio_webhook',lambda q:find(q,'MutatingWebhookConfiguration','istio-sidecar-injector-test-v1')['webhooks'].pop()))
+ cases.append(('C1_controller_public_CA_removed',lambda q:find(q,'ValidatingWebhookConfiguration','aws-load-balancer-controller-webhook')['webhooks'][0]['clientConfig'].pop('caBundle')))
+ change('C1_controller_public_CA_changed','MutatingWebhookConfiguration','aws-load-balancer-controller-webhook',['webhooks',0,'clientConfig','caBundle'],CA)
  change('missing_binding_guard','ValidatingAdmissionPolicy','test-target-registration',['spec','validations'],[{'expression':'true'}])
  change('admission_ignore','ValidatingAdmissionPolicy','test-target-registration',['spec','failurePolicy'],'Ignore')
  change('admission_audit_only','ValidatingAdmissionPolicyBinding','test-target-registration',['spec','validationActions'],['Audit'])
@@ -269,11 +283,23 @@ def main():
  for text in ['{broken','{"x":1,"x":2}','{"x":NaN}']:
   reject(lambda text=text:parse(text),'malformed:'+text,faults)
  q=copy.deepcopy(evidence);q.pop('runtime_contract_version');reject(lambda:capture(objects,q,d),'missing_runtime_contract_version',faults)
- for key,value in [('runtime_contract_version',1),('runtime_contract_version',3),('input_sha256','fabricated'),('charts',{}),('image_lock_sha256','0'*64)]:
+ for key,value in [('runtime_contract_version',1),('runtime_contract_version',3),('runtime_contract_version',4),('input_sha256','fabricated'),('charts',{}),('image_lock_sha256','0'*64)]:
   q=copy.deepcopy(evidence);q[key]=value;reject(lambda q=q:capture(objects,q,d),'fabricated:'+key+':'+str(value)[:8],faults)
+ # C1: the renderer itself refuses an Istio webhook that would carry a caBundle (for example a
+ # changed chart default or value), before any bundle exists.
+ import render as render_module
+ real_helm=render_module.helm;cabundle_faults=[]
+ for label,chart,name in [('base_default_validator','base','istiod-default-validator'),('istiod_revision_validator','istiod','istio-validator-test-v1-istio-system'),('istiod_injector','istiod','istio-sidecar-injector-test-v1')]:
+  def faulty(tool,key,values,ns,version,chart=chart,name=name):
+   out=real_helm(tool,key,values,ns,version)
+   if key==chart:
+    for o in out:
+     if o['metadata']['name']==name:o['webhooks'][0]['clientConfig']['caBundle']=''
+   return out
+  with patch('render.helm',side_effect=faulty):reject(lambda:render(d,args.helm,True),'render_caBundle:'+label,cabundle_faults)
  bad=copy.deepcopy(objects);find(bad,'Service','test-gateway')['spec']['ports'][0]['port']=443
  q=copy.deepcopy(evidence);q['manifest_sha256']=sha(json.dumps(bad,sort_keys=True,separators=(',',':')).encode());reject(lambda:capture(bad,q,d),'forged_hash_matching_unsafe_manifest',faults)
- report={'status':'passed','runtime_contract_version':4,'image_lock_sha256':evidence['image_lock_sha256'],'image_lock_faults':len(image_lock_faults),'rejected_image_locks':image_lock_faults,'injection_template_faults':len(template_faults),'rejected_injection_templates':template_faults,'complete_runtime':True,'complete_v5':False,'aws_api_calls':0,'kubernetes_api_calls':0,'actual_helm_renders':8,'positive_configurations':2,'resource_count':count,'inventory':evidence['stages'],'schema_checked_objects':count*2,'semantic_mutations':len(mutations),'detected_mutations':mutations,'network_policy_mutations':len(policy_mutations),'detected_network_policy_mutations':policy_mutations,'gateway_contract_mutations':len(gateway_mutations),'detected_gateway_contract_mutations':gateway_mutations,'accepted_input_boundaries':accepted_ports,'accepted_projects':accepted_projects,'project_named_objects':project_owned,'negative_cases':len(negatives),'rejected_inputs':negatives,'evidence_faults':len(faults),'rejected_evidence':faults,'chart_sha256':evidence['charts']}
+ report={'status':'passed','runtime_contract_version':5,'cabundle_render_faults':len(cabundle_faults),'rejected_cabundle_renders':cabundle_faults,'image_lock_sha256':evidence['image_lock_sha256'],'image_lock_faults':len(image_lock_faults),'rejected_image_locks':image_lock_faults,'injection_template_faults':len(template_faults),'rejected_injection_templates':template_faults,'complete_runtime':True,'complete_v5':False,'aws_api_calls':0,'kubernetes_api_calls':0,'actual_helm_renders':8,'positive_configurations':2,'resource_count':count,'inventory':evidence['stages'],'schema_checked_objects':count*2,'semantic_mutations':len(mutations),'detected_mutations':mutations,'network_policy_mutations':len(policy_mutations),'detected_network_policy_mutations':policy_mutations,'gateway_contract_mutations':len(gateway_mutations),'detected_gateway_contract_mutations':gateway_mutations,'accepted_input_boundaries':accepted_ports,'accepted_projects':accepted_projects,'project_named_objects':project_owned,'negative_cases':len(negatives),'rejected_inputs':negatives,'evidence_faults':len(faults),'rejected_evidence':faults,'chart_sha256':evidence['charts']}
  if args.report:args.report.write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(report,indent=2))
 if __name__=='__main__':main()

@@ -352,8 +352,10 @@ approval. The Owner may reorder them.
    reconciliation (`k8s_runtime_receipt.py`), the D19 transport contract with a fake
    only (`k8s_runtime_transport.py`) and a read-only `k8s_runtime.py receipt verify`,
    under the Owner's D7, D8, D10, D16, D17, D19 (interface only) and partial D3
-   decisions, as code only. `apply` and `destroy` still refuse; 6c-B3b, G9 and 6c-B4
-   each need their own Owner approval.
+   decisions, as code only. 6c-B3b-C1 resolved finding F23 in code: under Owner
+   decision D23 the renderer moves to contract 5, and the three Istio webhooks never
+   carry a `caBundle` (istiod owns it). `apply` and `destroy` still refuse; the rest
+   of 6c-B3b, G9 and 6c-B4 each need their own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

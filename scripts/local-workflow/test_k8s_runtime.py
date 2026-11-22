@@ -564,7 +564,7 @@ def scenario_evidence(case, module):
     edits = {
         "stage_evidence": lambda e: e["stages"].update(namespaces=3, base=15),
         "manifest_evidence": lambda e: e.update(manifest_sha256="0" * 64),
-        "runtime_contract_version": lambda e: e.update(runtime_contract_version=3),
+        "runtime_contract_version": lambda e: e.update(runtime_contract_version=4),
         "image_lock_evidence": lambda e: e.update(image_lock_sha256="0" * 64),
         "input_evidence": lambda e: e.update(input_sha256="0" * 64),
         "render_evidence_status": lambda e: e.update(actual_helm_renders=3),
