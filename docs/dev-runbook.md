@@ -130,6 +130,14 @@ around it. The rendered runtime references the private ECR mirror instead:
 `<account>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
 (item 6b-B2).
 
+After provisioning, the AWS Load Balancer Controller is configured to reach the
+Elastic Load Balancing (ELBv2) API by private DNS through the network root's
+`elasticloadbalancing` interface endpoint in `private1` (finding F21). It uses that
+path to register and deregister Pod IPs in the target group that Terraform
+(`private_ingress`) owns, through TargetGroupBinding. The actual communication is
+not verified: no controller call through this endpoint has been made in AWS or in
+the Emulator.
+
 The `registry` root (item 6b-B1) creates one private repository per purpose in
 `kubernetes/images.lock.json`: immutable tags, AES-256, no repository or lifecycle
 policy. Apply it:
@@ -275,7 +283,7 @@ Billing console for running costs.
 | EKS control plane | Hourly |
 | Managed node group (`m6i.large`) | Hourly, plus its EBS volume |
 | NAT gateway | Hourly plus per GB processed |
-| Interface endpoints | 8 in one AZ, each hourly plus per GB |
+| Interface endpoints | 9 in one AZ (`ec2`, `ec2messages`, `ecr.api`, `ecr.dkr`, `elasticloadbalancing`, `logs`, `ssm`, `ssmmessages`, `sts`), each hourly plus per GB. `elasticloadbalancing` (finding F21) adds one endpoint-hour from the network apply until its destroy |
 | ECR private repositories (`registry` root) | Storage per GB-month of the mirrored images. If the account's registry-level enhanced scanning is on, Amazon Inspector may also charge for scanning them. The image sizes, the ca-central-1 price and the effective scanning configuration are not yet verified |
 | Developer access host | `t3.micro`, hourly |
 | NLB | Hourly plus capacity units |

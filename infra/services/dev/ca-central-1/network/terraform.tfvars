@@ -27,11 +27,13 @@ nat = {
 
 # AWS API access without leaving the VPC, with private DNS in the active workload
 # AZ only: ec2, ecr.api, ecr.dkr, logs and sts for the EKS nodes (finding F16);
-# ssm, ssmmessages and ec2messages for Session Manager on the developer access
-# host (Step 1 item 5). Image layers come from S3 through the NAT gateway (node
-# egress limited to the S3 managed prefix list in the platform root). Each
-# endpoint is billed per hour.
+# elasticloadbalancing as the path for the AWS Load Balancer Controller's target
+# registration and Describe calls on the Terraform-owned target group (finding F21,
+# not verified); ssm, ssmmessages and ec2messages for Session Manager on the
+# developer access host (Step 1 item 5). Image layers come from S3 through the
+# NAT gateway (node egress limited to the S3 managed prefix list in the platform
+# root). Each endpoint is billed per hour.
 interface_endpoints = {
-  services    = ["ec2", "ec2messages", "ecr.api", "ecr.dkr", "logs", "ssm", "ssmmessages", "sts"]
+  services    = ["ec2", "ec2messages", "ecr.api", "ecr.dkr", "elasticloadbalancing", "logs", "ssm", "ssmmessages", "sts"]
   subnet_keys = ["private1"]
 }

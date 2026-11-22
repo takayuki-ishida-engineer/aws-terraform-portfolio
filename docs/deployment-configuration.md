@@ -208,7 +208,7 @@ they are, for example `private`, `public`, `node`, `cluster`, `artifact`, `basti
 | Cognito | user pool `project-dev-cognito`, app client `project-dev-client`, domain `project-dev-auth` |
 | S3 buckets | `project-dev-s3-artifact`, `project-dev-s3-tfstate` |
 | ECR repositories (one per purpose in `kubernetes/images.lock.json`) | `project-dev-ecr-istio-pilot`, `project-dev-ecr-istio-proxy`, `project-dev-ecr-lbc` |
-| VPC endpoints and their security group | `project-dev-vpce-ecr-api`, `project-dev-vpce-sts`, `project-dev-sg-vpce` |
+| VPC endpoints and their security group | `project-dev-vpce-ecr-api`, `project-dev-vpce-elasticloadbalancing`, `project-dev-vpce-sts`, `project-dev-sg-vpce` |
 | Developer access host | `project-dev-ec2-bastion`, `project-dev-role-bastion`, `project-dev-profile-bastion`, `project-dev-sg-bastion` |
 | Secret | `/project/dev/secret/app` |
 | Log groups | `/aws/lambda/project-dev-lambda`, `/aws/eks/project-dev-eks/cluster`, `/project/dev/apigw/http` |
@@ -335,7 +335,10 @@ approval. The Owner may reorder them.
    private ECR mirror by digest; 6b-B1 added the `registry` root and the
    `ecr_repository` module (code only, nothing created in AWS); 6b-B3 added the
    mirror script `mirror_images.py` (code only, never run against AWS). Live
-   verification follows.
+   verification follows. Finding F21 added the `elasticloadbalancing` interface
+   endpoint for the AWS Load Balancer Controller (code only), so the network root
+   has nine interface endpoints in `private1`: `ec2`, `ec2messages`, `ecr.api`,
+   `ecr.dkr`, `elasticloadbalancing`, `logs`, `ssm`, `ssmmessages` and `sts`.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
