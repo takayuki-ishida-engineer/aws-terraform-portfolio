@@ -673,9 +673,16 @@ of them is Live evidence.
   | Deployment ready | 600 s | Defined; unused by these stages |
   | CRD poll interval | 5 s | Not a timeout; a cadence inside the 120 s bound |
 
-- **D13.** `d13_ownership` implements the section 10 allowlist.
+- **D13.** `d13_ownership` implements the section 10 allowlist, using
+  field-level evidence. A manager name alone never proves ownership.
+  - The runtime's Apply entry must own exactly the leaf field paths its manifest
+    sets.
+    - Paths are nested `f:`/`k:` paths and are never collapsed to the top level.
+    - Missing, empty, partial or extra fields give `OWNERSHIP_NOT_VERIFIED`.
+    - This applies to every Namespace, CRD and webhook, on both the
+      `REAPPLY_SAFE` and the `CONSISTENT` path.
   - Verified: only the structural status rule, which is a `status`-subresource
-    Update touching only `f:status` on a kind with status.
+    Update touching only `f:status` paths on a kind with status.
   - The istiod and controller manager names are unverified, so their entries
     give `OWNERSHIP_NOT_VERIFIED`.
   - Any other manager or field gives `FOREIGN_FIELD`.
@@ -705,7 +712,15 @@ of them is Live evidence.
      a `caBundle` (C1);
    - a fake server-side dry-run of every object;
    - per object: INTENT, then fake server-side apply without force, then RESULT
-     with the UID read back, then the D13 ownership check;
+     with the UID read back, then the D13 ownership check. Every write is
+     conditional:
+     - create only if the object is absent; update only on the recorded UID;
+     - an object that appears where none was recorded stops the run before its
+       INTENT (`foreign_object_appeared`);
+     - a change between the engine's read and the write fails the fake's atomic
+       check (`precondition_failed`), and the foreign object is left byte for byte
+       unchanged;
+     - how a real API server would enforce the same condition is NOT_VERIFIED;
    - minimal completion: Namespace Active with its labels, CRD Established and
      NamesAccepted, webhook without a runtime `caBundle`;
    - STAGE_DONE.
@@ -717,6 +732,10 @@ of them is Live evidence.
   stage. A full run therefore ends in exit 6 `APPLIED_WITH_DEFERRED`, with `base`
   final acceptance `DEFERRED` and runtime final acceptance `NOT_REACHED`, never
   PASS.
+- A later stage's STAGE_DONE never resolves a deferred item on its own. Webhook
+  serving needs its own verification evidence. With no evidence source, the item
+  stays `DEFERRED` / NOT_VERIFIED. Adding that evidence is an acceptance gate for
+  Apply-B.
 - `namespaces` alone ends in exit 0.
 - Other exits:
 
@@ -736,8 +755,11 @@ of them is Live evidence.
 - `receipt verify` keeps its strict ownership. The D13 hook (`ownership_fn`) is
   used only by the engine.
 
-**Tests.** `test_k8s_runtime_apply.py` has 20 tests and 31 source mutations, each
-detected for its intended reason. It covers:
+**Tests.** `test_k8s_runtime_apply.py` has 24 tests and 40 source mutations.
+- A mutant counts only when a contract assertion fails and the code under test did
+  not crash. A mutant that only raises an exception is reported separately and
+  fails the suite.
+- It covers:
 - success with deferred readiness, and the namespaces-only run;
 - a rerun without writes, and an allowed status manager;
 - pins, a changed bundle, tampered manifests and the fingerprint;
@@ -753,7 +775,13 @@ detected for its intended reason. It covers:
 - dry-run denial and the D9 classes;
 - D13 cases;
 - the fake's read scope and force refusal, the `apply` CLI refusal, and no
-  network or process imports.
+  network or process imports;
+- a foreign object appearing before the apply or just before the write, an update
+  whose UID changed, a normal owned update, and writes without a precondition;
+- incomplete ownership on the `CONSISTENT` and `REAPPLY_SAFE` paths: an empty
+  `fieldsV1`, metadata without spec, missing webhook fields, unknown nested paths,
+  nested status paths;
+- deferred items that a later STAGE_DONE does not resolve.
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 

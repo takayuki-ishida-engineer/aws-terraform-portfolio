@@ -18,7 +18,8 @@ evidence:
 - D11: API read 20 s, CRD established 120 s, Deployment ready 600 s (unused by
   these stages). The CRD poll interval is 5 s, a cadence inside the 120 s
   bound and not a timeout. There are no unbounded retries.
-- D13: the design record section 10 allowlist (``d13_ownership``).
+- D13: the design record section 10 allowlist (``d13_ownership``), with field-level evidence: the
+  runtime's Apply entry must own exactly the manifest's leaf paths (nested, never collapsed).
   - Only the structural status rule is treated as verified.
   - The istiod and controller manager names are unverified, so their entries
     leave ownership NOT_VERIFIED.
@@ -38,6 +39,10 @@ Flow:
      with the UID read back, then the ownership check;
    - minimal completion;
    - STAGE_DONE.
+
+Every write is conditional: create only if absent, update only on the recorded UID. An object that
+appears where none was recorded stops the run before its INTENT. The fake enforces the condition
+atomically; the Live mechanism is NOT_VERIFIED.
 
 ``base`` leaves the istiod-default-validator serving deferred to the ``istiod``
 stage, which is not approved here. So a successful run ends in exit 6
@@ -96,6 +101,60 @@ class ApplyConflict(Exception):
     """A server-side apply field conflict; never forced."""
 
 
+class PreconditionFailed(Exception):
+    """The fake's atomic write precondition (absent, or the expected UID) did not hold; nothing was changed."""
+
+
+def field_paths(value, prefix=()):
+    """FieldsV1-style leaf paths of a manifest fragment in this fake's model.
+
+    Maps recurse as ``f:<key>``; lists of named items as ``k:{"name": ...}``; other lists and scalars are
+    leaves. How a real API server records each list type is NOT_VERIFIED.
+    """
+    if isinstance(value, dict) and value:
+        paths = set()
+        for key, item in value.items():
+            paths |= field_paths(item, prefix + ("f:" + key,))
+        return paths
+    if isinstance(value, list) and value and all(isinstance(i, dict) and "name" in i for i in value):
+        paths = set()
+        for item in value:
+            entry = prefix + ('k:{"name":' + json.dumps(item["name"]) + "}",)
+            rest = {k: v for k, v in item.items() if k != "name"}
+            paths |= field_paths(rest, entry) if rest else {entry}
+        return paths
+    return {prefix}
+
+
+def required_paths(manifest):
+    """The fields the runtime's Apply entry must own for this object: every leaf it sets except identity."""
+    fragment = {k: copy.deepcopy(v) for k, v in manifest.items() if k not in ("apiVersion", "kind")}
+    metadata = {k: v for k, v in fragment.pop("metadata", {}).items() if k not in ("name", "namespace")}
+    if metadata:
+        fragment["metadata"] = metadata
+    return frozenset(field_paths(fragment)) if fragment else frozenset()
+
+
+def fieldsv1_of(paths):
+    tree = {}
+    for path in paths:
+        node = tree
+        for part in path:
+            node = node.setdefault(part, {})
+    return tree
+
+
+def paths_of(fieldsv1, prefix=()):
+    """Leaf paths of a managedFields fieldsV1 tree, without collapsing nested paths."""
+    if not isinstance(fieldsv1, dict) or not fieldsv1:
+        return {prefix} if prefix else set()
+    paths = set()
+    for key, item in fieldsv1.items():
+        if key != ".":
+            paths |= paths_of(item, prefix + (key,))
+    return paths
+
+
 def stop(exit_code, reason):
     raise ApplyStop(exit_code, reason)
 
@@ -142,6 +201,7 @@ class FakeAdapter:
         self.conflicts = set()     # keys whose server-side apply conflicts
         self.crd_ready_after = {}  # key -> seconds after creation, or None for never
         self.dry_run = {}          # key -> (status, body)
+        self.before_write = {}            # key -> callable(adapter) run just before the atomic write check
         self.apply_timeouts = set()       # keys whose apply times out before it lands
         self.post_apply_timeouts = set()  # keys whose apply lands but whose answer is lost
         self.calls = []
@@ -172,7 +232,7 @@ class FakeAdapter:
         obj["metadata"].pop("_created", None)
         return obj
 
-    def server_side_apply(self, identity, manifest, field_manager, force=False, dry_run=False):
+    def server_side_apply(self, identity, manifest, field_manager, force=False, dry_run=False, precondition=None):
         key = key_of(identity)
         self._scope(key)
         if force:
@@ -180,14 +240,24 @@ class FakeAdapter:
         self.calls.append(("dry_run" if dry_run else "apply", key))
         if dry_run:
             return self.dry_run.get(key, (200, ""))
+        if not (precondition == {"absent": True} or (isinstance(precondition, dict) and set(precondition) == {"uid"}
+                                                      and isinstance(precondition["uid"], str))):
+            raise AdapterError("precondition_required")
         if key in self.apply_timeouts:
             raise AdapterTimeout(key)
+        if key in self.before_write:
+            self.before_write.pop(key)(self)
+        current = self.objects.get(key)
+        precondition = precondition or {}
+        # Atomic in this fake: the precondition is checked and the write made with nothing in between.
+        if precondition.get("absent") and current is not None:
+            raise PreconditionFailed("object_exists")
+        if "uid" in precondition and (current is None or current["metadata"].get("uid") != precondition["uid"]):
+            raise PreconditionFailed("uid_mismatch")
         if key in self.conflicts:
             raise ApplyConflict(key)
-        current = self.objects.get(key)
-        fields = sorted("f:" + k for k in manifest if k not in ("apiVersion", "kind"))
         entry = {"manager": field_manager, "operation": "Apply", "fieldsType": "FieldsV1",
-                 "fieldsV1": {f: {} for f in fields}}
+                 "fieldsV1": fieldsv1_of(required_paths(manifest))}
         if current is None:
             self.serial += 1
             obj = copy.deepcopy(manifest)
@@ -213,15 +283,29 @@ class FakeAdapter:
         return 200, ""
 
 
-def observed_of(obj):
-    """Presence data for reconcile and D13: UID, kind and each manager's top-level fields."""
+def observed_of(obj, manifest=None):
+    """Presence data for reconcile and D13: UID, kind, each manager's full nested paths, the required paths."""
     managers = [{"manager": m.get("manager"), "operation": m.get("operation"), "subresource": m.get("subresource", ""),
-                 "fields": sorted((m.get("fieldsV1") or {}).keys())} for m in obj["metadata"].get("managedFields") or []]
-    return {"uid": obj["metadata"].get("uid"), "kind": obj["kind"], "managers": managers}
+                 "paths": frozenset(paths_of(m.get("fieldsV1") or {}))}
+                for m in obj["metadata"].get("managedFields") or []]
+    return {"uid": obj["metadata"].get("uid"), "kind": obj["kind"], "managers": managers,
+            "required": required_paths(manifest) if manifest is not None else None}
+
+
+def status_only(entry, kind):
+    """D13 structural rule: a status-subresource Update touching only f:status paths on a kind with status."""
+    paths = entry.get("paths") or frozenset()
+    return (entry.get("subresource") == "status" and entry.get("operation") == "Update" and kind in STATUS_KINDS
+            and bool(paths) and all(path and path[0] == "f:status" for path in paths))
 
 
 def d13_ownership(observed, runtime_manager):
-    """Section 10 allowlist (D13). Only the structural status rule is verified; anything unknown fails closed."""
+    """Section 10 allowlist (D13) with field-level evidence; anything unproven fails closed.
+
+    OWNED needs the runtime's Apply entry to own exactly the required paths of the manifest, and every
+    other manager to be the structural status rule. Unverified manager names give OWNERSHIP_NOT_VERIFIED;
+    any other manager or field gives FOREIGN_FIELD. A manager name alone never proves ownership.
+    """
     managers = observed.get("managers") or []
     runtime = [m for m in managers if m.get("manager") == runtime_manager and m.get("operation") == "Apply"
                and not m.get("subresource")]
@@ -229,16 +313,16 @@ def d13_ownership(observed, runtime_manager):
         return "NOT_OWNED"
     verdict = "OWNED"
     for entry in managers:
-        if entry in runtime:
-            continue
-        fields = set(entry.get("fields") or [])
-        if (entry.get("subresource") == "status" and entry.get("operation") == "Update"
-                and observed.get("kind") in STATUS_KINDS and fields and fields <= {"f:status"}):
+        if entry in runtime or status_only(entry, observed.get("kind")):
             continue
         if entry.get("manager") in UNVERIFIED_MANAGERS:
             verdict = "OWNERSHIP_NOT_VERIFIED"
             continue
         return "FOREIGN_FIELD"
+    required = observed.get("required")
+    owned = set().union(*(set(m.get("paths") or ()) for m in runtime))
+    if not required or owned != set(required):
+        return "OWNERSHIP_NOT_VERIFIED"
     return verdict
 
 
@@ -297,6 +381,16 @@ def conditions_true(obj, names):
     return all(conditions.get(n) == "True" for n in names)
 
 
+def outstanding_deferred(stage, done, evidence):
+    """Deferred items of a stage that lack verified evidence.
+
+    A later stage's STAGE_DONE never resolves a deferred item on its own (``done`` is deliberately not
+    used): webhook serving needs its own verification evidence, and this item has no evidence source, so
+    the items stay DEFERRED / NOT_VERIFIED. Apply-B must add that evidence as an acceptance gate.
+    """
+    return [dict(d) for d in DEFERRED.get(stage, []) if evidence.get(d["item"]) is not True]
+
+
 class Engine:
     def __init__(self, report, objects, store, adapter, clock, cluster_arn):
         self.report, self.store, self.adapter, self.clock = report, store, adapter, clock
@@ -351,7 +445,8 @@ class Engine:
             stop(2, "fingerprint_unreadable")
         if fp != expected["fingerprint"]:
             stop(2, "fingerprint_mismatch")
-        return APPROVED_STAGES[:APPROVED_STAGES.index(through) + 1]
+        order = self.plan.stage_order
+        return tuple(order[:order.index(through) + 1]) if through in order else ()
 
     def reconcile(self, approved):
         scope = {k for stage in approved for k in self.plan.members[stage]}
@@ -360,7 +455,7 @@ class Engine:
             if key_of(identity) not in scope:
                 return "unknown", "not_in_scope"
             obj = self.read(identity)
-            return ("absent", None) if obj is None else ("present", observed_of(obj))
+            return ("absent", None) if obj is None else ("present", observed_of(obj, self.manifest(identity)))
         state = receipt.load(self.store.dir, self.plan, self.store.expected)["state"]
         verdicts = receipt.reconcile(state, self.plan, observe, self.manager, ownership_fn=d13_ownership)
         for row in verdicts:
@@ -403,12 +498,21 @@ class Engine:
     def apply_object(self, stage, identity, state):
         recorded = state["objects"].get(key_of(identity), {}).get("owned_uid")
         live = self.read(identity)
+        if recorded is None and live is not None:
+            stop(4, "foreign_object_appeared")  # create only what is absent; never touch a foreign object
         if recorded is not None and (live is None or live["metadata"].get("uid") != recorded):
             stop(4, "uid_changed")
         prior = {"state": "owned", "uid": recorded} if recorded is not None else {"state": "absent"}
         seq = self.store.intent(stage, identity, prior, "update" if recorded else "create")
+        # The write itself is conditional (absent, or the recorded UID). The fake checks it atomically; how a
+        # real API server would enforce the same condition is NOT_VERIFIED (D19 production transport).
+        precondition = {"uid": recorded} if recorded is not None else {"absent": True}
         try:
-            self.adapter.server_side_apply(identity, self.manifest(identity), self.manager, force=False)
+            self.adapter.server_side_apply(identity, self.manifest(identity), self.manager, force=False,
+                                           precondition=precondition)
+        except PreconditionFailed:
+            self.store.result(seq, identity, None, None, None, "failed")
+            stop(4, "precondition_failed")
         except ApplyConflict:
             self.store.result(seq, identity, None, None, None, "failed")
             stop(4, "field_conflict")
@@ -421,7 +525,7 @@ class Engine:
         meta = after["metadata"]
         self.store.result(seq, identity, meta["uid"], str(meta.get("resourceVersion", "0")),
                           int(meta.get("generation", 0)), "applied")
-        owned = d13_ownership(observed_of(after), self.manager)
+        owned = d13_ownership(observed_of(after, self.manifest(identity)), self.manager)
         if owned != "OWNED":
             stop(4, {"NOT_OWNED": "foreign_owner", "OWNERSHIP_NOT_VERIFIED": "ownership_not_verified"}
                  .get(owned, "foreign_field"))
@@ -470,7 +574,7 @@ class Engine:
                     self.store.stage_done(stage)
                     state = receipt.load(self.store.dir, self.plan, self.store.expected)["state"]
                 done.add(stage)
-                deferred = [dict(d) for d in DEFERRED.get(stage, []) if d["resolved_by"] not in done]
+                deferred = outstanding_deferred(stage, done, {})
                 self.stages.append({"name": stage, "applied": applied, "minimal_completion": "MET",
                                     "deferred": deferred, "final_acceptance": "DEFERRED" if deferred else "PASS"})
         return 6 if any(s["deferred"] for s in self.stages) else 0

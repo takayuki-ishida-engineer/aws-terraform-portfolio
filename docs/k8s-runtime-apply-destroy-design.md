@@ -25,9 +25,18 @@ of Step 1 item 6c. It has four parts:
   [script description](../scripts/local-workflow/README.md#fake-apply-engine-for-the-first-two-stages-item-6c-b3b-apply-a-offline-only).
   - It ends in exit 6 `APPLIED_WITH_DEFERRED`, because `base`'s validator serving
     waits for `istiod`.
-  - Deviation from section 4.1: deferral is derived from the journal (a closed
-    stage whose resolving stage is not closed) instead of a new `DEFERRED` record.
-    The journal schema is unchanged.
+  - Deviation from section 4.1: deferral is derived instead of journaled with a new
+    `DEFERRED` record. The journal schema is unchanged.
+  - Constraint (review of PR #91): a later stage's STAGE_DONE never resolves a
+    deferred item.
+    - Webhook serving needs its own verification evidence (`caBundle` populated
+      by the allowed manager, endpoints, a classified probe).
+    - Without that evidence the item stays DEFERRED / NOT_VERIFIED.
+    - Supplying that evidence is an acceptance gate for Apply-B.
+  - Writes are conditional (create only if absent, update only on the recorded
+    UID) and checked atomically by the fake; the Live mechanism is NOT_VERIFIED.
+  - D13 ownership needs field-level evidence: the runtime must own exactly the
+    manifest's nested leaf paths.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.

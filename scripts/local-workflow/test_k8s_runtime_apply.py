@@ -42,6 +42,14 @@ FIXTURE = preflight.REPOSITORY / "kubernetes/tests/fixtures/runtime.json"
 HELM = os.environ.get("K8S_RUNTIME_HELM", "")
 KUBE_SYSTEM_UID = "11111111-2222-4333-8444-555555555555"
 CACHE = {}
+# Unexpected exceptions raised by the code under test. A mutant that only crashes is not counted as a
+# detection of the intended safety contract (MutationTests reports it separately).
+CRASHES = []
+
+
+def crash(raised):
+    CRASHES.append(type(raised).__name__ + ": " + str(raised)[:120])
+    return "crash:" + type(raised).__name__
 
 
 def bundle():
@@ -101,8 +109,8 @@ class Run:
                                                 adapter or self.adapter, self.clock,
                                                 manifest or self.report["manifest_sha256"],
                                                 input_sha or self.report["input_sha256"], self.arn, through)
-        except Exception as raised:  # noqa: BLE001 - a mutant may crash; that is a failed outcome, not a pass
-            return {"exit_code": "crash", "status": type(raised).__name__, "reason": str(raised), "stages": []}
+        except Exception as raised:  # noqa: BLE001 - recorded as a crash, never as a detection
+            return {"exit_code": crash(raised), "status": type(raised).__name__, "reason": str(raised), "stages": []}
 
     def journal(self):
         path = self.store.dir / "journal.jsonl"
@@ -209,12 +217,31 @@ def scenario_fingerprint(case, mods):
         case.assertEqual(r.journal(), [])
 
 
+class Impostor:
+    """A fully working adapter that is not a FakeAdapter (it delegates to one); the gate must still refuse it."""
+
+    is_fake = True
+
+    def __init__(self, inner):
+        self.inner, self.used = inner, []
+
+    def get(self, identity):
+        self.used.append("get")
+        return self.inner.get(identity)
+
+    def server_side_apply(self, *args, **kwargs):
+        self.used.append("apply")
+        return self.inner.server_side_apply(*args, **kwargs)
+
+
 def scenario_gates(case, mods):
     with run_for(mods) as r:
-        impostor = types.SimpleNamespace(is_fake=True, calls=[])
+        impostor = Impostor(r.adapter)
         case.assertEqual(outcome(r.run(adapter=impostor)), (1, "REFUSED", "real_adapter_not_approved"))
+        case.assertEqual(impostor.used, [])
         case.assertEqual(outcome(r.run(through="controller")), (1, "REFUSED", "stage_not_approved:controller"))
         case.assertEqual(r.journal(), [])
+        case.assertEqual(r.applies(), [])
         with case.assertRaises(mods.apply.AdapterError):
             mods.apply.RealAdapter()
 
@@ -395,29 +422,192 @@ def scenario_classify(case, mods):
 
 
 def scenario_d13(case, mods):
-    own = mods.apply.d13_ownership
-    runtime = {"manager": "test-k8s-runtime", "operation": "Apply", "subresource": "", "fields": ["f:spec"]}
-    status = {"manager": "kube-apiserver", "operation": "Update", "subresource": "status", "fields": ["f:status"]}
-    case.assertEqual(own({"kind": "CustomResourceDefinition", "managers": [runtime, status]}, "test-k8s-runtime"),
-                     "OWNED")
-    case.assertEqual(own({"kind": "Namespace", "managers": [runtime, status]}, "test-k8s-runtime"), "FOREIGN_FIELD")
-    wide = dict(status, fields=["f:status", "f:spec"])
-    case.assertEqual(own({"kind": "CustomResourceDefinition", "managers": [runtime, wide]}, "test-k8s-runtime"),
+    a = mods.apply
+    own = a.d13_ownership
+    namespace = {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": "n", "labels": {"x": "1", "y": "2"}}}
+    crd = {"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
+           "metadata": {"name": "c.example.io"}, "spec": {"group": "example.io", "scope": "Namespaced",
+                                                         "names": {"kind": "C", "plural": "cs"}}}
+    webhook = {"apiVersion": "admissionregistration.k8s.io/v1", "kind": "ValidatingWebhookConfiguration",
+               "metadata": {"name": "v"}, "webhooks": [{"name": "w.example.io", "failurePolicy": "Fail",
+                                                        "sideEffects": "None", "rules": [{"operations": ["CREATE"]}]}]}
+
+    def observed(manifest, runtime_paths, *others):
+        managers = [{"manager": "test-k8s-runtime", "operation": "Apply", "subresource": "",
+                     "paths": frozenset(runtime_paths)}] + list(others)
+        return {"kind": manifest["kind"], "managers": managers, "required": a.required_paths(manifest)}
+
+    def other(manager, paths, subresource="", operation="Update"):
+        return {"manager": manager, "operation": operation, "subresource": subresource, "paths": frozenset(paths)}
+    full = {m["kind"]: a.required_paths(m) for m in (namespace, crd, webhook)}
+    for manifest in (namespace, crd, webhook):
+        case.assertEqual(own(observed(manifest, full[manifest["kind"]]), "test-k8s-runtime"), "OWNED")
+        case.assertEqual(own(observed(manifest, ()), "test-k8s-runtime"), "OWNERSHIP_NOT_VERIFIED")
+    case.assertEqual(own(observed(crd, {("f:metadata", "f:labels", "f:a")}), "test-k8s-runtime"),
+                     "OWNERSHIP_NOT_VERIFIED")
+    case.assertEqual(own(observed(webhook, {p for p in full["ValidatingWebhookConfiguration"]
+                                            if p[-1] != "f:failurePolicy"}), "test-k8s-runtime"),
+                     "OWNERSHIP_NOT_VERIFIED")
+    unknown = set(full["CustomResourceDefinition"]) | {("f:spec", "f:unknownField")}
+    case.assertEqual(own(observed(crd, unknown), "test-k8s-runtime"), "OWNERSHIP_NOT_VERIFIED")
+    status = other("kube-apiserver", {("f:status", "f:conditions"), ("f:status", "f:acceptedNames")}, "status")
+    case.assertEqual(own(observed(crd, full["CustomResourceDefinition"], status), "test-k8s-runtime"), "OWNED")
+    case.assertEqual(own(observed(namespace, full["Namespace"], status), "test-k8s-runtime"), "FOREIGN_FIELD")
+    wide = other("kube-apiserver", {("f:status", "f:conditions"), ("f:metadata", "f:labels", "f:z")}, "status")
+    case.assertEqual(own(observed(crd, full["CustomResourceDefinition"], wide), "test-k8s-runtime"), "FOREIGN_FIELD")
+    nested = other("helm", {("f:spec", "f:names", "f:shortNames")})
+    case.assertEqual(own(observed(crd, full["CustomResourceDefinition"], nested), "test-k8s-runtime"),
                      "FOREIGN_FIELD")
-    spoof = dict(runtime, operation="Update")
-    case.assertEqual(own({"kind": "Namespace", "managers": [runtime, spoof]}, "test-k8s-runtime"), "FOREIGN_FIELD")
-    case.assertEqual(own({"kind": "Namespace", "managers": [spoof]}, "test-k8s-runtime"), "NOT_OWNED")
-    istiod = {"manager": "pilot-discovery", "operation": "Update", "subresource": "", "fields": ["f:webhooks"]}
-    case.assertEqual(own({"kind": "ValidatingWebhookConfiguration", "managers": [runtime, istiod]},
-                         "test-k8s-runtime"), "OWNERSHIP_NOT_VERIFIED")
+    spoof = other("test-k8s-runtime", full["Namespace"])
+    case.assertEqual(own(observed(namespace, full["Namespace"], spoof), "test-k8s-runtime"), "FOREIGN_FIELD")
+    case.assertEqual(own({"kind": "Namespace", "managers": [spoof], "required": full["Namespace"]},
+                         "test-k8s-runtime"), "NOT_OWNED")
+    istiod = other("pilot-discovery", {("f:webhooks", 'k:{"name":"w.example.io"}', "f:clientConfig", "f:caBundle")})
+    case.assertEqual(own(observed(webhook, full["ValidatingWebhookConfiguration"], istiod), "test-k8s-runtime"),
+                     "OWNERSHIP_NOT_VERIFIED")
+    case.assertEqual(own(dict(observed(namespace, full["Namespace"]), required=None), "test-k8s-runtime"),
+                     "OWNERSHIP_NOT_VERIFIED")
+    case.assertEqual(a.paths_of({"f:spec": {"f:names": {"f:kind": {}, "f:plural": {}}}}),
+                     {("f:spec", "f:names", "f:kind"), ("f:spec", "f:names", "f:plural")})
+
+
+def runtime_entry(obj, manager="test-k8s-runtime"):
+    return next(m for m in obj["metadata"]["managedFields"] if m["manager"] == manager and m["operation"] == "Apply")
+
+
+def scenario_incomplete_ownership_consistent(case, mods):
+    """CONSISTENT path (closed stages re-verified): a runtime entry with too few fields is not ownership."""
+    for mutate in (lambda e: e.update(fieldsV1={}), lambda e: e["fieldsV1"].pop("f:spec")):
+        with run_for(mods) as r:
+            r.run()
+            mutate(runtime_entry(r.adapter.objects[crd_key(r)]))
+            case.assertEqual(outcome(r.run(store=r.new_store())), (4, "APPLY_FAILED", "ownership_not_verified"))
+    with run_for(mods) as r:
+        r.run()
+        validator = next(k8s_runtime_receipt.key_of(i) for i in r.members["base"]
+                         if i["kind"] == "ValidatingWebhookConfiguration")
+        runtime_entry(r.adapter.objects[validator])["fieldsV1"].pop("f:webhooks")
+        case.assertEqual(outcome(r.run(store=r.new_store()))[2], "ownership_not_verified")
+
+
+def scenario_incomplete_ownership_reapply(case, mods):
+    """REAPPLY_SAFE path (an interrupted update): the same UID with incomplete ownership must stop."""
+    with run_for(mods) as r:
+        first, second = r.key("namespaces", 0), r.key("namespaces", 1)
+        r.adapter.conflicts.add(second)
+        case.assertEqual(outcome(r.run())[2], "field_conflict")
+        r.adapter.conflicts.clear()
+        r.adapter.apply_timeouts.add(first)
+        case.assertEqual(outcome(r.run(store=r.new_store()))[2], "api_timeout")
+        case.assertEqual(r.journal()[-1]["prior"]["state"], "owned")
+        r.adapter.apply_timeouts.clear()
+        runtime_entry(r.adapter.objects[first])["fieldsV1"] = {"f:metadata": {}}
+        case.assertEqual(outcome(r.run(store=r.new_store())), (4, "APPLY_FAILED", "ownership_not_verified"))
+
+
+def snapshot(r, key):
+    return json.dumps(r.adapter.objects.get(key), sort_keys=True)
+
+
+def foreign_namespace(r, index, uid="00000000-0000-4000-9000-0000000000f1"):
+    obj = copy.deepcopy(next(o for o in r.objects if o["kind"] == "Namespace"
+                             and o["metadata"]["name"] == r.members["namespaces"][index]["name"]))
+    obj["metadata"].update(uid=uid, resourceVersion="7", generation=1, labels={"owner": "someone-else"},
+                           managedFields=[{"manager": "kubectl", "operation": "Apply",
+                                           "fieldsV1": {"f:metadata": {"f:labels": {"f:owner": {}}}}}])
+    obj["status"] = {"phase": "Active"}
+    return obj
+
+
+def scenario_foreign_appears_before_apply(case, mods):
+    """Reconcile saw the namespace absent; a foreign one appears after the dry-run, before the apply."""
+    with run_for(mods) as r:
+        target = r.key("namespaces", 0)
+        original = r.adapter.server_side_apply
+
+        def race(identity, manifest, field_manager, force=False, dry_run=False, precondition=None):
+            answer = original(identity, manifest, field_manager, force, dry_run, precondition)
+            if dry_run and k8s_runtime_receipt.key_of(identity) == target:
+                r.adapter.objects[target] = foreign_namespace(r, 0)
+            return answer
+        r.adapter.server_side_apply = race
+        result = r.run()
+        case.assertEqual(outcome(result), (4, "APPLY_FAILED", "foreign_object_appeared"))
+        case.assertEqual(json.loads(snapshot(r, target)), foreign_namespace(r, 0))
+        case.assertFalse(any(rec["type"] == "INTENT" and k8s_runtime_receipt.key_of(rec["identity"]) == target
+                             for rec in r.journal()))
+        case.assertEqual(r.applies(), [])
+
+
+def scenario_replaced_before_write(case, mods):
+    """The object is absent at the engine's read, but appears between that read and the write."""
+    with run_for(mods) as r:
+        target = r.key("namespaces", 0)
+        r.adapter.before_write[target] = lambda adapter: adapter.objects.__setitem__(target, foreign_namespace(r, 0))
+        case.assertEqual(outcome(r.run()), (4, "APPLY_FAILED", "precondition_failed"))
+        case.assertEqual(json.loads(snapshot(r, target)), foreign_namespace(r, 0))
+        last = r.journal()[-1]
+        case.assertEqual((last["type"], last.get("outcome")), ("RESULT", "failed"))
+
+
+def scenario_update_uid_mismatch(case, mods):
+    """An owned object is replaced (new UID) between the engine's read and the conditional update."""
+    with run_for(mods) as r:
+        first, second = r.key("namespaces", 0), r.key("namespaces", 1)
+        r.adapter.conflicts.add(second)
+        r.run()
+        r.adapter.conflicts.clear()
+        replacement = foreign_namespace(r, 0, uid="00000000-0000-4000-9000-0000000000f2")
+        r.adapter.before_write[first] = lambda adapter: adapter.objects.__setitem__(first, replacement)
+        case.assertEqual(outcome(r.run(store=r.new_store())), (4, "APPLY_FAILED", "precondition_failed"))
+        case.assertEqual(json.loads(snapshot(r, first)), replacement)
+
+
+def scenario_owned_update_succeeds(case, mods):
+    """With the recorded UID matching, the conditional update proceeds and the UID is unchanged."""
+    with run_for(mods) as r:
+        first, second = r.key("namespaces", 0), r.key("namespaces", 1)
+        r.adapter.conflicts.add(second)
+        r.run()
+        uid = r.adapter.objects[first]["metadata"]["uid"]
+        r.adapter.conflicts.clear()
+        r.adapter.calls.clear()
+        case.assertEqual(r.run(store=r.new_store())["exit_code"], 6)
+        case.assertIn(("apply", first), r.adapter.calls)
+        case.assertEqual(r.adapter.objects[first]["metadata"]["uid"], uid)
+        updates = [rec for rec in r.journal() if rec["type"] == "INTENT" and rec["action"] == "update"]
+        case.assertEqual([k8s_runtime_receipt.key_of(rec["identity"]) for rec in updates], [first])
+
+
+def scenario_write_needs_precondition(case, mods):
+    with run_for(mods) as r:
+        with case.assertRaises(mods.apply.AdapterError):
+            r.adapter.server_side_apply(r.members["namespaces"][0], r.objects[0], "test-k8s-runtime")
+        case.assertNotIn(r.key("namespaces", 0), r.adapter.objects)
+        with case.assertRaises(mods.apply.AdapterError):
+            r.adapter.server_side_apply(r.members["namespaces"][0], r.objects[0], "test-k8s-runtime",
+                                        precondition={"absent": True, "uid": "x"})
+
+
+def scenario_deferred_needs_evidence(case, mods):
+    """A later stage's STAGE_DONE never resolves a deferred item; only verified evidence could."""
+    outstanding = mods.apply.outstanding_deferred
+    everything = {"namespaces", "base", "controller", "istiod", "gateway"}
+    case.assertEqual(len(outstanding("base", everything, {})), 1)
+    case.assertEqual(outstanding("base", everything, {mods.apply.DEFERRED["base"][0]["item"]: True}), [])
+    case.assertEqual(outstanding("base", everything, {mods.apply.DEFERRED["base"][0]["item"]: "yes"})[0]["resolved_by"],
+                     "istiod")
 
 
 def scenario_adapter_boundary(case, mods):
     with run_for(mods) as r:
         with case.assertRaises(mods.apply.AdapterError):
             r.adapter.get({"apiVersion": "v1", "kind": "Pod", "namespace": "istio-system", "name": "x"})
-        with case.assertRaises(mods.apply.AdapterError):
-            r.adapter.server_side_apply(r.members["namespaces"][0], r.objects[0], "test-k8s-runtime", force=True)
+        with case.assertRaises(mods.apply.AdapterError) as raised:
+            r.adapter.server_side_apply(r.members["namespaces"][0], r.objects[0], "test-k8s-runtime", force=True,
+                                        precondition={"absent": True})
+        case.assertEqual(str(raised.exception), "force_conflicts_refused")
+        case.assertNotIn(r.key("namespaces", 0), r.adapter.objects)
 
 
 def scenario_cli_refused(case, mods):
@@ -444,8 +634,8 @@ def scenario_namespace_inactive(case, mods):
     with run_for(mods) as r:
         original = r.adapter.server_side_apply
 
-        def inactive(identity, manifest, field_manager, force=False, dry_run=False):
-            answer = original(identity, manifest, field_manager, force, dry_run)
+        def inactive(identity, manifest, field_manager, force=False, dry_run=False, precondition=None):
+            answer = original(identity, manifest, field_manager, force, dry_run, precondition)
             key = k8s_runtime_receipt.key_of(identity)
             if not dry_run and identity["kind"] == "Namespace":
                 r.adapter.objects[key]["status"] = {"phase": "Terminating"}
@@ -471,8 +661,8 @@ def scenario_uid_changed_live_only(case, mods):
             reason = None
         except mods.apply.ApplyStop as stopped:
             reason = stopped.reason
-        except Exception as raised:  # noqa: BLE001 - a mutant may crash instead
-            reason = "crash:" + type(raised).__name__
+        except Exception as raised:  # noqa: BLE001 - recorded as a crash, never as a detection
+            reason = crash(raised)
         case.assertEqual(reason, "uid_changed")
         case.assertEqual(len(r.journal()), before)
 
@@ -483,8 +673,8 @@ def scenario_foreign_field_during_apply(case, mods):
         target = crd_key(r)
         original = r.adapter.server_side_apply
 
-        def tainted(identity, manifest, field_manager, force=False, dry_run=False):
-            answer = original(identity, manifest, field_manager, force, dry_run)
+        def tainted(identity, manifest, field_manager, force=False, dry_run=False, precondition=None):
+            answer = original(identity, manifest, field_manager, force, dry_run, precondition)
             if not dry_run and k8s_runtime_receipt.key_of(identity) == target:
                 r.adapter.objects[target]["metadata"]["managedFields"].append(
                     {"manager": "helm", "operation": "Update", "fieldsV1": {"f:spec": {}}})
@@ -561,6 +751,22 @@ class EngineTests(unittest.TestCase):
     def test_d13_allowlist(self):
         scenario_d13(self, real_mods())
 
+    def test_incomplete_ownership_rejected_consistent_and_reapply(self):
+        scenario_incomplete_ownership_consistent(self, real_mods())
+        scenario_incomplete_ownership_reapply(self, real_mods())
+
+    def test_foreign_object_never_modified(self):
+        scenario_foreign_appears_before_apply(self, real_mods())
+        scenario_replaced_before_write(self, real_mods())
+        scenario_update_uid_mismatch(self, real_mods())
+
+    def test_conditional_writes(self):
+        scenario_owned_update_succeeds(self, real_mods())
+        scenario_write_needs_precondition(self, real_mods())
+
+    def test_deferred_needs_evidence(self):
+        scenario_deferred_needs_evidence(self, real_mods())
+
     def test_adapter_boundary_and_cli(self):
         scenario_adapter_boundary(self, real_mods())
         scenario_cli_refused(self, real_mods())
@@ -605,7 +811,25 @@ MUTATIONS = [
      scenario_deferred_never_pass),
     ("deferred_exit", A, '        return 6 if any(s["deferred"] for s in self.stages) else 0', "        return 0",
      scenario_success_is_deferred),
-    ("d13_status_fields", A, ' and fields and fields <= {"f:status"}', "", scenario_d13),
+    ("d13_status_fields", A, '            and bool(paths) and all(path and path[0] == "f:status" for path in paths))',
+     "            and bool(paths))", scenario_d13),
+    ("d13_required_fields", A, '    if not required or owned != set(required):', "    if False:", scenario_incomplete_ownership_consistent),
+    ("d13_required_reapply", A, '    if not required or owned != set(required):', "    if not required:",
+     scenario_incomplete_ownership_reapply),
+    ("d13_nested_collapse", A, '            paths |= paths_of(item, prefix + (key,))', '            paths |= {prefix + (key,)}',
+     scenario_d13),
+    ("foreign_appeared_check", A, '        if recorded is None and live is not None:\n            stop(4, "foreign_object_appeared")',
+     "", scenario_foreign_appears_before_apply),
+    ("fake_absent_precondition", A, '        if precondition.get("absent") and current is not None:\n            raise PreconditionFailed("object_exists")',
+     "", scenario_replaced_before_write),
+    ("fake_uid_precondition", A, '        if "uid" in precondition and (current is None or current["metadata"].get("uid") != precondition["uid"]):\n            raise PreconditionFailed("uid_mismatch")',
+     "", scenario_update_uid_mismatch),
+    ("engine_precondition_value", A, '        precondition = {"uid": recorded} if recorded is not None else {"absent": True}',
+     '        precondition = {"absent": True}', scenario_owned_update_succeeds),
+    ("fake_precondition_required", A, '            raise AdapterError("precondition_required")', "            pass",
+     scenario_write_needs_precondition),
+    ("deferred_by_stage_done", A, '    return [dict(d) for d in DEFERRED.get(stage, []) if evidence.get(d["item"]) is not True]',
+     '    return [dict(d) for d in DEFERRED.get(stage, []) if d["resolved_by"] not in done]', scenario_deferred_needs_evidence),
     ("d13_unverified", A, '            verdict = "OWNERSHIP_NOT_VERIFIED"\n            continue', "            continue",
      scenario_d13),
     ("classify_unknown", A, '            return "authz_denied"\n        return "unknown"', '            return "authz_denied"\n        return "allowed"',
@@ -648,17 +872,24 @@ def mods_for(filename, old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 31)
-        undetected = []
+        """A mutant counts only when a contract assertion fails without the code under test crashing."""
+        self.assertEqual(len(MUTATIONS), 40)
+        undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)
+            CRASHES.clear()
             try:
                 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                     scenario(self, mods)
             except AssertionError:
+                if CRASHES:
+                    crashed.append(name + " (" + CRASHES[0] + ")")
+                continue
+            except Exception as raised:  # noqa: BLE001 - an escaped exception is a crash, not a detection
+                crashed.append(name + " (" + type(raised).__name__ + ")")
                 continue
             undetected.append(name)
-        self.assertEqual(undetected, [])
+        self.assertEqual((undetected, crashed), ([], []))
 
 
 if __name__ == "__main__":
