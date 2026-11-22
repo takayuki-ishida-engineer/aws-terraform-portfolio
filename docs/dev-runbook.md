@@ -204,8 +204,11 @@ What is ready (Step 1 item 6b-A):
   could not be determined.
   See the [script description](../scripts/local-workflow/README.md#kubernetes-runtime-input-and-plan-k8s_runtime_inputpy-k8s_runtimepy).
   Applying the stages is not implemented yet (no `apply`), and the ingress stage is
-  blocked until the binding-writer method is approved. Once F18 is resolved and
-  apply exists, the order is:
+  blocked until the binding-writer method is approved. The apply and destroy design
+  and its open Owner decisions are in the
+  [6c-B2 design record](k8s-runtime-apply-destroy-design.md). Passing the offline
+  checks does not make an apply against the cluster allowed. Once F18 is resolved
+  and apply exists, the order is:
   1. render;
   2. apply the namespaces stage;
   3. register the Secrets through the tunnel (§3);
@@ -229,6 +232,20 @@ What is ready (Step 1 item 6b-A):
 Remove everything in reverse order within 72 hours. Two settings change before
 their root is destroyed: a protected Cognito user pool, log group, EKS cluster or
 NLB blocks `terraform destroy` (finding F19).
+
+The Kubernetes runtime has no destroy command yet, so this procedure removes it
+with the cluster in step 4. The [6c-B2 design record](k8s-runtime-apply-destroy-design.md#12-complete-teardown-order-d12)
+plans a runtime destroy between steps 2 and 3, while the tunnel, the AWS Load
+Balancer Controller, its IAM role, the target group and the endpoints still exist:
+- delete the TargetGroupBinding and wait for its finalizer and target
+  deregistration;
+- then the remaining stages;
+- then the Secret cleanup.
+
+That step is not implemented and needs Owner approval. Until it exists:
+- never strip a finalizer;
+- do not use `k8s_certs.py delete` as a substitute (finding F22);
+- target deregistration is NOT_VERIFIED.
 
 1. **API.** Set `deletion_protection = false` in `api/local.auto.tfvars`, then:
 
@@ -300,6 +317,16 @@ aws resourcegroupstaggingapi get-resources --region ca-central-1 --tag-filters K
 
 Expect only the secret while it is scheduled for deletion. Also check the AWS
 Billing console for running costs.
+
+Deleting the EKS cluster alone does not complete the teardown. Teardown is
+complete only when all of these hold:
+- every root's `terraform state list` is empty;
+- the tag search above shows only the scheduled secret;
+- the resource types a tag search may miss have been checked one by one: the
+  cluster, the load balancer and target group, IAM roles, EKS-created security
+  groups and network interfaces, log groups, ECR repositories, S3 buckets and VPC
+  endpoints (design record §12);
+- the local kubeconfig, runtime input and certificate material have been removed.
 
 ## 8. Cost drivers
 

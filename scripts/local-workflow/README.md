@@ -456,52 +456,92 @@ facts, and none of them shows that the application or network works.
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
 `apply` and `destroy` are not implemented. This records what they must respect,
-taken from the reviewed plan and the 6c design. The items marked **open** need an
-Owner decision; nothing here decides an execution method.
+taken from the reviewed plan and the
+[6c-B2 design record](../../docs/k8s-runtime-apply-destroy-design.md). That record
+holds the full contracts and the Owner Decision Matrix D1–D23. Every decision
+there is **open**; nothing here decides an execution method.
 
+- **Readiness levels.** Passing the offline tests and Full CI (Source/Offline
+  PASS) does not allow an apply against a real cluster. A mandatory precondition
+  that is NOT_VERIFIED stops the command before it changes anything. That covers
+  Secrets, webhooks, ECR images, ownership and digests.
 - **Ownership.**
   - The runtime owns `<project>-ingress`, `<project>-app` and `istio-system`, the 15
     Istio CRDs and the 2 AWS Load Balancer Controller CRDs. `kube-system` is never
     created or deleted.
-  - An object that already exists without the runtime's field manager must stop
-    apply (`foreign_owner`) and must never be deleted.
-  - Namespaced objects are deleted only by exact identity, never with `--all`,
-    label selectors, `--force` or `--grace-period=0`. Cluster-scoped objects (CRDs,
-    webhook configurations, ClusterRoles and bindings, admission policies) are
-    deleted only if the runtime owns them.
+  - Ownership is proven by an ownership receipt kept outside the repository. Each
+    object needs its UID in the receipt, its exact identity, and only the field
+    managers the design record allows. A field manager name alone is never proof.
+  - An object that already exists without that evidence stops apply
+    (`foreign_owner`). It is never adopted automatically and never deleted.
+  - Objects are deleted only by exact identity with a UID precondition. Never with
+    `--all`, label selectors, `--force`, `--grace-period=0` or by stripping a
+    finalizer.
+  - No DELETE is enabled until the Owner decides how a UID-precondition delete is
+    sent (D19).
+- **Istio `caBundle` (C1, finding F23).** The current bundle would make the
+  runtime own an empty `caBundle` on the Istio validating webhooks, which istiod
+  fills in at run time, so a re-apply would conflict. Apply of the base and istiod
+  stages stays refused until the renderer omits that field (contract 5). The
+  conflict is never forced.
 - **CRDs.** Destroy keeps every CRD by default. Deleting a CRD removes every
   custom resource of that kind in the cluster, so CRD deletion needs a separate
-  approval (**open**).
-- **Order and readiness.** Stages apply in plan order, and each stage must be
-  ready before the next starts. The controller and istiod webhooks fail closed, so
+  approval (**open**). The CRDs go with the EKS cluster.
+- **Order and readiness.** Stages apply in plan order. Each stage has pre-apply
+  conditions, a minimal completion, deferred readiness that a later stage resolves,
+  and a final acceptance (design record §4.1). This is needed to bootstrap: the
+  namespaces must exist before the Secrets are registered, and the base stage's
+  Istio webhook cannot serve until the istiod stage runs. Deferred readiness is
+  never a final PASS. The controller and istiod webhooks fail closed, so
   their Deployments and webhook endpoints must be ready before objects that pass
-  through those webhooks are applied. `status` reports these conditions but does not
-  wait for them.
-- **Secrets and certificates.** `k8s_certs.py register` applies the four Secrets
-  after the namespaces stage. The runtime never creates, reads or deletes Secret
-  contents. The certificates are verified only by `k8s_certs.py register`;
-  `public.json` dates are not proof of validity.
+  through those webhooks are applied. The current `status` reports Deployment
+  readiness, lists webhook serving as an unverified condition, and does not wait.
+- **Secrets and certificates.**
+  - `k8s_certs.py register` applies the four Secrets after the namespaces stage. It
+    does not read them back, so what is stored in the cluster stays NOT_VERIFIED.
+  - The runtime never reads Secret contents, and never falls back to reading a
+    full Secret.
+  - `public.json` dates are not proof of validity.
+- **Secret cleanup (G9, finding F22).** The current `k8s_certs.py delete` deletes
+  by name without a UID check, so the runtime destroy must not use it. Deleting a
+  namespace also deletes its Secrets, so namespace deletion stays BLOCKED until a
+  safe cleanup exists. That cleanup needs a UID precondition, an ownership check and
+  an absence check afterwards. The `kube-system` webhook TLS Secret needs its own
+  cleanup.
 - **Ingress stop condition.** The ingress stage stays BLOCKED until all of these
   are approved and in place:
   - a way for the operator to act as `<project>-binding-writer`. Impersonation is
-    NOT_TESTED and TokenRequest is not approved (**open**);
+    NOT_TESTED and needs two separate authorizations: the operator's permission to
+    impersonate, and the service account's own RBAC. TokenRequest is not approved
+    (**open**);
   - the `elasticloadbalancing` endpoint in the network output (finding F21);
   - a decision on whether target health is read from AWS (**open**).
 - **Destroy order and finalizers.** Destroy runs in reverse stage order:
-  - delete the TargetGroupBinding first, and wait (bounded) for the controller to
-    remove its finalizer and deregister the targets. Never strip a finalizer;
+  - the operator deletes the TargetGroupBinding first, while the controller, its
+    webhooks, its IAM role, the target group, the endpoints and the tunnel still
+    exist. Then it waits (bounded) for the controller to remove its finalizer and
+    deregister the targets;
   - delete the admission policies only when no TargetGroupBinding remains;
   - delete webhook configurations before their Deployments, so a fail-closed webhook
     is never left without a server;
-  - delete Namespaces last, only when nothing outside the inventory remains in them.
-    Allowed leftovers are the default ServiceAccount, the CA ConfigMaps the cluster
-    and Istio create, and the k8s_certs Secrets.
-- **Partial failure.** Neither apply nor destroy rolls back automatically. A failed
-  stage stops the run. A rerun must re-verify every earlier stage (presence, field
-  manager, diff, readiness) before continuing, and `status` shows where a run
-  stopped. Cleanup after a partial apply is a destroy limited to the applied stages.
-  Whether a version change of the bundle may be upgraded in place is **open**; the
-  initial design stops on any difference.
+  - clean up the Secrets and confirm they are absent before deleting their
+    namespace;
+  - delete Namespaces last, only when a metadata-only inventory of every listable
+    resource in them is complete, with no Secret and nothing outside the inventory
+    left. An incomplete or forbidden read is UNKNOWN or BLOCKED, never empty. `<project>-app` stops on any Secret or unknown object.
+    Deleting a namespace that still holds a Secret needs a separate Owner approval.
+- **Partial failure.**
+  - Neither apply nor destroy rolls back automatically. A failed stage stops the
+    run.
+  - A write-ahead journal records each object's intent and result. After a crash,
+    an object whose creation cannot be proven is quarantined, not adopted.
+  - A rerun re-verifies every earlier stage (presence, ownership, diff, readiness)
+    before continuing.
+  - The current `status` only reports observed objects. It does not read the
+    receipt, and it leaves field ownership and drift NOT_VERIFIED. Showing where a
+    run stopped, and verifying drift, are future capabilities.
+  - Whether a version change of the bundle may be upgraded in place is **open**;
+    the initial design stops on any difference.
 
 ## Image mirror (`mirror_images.py`)
 

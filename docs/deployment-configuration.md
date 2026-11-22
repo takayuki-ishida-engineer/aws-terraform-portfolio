@@ -344,7 +344,12 @@ approval. The Owner may reorder them.
    (9 stages, 62 objects, exact identities), as code only. 6c-B1 added the read-only
    `k8s_runtime.py status` with its preflight safety gate, as code only, never run
    against a cluster. `apply` and `destroy` are not implemented, and the
-   binding-writer method is not approved (impersonation NOT_TESTED).
+   binding-writer method is not approved (impersonation NOT_TESTED). 6c-B2 recorded
+   the apply and destroy design, the mandatory corrections C1 (Istio `caBundle`
+   ownership, finding F23) and G9 (safe Secret cleanup, finding F22) and the Owner
+   Decision Matrix D1–D23 in the [design record](k8s-runtime-apply-destroy-design.md),
+   as documentation only. No decision is adopted, and 6c-B3a onward each need their
+   own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
