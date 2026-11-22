@@ -1,0 +1,113 @@
+{
+  "format": "k8s-runtime-stages-v1",
+  "description": "Reviewed apply order of the rendered runtime bundle (Step 1 item 6c-A). Each stage lists the exact apiVersion, kind, namespace and name of its objects, in render order; ${project} is the runtime project. The union equals expected-inventory.json.",
+  "stages": [
+    {
+      "name": "namespaces",
+      "objects": [
+        ["v1", "Namespace", "", "istio-system"],
+        ["v1", "Namespace", "", "${project}-ingress"]
+      ]
+    },
+    {
+      "name": "base",
+      "objects": [
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "trafficextensions.extensions.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "wasmplugins.extensions.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "destinationrules.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "envoyfilters.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "gateways.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "proxyconfigs.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "serviceentries.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "sidecars.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "virtualservices.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "workloadentries.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "workloadgroups.networking.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "authorizationpolicies.security.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "peerauthentications.security.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "requestauthentications.security.istio.io"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "telemetries.telemetry.istio.io"],
+        ["admissionregistration.k8s.io/v1", "ValidatingWebhookConfiguration", "", "istiod-default-validator"]
+      ]
+    },
+    {
+      "name": "controller",
+      "objects": [
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "ingressclassparams.elbv2.k8s.aws"],
+        ["apiextensions.k8s.io/v1", "CustomResourceDefinition", "", "targetgroupbindings.elbv2.k8s.aws"],
+        ["rbac.authorization.k8s.io/v1", "ClusterRole", "", "aws-load-balancer-controller-role"],
+        ["rbac.authorization.k8s.io/v1", "ClusterRoleBinding", "", "aws-load-balancer-controller-rolebinding"],
+        ["rbac.authorization.k8s.io/v1", "Role", "kube-system", "aws-load-balancer-controller-leader-election-role"],
+        ["rbac.authorization.k8s.io/v1", "RoleBinding", "kube-system", "aws-load-balancer-controller-leader-election-rolebinding"],
+        ["v1", "Service", "kube-system", "aws-load-balancer-controller-webhook-service"],
+        ["apps/v1", "Deployment", "kube-system", "aws-load-balancer-controller"],
+        ["admissionregistration.k8s.io/v1", "MutatingWebhookConfiguration", "", "aws-load-balancer-controller-webhook"],
+        ["admissionregistration.k8s.io/v1", "ValidatingWebhookConfiguration", "", "aws-load-balancer-controller-webhook"],
+        ["v1", "ServiceAccount", "kube-system", "aws-load-balancer-controller"],
+        ["rbac.authorization.k8s.io/v1", "Role", "${project}-ingress", "${project}-target-registration"],
+        ["rbac.authorization.k8s.io/v1", "RoleBinding", "${project}-ingress", "${project}-target-registration"]
+      ]
+    },
+    {
+      "name": "istiod",
+      "objects": [
+        ["v1", "ServiceAccount", "istio-system", "istiod-${project}-v1"],
+        ["v1", "ConfigMap", "istio-system", "values-${project}-v1"],
+        ["v1", "ConfigMap", "istio-system", "istio-${project}-v1"],
+        ["v1", "ConfigMap", "istio-system", "istio-sidecar-injector-${project}-v1"],
+        ["rbac.authorization.k8s.io/v1", "ClusterRole", "", "istiod-clusterrole-${project}-v1-istio-system"],
+        ["rbac.authorization.k8s.io/v1", "ClusterRoleBinding", "", "istiod-clusterrole-${project}-v1-istio-system"],
+        ["rbac.authorization.k8s.io/v1", "Role", "istio-system", "istiod-${project}-v1"],
+        ["rbac.authorization.k8s.io/v1", "RoleBinding", "istio-system", "istiod-${project}-v1"],
+        ["v1", "Service", "istio-system", "istiod-${project}-v1"],
+        ["apps/v1", "Deployment", "istio-system", "istiod-${project}-v1"],
+        ["admissionregistration.k8s.io/v1", "MutatingWebhookConfiguration", "", "istio-sidecar-injector-${project}-v1"],
+        ["admissionregistration.k8s.io/v1", "ValidatingWebhookConfiguration", "", "istio-validator-${project}-v1-istio-system"]
+      ]
+    },
+    {
+      "name": "gateway",
+      "objects": [
+        ["v1", "ServiceAccount", "${project}-ingress", "${project}-gateway"],
+        ["rbac.authorization.k8s.io/v1", "Role", "${project}-ingress", "${project}-gateway"],
+        ["rbac.authorization.k8s.io/v1", "RoleBinding", "${project}-ingress", "${project}-gateway"],
+        ["v1", "Service", "${project}-ingress", "${project}-gateway"],
+        ["apps/v1", "Deployment", "${project}-ingress", "${project}-gateway"]
+      ]
+    },
+    {
+      "name": "mesh_security",
+      "objects": [
+        ["v1", "Namespace", "", "${project}-app"],
+        ["v1", "ServiceAccount", "${project}-app", "${project}-application"],
+        ["security.istio.io/v1", "PeerAuthentication", "${project}-app", "${project}-strict-mtls"],
+        ["security.istio.io/v1", "AuthorizationPolicy", "${project}-app", "${project}-default-deny"],
+        ["networking.k8s.io/v1", "NetworkPolicy", "${project}-app", "${project}-default-deny"]
+      ]
+    },
+    {
+      "name": "admission",
+      "objects": [
+        ["admissionregistration.k8s.io/v1", "ValidatingAdmissionPolicy", "", "${project}-target-registration"],
+        ["admissionregistration.k8s.io/v1", "ValidatingAdmissionPolicyBinding", "", "${project}-target-registration"],
+        ["admissionregistration.k8s.io/v1", "ValidatingAdmissionPolicy", "", "${project}-no-lb-service"],
+        ["admissionregistration.k8s.io/v1", "ValidatingAdmissionPolicyBinding", "", "${project}-no-lb-service"]
+      ]
+    },
+    {
+      "name": "binding_writer",
+      "objects": [
+        ["v1", "ServiceAccount", "${project}-ingress", "${project}-binding-writer"],
+        ["rbac.authorization.k8s.io/v1", "Role", "${project}-ingress", "${project}-binding-writer"],
+        ["rbac.authorization.k8s.io/v1", "RoleBinding", "${project}-ingress", "${project}-binding-writer"]
+      ]
+    },
+    {
+      "name": "ingress",
+      "objects": [
+        ["networking.istio.io/v1", "Gateway", "${project}-ingress", "${project}-backend"],
+        ["elbv2.k8s.aws/v1beta1", "TargetGroupBinding", "${project}-ingress", "${project}-gateway"]
+      ]
+    }
+  ]
+}

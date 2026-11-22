@@ -21,6 +21,17 @@ ending `:role/<project>-dev-role-lbc`. Both gateway Secret names start with
 `<project>-`. [`k8s_certs.py generate`](../../../scripts/local-workflow/README.md#kubernetes-certificates-k8s_certspy)
 writes every certificate-derived runtime value (Secret names, SPKI pin, webhook CA
 bundle) to its `public.json`; the resources and Platform values come from elsewhere.
+[`k8s_runtime_input.py`](../../../scripts/local-workflow/README.md#kubernetes-runtime-input-and-plan-k8s_runtime_inputpy-k8s_runtimepy)
+(item 6c-A) assembles the whole input on the workstation:
+- `controller_identity` and the five `private_ingress` fields from the applied platform
+  outputs, cross-checked against the platform and network outputs;
+- the certificate-derived values from `public.json`;
+- `resources` from a copy of
+  [`runtime-selections.example.json`](runtime-selections.example.json), whose
+  `REPLACE` values are refused.
+
+It writes the input outside the repository (0700/0600) with a provenance record.
+`k8s_runtime.py plan` then shows the staged plan without applying anything.
 
 The images need no input (finding F18): the renderer derives
 `<account_id>.dkr.ecr.ca-central-1.amazonaws.com/<project>-dev-ecr-<purpose>@<digest>`
