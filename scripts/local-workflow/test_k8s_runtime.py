@@ -17,6 +17,7 @@ import base64
 import contextlib
 import copy
 import datetime
+import hashlib
 import importlib.util
 import io
 import json
@@ -269,6 +270,20 @@ def scenario_build(case, module):
         case.assertEqual(document, expected_document())
         case.assertEqual(sorted(document["private_ingress"]), sorted(k8s_runtime_input.INGRESS_FIELDS))
         case.assertEqual(provenance["input_sha256"], k8s_runtime_input.canonical_sha256(document))
+        # Each Terraform output is recorded by root, output name and canonical SHA-256 of its full value.
+        served = outputs()
+        case.assertEqual(provenance["terraform_outputs"], [
+            {"root": root, "output": name,
+             "sha256": hashlib.sha256(json.dumps(served[root][name], sort_keys=True,
+                                                 separators=(",", ":")).encode()).hexdigest()}
+            for root, name in (("platform", "controller_identity"), ("platform", "platform"),
+                               ("platform", "private_ingress"), ("network", "network"))])
+        case.assertTrue(provenance["state_freshness"].startswith("NOT_VERIFIED"))
+        # Certificate validity comes only from public.json not_after, and the record says so.
+        case.assertTrue(any("only the not_after dates recorded in public.json" in item
+                            and "not read or verified" in item for item in provenance["not_verified"]))
+        case.assertIn("public_json_not_after", provenance["cross_checks"])
+        case.assertNotIn("certificate_expiry", provenance["cross_checks"])
         common.metadata(document, fixture=False)
         # Only public files were read; no key, Secret value or token reached any output.
         case.assertEqual(sorted(set(read)), ["public.json", "webhook/ca.crt"])
@@ -508,6 +523,23 @@ def scenario_stage_identity(case, module):
                             "stage_identity_mismatch:istiod")
 
 
+def scenario_stage_order(case, module):
+    document, objects, evidence = rendered()
+    split(module, objects, evidence, document)
+    # Two objects swapped inside one stage: counts and identity sets are unchanged.
+    for stage, first, second in (("base", 2, 3), ("istiod", 31, 40), ("ingress", 60, 61)):
+        swapped = copy.deepcopy(objects)
+        swapped[first], swapped[second] = swapped[second], swapped[first]
+        case.assertEqual({validate_identity(o) for o in swapped}, {validate_identity(o) for o in objects})
+        case.assertNotEqual(swapped, objects)
+        assert_plan_refused(case, module, swapped, reseal(swapped, copy.deepcopy(evidence)), document,
+                            "stage_identity_order:" + stage)
+
+
+def validate_identity(obj):
+    return (obj["apiVersion"], obj["kind"], obj["metadata"].get("namespace", ""), obj["metadata"]["name"])
+
+
 def scenario_forbidden_objects(case, module):
     document, objects, evidence = rendered()
     table = module.load_stage_table(document["runtime"]["project"])
@@ -703,6 +735,9 @@ class PlanTests(unittest.TestCase):
     def test_stage_identities_are_exact(self):
         scenario_stage_identity(self, k8s_runtime)
 
+    def test_stage_order_is_exact(self):
+        scenario_stage_order(self, k8s_runtime)
+
     def test_forbidden_objects_are_refused(self):
         scenario_forbidden_objects(self, k8s_runtime)
 
@@ -780,6 +815,11 @@ MUTATIONS = [
      scenario_terraform_guard),
     ("placeholder_account_allowed", INPUT, '    require(account_id not in preflight.PLACEHOLDER_ACCOUNTS, ', '    require(True, ',
      scenario_placeholders),
+    ("stage_order_unchecked", PLAN, '        require(identities == list(expected), ', '        require(True, ',
+     scenario_stage_order),
+    ("output_digests_missing", INPUT, '"sha256": canonical_sha256(value)}', '"sha256": "0" * 64}', scenario_build),
+    ("certificate_boundary_hidden", INPUT, "                         CERTIFICATE_BOUNDARY],", "                         ],",
+     scenario_build),
     ("stage_identity_unchecked", PLAN, '        require(set(identities) == set(expected), ', '        require(True, ',
      scenario_stage_identity),
     ("forbidden_kinds_allowed", PLAN, '            require(kind not in FORBIDDEN_KINDS, ', '            require(True, ',
@@ -819,7 +859,7 @@ def mutant(filename, old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 36)
+        self.assertEqual(len(MUTATIONS), 39)
         undetected = []
         for name, filename, old, new, scenario in MUTATIONS:
             module = mutant(filename, old, new)

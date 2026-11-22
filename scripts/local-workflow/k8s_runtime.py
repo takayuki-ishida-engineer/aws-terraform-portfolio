@@ -5,8 +5,9 @@
 renderer, runs the existing validator, re-checks the render evidence and splits
 the 62-object bundle into the 9 reviewed apply stages of
 ``kubernetes/tests/expected-stages.json``. Every stage must hold exactly the
-reviewed apiVersion, kind, namespace and name of its objects, not merely the same
-count, and the stages together must equal ``kubernetes/tests/expected-inventory.json``.
+reviewed apiVersion, kind, namespace and name of its objects, in the reviewed order,
+not merely the same count or set, and the stages together must equal
+``kubernetes/tests/expected-inventory.json``.
 
 For each stage it shows the objects, the actor that would apply them, the Secrets
 that must exist first, the prerequisites and the readiness conditions. It executes
@@ -151,6 +152,8 @@ def split_stages(objects, evidence, table):
         identities = [validate.identity(obj) for obj in chunk]
         require(len(identities) == len(set(identities)), "stage_duplicate:" + name)
         require(set(identities) == set(expected), "stage_identity_mismatch:" + name)
+        # The reviewed order is the apply order within the stage too, not only the set.
+        require(identities == list(expected), "stage_identity_order:" + name)
         for obj in chunk:
             kind = obj["kind"]
             require(kind not in FORBIDDEN_KINDS, "forbidden_kind:" + kind)

@@ -256,7 +256,7 @@ Before writing, it refuses:
   `private_ingress`, or a VPC ID that differs from the network output;
 - missing or extra `controller_identity` fields;
 - a `public.json` for another project, with other Secret names or layout, with a
-  certificate that expires within a day, with a webhook CA that differs from
+  `not_after` date within a day, with a webhook CA that differs from
   `webhook/ca.crt`, or that contains a private key;
 - selections for another project, with a placeholder or with requests above limits;
 - placeholder projects and accounts;
@@ -264,10 +264,22 @@ Before writing, it refuses:
   and the files 0600.
 
 The result must pass the renderer's own input contract. The directory then holds
-`runtime-input.json` and `provenance.json`: the input's SHA-256, which output or
-file each section came from (with file SHA-256), the cross-checks made and what was
-not verified. `kubernetes_version` is the requested Terraform value, not the server
-version. The referenced AWS resources are not checked for existence or reachability.
+`runtime-input.json` and `provenance.json`. The provenance record holds:
+- the input's SHA-256;
+- the root, output name and canonical SHA-256 of each of the four Terraform outputs,
+  exactly as `terraform output` returned them;
+- which output or file each section came from, with file SHA-256;
+- the cross-checks made and what was not verified.
+
+Verification boundaries, also recorded there:
+- **State freshness: NOT_VERIFIED.** `terraform output` returns the values recorded
+  at the last apply; it does not prove that the State matches the live resources.
+- **Certificates:** only the `not_after` dates recorded in `public.json` are
+  checked. The X.509 certificates are not read or verified by this tool;
+  `k8s_certs.py register` re-checks the certificates, keys and chains against the
+  material before it applies the Secrets.
+- `kubernetes_version` is the requested Terraform value, not the server version.
+- The referenced AWS resources are not checked for existence or reachability.
 
 ### Plan (offline, anywhere)
 
@@ -281,8 +293,9 @@ pinned Helm and charts, input and manifest SHA-256). It then cuts the bundle int
 9 stages of [`kubernetes/tests/expected-stages.json`](../../kubernetes/tests/expected-stages.json):
 namespaces 2, base 16, controller 13, istiod 12, gateway 5, mesh_security 5,
 admission 4, binding_writer 3, ingress 2. Each stage must hold exactly the reviewed
-apiVersion, kind, namespace and name of its objects, not just the same count. The
-stages together must equal `kubernetes/tests/expected-inventory.json`. Secrets and
+apiVersion, kind, namespace and name of its objects, in the reviewed order, not just
+the same count or the same set. The stages together must equal
+`kubernetes/tests/expected-inventory.json`. Secrets and
 cluster-admin bindings are refused, and kinds may appear only in their own stage
 (for example the TargetGroupBinding only in ingress).
 
@@ -302,17 +315,20 @@ only process `plan` starts is the pinned Helm. It contacts no cluster and no AWS
 
 ### Tests
 
-`test_k8s_runtime.py` (Full CI, 28 tests) builds the input from a fake `terraform`
+`test_k8s_runtime.py` (Full CI, 29 tests) builds the input from a fake `terraform`
 and a synthetic material directory whose key files hold a marker that must never be
 read or shown. It covers:
 - every mismatch above, the CI and cloud refusals and the file modes;
 - an end-to-end plan of the built input with the pinned Helm;
 - the fixture plan, with only Helm allowed to start;
-- stage tampering with unchanged counts: a swapped or moved object, a changed
-  apiVersion, namespace or name, a disguised Secret, a cluster-admin binding;
+- stage tampering with unchanged counts: a swapped or moved object, two objects
+  swapped inside one stage (same set), a changed apiVersion, namespace or name, a
+  disguised Secret, a cluster-admin binding;
+- the provenance record: the output digests, State freshness NOT_VERIFIED and the
+  certificate boundary;
 - evidence and stage table tampering, and a skipped validator.
 
-36 source mutations each remove one guard, and every one must be detected.
+39 source mutations each remove one guard, and every one must be detected.
 
 ## Image mirror (`mirror_images.py`)
 

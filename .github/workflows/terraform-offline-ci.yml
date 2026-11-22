@@ -963,7 +963,7 @@ jobs:
           sys.path.insert(0, "scripts/local-workflow")
           import test_k8s_runtime
           result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_runtime))
-          if not result.wasSuccessful() or result.skipped or result.testsRun != 28 or len(test_k8s_runtime.MUTATIONS) != 36:
+          if not result.wasSuccessful() or result.skipped or result.testsRun != 29 or len(test_k8s_runtime.MUTATIONS) != 39:
               raise SystemExit("Kubernetes runtime input/plan tests failed, skipped or changed the reviewed counts.")
           print("Kubernetes runtime input/plan tests passed:", result.testsRun, "- guard mutations detected:", len(test_k8s_runtime.MUTATIONS))
           PYRUNTIMEPLAN

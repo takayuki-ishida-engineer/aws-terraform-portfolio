@@ -15,13 +15,17 @@ sources and checked against each other before anything is written:
   is read beyond those outputs;
 - ``public.json`` from ``k8s_certs.py generate`` (Secret names, SPKI pin, webhook
   CA bundle, hostnames). Only that file and the public ``webhook/ca.crt`` are read;
-  no private key is opened;
+  no private key is opened. Certificate expiry is taken from the ``not_after`` dates
+  that ``public.json`` records; the X.509 certificates themselves are not parsed here
+  (``k8s_certs.py register`` verifies them before it applies the Secrets);
 - the operator's resource selections (``runtime-selections.example.json``).
 
 Project, account, Region, cluster, OIDC, target group ARN and VPC ID must agree
 across all sources, and the result must pass the renderer's own input contract.
 The input and a provenance record are written to a new directory outside the
-repository (directory 0700, files 0600). Nothing here calls Kubernetes, and no
+repository (directory 0700, files 0600). The provenance record holds the canonical
+SHA-256 of each Terraform output by root and output name; whether the State is
+current is NOT_VERIFIED. Nothing here calls Kubernetes, and no
 AWS API is called beyond what ``terraform output`` needs for the roots' backends.
 """
 import argparse
@@ -57,6 +61,10 @@ INGRESS_FIELDS = ("interface_version", "scope", "target_group_arn", "vpc_id", "b
 PUBLIC_RUNTIME_FIELDS = ("project", "backend_hostname", "trust_domain", "expected_client_spki", "webhook_ca_bundle",
                          "gateway_tls_secret", "gateway_client_ca_secret", "webhook_tls_secret", "istio_ca_secret")
 RESOURCE_PROFILES = ("controller", "istiod", "gateway")
+# Expiry comes from public.json; no certificate or key file is parsed here.
+CERTIFICATE_BOUNDARY = ("certificate validity: only the not_after dates recorded in public.json are checked; the "
+                        "X.509 certificates are not read or verified here (k8s_certs.py register re-checks the "
+                        "certificates, keys and chains against the material before it applies the Secrets)")
 
 
 class InputError(Exception):
@@ -209,6 +217,12 @@ def build(project, account_id, material, selections, out_dir, terraform="terrafo
     platform = read_output(terraform, services, "platform", "platform", environment)
     ingress = read_output(terraform, services, "platform", "private_ingress", environment)
     network = read_output(terraform, services, "network", "network", environment)
+    # Canonical SHA-256 of each output value exactly as terraform output returned it.
+    output_digests = [{"root": root, "output": name, "sha256": canonical_sha256(value)}
+                      for (root, name), value in ((("platform", "controller_identity"), identity),
+                                                  (("platform", "platform"), platform),
+                                                  (("platform", "private_ingress"), ingress),
+                                                  (("network", "network"), network))]
     controller, private_ingress = check_outputs(project, account_id, identity, platform, ingress, network)
     document = {"interface_version": 2, "fixture": False, "controller_identity": controller,
                 "private_ingress": private_ingress, "runtime": dict(public_runtime, resources=resources)}
@@ -228,11 +242,15 @@ def build(project, account_id, material, selections, out_dir, terraform="terrafo
             "runtime": "k8s_certs.py public.json, sha256 " + hashlib.sha256(public_raw).hexdigest(),
             "runtime.resources": "operator selections, sha256 " + hashlib.sha256(selections_raw).hexdigest(),
         },
+        "terraform_outputs": output_digests,
+        "state_freshness": "NOT_VERIFIED: terraform output returns the values recorded at the last apply; it does "
+                           "not prove that the State matches the live resources",
         "cross_checks": ["project", "account", "region", "cluster_name", "cluster_arn", "oidc", "controller_role",
-                         "target_group_arn", "vpc_id", "secret_names", "secret_layout", "certificate_expiry",
+                         "target_group_arn", "vpc_id", "secret_names", "secret_layout", "public_json_not_after",
                          "webhook_ca", "renderer_input_contract"],
         "not_verified": ["kubernetes_version is the requested Terraform value, not the server version",
-                         "existence and reachability of the referenced AWS resources"],
+                         "existence and reachability of the referenced AWS resources",
+                         CERTIFICATE_BOUNDARY],
         "never_included": ["private keys", "Secret data", "tokens", "kubeconfig", "Terraform State"],
     }
     path = write_outputs(out_dir, document, provenance)
