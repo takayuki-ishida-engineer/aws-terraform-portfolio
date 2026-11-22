@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline deployment plan and read-only status for the Kubernetes runtime (Step 1 items 6c-A, 6c-B1).
+"""Offline plan, read-only status and receipt verification for the Kubernetes runtime (items 6c-A, 6c-B1, 6c-B3a).
 
 ``plan`` renders the runtime input with the pinned Helm and the existing
 renderer, runs the existing validator, re-checks the render evidence and splits
@@ -31,7 +31,19 @@ none of them is evidence that the application or network works (NOT_TESTED). Eac
 stage's observation is reported separately from its execution gate: ingress stays
 BLOCKED whatever the cluster shows, and no status result permits an apply.
 
-``apply`` and ``destroy`` are not implemented. The TargetGroupBinding's actor is the
+``receipt verify`` (item 6c-B3a) checks an ownership receipt and its write-ahead
+journal (``k8s_runtime_receipt``) without changing anything. It always requires the
+manifest and input SHA-256 from ``plan`` and refuses a receipt written for another
+bundle (decision D10), project or cluster fingerprint (D17: the cluster ARN plus the
+``kube-system`` namespace UID). With ``--cluster`` it also passes the status
+preflight gate, reads the ``kube-system`` namespace for the fingerprint (the only
+read outside the 62 objects, decision D3 in part) and classifies every planned
+object against the journal (D7, D16): a UID change, an unrecorded object, an
+unfinished INTENT or a quarantined object is never reported as consistent, and
+nothing is adopted, released or written.
+
+``apply`` and ``destroy`` are not implemented. Both subcommands exist only to refuse
+(``operation_not_approved``), before any input is read. The TargetGroupBinding's actor is the
 binding-writer ServiceAccount. How the operator acts as it is not approved, and
 impersonation on the current EKS cluster is NOT_TESTED, so that step is shown as
 BLOCKED.
@@ -49,6 +61,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import k8s_certs  # noqa: E402
 import k8s_runtime_input  # noqa: E402
+import k8s_runtime_receipt as receipt  # noqa: E402
 import preflight  # noqa: E402
 
 TOOLS = preflight.REPOSITORY / "kubernetes/tools"
@@ -595,6 +608,155 @@ def status_text(report):
     return "\n".join(lines)
 
 
+class GateError(Exception):
+    """An operation outside the Owner-approved scope; the message is a fixed code."""
+
+
+# Operations the Owner has approved for this code (6c-B3a). apply, destroy, recovery,
+# quarantine release and adoption are not among them.
+APPROVED_OPERATIONS = ("plan", "status", "receipt-verify")
+SHA256 = re.compile(r"[0-9a-f]{64}")
+# The single read outside the 62 objects: the kube-system namespace, for the D17 fingerprint.
+FINGERPRINT_TARGET = ("namespace", "", "kube-system")
+
+
+def check_operation(operation):
+    if operation not in APPROVED_OPERATIONS:
+        raise GateError("operation_not_approved:" + str(operation))
+
+
+def runtime_manager(project):
+    return project + "-k8s-runtime"
+
+
+def check_pins(bundle, expect_manifest, expect_input):
+    """The caller's pins must equal this render exactly (no bundle is accepted from outside)."""
+    if not (isinstance(expect_manifest, str) and SHA256.fullmatch(expect_manifest)
+            and isinstance(expect_input, str) and SHA256.fullmatch(expect_input)):
+        raise GateError("sha_pin_invalid")
+    if (bundle["manifest_sha256"], bundle["input_sha256"]) != (expect_manifest, expect_input):
+        raise GateError("sha_mismatch")
+
+
+def cluster_fingerprint(document, context, kubectl_binary, environment, timeout):
+    """D17: the cluster ARN (from the checked input) and the kube-system namespace UID."""
+    process = run_kubectl(kubectl_binary, context, ["get", "namespace", "kube-system", "--ignore-not-found", "-o",
+                                                    "json"], environment, timeout, {FINGERPRINT_TARGET})
+    need(process is not None and process.returncode == 0 and process.stdout.strip(), "fingerprint_unreadable")
+    try:
+        metadata = common.parse(process.stdout)["metadata"]
+        need(metadata["name"] == "kube-system", "fingerprint_unreadable")
+        identity = document["controller_identity"]
+        arn = ("arn:aws:eks:" + identity["scope"]["region"] + ":" + identity["scope"]["account_id"] + ":cluster/"
+               + identity["cluster_name"])
+        return receipt.fingerprint(arn, metadata["uid"])
+    except (ValueError, KeyError, TypeError) as error:
+        raise StatusError("fingerprint_unreadable") from error
+    except receipt.ReceiptError as error:
+        raise StatusError(str(error)) from None
+
+
+def observe_object(kubectl_binary, context, environment, timeout, targets):
+    """An observe function for receipt.reconcile: presence, UID and field managers, nothing else."""
+    def observe(identity):
+        args = ["get", resource_argument(identity["apiVersion"], identity["kind"]), identity["name"]]
+        args += (["-n", identity["namespace"]] if identity["namespace"] else []) + ["--ignore-not-found", "-o",
+                                                                                    "json"]
+        process = run_kubectl(kubectl_binary, context, args, environment, timeout, targets)
+        if process is None:
+            return "unknown", "timeout"
+        if process.returncode != 0:
+            return "unknown", "forbidden" if API_FORBIDDEN.search(process.stderr or "") else "api_error"
+        if process.stdout.strip() == "":
+            return "absent", None
+        try:
+            metadata = common.parse(process.stdout)["metadata"]
+            uid = metadata["uid"]
+            if not (isinstance(uid, str) and receipt.UID.fullmatch(uid)):
+                return "unknown", "uid_unreadable"
+            managers = [{"manager": m.get("manager"), "operation": m.get("operation"),
+                         "subresource": m.get("subresource", "")} for m in metadata.get("managedFields") or []]
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return "unknown", "unparseable"
+        return "present", {"uid": uid, "managers": managers}
+    return observe
+
+
+def receipt_verify(input_path, helm, receipt_dir, expect_manifest, expect_input, cluster=False, context=None,
+                   kubectl_binary="kubectl", terraform="terraform", services=preflight.SERVICES, env=None,
+                   timeout=STATUS_TIMEOUT_SECONDS, out_fn=print):
+    """Read-only. (exit code, report); raises GateError, receipt.ReceiptError or StatusError to stop."""
+    environment = dict(os.environ if env is None else env)
+    check_operation("receipt-verify")
+    if cluster:
+        refusal = preflight.automation_refusal(environment)
+        if refusal:
+            out_fn("Refused (" + refusal + "): receipt verify --cluster reads the cluster only from the operator's "
+                   "workstation.")
+            return 1, None
+    document = common.parse(Path(input_path).read_text(encoding="utf-8"))
+    common.metadata(document, fixture=False)
+    project = document["runtime"]["project"]
+    bundle = plan(input_path, helm, False)
+    check_pins(bundle, expect_manifest, expect_input)
+    stages = receipt.Plan.from_report(bundle)
+    expected = {"fingerprint": None, "project": project, "manifest_sha256": bundle["manifest_sha256"],
+                "input_sha256": bundle["input_sha256"]}
+    report = {"status": "verified", "changes_made": False, "project": project, "cluster_checked": cluster,
+              "manifest_sha256": bundle["manifest_sha256"], "input_sha256": bundle["input_sha256"],
+              "operations_not_approved": ["apply", "destroy", "quarantine release", "adoption", "recovery writes"]}
+    if cluster:
+        context = context or project + "-dev-eks"
+        need(context == project + "-dev-eks", "context_mismatch: the context must be " + project + "-dev-eks")
+        preflight_gate(document, context, kubectl_binary, terraform, services, environment, timeout)
+        expected["fingerprint"] = cluster_fingerprint(document, context, kubectl_binary, environment, timeout)
+        report["fingerprint_id"] = expected["fingerprint"]["id"]
+    loaded = receipt.load(receipt_dir, stages, expected)
+    state = loaded["state"]
+    report.update({"receipt": loaded["receipt"], "journal_records": len(loaded["records"]),
+                   "stages_done": state["stages_done"], "open_intent": state["open_intent"] is not None,
+                   "quarantined": len(state["quarantined"])})
+    attention = loaded["receipt"] != "CURRENT" or state["open_intent"] is not None or bool(state["quarantined"])
+    if cluster:
+        targets = {(resource_argument(r["apiVersion"], r["kind"]), r["namespace"], r["name"])
+                   for stage in bundle["stages"] for r in stage["objects"]}
+        verdicts = receipt.reconcile(state, stages, observe_object(kubectl_binary, context, environment, timeout,
+                                                                   targets), runtime_manager(project))
+        counts = {}
+        for row in verdicts:
+            counts[row["verdict"]] = counts.get(row["verdict"], 0) + 1
+        report["verdicts"] = verdicts
+        report["verdict_counts"] = dict(sorted(counts.items()))
+        attention = attention or any(v["verdict"] not in receipt.SETTLED_VERDICTS for v in verdicts)
+    if attention:
+        report["status"] = "attention_required"
+    return (3 if attention else 0), report
+
+
+def receipt_text(report):
+    lines = ["Receipt verification for " + report["project"] + " (read-only; nothing was changed or adopted)",
+             "  receipt: " + report["receipt"] + ", journal records " + str(report["journal_records"])
+             + ", stages done " + str(len(report["stages_done"])) + ", open intent "
+             + ("yes" if report["open_intent"] else "no") + ", quarantined " + str(report["quarantined"])]
+    if report["cluster_checked"]:
+        lines.append("  cluster fingerprint " + report["fingerprint_id"] + ": verdicts "
+                     + ", ".join(k + " " + str(v) for k, v in report["verdict_counts"].items()))
+    else:
+        lines.append("  cluster not checked (offline); ownership against the cluster NOT_VERIFIED")
+    lines.append("  status: " + report["status"])
+    return "\n".join(lines)
+
+
+def refuse_operation(name):
+    try:
+        check_operation(name)
+    except GateError as error:
+        print("Refused (" + str(error) + "): " + name + " is not implemented or approved; nothing was read or "
+              "changed.", file=sys.stderr)
+        return 1
+    raise AssertionError("unreachable")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="mode", required=True)
@@ -612,7 +774,42 @@ def main(argv=None):
     status_parser.add_argument("--timeout", type=int, default=STATUS_TIMEOUT_SECONDS, choices=range(5, 121),
                                metavar="SECONDS")
     status_parser.add_argument("--format", choices=["text", "json"], default="text")
+    receipt_parser = sub.add_parser("receipt", help="ownership receipt checks (read-only)")
+    receipt_sub = receipt_parser.add_subparsers(dest="receipt_mode", required=True)
+    verify_parser = receipt_sub.add_parser("verify", help="verify a receipt and its journal; changes nothing")
+    verify_parser.add_argument("--input", required=True, type=Path)
+    verify_parser.add_argument("--helm", required=True)
+    verify_parser.add_argument("--receipt-dir", required=True, type=Path,
+                               help="the fingerprint directory, for example ~/.local/state/<project>-k8s-runtime/<id>")
+    verify_parser.add_argument("--expect-manifest-sha256", required=True)
+    verify_parser.add_argument("--expect-input-sha256", required=True)
+    verify_parser.add_argument("--cluster", action="store_true",
+                               help="also check the fingerprint and every object against the cluster (workstation)")
+    verify_parser.add_argument("--context", help="default <project>-dev-eks; no other context is accepted")
+    verify_parser.add_argument("--kubectl", default="kubectl")
+    verify_parser.add_argument("--terraform", default="terraform")
+    verify_parser.add_argument("--timeout", type=int, default=STATUS_TIMEOUT_SECONDS, choices=range(5, 121),
+                               metavar="SECONDS")
+    verify_parser.add_argument("--format", choices=["text", "json"], default="text")
+    for name in ("apply", "destroy"):
+        sub.add_parser(name, help="not implemented and not approved; always refused")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] in (["apply"], ["destroy"]):
+        return refuse_operation(argv[0])  # before parsing: no argument, input or tool is touched
     args = parser.parse_args(argv)
+    if args.mode == "receipt":
+        try:
+            code, report = receipt_verify(args.input, args.helm, args.receipt_dir, args.expect_manifest_sha256,
+                                          args.expect_input_sha256, args.cluster, args.context, args.kubectl,
+                                          args.terraform, timeout=args.timeout)
+        except (GateError, receipt.ReceiptError, StatusError, PlanError, k8s_runtime_input.InputError,
+                preflight.PreflightError, ValueError, KeyError, TypeError, IndexError, OSError,
+                subprocess.CalledProcessError) as error:
+            print("Stopped: " + str(error), file=sys.stderr)
+            return 2
+        if report is not None:
+            print(json.dumps(report, indent=2) if args.format == "json" else receipt_text(report))
+        return code
     if args.mode == "status":
         try:
             code, report = status(args.input, args.helm, args.context, args.kubectl, args.terraform,

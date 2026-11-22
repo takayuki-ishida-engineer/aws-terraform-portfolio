@@ -453,9 +453,159 @@ facts, and none of them shows that the application or network works.
   - target registration and health (F21);
   - application and network behaviour.
 
+### Receipt, crash recovery and transport boundary (item 6c-B3a, offline foundation)
+
+6c-B3a adds the safety foundation that a later `apply` and `destroy` will use. It
+implements the Owner decisions of 2026-11-22, for Source/Offline use only:
+- **D7**: ownership is identity, UID, receipt and field ownership together;
+- **D8**: conflicts are never forced;
+- **D10**: a different manifest, input or version stops;
+- **D16**: no automatic quarantine release or adoption;
+- **D17**: the cluster ARN plus the `kube-system` namespace UID;
+- **D19**: the transport interface and a fake only;
+- **D3**, in part: reading the `kube-system` namespace for the fingerprint.
+
+It enables nothing. `apply` and `destroy` exist only to refuse
+(`operation_not_approved`, exit 1) before any argument, input or tool is touched.
+There is no recovery, release or adoption command.
+
+**`k8s_runtime_receipt.py`: store and journal.**
+- **Location.** One directory per cluster fingerprint, outside the repository. The
+  default root is `~/.local/state/<project>-k8s-runtime/`.
+  - Directory 0700 and files 0600, owned by the current user.
+  - Symlinks, other owners and group or other permissions are refused.
+  - Files are opened with `O_NOFOLLOW` and re-checked after opening.
+  - Writers hold an exclusive `flock`.
+- **`journal.jsonl`.** Write-ahead and append-only.
+  - Canonical JSON lines, each fsynced and chained to the previous line by SHA-256.
+  - Records: HEADER (project, fingerprint, pinned manifest and input SHA-256),
+    INTENT (before an object is applied), RESULT (the UID read back), STAGE_DONE
+    and QUARANTINE.
+  - Every field is allowlisted and validated, and every write is checked by
+    replaying the journal before it reaches the disk.
+  - Refused before writing: Secret identities, unknown fields (such as a manifest
+    `spec`), control characters, and values that look like keys, tokens or encoded
+    blobs. So no Secret value, token, kubeconfig or manifest body can be stored.
+- **`receipt.json`.** A snapshot of the journal, replaced atomically (temporary
+  file, fsync, rename, directory fsync).
+  - The journal wins. A snapshot behind the journal (a crash between the two
+    writes) is STALE.
+  - A snapshot ahead of the journal is `journal_truncated`; any other difference is
+    `receipt_journal_mismatch`.
+- **Journal rules.** Every one stops on violation:
+  - one open INTENT at a time, with consecutive sequence numbers;
+  - a RESULT only for the open INTENT;
+  - stages in plan order;
+  - STAGE_DONE only when every object of the stage has a RESULT;
+  - an "owned" prior state only with the UID the journal recorded
+    (`adoption_refused`);
+  - no INTENT for a quarantined object (`quarantined`). There is no release record
+    type, and `release_quarantine` and `adopt` always refuse.
+
+**Crash reconciliation (`reconcile`, read-only).** Every planned object is
+classified against the journal and an observation (presence, UID, field managers):
+
+| Verdict | Meaning |
+| --- | --- |
+| `CONSISTENT` | Recorded UID equals the live UID, and the runtime manager `<project>-k8s-runtime` has the only managedFields entry, an Apply |
+| `ABSENT` | Never recorded and not present |
+| `NOT_APPLIED` | An unfinished INTENT whose object is absent |
+| `REAPPLY_SAFE` | An unfinished update whose live UID equals the recorded UID |
+| `QUARANTINE_REQUIRED` | An object exists whose creation the journal cannot prove |
+| `UID_CHANGED` | The live UID differs from the recorded one, or the object is gone |
+| `NOT_OWNED` | Present but never recorded; never adopted |
+| `OWNERSHIP_NOT_VERIFIED` | The runtime Apply entry plus other managers; the allowed-manager table (D13) is not decided |
+| `QUARANTINED` | Quarantined in the journal |
+| `UNKNOWN` | The observation failed |
+
+Only `CONSISTENT` and `ABSENT` are settled. A manager name alone never proves
+ownership.
+
+**`k8s_runtime.py receipt verify` (read-only).**
+
+```bash
+python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-input.json> --helm <pinned helm> --receipt-dir ~/.local/state/<project>-k8s-runtime/<fingerprint id> --expect-manifest-sha256 <from plan> --expect-input-sha256 <from plan> [--cluster]
+```
+
+- **Pins.** It re-renders the plan. The given SHA-256 values must equal the plan
+  exactly (`sha_mismatch`, `sha_pin_invalid`), and so must the receipt's HEADER
+  (`bundle_changed`, D10).
+- **Offline.** It validates:
+  - the store's safety (location, modes, owner, symlinks);
+  - the chain, schema, journal rules and snapshot;
+  - the project and the directory name against the HEADER fingerprint.
+- **`--cluster`** (workstation only; refused in CI and cloud sessions).
+  - It passes the `status` preflight gate.
+  - It reads the `kube-system` namespace once for the fingerprint. This is the only
+    read outside the 62 objects, and `status` still cannot make it.
+  - A receipt for another cluster stops (`fingerprint_mismatch`).
+  - It reconciles every planned object with read-only `kubectl get`.
+- **Writes nothing.** It never creates, refreshes, quarantines, adopts or releases.
+- **Exit codes:**
+
+  | Code | Meaning |
+  | --- | --- |
+  | 0 | Settled |
+  | 1 | Refused |
+  | 2 | Stopped: unsafe, missing, tampered or mismatched receipt, preflight or pins |
+  | 3 | Attention required: a STALE snapshot, an open INTENT, a quarantine, or any unsettled verdict |
+
+**`k8s_runtime_transport.py`: D19 transport boundary, contract only.**
+- **Requests.** It builds exactly two request shapes, and only for allowlisted
+  identities:
+  - a metadata-only GET with
+    `Accept: application/json;as=PartialObjectMetadata;g=meta.k8s.io;v=v1`;
+  - a DELETE whose body is `DeleteOptions` with `preconditions.uid`.
+- **Responses.**
+  - A metadata response must be a `PartialObjectMetadata` for the requested object,
+    within 1 MiB, and without `data`, `stringData`, `spec` or `status`.
+  - A DELETE answered 409 is `uid_precondition_failed`, never success.
+- **Secrets** are refused entirely here; their metadata reads belong to G9.
+- **No network code.** The module has no socket, TLS, HTTP or token code; a test
+  checks the imports. Opening or constructing a real transport is refused
+  (`real_transport_not_implemented`); only `FakeTransport` exists, for tests.
+- **Not implemented.** `UNIMPLEMENTED_REQUIREMENTS` lists what the real transport
+  must satisfy before it can be approved:
+  - TLS against the kubeconfig CA, and SNI equal to `tls-server-name` through the
+    tunnel;
+  - the token from `aws eks get-token`, held in memory only;
+  - the exact request bodies;
+  - response validation;
+  - bounded timeouts;
+  - no Secrets without G9.
+
+**Tests.** `test_k8s_runtime_receipt.py` has 30 tests and 48 source mutations, each
+detected. It uses temporary stores outside the repository, the fake transport, and
+for `--cluster` the fake kubectl of the status tests. It covers:
+- modes, symlinks and owners;
+- the repository location and the lock;
+- Secret, token and extra-field writes;
+- pins and fingerprint;
+- a missing receipt and a missing snapshot;
+- chain, canonical-form and value tampering, a truncated line, a truncated journal
+  and a snapshot mismatch;
+- a crash between journal and snapshot (STALE, then refreshed by the writer);
+- a crash between INTENT and RESULT;
+- UID changes, quarantine without release, adoption refusal and field-manager
+  ownership;
+- journal ordering;
+- transport request, response and real-transport refusal;
+- apply and destroy refusal;
+- the fingerprint read scope;
+- offline and cluster verify, including the automation refusal.
+
+**Not covered here (later items, separate approval):**
+- the real transport and any real GET or DELETE (D19);
+- `apply` (6c-B3b) and `destroy` (6c-B4);
+- the allowed-manager table (D13);
+- the remaining read scope (D3);
+- Secret cleanup (G9);
+- the Istio `caBundle` renderer change (C1).
+
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
-`apply` and `destroy` are not implemented. This records what they must respect,
+`apply` and `destroy` are not implemented (6c-B3a added only the receipt foundation
+above, and both subcommands refuse). This records what they must respect,
 taken from the reviewed plan and the
 [6c-B2 design record](../../docs/k8s-runtime-apply-destroy-design.md). That record
 holds the full contracts and the Owner Decision Matrix D1–D23. Every decision

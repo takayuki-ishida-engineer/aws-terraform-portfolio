@@ -8,10 +8,18 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design only.**
+**Status: design record; 6c-B3a foundation implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
+- 6c-B3a (Owner Decision Gate, 2026-11-22) implemented these, as Source/Offline
+  code only (see section 13):
+  - the receipt, write-ahead journal and crash reconciliation of section 6;
+  - the fingerprint;
+  - the D19 transport interface with a fake;
+  - a read-only `receipt verify`.
+
+  See the [script description](../scripts/local-workflow/README.md#receipt-crash-recovery-and-transport-boundary-item-6c-b3a-offline-foundation).
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.
@@ -716,9 +724,26 @@ Deleting the EKS cluster alone is not complete teardown.
 
 ## 13. Owner Decision Matrix D1–D23
 
-**Status of every row: OPEN (not decided).** The Owner's approval of 2026-11-22
-covers only this documentation pull request. "Needed by" is the latest point at
-which the Owner must decide.
+**Status.** "Needed by" is the latest point at which the Owner must decide.
+
+- **Approved (Owner Decision Gate, 2026-11-22), for the 6c-B3a Source/Offline
+  implementation only:**
+  - **D7**: identity, UID, receipt and allowed field ownership together; never the
+    manager name alone;
+  - **D8**: no forced conflict resolution and no `--force-conflicts`;
+  - **D10**: an unapproved change of manifest, input or version stops;
+  - **D16**: no automatic quarantine release or adoption. A release needs a
+    separate Owner approval naming the UID and the reason;
+  - **D17**: the cluster ARN plus the `kube-system` namespace UID;
+  - **D19**: the limited direct API as the design candidate. In 6c-B3a only its
+    interface and fake exist; the real HTTPS client, token retrieval, and any real
+    GET or DELETE need a separate Owner approval;
+  - **D3**, in part: only the `kube-system` namespace read for the fingerprint.
+- **Every other row is OPEN (not decided).** That includes:
+  - the rest of D3;
+  - D13, so other field managers leave ownership NOT_VERIFIED;
+  - D2, D5, D6, D9, D11, D12, D18 and D23;
+  - every Category 2 and 3 decision.
 
 ### Category 1: before Source/Offline implementation
 
