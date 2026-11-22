@@ -179,8 +179,22 @@ What is ready (Step 1 item 6b-A):
   python3 scripts/local-workflow/k8s_certs.py generate --project <project> --backend-hostname <backend hostname> --trust-domain <trust domain> --out ~/.config/<project>-dev-k8s-certs
   ```
 
-  Copy the `runtime` values from its `public.json` into the renderer input. Once
-  F18 is resolved, the order is:
+  Build the renderer input from the applied outputs, its `public.json` and your
+  resource selections, and show the staged plan (item 6c-A, code only, nothing is
+  applied):
+
+  ```bash
+  python3 scripts/local-workflow/k8s_runtime_input.py --project <project> --account-id <account ID> --material ~/.config/<project>-dev-k8s-certs --selections ~/.config/<project>-dev-runtime-selections.json --out-dir ~/.config/<project>-dev-runtime-input
+  ```
+
+  ```bash
+  python3 scripts/local-workflow/k8s_runtime.py plan --input ~/.config/<project>-dev-runtime-input/runtime-input.json --helm <pinned helm>
+  ```
+
+  See the [script description](../scripts/local-workflow/README.md#kubernetes-runtime-input-and-plan-k8s_runtime_inputpy-k8s_runtimepy).
+  Applying the stages is not implemented yet (no `apply`), and the ingress stage is
+  blocked until the binding-writer method is approved. Once F18 is resolved and
+  apply exists, the order is:
   1. render;
   2. apply the namespaces stage;
   3. register the Secrets through the tunnel (§3);

@@ -21,6 +21,9 @@ markers are a safety net, not the boundary: the rule itself is in `AGENTS.md`.
 | `test_k8s_certs.py` | Offline tests of `k8s_certs.py` with real OpenSSL in temporary directories and a fake `kubectl` (Full CI) |
 | `mirror_images.py` | `plan` (default, offline): verifies `kubernetes/images.lock.json` and prints the copy plan; `mirror`: copies the three locked images into the `registry` root's private ECR repositories and verifies them (finding F18) |
 | `test_mirror_images.py` | Offline tests of `mirror_images.py` with fake `aws`, `skopeo` and `terraform` executables, and source mutations of its guards (Full CI) |
+| `k8s_runtime_input.py` | Builds the Kubernetes runtime renderer input from the applied root outputs, `public.json` and the operator's resource selections, cross-checked, outside the repository (item 6c-A) |
+| `k8s_runtime.py` | `plan` (offline): renders and validates the runtime with the pinned Helm and shows the 9 apply stages, their objects, actors, Secrets, prerequisites and readiness conditions; executes nothing (item 6c-A) |
+| `test_k8s_runtime.py` | Offline tests of both with a fake `terraform`, synthetic `public.json` and the pinned Helm, and source mutations of their guards (Full CI) |
 
 ## Prepare a root
 
@@ -209,6 +212,107 @@ The old CA is no longer trusted. `delete` removes the four Secrets
 `register`/`delete` against a fake `kubectl`. It checks, among other things, that no
 key or certificate line reaches arguments or output, that the generated values pass
 the renderer's live-input checks, and that the commands are refused in automation.
+
+## Kubernetes runtime input and plan (`k8s_runtime_input.py`, `k8s_runtime.py`)
+
+Step 1 item 6c-A. Code only: nothing here has been run against a real cluster or AWS
+account. `status`, `apply` and `destroy` do not exist yet, so nothing is applied.
+
+### Build the input (workstation only)
+
+```bash
+cp kubernetes/environments/dev/runtime-selections.example.json ~/.config/<project>-dev-runtime-selections.json
+```
+
+Choose the controller, istiod and gateway requests and limits in that copy and set
+`project`; every `REPLACE` value is refused. Then:
+
+```bash
+python3 scripts/local-workflow/k8s_runtime_input.py --project <project> --account-id <account ID> --material ~/.config/<project>-dev-k8s-certs --selections ~/.config/<project>-dev-runtime-selections.json --out-dir ~/.config/<project>-dev-runtime-input
+```
+
+It is refused in CI, in cloud sessions, with the placeholder credentials and with an
+AWS endpoint override, before any tool starts. It reads exactly four Terraform
+outputs with `terraform output -json <name>`, never the State:
+
+- `controller_identity` (platform root), all 11 fields unchanged;
+- `platform` (platform root), for the cluster name and ARN and the OIDC issuer and
+  provider;
+- `private_ingress` (platform root), projected to `interface_version`, `scope`,
+  `target_group_arn`, `vpc_id` and `backend_target_port`;
+- `network` (network root), for the VPC ID.
+
+From the material directory it reads only `public.json` and the public
+`webhook/ca.crt`. No private key is opened, and the Secret data and tokens never
+reach the input, the provenance record or the output.
+
+Before writing, it refuses:
+- a scope that is not dev, aws, ca-central-1 and the given account, in any of the
+  four outputs;
+- a cluster other than `<project>-dev-eks`, or a cluster ARN, controller role or
+  target group in another account;
+- OIDC values that differ between `controller_identity` and `platform`;
+- a target group ARN that differs between `controller_identity` and
+  `private_ingress`, or a VPC ID that differs from the network output;
+- missing or extra `controller_identity` fields;
+- a `public.json` for another project, with other Secret names or layout, with a
+  certificate that expires within a day, with a webhook CA that differs from
+  `webhook/ca.crt`, or that contains a private key;
+- selections for another project, with a placeholder or with requests above limits;
+- placeholder projects and accounts;
+- an output directory inside the repository or not empty. The directory is 0700
+  and the files 0600.
+
+The result must pass the renderer's own input contract. The directory then holds
+`runtime-input.json` and `provenance.json`: the input's SHA-256, which output or
+file each section came from (with file SHA-256), the cross-checks made and what was
+not verified. `kubernetes_version` is the requested Terraform value, not the server
+version. The referenced AWS resources are not checked for existence or reachability.
+
+### Plan (offline, anywhere)
+
+```bash
+python3 scripts/local-workflow/k8s_runtime.py plan --input ~/.config/<project>-dev-runtime-input/runtime-input.json --helm <pinned helm>
+```
+
+`plan` renders with the pinned Helm (`kubernetes/tools/install_helm.py`), runs the
+existing validator and re-checks the render evidence (contract version 4, image lock,
+pinned Helm and charts, input and manifest SHA-256). It then cuts the bundle into the
+9 stages of [`kubernetes/tests/expected-stages.json`](../../kubernetes/tests/expected-stages.json):
+namespaces 2, base 16, controller 13, istiod 12, gateway 5, mesh_security 5,
+admission 4, binding_writer 3, ingress 2. Each stage must hold exactly the reviewed
+apiVersion, kind, namespace and name of its objects, not just the same count. The
+stages together must equal `kubernetes/tests/expected-inventory.json`. Secrets and
+cluster-admin bindings are refused, and kinds may appear only in their own stage
+(for example the TargetGroupBinding only in ingress).
+
+For every stage it shows:
+- the objects;
+- the actor: the operator for everything but the TargetGroupBinding, whose actor
+  is `system:serviceaccount:<project>-ingress:<project>-binding-writer`;
+- the k8s_certs Secrets that must exist first;
+- the prerequisites and the readiness conditions.
+
+How the operator acts as the binding-writer ServiceAccount is not approved:
+impersonation on the current EKS cluster is NOT_TESTED, and TokenRequest is not
+approved. The ingress stage is therefore shown as BLOCKED.
+
+`--fixture` plans the synthetic fixture, and `--format json` prints the report. The
+only process `plan` starts is the pinned Helm. It contacts no cluster and no AWS API.
+
+### Tests
+
+`test_k8s_runtime.py` (Full CI, 28 tests) builds the input from a fake `terraform`
+and a synthetic material directory whose key files hold a marker that must never be
+read or shown. It covers:
+- every mismatch above, the CI and cloud refusals and the file modes;
+- an end-to-end plan of the built input with the pinned Helm;
+- the fixture plan, with only Helm allowed to start;
+- stage tampering with unchanged counts: a swapped or moved object, a changed
+  apiVersion, namespace or name, a disguised Secret, a cluster-admin binding;
+- evidence and stage table tampering, and a skipped validator.
+
+36 source mutations each remove one guard, and every one must be detected.
 
 ## Image mirror (`mirror_images.py`)
 

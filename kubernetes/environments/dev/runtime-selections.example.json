@@ -1,0 +1,18 @@
+{
+  "format": "k8s-runtime-selections-v1",
+  "project": "REPLACE_WITH_PROJECT",
+  "resources": {
+    "controller": {
+      "requests": { "cpu": "REPLACE", "memory": "REPLACE" },
+      "limits": { "cpu": "REPLACE", "memory": "REPLACE" }
+    },
+    "istiod": {
+      "requests": { "cpu": "REPLACE", "memory": "REPLACE" },
+      "limits": { "cpu": "REPLACE", "memory": "REPLACE" }
+    },
+    "gateway": {
+      "requests": { "cpu": "REPLACE", "memory": "REPLACE" },
+      "limits": { "cpu": "REPLACE", "memory": "REPLACE" }
+    }
+  }
+}
