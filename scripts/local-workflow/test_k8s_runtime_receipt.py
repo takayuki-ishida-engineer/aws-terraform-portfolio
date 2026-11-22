@@ -410,11 +410,91 @@ def scenario_reapply_owned(case, mods):
             store.result(seq, first, uid(1), "100", 1, "applied")
             store.intent("namespaces", first, {"state": "owned", "uid": uid(1)}, "update")
         state = env.load()["state"]
-        run = lambda table: verdict_of(mods.receipt.reconcile(state, env.plan, observer(table), "acme-k8s-runtime"),
-                                       first["name"])
-        case.assertEqual(run({first["name"]: present(uid(1))}), "REAPPLY_SAFE")
-        case.assertEqual(run({first["name"]: present(uid(2))}), "UID_CHANGED")
-        case.assertEqual(run({}), "UID_CHANGED")
+        run = lambda observed: verdict_of(mods.receipt.reconcile(state, env.plan, observer({first["name"]: observed}),
+                                                                 "acme-k8s-runtime"), first["name"])
+        case.assertEqual(run(present(uid(1))), "REAPPLY_SAFE")
+        case.assertEqual(run(present(uid(1), (("kube-controller-manager", "Update"),))), "NOT_OWNED")
+        case.assertEqual(run(present(uid(1), (("acme-k8s-runtime", "Update"),))), "NOT_OWNED")
+        case.assertEqual(run(present(uid(1), (("acme-k8s-runtime", "Apply"), ("kube-controller-manager", "Update")))),
+                         "OWNERSHIP_NOT_VERIFIED")
+        case.assertEqual(run(present(uid(2))), "UID_CHANGED")
+        case.assertEqual(run(("absent", None)), "UID_CHANGED")
+        case.assertEqual(run(("unknown", "timeout")), "UNKNOWN")
+
+
+def crash_after_header(env, mods, store):
+    """Inject a crash between the fsynced HEADER and the first snapshot."""
+    with store.lock():
+        with mock.patch.object(mods.receipt.Store, "_write_snapshot", side_effect=OSError("crash")):
+            error_of(store.begin, OSError)
+    lines = env.journal_lines()
+    if len(lines) != 1 or os.path.lexists(env.dir / "receipt.json"):
+        raise AssertionError("crash injection did not leave a HEADER-only journal")
+
+
+def scenario_header_crash_recovery(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        crash_after_header(env, mods, store)
+        case.assertEqual(error_of(env.load, mods.receipt.ReceiptError), "receipt_snapshot_missing")
+        case.assertFalse(os.path.lexists(env.dir / "receipt.json"), "a read must not repair the snapshot")
+        with store.lock():
+            case.assertEqual(store.begin(), "SNAPSHOT_CREATED")
+        case.assertEqual(stat.S_IMODE(os.stat(env.dir / "receipt.json").st_mode), 0o600)
+        case.assertFalse(os.path.lexists(env.dir / "receipt.json.tmp"))
+        loaded = env.load()
+        case.assertEqual((loaded["receipt"], len(loaded["records"])), ("CURRENT", 1))
+        with store.lock():
+            case.assertEqual(store.begin(), "CURRENT")
+        case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "receipt_not_locked")
+
+
+def scenario_header_crash_checks(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        crash_after_header(env, mods, store)
+        changed = env.store(manifest_sha256="c" * 64)
+        with changed.lock():
+            case.assertEqual(error_of(changed.begin, mods.receipt.ReceiptError), "bundle_changed")
+        other_project = env.store(project="other")
+        with other_project.lock():
+            case.assertEqual(error_of(other_project.begin, mods.receipt.ReceiptError), "project_mismatch")
+        case.assertFalse(os.path.lexists(env.dir / "receipt.json"))
+        line = env.journal_lines()[0]
+        (env.dir / "journal.jsonl").write_bytes(line.replace(SHA_B.encode(), ("d" * 64).encode()))
+        with store.lock():
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "bundle_changed")
+        (env.dir / "journal.jsonl").write_bytes(line.replace(b'"format":1', b'"format": 1'))
+        with store.lock():
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "journal_corrupt:not_canonical")
+        case.assertFalse(os.path.lexists(env.dir / "receipt.json"))
+
+
+def scenario_missing_snapshot_with_operations(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        with store.lock():
+            store.begin()
+            first = env.members("namespaces")[0]
+            store.intent("namespaces", first, ABSENT, "create")
+        os.unlink(env.dir / "receipt.json")
+        with store.lock():
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "receipt_snapshot_missing")
+        case.assertFalse(os.path.lexists(env.dir / "receipt.json"))
+
+
+def scenario_tampered_snapshot_not_regenerated(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        with store.lock():
+            store.begin()
+        receipt = json.loads((env.dir / "receipt.json").read_text())
+        receipt["journal_last_sha256"] = "e" * 64
+        tampered = json.dumps(receipt).encode()
+        (env.dir / "receipt.json").write_bytes(tampered)
+        with store.lock():
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "receipt_journal_mismatch")
+        case.assertEqual((env.dir / "receipt.json").read_bytes(), tampered)
 
 
 def scenario_uid_changed(case, mods):
@@ -766,6 +846,17 @@ def scenario_verify_open_intent(case, mods):
                          (3, None, True, "attention_required"))
 
 
+def scenario_verify_does_not_repair(case, mods):
+    with verify_for(mods) as v:
+        store = k8s_runtime_receipt.Store(v.tmp / "state", v.fp, v.project, v.report["manifest_sha256"],
+                                          v.report["input_sha256"], v.plan)
+        with store.lock():
+            with mock.patch.object(k8s_runtime_receipt.Store, "_write_snapshot", side_effect=OSError("crash")):
+                error_of(store.begin, OSError)
+        case.assertEqual(v.verify(store.dir)[2], "receipt_snapshot_missing")
+        case.assertFalse(os.path.lexists(store.dir / "receipt.json"))
+
+
 def scenario_verify_cluster(case, mods):
     with verify_for(mods) as v:
         directory = v.write()
@@ -904,7 +995,17 @@ class ReceiptTests(unittest.TestCase):
 
     def test_crash_between_intent_and_result(self):
         scenario_intent_crash(self, real_mods())
+
+    def test_reapply_safe_requires_uid_and_ownership(self):
         scenario_reapply_owned(self, real_mods())
+
+    def test_crash_after_header_recovers_snapshot(self):
+        scenario_header_crash_recovery(self, real_mods())
+        scenario_header_crash_checks(self, real_mods())
+
+    def test_missing_or_tampered_snapshot_not_regenerated(self):
+        scenario_missing_snapshot_with_operations(self, real_mods())
+        scenario_tampered_snapshot_not_regenerated(self, real_mods())
 
     def test_uid_change_detected(self):
         scenario_uid_changed(self, real_mods())
@@ -947,6 +1048,7 @@ class GateAndVerifyTests(unittest.TestCase):
     def test_verify_offline(self):
         scenario_verify_offline(self, real_mods())
         scenario_verify_open_intent(self, real_mods())
+        scenario_verify_does_not_repair(self, real_mods())
 
     def test_verify_pins_and_bundle(self):
         scenario_verify_pins(self, real_mods())
@@ -1013,8 +1115,8 @@ MUTATIONS = [
      scenario_stage_rules),
     ("write_validated", R, "state = derive(records + [record], self.plan)", "state = derive(records or [record], self.plan)",
      scenario_write_validated_first),
-    ("reconcile_unproven", R, 'verdict = "NOT_APPLIED" if presence == "absent" else "QUARANTINE_REQUIRED"\n                else:',
-     'verdict = "NOT_APPLIED" if presence == "absent" else "REAPPLY_SAFE"\n                else:', scenario_intent_crash),
+    ("reconcile_unproven", R, 'verdict = "NOT_APPLIED" if presence == "absent" else "QUARANTINE_REQUIRED"\n                elif presence',
+     'verdict = "NOT_APPLIED" if presence == "absent" else "REAPPLY_SAFE"\n                elif presence', scenario_intent_crash),
     ("reconcile_uid", R, 'elif presence == "absent" or observed["uid"] != obj["owned_uid"]:', 'elif presence == "absent":',
      scenario_uid_changed),
     ("reconcile_unrecorded", R, 'verdict = "ABSENT" if presence == "absent" else "NOT_OWNED"',
@@ -1022,6 +1124,14 @@ MUTATIONS = [
     ("ownership_others", R, 'return "OWNED" if len(runtime) == len(managers) else "OWNERSHIP_NOT_VERIFIED"',
      'return "OWNED"', scenario_field_managers),
     ("ownership_operation", R, ' and m.get("operation") == "Apply"', "", scenario_field_managers),
+    ("header_only_repair", R, '            need(len(records) == 1, "receipt_snapshot_missing")', "            pass",
+     scenario_missing_snapshot_with_operations),
+    ("repair_header_check", R, "            check_header(replayed[\"header\"], self.expected)  # fingerprint and pins before any repair",
+     "            pass", scenario_header_crash_checks),
+    ("repair_only_when_missing", R, "        if records and not os.path.lexists(self.dir / RECEIPT):",
+     "        if records:", scenario_tampered_snapshot_not_regenerated),
+    ("reapply_ownership", R, 'verdict = "REAPPLY_SAFE" if owned_prior == "OWNED" else owned_prior', 'verdict = "REAPPLY_SAFE"',
+     scenario_reapply_owned),
     ("release", R, '        raise ReceiptError("quarantine_release_not_approved")', "        return None",
      scenario_quarantine),
     ("accept_header", T, '"headers": {"Accept": METADATA_ACCEPT}', '"headers": {"Accept": "application/json"}',
@@ -1077,7 +1187,7 @@ def mutant(filename, old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 48)
+        self.assertEqual(len(MUTATIONS), 52)
         undetected = []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = real_mods()

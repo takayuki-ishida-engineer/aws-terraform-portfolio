@@ -489,7 +489,13 @@ There is no recovery, release or adoption command.
 - **`receipt.json`.** A snapshot of the journal, replaced atomically (temporary
   file, fsync, rename, directory fsync).
   - The journal wins. A snapshot behind the journal (a crash between the two
-    writes) is STALE.
+    writes) is STALE, and the writer refreshes it under the lock.
+  - A missing snapshot is recreated only when the journal holds nothing but a
+    verified HEADER, after its fingerprint and pins are checked (a crash right
+    after the first write). With any INTENT, RESULT or other record it stays
+    missing, and the run stops (`receipt_snapshot_missing`).
+  - An inconsistent snapshot is never regenerated. `receipt verify` never repairs
+    anything.
   - A snapshot ahead of the journal is `journal_truncated`; any other difference is
     `receipt_journal_mismatch`.
 - **Journal rules.** Every one stops on violation:
@@ -510,7 +516,7 @@ classified against the journal and an observation (presence, UID, field managers
 | `CONSISTENT` | Recorded UID equals the live UID, and the runtime manager `<project>-k8s-runtime` has the only managedFields entry, an Apply |
 | `ABSENT` | Never recorded and not present |
 | `NOT_APPLIED` | An unfinished INTENT whose object is absent |
-| `REAPPLY_SAFE` | An unfinished update whose live UID equals the recorded UID |
+| `REAPPLY_SAFE` | An unfinished update whose live UID equals the recorded UID, with the runtime Apply entry as the only manager. With the same UID, no runtime Apply entry is `NOT_OWNED` and other managers are `OWNERSHIP_NOT_VERIFIED` |
 | `QUARANTINE_REQUIRED` | An object exists whose creation the journal cannot prove |
 | `UID_CHANGED` | The live UID differs from the recorded one, or the object is gone |
 | `NOT_OWNED` | Present but never recorded; never adopted |
@@ -574,7 +580,7 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - no Secrets without G9.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 30 tests and 48 source mutations, each
+**Tests.** `test_k8s_runtime_receipt.py` has 33 tests and 52 source mutations, each
 detected. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -585,7 +591,11 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - chain, canonical-form and value tampering, a truncated line, a truncated journal
   and a snapshot mismatch;
 - a crash between journal and snapshot (STALE, then refreshed by the writer);
-- a crash between INTENT and RESULT;
+- a crash between the HEADER and the first snapshot: recreated only for a verified
+  HEADER-only journal, never with other records, never over an inconsistent
+  snapshot, and never by `receipt verify`;
+- a crash between INTENT and RESULT, and `REAPPLY_SAFE` only with both the UID and
+  the runtime's field ownership;
 - UID changes, quarantine without release, adoption refusal and field-manager
   ownership;
 - journal ordering;

@@ -23,7 +23,9 @@ Journal (``journal.jsonl``)
 Receipt (``receipt.json``)
   A snapshot derived from the journal, replaced atomically (temporary file, fsync,
   rename, directory fsync). On disagreement the journal wins; a snapshot behind the
-  journal is reported STALE, anything else is a mismatch.
+  journal is reported STALE, anything else is a mismatch. The writer recreates a
+  missing snapshot only for a journal that holds nothing but a verified HEADER (a
+  crash right after the first write); otherwise a missing snapshot stops.
 
 Ownership (D7)
   An object is the runtime's only when its identity is in the plan, its live UID
@@ -492,9 +494,21 @@ class Store:
         fsync_dir(self.dir)
 
     def begin(self):
-        """Write the HEADER of a new journal, or check an existing one and refresh a stale snapshot."""
+        """Write the HEADER of a new journal, or check an existing one and repair only what is provably safe.
+
+        A snapshot behind a verified journal prefix is refreshed (STALE). A missing snapshot is
+        recreated only when the journal holds nothing but a verified HEADER (a crash right after the
+        first write); with any other record it stays missing and the run stops. A present but
+        inconsistent snapshot is never rewritten.
+        """
         need(self.lock_fd is not None, "receipt_not_locked")
         records, digests = self._records()
+        if records and not os.path.lexists(self.dir / RECEIPT):
+            replayed = derive(records, self.plan)  # chain and schema already checked by _records
+            check_header(replayed["header"], self.expected)  # fingerprint and pins before any repair
+            need(len(records) == 1, "receipt_snapshot_missing")
+            self._write_snapshot(snapshot(records, digests, self.plan))
+            return "SNAPSHOT_CREATED"
         if not records:
             fp = self.expected["fingerprint"]
             self._append({"type": "HEADER", "format": FORMAT, "project": self.expected["project"],
@@ -567,9 +581,12 @@ def reconcile(state, plan, observe, runtime_manager):
                 prior = open_intent["prior"]
                 if prior["state"] == "absent":
                     verdict = "NOT_APPLIED" if presence == "absent" else "QUARANTINE_REQUIRED"
+                elif presence == "absent" or observed["uid"] != prior["uid"]:
+                    verdict = "UID_CHANGED"
                 else:
-                    verdict = "REAPPLY_SAFE" if presence == "present" and observed["uid"] == prior["uid"] \
-                        else "UID_CHANGED"
+                    # D7: the same UID is not enough; the runtime's field ownership must also hold.
+                    owned_prior = ownership(observed, runtime_manager)
+                    verdict = "REAPPLY_SAFE" if owned_prior == "OWNED" else owned_prior
             elif obj["owned_uid"] is None:
                 verdict = "NOT_APPLIED" if presence == "absent" else "QUARANTINE_REQUIRED"
             elif presence == "absent" or observed["uid"] != obj["owned_uid"]:
