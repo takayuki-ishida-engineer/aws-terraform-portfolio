@@ -17,7 +17,7 @@ regression result or any Kubernetes Live behavior.
 Finding F11 (2026-11-20): every Kubernetes object the project creates is named
 `<project>-<purpose>` from a new required input, `runtime.project`, which follows the
 DEV roots' project rule. The input moves to interface_version 2 (version 1 is
-refused) and renderer evidence to runtime_contract_version 3 (4 since F18, below). The project must match
+refused) and renderer evidence to runtime_contract_version 3 (4 since F18, 5 since C1, below). The project must match
 the Platform output: cluster `<project>-dev-eks` and controller role
 `<project>-dev-role-lbc`. Both gateway Secret names start with `<project>-`.
 
@@ -85,6 +85,16 @@ operator script that copies the images with `skopeo copy --all --preserve-digest
   container and the controller container to these references, and points
   `global.hub` at the private registry so no unpinned fallback can reach a public
   one. Evidence moves to runtime_contract_version 4 and records the lock's SHA-256.
+- **Istio webhook `caBundle` (finding F23, item 6c-B3b-C1, contract 5).** istiod
+  writes the `caBundle` of its three webhooks at run time, so the bundle never carries
+  one:
+  - The renderer pins `base.validationCABundle` and `istiodRemote.injectionCABundle`
+    to empty and stops if a `caBundle` appears.
+  - The validator requires the exact webhook entries with a service-only
+    `clientConfig`.
+  - The controller webhook keeps the public CA.
+  - Only istiod's `values-<project>-v1` record changes; evidence moves to
+    runtime_contract_version 5.
 - **Injection templates.** The pinned istiod chart ships eight injection templates.
   The renderer keeps `sidecar` (the default) and `gateway`, byte-for-byte as in the
   chart, and removes `grpc-simple`, `grpc-agent` (which uses the public

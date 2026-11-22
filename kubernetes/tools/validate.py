@@ -152,9 +152,21 @@ def verify(objects,d,fixture=False):
  for k,v in {'--cluster-name':c['cluster_name'],'--aws-region':'ca-central-1','--aws-vpc-id':p['vpc_id'],'--watch-namespace':ING,'--ingress-class':N['ingress_class'],'--disable-ingress-class-annotation':'true','--enable-backend-security-group':'false','--enable-manage-backend-security-group-rules':'false','--enable-pod-readiness-gate-inject':'false','--enable-shield':'false','--enable-waf':'false','--enable-wafv2':'false'}.items():need(flags[k]==v,'controller scope/ownership:'+k)
  gates=dict(x.split('=') for x in flags['--feature-gates'].split(','));need(set(gates)=={'ALBGatewayAPI','ALBTargetControlAgent','EnableCertificateManagement','EnableRGTAPI','EnableServiceController','EndpointsFailOpen','GatewayListenerSet','GlobalAcceleratorController','NLBGatewayAPI'} and set(gates.values())=={'false'},'non-TGB controller features disabled')
  need(cs['volumes']==[{'name':'cert','secret':{'defaultMode':420,'secretName':r['webhook_tls_secret']}}],'external webhook Secret')
+ # C1 (Owner decision D23, contract 5): istiod owns the caBundle of the three Istio webhooks,
+ # so the bundle must carry the exact reviewed entries, each calling istiod with no caBundle.
+ istio_hooks=[('ValidatingWebhookConfiguration','istiod-default-validator',['validation.istio.io']),
+              ('ValidatingWebhookConfiguration','istio-validator-'+REV+'-istio-system',['rev.validation.istio.io']),
+              ('MutatingWebhookConfiguration','istio-sidecar-injector-'+REV,['rev.namespace.sidecar-injector.istio.io','rev.object.sidecar-injector.istio.io'])]
+ for kind,name,entries in istio_hooks:
+  hooks=obj(kind,name)['webhooks'];need([w['name'] for w in hooks]==entries,'exact Istio webhook entries')
+  for w in hooks:
+   need(set(w['clientConfig'])=={'service'},'Istio webhook caBundle left to istiod (C1)')
+   need(w['clientConfig']['service']['name']=='istiod-'+REV and w['clientConfig']['service']['namespace']=='istio-system','Istio webhook calls istiod')
+ for kind,entry in [('MutatingWebhookConfiguration','mtargetgroupbinding.elbv2.k8s.aws'),('ValidatingWebhookConfiguration','vtargetgroupbinding.elbv2.k8s.aws')]:
+  need([w['name'] for w in obj(kind,'aws-load-balancer-controller-webhook')['webhooks']]==[entry],'exact controller webhook entries')
  for kind in ['MutatingWebhookConfiguration','ValidatingWebhookConfiguration']:
   for w in obj(kind,'aws-load-balancer-controller-webhook')['webhooks']:
-   need(w['failurePolicy']=='Fail' and w['clientConfig']['caBundle']==r['webhook_ca_bundle'] and w['clientConfig']['service']['namespace']=='kube-system','webhook trust/failure')
+   need(w['failurePolicy']=='Fail' and w['clientConfig'].get('caBundle')==r['webhook_ca_bundle'] and w['clientConfig']['service']['namespace']=='kube-system','webhook trust/failure')
    need(w['namespaceSelector']=={'matchLabels':{'portfolio.runtime/ingress':'true'}} and all(x['resources']==['targetgroupbindings'] for x in w['rules']),'only scoped TGB webhooks')
  # Binding identity is as important as the role's contents: a changed roleRef
  # must not silently select cluster-admin or a pre-existing unrestricted role.

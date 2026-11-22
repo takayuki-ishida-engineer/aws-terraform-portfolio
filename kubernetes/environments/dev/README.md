@@ -65,7 +65,7 @@ backend port must be an integer1024–65535 outside the conservatively reserved
 Istio range15000–15090. Platform's general1–65535 schema is unchanged; its wider
 range is not permission to use low/control ports in this runtime profile.
 All Kubernetes Gateway backend ports now use that one input; NLB remains443.
-Generated evidence requires runtime_contract_version4 (F18; F11 used 3, NP-2P used 2). Review and migrate old
+Generated evidence requires runtime_contract_version5 (C1; F18 used 4, F11 used 3, NP-2P used 2). Review and migrate old
 Service/TGB/Gateway443 consumers as a coordinated versioned bundle; old evidence
 or a partial manifest update is rejected. The [compatibility and rollback contract](../../README.md#np-2p-gateway-port-alignment-and-compatibility)
 does not implement publication or prove any deployed consumer has been migrated.

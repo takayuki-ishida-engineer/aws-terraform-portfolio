@@ -76,7 +76,7 @@ Rules:
 
 | # | Fact | Source |
 | --- | --- | --- |
-| E1 | The Istio validating webhooks render `caBundle: ""` (`base.validationCABundle` defaults to empty). The chart comment says istiod patches the `caBundle` at run time. The injector omits `caBundle` when it is empty | `base` and `istiod` 1.32.0 templates in `kubernetes/vendor/` |
+| E1 | **Corrected in 6c-B3b-C1.** The vendored `base` and `istiod` 1.32.0 templates emit `caBundle` only when `base.validationCABundle` (validators) or `istiodRemote.injectionCABundle` (injector) is non-empty (`{{- if ... }}`). Both default to empty, so the rendered bundle never carried a `caBundle` on the three Istio webhooks. The first version of this record said the validators render `caBundle: ""`; that was wrong (the guarding condition was missed). The chart comment says istiod patches the `caBundle` at run time C1 was therefore a latent risk (a non-empty value or changed chart default would make the runtime claim the field), now closed by contract 5 | `base` and `istiod` 1.32.0 templates in `kubernetes/vendor/`; offline render of the fixture |
 | E2 | The bundle references every image as `<ecr>/<repository>@<index digest>`. `images.lock.json` also holds the per-platform digests and `required_platform: linux/amd64` | `kubernetes/tools/common.py` `image_refs`, `kubernetes/images.lock.json` |
 | E3 | `k8s_certs.py register` checks the local material, the context and that the three namespaces exist. It then applies the four Secrets with field manager `<project>-k8s-certs`. It never reads them back | `scripts/local-workflow/k8s_certs.py` `register` |
 | E4 | `k8s_certs.py delete` deletes by name with `--ignore-not-found`. It has no UID precondition, no ownership check and no absence check afterwards | `k8s_certs.py` `delete` |
@@ -93,12 +93,17 @@ from the AWS documentation in this session, so it is NOT_VERIFIED here (section 
 
 ### C1 / D23: Istio `caBundle` ownership (finding F23)
 
-**Problem.** With the current bundle the runtime's server-side apply would own
-`caBundle: ""` on two webhooks:
+**Status: resolved in Source/Offline by 6c-B3b-C1 (Owner decision D23, 2026-11-22),
+renderer contract 5. Live behaviour NOT_VERIFIED.**
+
+**Problem.** Correction: the pinned charts already omitted the field, because it is
+rendered only for a non-empty value (E1). The risk was latent. If a value or chart
+default ever made the bundle carry a `caBundle` (empty or not) on:
 - `istiod-default-validator`
 - `istio-validator-<project>-v1-istio-system`
+- `istio-sidecar-injector-<project>-v1`
 
-istiod then writes the real bundle. A later apply sets the field back to a
+then the runtime's server-side apply would own it, and istiod writes the real bundle. A later apply sets the field back to a
 different value than the one istiod owns, which is a field conflict. Forcing the
 apply would erase the bundle. Both webhooks fail closed, so every Istio resource
 write would then fail.
@@ -122,13 +127,22 @@ write would then fail.
 | Re-apply | The applied configuration still omits `caBundle`, so there is neither a change nor a conflict. If any applied configuration claims `caBundle` on these webhooks, apply stops before sending (`istio_cabundle_ownership_unsafe`). It is never forced |
 | Readiness | Each of the three webhooks must have a non-empty `caBundle` owned only by the allowed Istio manager (section 10). Any other state is NOT_READY or UNVERIFIED |
 
-**Requirements on later pull requests:**
-- The bundle change (omit the empty `caBundle` on these three webhooks) is a
-  renderer contract change, candidate contract version 5. It is **not**
-  implemented here. It is a mandatory entry condition of the first pull request
-  that enables `apply` for the base or istiod stage (6c-B3b), with plan tests that
-  pin it.
-- Until then, `apply` must refuse the base and istiod stages.
+**Implemented in 6c-B3b-C1 (renderer contract 5):**
+- The renderer pins `base.validationCABundle` and `istiodRemote.injectionCABundle`
+  to empty for both Istio charts, instead of relying on chart defaults. It stops if
+  any of the three Istio webhooks would carry a `caBundle`.
+- The validator independently requires, for each of the three webhooks:
+  - the exact reviewed webhook entries;
+  - a `clientConfig` with only `service`, pointing at `istiod-<project>-v1` in
+    `istio-system`, so no `caBundle` and no URL;
+  - and, for the controller webhooks, exactly one entry each with the public CA.
+- Bundle impact: the three webhooks are byte-identical to contract 4. The only
+  changed object is istiod's own Helm values record, `values-<project>-v1`, which now
+  lists the two pinned empty values. The 9 stages and 62 objects are unchanged.
+- Evidence moves to `runtime_contract_version` 5. Contract-4 evidence is refused by
+  `check_runtime.py` and by `k8s_runtime.py plan`.
+- There is still no `apply`. The phases above remain the contract for 6c-B3b; no
+  path forces or overwrites a `caBundle`.
 - The AWS Load Balancer Controller webhook keeps the `caBundle` the renderer sets
   from the public CA. The runtime owns it, and any other manager on it stops apply.
 - Live behaviour is NOT_VERIFIED and never inferred as PASS. This covers istiod's
@@ -194,7 +208,7 @@ k8s_runtime.py apply --input <runtime-input.json> --helm <pinned helm> --expect-
    - Refuses automation, an unapproved scope and a mismatched typed project
      confirmation.
    - Refuses any range that includes ingress (`ingress_execution_gate_blocked`).
-   - Refuses the base and istiod stages until C1 is implemented.
+   - Requires renderer contract 5 (C1, implemented in 6c-B3b-C1); any bundle that claims an Istio webhook `caBundle` is refused.
 2. **Pinning.**
    - Re-runs `plan()`; the manifest and input SHA-256 must equal the expected values.
    - Never accepts a bundle from outside.
@@ -739,10 +753,15 @@ Deleting the EKS cluster alone is not complete teardown.
     interface and fake exist; the real HTTPS client, token retrieval, and any real
     GET or DELETE need a separate Owner approval;
   - **D3**, in part: only the `kube-system` namespace read for the fingerprint.
+- **Approved (Owner, 2026-11-22), for the 6c-B3b-C1 Source/Offline implementation
+  only:** **D23**. istiod owns the `caBundle` of the three Istio webhooks, the
+  runtime never claims it, the controller webhook keeps its public CA, there is no
+  `--force-conflicts`, and the renderer moves to contract 5. istiod's field manager,
+  real CA rotation and webhook serving stay NOT_VERIFIED.
 - **Every other row is OPEN (not decided).** That includes:
   - the rest of D3;
   - D13, so other field managers leave ownership NOT_VERIFIED;
-  - D2, D5, D6, D9, D11, D12, D18 and D23;
+  - D2, D5, D6, D9, D11, D12 and D18;
   - every Category 2 and 3 decision.
 
 ### Category 1: before Source/Offline implementation
@@ -755,7 +774,7 @@ Deleting the EKS cluster alone is not complete teardown.
 | D16 | Releasing QUARANTINED objects | Strict: an explicit Owner action with the expected UID only | Manual work after a crash | 6c-B3a | Before 6c-B3a starts |
 | D17 | Cluster fingerprint | `kube-system` namespace UID plus the cluster ARN | Needs a small read-scope addition (D3) | 6c-B3a | Before 6c-B3a starts |
 | D19 | Transport for DELETE with a UID precondition and for metadata-only reads (Secrets, section 5.1 inventory) | Limited direct API (section 3) | Own TLS and HTTP code to review | 6c-B3a (design of the transport boundary), G9, 6c-B4 | Before 6c-B3a starts (method); DELETE and the inventory reads stay disabled until implemented |
-| D23 | Istio `caBundle` ownership (C1) | Omit the empty `caBundle` on the three Istio webhooks (renderer contract 5) | A renderer contract change | 6c-B3b | Before 6c-B3b starts |
+| D23 | Istio `caBundle` ownership (C1) | **APPROVED 2026-11-22 for Source/Offline; implemented in 6c-B3b-C1 (contract 5).** The three Istio webhooks carry no `caBundle` (istiod owns it); the controller webhook keeps the public CA; no `--force-conflicts` | A renderer contract change | 6c-B3b-C1 | Done (Live behaviour NOT_VERIFIED) |
 | D3 | Read-scope expansion. Apply: Pods, Nodes, EndpointSlices, the `istio-ca-root-cert` ConfigMap and the `kube-system` namespace. Destroy (section 5.1): discovery, metadata-only lists of every listable namespaced resource in the three runtime namespaces (Secrets metadata-only, never full objects), and cluster-wide metadata-only lists of the 17 CRD plurals | Apply reads limited to fixed namespaces and labels. Destroy reads metadata-only, limited to those three namespaces and 17 plurals; incomplete results are UNKNOWN or BLOCKED | A wider read surface; future application metadata in `<project>-app` becomes visible (names only) | 6c-B3a (fingerprint), 6c-B3b, 6c-B4 | Before 6c-B3a starts (fingerprint part); before 6c-B3b (apply reads); before 6c-B4 (destroy inventory) |
 | D2 | Secret verification method | Not in 6c-B3b: report NOT_VERIFIED, which fails closed for operational apply; never read full Secrets | Operational apply stays blocked until a method is proven | 6c-B3b, G9 | Before 6c-B3b starts |
 | D13 | Allowed secondary managers | Section 10 table | False stops until Live names are confirmed | 6c-B3b | Before 6c-B3b starts |
@@ -812,7 +831,6 @@ gateway, mesh_security, admission and binding_writer second.
 - **BLOCKED:**
   - ingress (D1);
   - `apply` and `destroy` (not implemented);
-  - apply of the base and istiod stages until C1;
   - DELETE until D19;
   - namespace deletion until G9;
   - operational apply while any mandatory precondition is NOT_VERIFIED;
