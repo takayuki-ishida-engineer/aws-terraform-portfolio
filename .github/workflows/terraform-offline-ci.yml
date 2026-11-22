@@ -975,7 +975,7 @@ jobs:
           print("Kubernetes runtime status tests passed (fake kubectl only):", status_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_status.MUTATIONS))
           import test_k8s_runtime_receipt
           receipt_result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_runtime_receipt))
-          if not receipt_result.wasSuccessful() or receipt_result.skipped or receipt_result.testsRun != 36 or len(test_k8s_runtime_receipt.MUTATIONS) != 56:
+          if not receipt_result.wasSuccessful() or receipt_result.skipped or receipt_result.testsRun != 39 or len(test_k8s_runtime_receipt.MUTATIONS) != 58:
               raise SystemExit("Kubernetes runtime receipt/transport tests failed, skipped or changed the reviewed counts.")
           print("Kubernetes runtime receipt, recovery and transport-contract tests passed (local fakes only):", receipt_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_receipt.MUTATIONS))
           PYRUNTIMEPLAN

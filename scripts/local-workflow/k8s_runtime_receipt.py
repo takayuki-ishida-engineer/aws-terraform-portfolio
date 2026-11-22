@@ -29,7 +29,9 @@ Receipt (``receipt.json``)
   journal is never a fresh start: a new journal is created only in a directory the
   writer itself has just created and that is still empty; a journal missing next to
   a snapshot stops (``journal_missing``), and an older directory without either
-  stops (``receipt_directory_not_new``).
+  stops (``receipt_directory_not_new``). "Just created" is the atomic ``mkdir``
+  result, and the permission is consumed before the first write, so the same Store
+  can never initialise twice, even after a failed write or after both files vanish.
 
 Ownership (D7)
   An object is the runtime's only when its identity is in the plan, its live UID
@@ -440,10 +442,18 @@ class Store:
                          "input_sha256": input_sha256}
         make_dir(root)
         self.dir = root / fp["id"]
-        # Only a directory this Store creates itself may be initialised; any earlier directory may
-        # have held ownership evidence, so a missing journal there is never treated as a fresh start.
-        self.created_here = not os.path.lexists(self.dir)
-        make_dir(self.dir)
+        # Only a directory this Store creates itself may be initialised, decided by the atomic mkdir
+        # result (a directory made by anyone else, even a moment earlier, is FileExistsError). Any
+        # earlier directory may have held ownership evidence, so a missing journal there is never a
+        # fresh start. The permission is used at most once (see begin).
+        try:
+            os.mkdir(self.dir, 0o700)
+            created = True
+        except FileExistsError:
+            created = False
+        check_dir(self.dir)
+        self.created_here = created
+        self._init_allowed = created
         self.lock_fd = None
 
     @contextlib.contextmanager
@@ -519,7 +529,8 @@ class Store:
             return "SNAPSHOT_CREATED"
         if not records:
             need(not os.path.lexists(self.dir / RECEIPT), "journal_missing")  # never overwrite evidence
-            need(self.created_here, "receipt_directory_not_new")
+            need(self._init_allowed, "receipt_directory_not_new")
+            self._init_allowed = False  # consumed before the first write: a failed write never re-grants it
             need(set(os.listdir(self.dir)) <= {LOCK}, "receipt_directory_not_new")
             fp = self.expected["fingerprint"]
             self._append({"type": "HEADER", "format": FORMAT, "project": self.expected["project"],

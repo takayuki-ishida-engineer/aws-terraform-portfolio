@@ -511,6 +511,56 @@ def scenario_existing_directory_not_new(case, mods):
         case.assertEqual(env.load()["receipt"], "CURRENT")
 
 
+def scenario_same_store_never_reinitialises(case, mods):
+    for full in (False, True):
+        with env_for(mods) as env:
+            store = env.store()
+            with store.lock():
+                case.assertEqual(store.begin(), "CREATED")
+                if full:
+                    env.apply_stage(store, "namespaces")
+            os.unlink(env.dir / "journal.jsonl")
+            os.unlink(env.dir / "receipt.json")
+            with store.lock():
+                case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "receipt_directory_not_new",
+                                 "full journal" if full else "header only")
+            case.assertFalse(os.path.lexists(env.dir / "journal.jsonl"))
+            case.assertFalse(os.path.lexists(env.dir / "receipt.json"))
+            other = env.store()
+            with other.lock():
+                case.assertEqual(error_of(other.begin, mods.receipt.ReceiptError), "receipt_directory_not_new")
+
+
+def scenario_failed_first_write_consumes_permission(case, mods):
+    with env_for(mods) as env:
+        store = env.store()
+        with store.lock():
+            with mock.patch.object(mods.receipt.Store, "_append", side_effect=OSError("disk full")):
+                case.assertIsNotNone(error_of(store.begin, OSError))
+            case.assertFalse(os.path.lexists(env.dir / "journal.jsonl"))
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "receipt_directory_not_new")
+        case.assertFalse(os.path.lexists(env.dir / "journal.jsonl"))
+
+
+def scenario_concurrent_mkdir_not_ours(case, mods):
+    with env_for(mods) as env:
+        os.makedirs(env.root, mode=0o700)
+        leaf = str(env.root / env.fp["id"])
+        real_mkdir = os.mkdir
+
+        def raced(path, mode=0o777, *args, **kwargs):
+            if str(path) == leaf:
+                real_mkdir(path, 0o700)  # another process wins the race just before us
+                raise FileExistsError(path)
+            return real_mkdir(path, mode, *args, **kwargs)
+        with mock.patch.object(mods.receipt.os, "mkdir", side_effect=raced):
+            store = env.store()
+        case.assertFalse(store.created_here)
+        with store.lock():
+            case.assertEqual(error_of(store.begin, mods.receipt.ReceiptError), "receipt_directory_not_new")
+        case.assertFalse(os.path.lexists(env.dir / "journal.jsonl"))
+
+
 def scenario_new_directory_must_be_empty(case, mods):
     with env_for(mods) as env:
         store = env.store()
@@ -1064,6 +1114,15 @@ class ReceiptTests(unittest.TestCase):
         scenario_existing_directory_not_new(self, real_mods())
         scenario_new_directory_must_be_empty(self, real_mods())
 
+    def test_same_store_initialises_at_most_once(self):
+        scenario_same_store_never_reinitialises(self, real_mods())
+
+    def test_failed_first_write_consumes_permission(self):
+        scenario_failed_first_write_consumes_permission(self, real_mods())
+
+    def test_concurrently_created_directory_is_not_ours(self):
+        scenario_concurrent_mkdir_not_ours(self, real_mods())
+
     def test_corrupt_journal_not_reinitialised(self):
         scenario_corrupt_journal_not_reinitialised(self, real_mods())
 
@@ -1196,8 +1255,12 @@ MUTATIONS = [
      "        if records:", scenario_tampered_snapshot_not_regenerated),
     ("journal_missing", R, '            need(not os.path.lexists(self.dir / RECEIPT), "journal_missing")  # never overwrite evidence',
      "            pass", scenario_journal_missing),
-    ("directory_not_new", R, '            need(self.created_here, "receipt_directory_not_new")', "            pass",
+    ("directory_not_new", R, '            need(self._init_allowed, "receipt_directory_not_new")', "            pass",
      scenario_existing_directory_not_new),
+    ("init_consumed", R, "            self._init_allowed = False  # consumed before the first write: a failed write never re-grants it",
+     "            pass", scenario_same_store_never_reinitialises),
+    ("atomic_mkdir", R, "        except FileExistsError:\n            created = False",
+     "        except FileExistsError:\n            created = True", scenario_concurrent_mkdir_not_ours),
     ("directory_not_empty", R, '            need(set(os.listdir(self.dir)) <= {LOCK}, "receipt_directory_not_new")',
      "            pass", scenario_new_directory_must_be_empty),
     ("load_journal_missing", R, 'raise ReceiptError("journal_missing" if os.path.lexists(directory / RECEIPT) else "receipt_missing")',
@@ -1259,7 +1322,7 @@ def mutant(filename, old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 56)
+        self.assertEqual(len(MUTATIONS), 58)
         undetected = []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = real_mods()

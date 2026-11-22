@@ -499,6 +499,11 @@ There is no recovery, release or adoption command.
   - A missing journal is never a fresh start. A new journal is created only in a
     directory that the writing Store has just created and that holds nothing but
     its lock file.
+    - "Just created" means the Store's own atomic `mkdir` succeeded. A directory
+      another process created, even a moment earlier, does not count.
+    - The permission is used at most once, and it is consumed before the first
+      write. So the same Store never initialises twice, even after a failed write
+      or after both files disappear.
     - A journal missing next to a snapshot stops (`journal_missing`), and the
       snapshot bytes are left untouched.
     - An older directory with neither file stops (`receipt_directory_not_new`).
@@ -588,7 +593,7 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - no Secrets without G9.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 36 tests and 56 source mutations, each
+**Tests.** `test_k8s_runtime_receipt.py` has 39 tests and 58 source mutations, each
 detected. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -605,6 +610,9 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - a missing journal next to a snapshot, an existing directory without either file,
   a non-empty new directory and a corrupt journal: none is reinitialised or
   overwritten;
+- the same Store after both files vanish (HEADER-only or full journal), a failed
+  first write, and a directory created concurrently by another process: none
+  re-grants initialisation;
 - a crash between INTENT and RESULT, and `REAPPLY_SAFE` only with both the UID and
   the runtime's field ownership;
 - UID changes, quarantine without release, adoption refusal and field-manager
