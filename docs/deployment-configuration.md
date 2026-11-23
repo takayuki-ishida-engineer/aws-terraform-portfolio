@@ -364,8 +364,10 @@ approval. The Owner may reorder them.
    `APPLIED_WITH_DEFERRED`. 6c-B3b-Apply-B2 adds the `gateway` stage behind its
    pre-apply gate. Because the base validator serving cannot be verified without
    Live evidence, every run stops before the gateway
-   (`deferred_readiness_unresolved`). `apply` and `destroy` still refuse; stages 6
-   to 9, G9 and 6c-B4 each need their own Owner approval.
+   (`deferred_readiness_unresolved`). 6c-B3b-Apply-B3 adds `mesh_security` behind
+   the same gate (ownership, no-drift and enforcement NOT_TESTED behind it).
+   `apply` and `destroy` still refuse; stages 7 to 9, G9 and 6c-B4 each need their
+   own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

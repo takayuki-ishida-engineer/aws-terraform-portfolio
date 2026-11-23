@@ -40,7 +40,7 @@ import render  # noqa: E402
 
 FIXTURE = preflight.REPOSITORY / "kubernetes/tests/fixtures/runtime.json"
 FIXTURE_DOC = common.parse(FIXTURE.read_text())
-STAGES = ("namespaces", "base", "controller", "istiod", "gateway")
+STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security")
 KEEP = object()
 HELM = os.environ.get("K8S_RUNTIME_HELM", "")
 KUBE_SYSTEM_UID = "11111111-2222-4333-8444-555555555555"
@@ -254,7 +254,7 @@ def scenario_gates(case, mods):
         impostor = Impostor(r.adapter)
         case.assertEqual(outcome(r.run(adapter=impostor)), (1, "REFUSED", "real_adapter_not_approved"))
         case.assertEqual(impostor.used, [])
-        case.assertEqual(outcome(r.run(through="mesh_security")), (1, "REFUSED", "stage_not_approved:mesh_security"))
+        case.assertEqual(outcome(r.run(through="admission")), (1, "REFUSED", "stage_not_approved:admission"))
         case.assertEqual(outcome(r.run(through="ingress")), (1, "REFUSED", "stage_not_approved:ingress"))
         case.assertEqual(r.journal(), [])
         case.assertEqual(r.applies(), [])
@@ -1818,6 +1818,142 @@ def scenario_gateway_contract(case, mods):
         case.assertEqual(stopped.exception.reason, "injection_missing")
 
 
+# ---- Apply-B3: mesh_security ---------------------------------------------------------------------------------------
+
+def scenario_mesh_unreachable(case, mods):
+    """A run through mesh_security still stops at the gateway gate; neither stage is written."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        result = r.run(through="mesh_security")
+        case.assertEqual(outcome(result), (3, "UNDETERMINED", "deferred_readiness_unresolved:base_validator_serving"))
+        assert_no_writes(case, r, "gateway")
+        assert_no_writes(case, r, "mesh_security")
+        case.assertNotIn("PASS", [s["final_acceptance"] for s in result["stages"]])
+
+
+def scenario_mesh_gate(case, mods):
+    """The mesh_security pre-apply gate itself: istiod readiness, then base validator serving."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.run(through="istiod")
+        engine = gateway_engine(mods, r)
+        done = {"namespaces", "base", "controller", "istiod", "gateway"}
+        for evidence, stages, reason in (({}, done, "pre_apply_not_verified:istiod_not_ready"),
+                                         ({"istiod_in_stage_readiness": "MET"}, done - {"istiod"},
+                                          "pre_apply_not_verified:istiod_not_ready"),
+                                         ({"istiod_in_stage_readiness": "MET"}, done,
+                                          "deferred_readiness_unresolved:base_validator_serving")):
+            engine.evidence = dict(evidence)
+            with case.assertRaises(mods.apply.ApplyStop) as stopped:
+                engine.pre_apply("mesh_security", stages)
+            case.assertEqual((stopped.exception.exit_code, stopped.exception.reason), (3, reason))
+        # Even with every fake-observable base requirement MET, the Live ones keep the gate shut.
+        engine.evidence = {"istiod_in_stage_readiness": "MET", "base_validator_cabundle_populated": "MET",
+                           "istiod_endpoints_ready": "MET", "istio_cabundle_manager_verified": "MET", "live_probe_F": "MET"}
+        with case.assertRaises(mods.apply.ApplyStop) as stopped:
+            engine.pre_apply("mesh_security", done)
+        case.assertEqual(stopped.exception.reason, "deferred_readiness_unresolved:base_validator_serving")
+        case.assertFalse(any(c[1] in stage_keys(r, "mesh_security") for c in r.adapter.calls if c[0] in ("apply", "dry_run")))
+
+
+def staged_mesh(mods, r):
+    """Fake-only setup behind the gate: istiod ready, then the five mesh_security objects placed as if applied."""
+    ready_cluster(r)
+    assert r.run(through="istiod")["exit_code"] == 6
+    for identity in r.members["mesh_security"]:
+        r.adapter.server_side_apply(identity, r.manifest(k8s_runtime_receipt.key_of(identity)), "test-k8s-runtime",
+                                    precondition={"absent": True})
+    return gateway_engine(mods, r)
+
+
+def stop_of(mods, call, *args):
+    """The (exit, reason) of an ApplyStop from a direct engine call, or None; a stop is a contract result."""
+    try:
+        call(*args)
+    except mods.apply.ApplyStop as stopped:
+        return stopped.exit_code, stopped.reason
+    return None
+
+
+def mesh_key(r, kind):
+    return r.kind_key("mesh_security", kind)
+
+
+def scenario_mesh_contract(case, mods):
+    """Behind the gate: minimal completion, ownership, no drift; enforcement stays NOT_TESTED, never PASS."""
+    with run_for(mods) as r:
+        engine = staged_mesh(mods, r)
+        # Server-set extras on the live objects are not drift.
+        r.adapter.objects[mesh_key(r, "NetworkPolicy")]["metadata"]["annotations"] = {"server": "set"}
+        r.adapter.objects[mesh_key(r, "PeerAuthentication")]["status"] = {"observedGeneration": 1}
+        for identity in r.members["mesh_security"]:
+            case.assertIsNone(stop_of(mods, engine.minimal_completion, identity), identity["kind"])
+        case.assertIsNone(stop_of(mods, engine.in_stage_readiness, "mesh_security"))
+        case.assertEqual(engine.in_stage_readiness("mesh_security"), "MET")
+        case.assertEqual(engine.evidence.get("mesh_security_no_drift"), "MET")
+        deferred = mods.apply.outstanding_deferred("mesh_security", set(mods.apply.APPROVED_STAGES), engine.evidence)
+        case.assertEqual([(d["resolved_by"], d["status"]) for d in deferred], [("traffic", "NOT_TESTED")])
+        claimed = {"traffic_enforcement": "MET"}
+        case.assertEqual(len(mods.apply.outstanding_deferred("mesh_security", set(), claimed)), 1)
+
+    def edit(kind, change):
+        def apply(r):
+            change(r.adapter.objects[mesh_key(r, kind)])
+        return apply
+    drifts = [("PeerAuthentication", lambda o: o["spec"]["mtls"].__setitem__("mode", "PERMISSIVE"), "PeerAuthentication/test-strict-mtls"),
+              ("AuthorizationPolicy", lambda o: o["spec"].__setitem__("rules", [{"from": [{}]}]), "AuthorizationPolicy/test-default-deny"),
+              ("AuthorizationPolicy", lambda o: o["spec"].__setitem__("action", "DENY"), "AuthorizationPolicy/test-default-deny"),
+              ("NetworkPolicy", lambda o: o["spec"].__setitem__("egress", [{}]), "NetworkPolicy/test-default-deny"),
+              ("NetworkPolicy", lambda o: o["spec"].pop("ingress"), "NetworkPolicy/test-default-deny"),
+              ("NetworkPolicy", lambda o: o["spec"].__setitem__("policyTypes", ["Ingress"]), "NetworkPolicy/test-default-deny"),
+              ("ServiceAccount", lambda o: o.__setitem__("automountServiceAccountToken", True), "ServiceAccount/test-application")]
+    for kind, change, where in drifts:
+        with run_for(mods) as r:
+            engine = staged_mesh(mods, r)
+            edit(kind, change)(r)
+            with case.assertRaises(mods.apply.ApplyStop) as stopped:
+                engine.in_stage_readiness("mesh_security")
+            case.assertEqual((stopped.exception.exit_code, stopped.exception.reason), (4, "drift_detected:" + where))
+            case.assertNotIn("mesh_security_in_stage_readiness", engine.evidence)
+    ownership = [(lambda o: o["metadata"]["managedFields"].append(
+                      {"manager": "kubectl-edit", "operation": "Update", "fieldsV1": {"f:spec": {"f:mtls": {"f:mode": {}}}}}),
+                  (4, "foreign_field")),
+                 (lambda o: o["metadata"]["managedFields"].remove(runtime_entry(o)), (4, "foreign_owner")),
+                 (lambda o: o["metadata"].__setitem__("managedFields", "broken"), (4, "ownership_not_verified"))]
+    for change, expected in ownership:
+        with run_for(mods) as r:
+            engine = staged_mesh(mods, r)
+            change(r.adapter.objects[mesh_key(r, "PeerAuthentication")])
+            with case.assertRaises(mods.apply.ApplyStop) as stopped:
+                engine.in_stage_readiness("mesh_security")
+            case.assertEqual((stopped.exception.exit_code, stopped.exception.reason), expected)
+    minimal = [("Namespace", lambda o: o["status"].__setitem__("phase", "Terminating"), (3, "namespace_not_active")),
+               ("Namespace", lambda o: o["metadata"]["labels"].__setitem__("istio.io/rev", "other"), (3, "namespace_labels_differ"))]
+    for kind, change, expected in minimal:
+        with run_for(mods) as r:
+            engine = staged_mesh(mods, r)
+            change(r.adapter.objects[mesh_key(r, kind)])
+            with case.assertRaises(mods.apply.ApplyStop) as stopped:
+                engine.minimal_completion(next(i for i in r.members["mesh_security"] if i["kind"] == kind))
+            case.assertEqual((stopped.exception.exit_code, stopped.exception.reason), expected)
+    for kind in ("PeerAuthentication", "AuthorizationPolicy", "NetworkPolicy"):
+        with run_for(mods) as r:
+            engine = staged_mesh(mods, r)
+            del r.adapter.objects[mesh_key(r, kind)]
+            with case.assertRaises(mods.apply.ApplyStop) as stopped:
+                engine.minimal_completion(next(i for i in r.members["mesh_security"] if i["kind"] == kind))
+            case.assertEqual(stopped.exception.reason, "object_not_present")
+            with case.assertRaises(mods.apply.ApplyStop) as stopped:
+                engine.in_stage_readiness("mesh_security")
+            case.assertEqual(stopped.exception.reason, "object_not_present")
+    d = mods.apply.drift
+    case.assertFalse(d({"a": 1, "b": 2}, {"a": 1}))
+    case.assertTrue(d({"a": 1}, {"a": 1, "b": 2}))
+    case.assertTrue(d({"a": [1, 2]}, {"a": [1]}))
+    case.assertTrue(d({"a": "x"}, {"a": {"b": 1}}))
+    case.assertFalse(d({"a": []}, {"a": []}))
+
+
 # ---- unit tests ----------------------------------------------------------------------------------------------------
 
 class EngineTests(unittest.TestCase):
@@ -1953,6 +2089,16 @@ class EngineTests(unittest.TestCase):
 
     def test_gateway_contract(self):
         scenario_gateway_contract(self, real_mods())
+
+    # Apply-B3: mesh_security.
+    def test_mesh_unreachable(self):
+        scenario_mesh_unreachable(self, real_mods())
+
+    def test_mesh_gate(self):
+        scenario_mesh_gate(self, real_mods())
+
+    def test_mesh_contract(self):
+        scenario_mesh_contract(self, real_mods())
 
     def test_workload_read_scope(self):
         scenario_workload_read_scope(self, real_mods())
@@ -2213,8 +2359,8 @@ MUTATIONS = [
     ("pods_scope", A, '            raise AdapterError("pods_out_of_scope")', "            return []", scenario_workload_read_scope),
     ("secret_scope", A, '            raise AdapterError("secret_out_of_scope")', "            pass", scenario_workload_read_scope),
     # Apply-B2: gateway.
-    ("gateway_base_gate", A, '        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")',
-     '        if False:\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")', scenario_gateway_unreachable),
+    ("gateway_base_gate", A, '        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_pre_apply',
+     '        if False:\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_pre_apply', scenario_gateway_unreachable),
     ("gateway_istiod_ready", A, '        if "istiod" not in done or self.evidence.get("istiod_in_stage_readiness") != "MET":',
      "        if False:", scenario_gateway_pre_apply),
     ("gateway_istiod_evidence", A, '        if "istiod" not in done or self.evidence.get("istiod_in_stage_readiness") != "MET":',
@@ -2223,14 +2369,38 @@ MUTATIONS = [
      '            if obj is None or not obj.get("webhooks") or False and all(', scenario_gateway_pre_apply),
     ("gateway_secrets", A, '        self.check_secrets("gateway")\n', "", scenario_gateway_pre_apply),
     ("gateway_registry", A, '        self.check_registry("gateway")\n', "", scenario_gateway_pre_apply),
-    ("gateway_pre_apply_call", A, '        if stage == "gateway":\n            self.gateway_pre_apply(done)\n        elif stage == "base":',
-     '        if stage == "base":', scenario_gateway_unreachable),
+    ("gateway_pre_apply_call", A, '        elif stage == "gateway":\n            self.gateway_pre_apply(done)\n',
+     '        elif False:\n            self.gateway_pre_apply(done)\n', scenario_gateway_unreachable),
     ("injection_call", A, '            self.check_injection(stage)\n', "            pass\n", scenario_gateway_contract),
     ("injection_annotation", A, '                if not isinstance(annotations.get(SIDECAR_STATUS), str) or not annotations[SIDECAR_STATUS] or \\',
      "                if False or \\", scenario_gateway_contract),
     ("injection_image", A, 'wanted is None or not any(c.get("name") == "istio-proxy" and c.get("image") == wanted',
      'wanted is None or not any(c.get("name") == "istio-proxy"', scenario_gateway_contract),
     ("gateway_readiness_evidence", A, '        self.evidence[stage + "_in_stage_readiness"] = "MET"\n', "", scenario_gateway_unreachable),
+    # Apply-B3: mesh_security.
+    ("mesh_gate_istiod", A, '        if self.evidence.get("istiod_in_stage_readiness") != "MET" or "istiod" not in done:\n            stop(3, "pre_apply_not_verified:istiod_not_ready")\n        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_readiness',
+     '        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_readiness', scenario_mesh_gate),
+    ("mesh_gate_istiod_done", A, '        if self.evidence.get("istiod_in_stage_readiness") != "MET" or "istiod" not in done:',
+     '        if self.evidence.get("istiod_in_stage_readiness") != "MET":', scenario_mesh_gate),
+    ("mesh_gate_base", A, '            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_readiness',
+     '            pass\n\n    def mesh_readiness', scenario_mesh_gate),
+    ("mesh_dispatch", A, '        if stage == "mesh_security":\n            self.mesh_pre_apply(done)\n        elif stage == "gateway":',
+     '        if stage == "gateway":', scenario_mesh_gate),
+    ("mesh_readiness_call", A, '        if stage == "mesh_security":\n            return self.mesh_readiness()\n', "",
+     scenario_mesh_contract),
+    ("mesh_ownership", A, '            if mesh_owned != "OWNED":\n                stop(*STOP_VERDICTS.get(mesh_owned, (4, "foreign_field")))',
+     '            if False:\n                stop(*STOP_VERDICTS.get(mesh_owned, (4, "foreign_field")))', scenario_mesh_contract),
+    ("mesh_drift_call", A, "            if manifest_drift(obj, manifest):", "            if False:", scenario_mesh_contract),
+    ("mesh_present", A, '            if obj is None:\n                stop(3, "object_not_present")\n            mesh_owned = d13_ownership',
+     '            if obj is None:\n                continue\n            mesh_owned = d13_ownership', scenario_mesh_contract),
+    ("drift_value", A, "    return live != desired\n", "    return False\n", scenario_mesh_contract),
+    ("drift_missing_key", A, "any(key not in live or drift(live[key], value)", "any(key in live and drift(live[key], value)",
+     scenario_mesh_contract),
+    ("policy_kinds", A, '                 "PeerAuthentication", "AuthorizationPolicy", "NetworkPolicy"}', "                 }",
+     scenario_mesh_contract),
+    ("traffic_fixed", A, '"traffic_enforcement": "NOT_TESTED"}', '"traffic_enforcement": "MET"}', scenario_mesh_contract),
+    ("not_tested_label", A, '                          else "NOT_TESTED" if "NOT_TESTED" in values else "NOT_VERIFIED"))',
+     '                          else "NOT_VERIFIED"))', scenario_mesh_contract),
     ("receipt_ownership_hook", R, "    owns = ownership_fn or ownership", "    owns = ownership", scenario_status_manager_allowed),
 ]
 
@@ -2260,7 +2430,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 120)
+        self.assertEqual(len(MUTATIONS), 133)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)
