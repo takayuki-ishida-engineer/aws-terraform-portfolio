@@ -631,6 +631,197 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - Secret cleanup (G9);
 - the Istio `caBundle` renderer change (C1).
 
+### Fake apply engine for the first two stages (item 6c-B3b-Apply-A, offline only)
+
+`k8s_runtime_apply.py` applies the `namespaces` (2 objects) and `base` (16 objects)
+stages, and nothing else.
+- It runs only against an in-memory `FakeAdapter` and `FakeClock`.
+- It has no command line. `k8s_runtime.py apply` still refuses
+  (`operation_not_approved`).
+- Any other adapter is refused, and `RealAdapter` cannot be constructed.
+- No kubectl, API call, cluster, AWS or Emulator is involved.
+
+It implements the Owner decisions of 2026-11-22 for Source/Offline use only. None
+of them is Live evidence.
+- **D2.** Secrets stay metadata-only fakes. The first two stages read none.
+- **D3.**
+  - The apply read scope is limited to the approved stages' objects and the
+    `kube-system` namespace. The fake refuses anything else
+    (`read_out_of_scope`).
+  - The Pods, Nodes, EndpointSlices and ConfigMap reads of later stages are
+    design scope only.
+  - Destroy discovery and inventory reads are not approved.
+- **D9.** `classify_admission` reduces a dry-run or probe answer to exactly one
+  class:
+  - `allowed`
+  - `authz_denied`
+  - `webhook_denied:<name>`
+  - `vap_denied:<name>`
+  - `schema_invalid`
+  - `webhook_unreachable`
+  - `dry_run_unsupported`
+  - `unknown`
+
+  A probe passes only on the exact expected class. `dry_run_permitted` requires
+  every webhook to declare `None` or `NoneOnDryRun` side effects.
+- **D11.** Timeouts are applied through the fake clock, with no unbounded retry:
+
+  | Wait | Value | On expiry |
+  | --- | --- | --- |
+  | API read | 20 s | `api_timeout`, exit 3 |
+  | CRD established | 120 s | `crd_not_established`, exit 5 |
+  | Deployment ready | 600 s | Defined; unused by these stages |
+  | CRD poll interval | 5 s | Not a timeout; a cadence inside the 120 s bound |
+
+- **D13.** `d13_ownership` implements the section 10 allowlist, using
+  field-level evidence. A manager name alone never proves ownership.
+  - The runtime's Apply entry must own exactly the leaf field paths its manifest
+    sets.
+    - Paths are nested `f:`/`k:` paths and are never collapsed to the top level.
+    - Missing, empty, partial or extra fields give `OWNERSHIP_NOT_VERIFIED`.
+    - This applies to every Namespace, CRD and webhook, on both the
+      `REAPPLY_SAFE` and the `CONSISTENT` path.
+  - Verified: only the structural status rule, which is a `status`-subresource
+    Update touching only `f:status` paths on a kind with status.
+  - The istiod and controller manager names are unverified, so their entries
+    give `OWNERSHIP_NOT_VERIFIED`.
+  - Any other manager or field gives `FOREIGN_FIELD`.
+  - Conflicts are never forced.
+
+**Flow.**
+1. Gate: fake adapter, approved stage.
+2. Pins, plus the hash of the given manifests against the plan's manifest SHA-256,
+   plus the receipt HEADER pins.
+3. D17 fingerprint.
+4. Receipt reconcile, using the D13 ownership hook. Stops before any write:
+
+   | Verdict | Exit and reason |
+   | --- | --- |
+   | QUARANTINED | 4 |
+   | QUARANTINE_REQUIRED | Quarantine recorded, then 4 |
+   | UID_CHANGED | 4 |
+   | NOT_OWNED | 4 `foreign_owner` |
+   | OWNERSHIP_NOT_VERIFIED | 4 |
+   | FOREIGN_FIELD | 4 |
+   | UNKNOWN | 3 |
+
+   An interrupted INTENT whose object is provably safe gets a `failed` RESULT (not
+   confirmed) before a new INTENT. Recorded ownership is kept.
+5. Per stage:
+   - pre-apply: `base` needs `namespaces` accepted, and no Istio webhook may carry
+     a `caBundle` (C1);
+   - a fake server-side dry-run of every object;
+   - per object: INTENT, then fake server-side apply without force, then the
+     readback and the D13 ownership check, then RESULT. Every write is
+     conditional:
+     - create only if the object is absent; update only on the recorded UID;
+     - an object that appears where none was recorded stops the run before its
+       INTENT (`foreign_object_appeared`);
+     - a change between the engine's read and the write fails the fake's atomic
+       check (`precondition_failed`), and the foreign object is left byte for byte
+       unchanged;
+     - the same atomic check refuses an update unless the object's ownership
+       still proves OWNED under D13, the check the engine applies to its
+       readback. The runtime's own Apply entry is verified too, not skipped by
+       name. The object, its `resourceVersion`, its `managedFields` and the
+       fake's write serial stay unchanged, the RESULT is `failed` (not a
+       quarantine) and the run stops with exit 4:
+
+       | D13 verdict at write time | Example | Stop reason |
+       | --- | --- | --- |
+       | FOREIGN_FIELD | another manager owns a field | `foreign_field_refused` |
+       | NOT_OWNED | `managedFields` or the runtime's Apply entry is missing | `not_owned_refused` |
+       | OWNERSHIP_NOT_VERIFIED | the runtime entry is partial, empty, has extra paths or is malformed; an unverified manager | `ownership_not_verified_refused` |
+     - how a real API server would enforce the same conditions is NOT_VERIFIED;
+   - after a write lands, the success RESULT (and the newly owned UID) is
+     recorded only when the readback proves OWNED. Otherwise the outcome is
+     quarantined and the run stops with exit 4, never recorded as "not
+     applied":
+
+     | Readback | QUARANTINE reason | Stop reason |
+     | --- | --- | --- |
+     | Object absent | `creation_unproven` (create) or `uid_changed` (update) | `apply_not_observed` |
+     | Another UID | `uid_changed` | `uid_changed` |
+     | Foreign owner, foreign field or too few runtime fields | `ownership_unproven` | `foreign_owner`, `foreign_field` or `ownership_not_verified` |
+
+     A readback timeout leaves the INTENT open; the rerun quarantines it as
+     `QUARANTINE_REQUIRED`. A quarantined object is never re-applied or adopted.
+   - minimal completion: Namespace Active with its labels, CRD Established and
+     NamesAccepted, webhook without a runtime `caBundle`;
+   - STAGE_DONE.
+
+   A closed stage is re-verified on a rerun, not re-applied.
+
+**Results.**
+- `base` leaves the istiod-default-validator serving deferred to the `istiod`
+  stage. A full run therefore ends in exit 6 `APPLIED_WITH_DEFERRED`, with `base`
+  final acceptance `DEFERRED` and runtime final acceptance `NOT_REACHED`, never
+  PASS.
+- A later stage's STAGE_DONE never resolves a deferred item on its own. Webhook
+  serving needs its own verification evidence. With no evidence source, the item
+  stays `DEFERRED` / NOT_VERIFIED. Adding that evidence is an acceptance gate for
+  Apply-B.
+- `namespaces` alone ends in exit 0.
+- Other exits:
+
+  | Code | Status | Meaning |
+  | --- | --- | --- |
+  | 1 | REFUSED | Gate refused the request |
+  | 2 | STOPPED | Pins, fingerprint or receipt |
+  | 3 | UNDETERMINED | Timeout or unknown observation |
+  | 4 | APPLY_FAILED | Conflict, foreign ownership, UID change, quarantine, C1 or denied dry-run |
+  | 5 | READINESS_TIMEOUT | A readiness wait expired |
+
+**Journal schema: unchanged.** No record type was added. The QUARANTINE record
+gained the reason `ownership_unproven`.
+- Deferral is derived from the journal: a closed stage whose resolving stage is not
+  closed.
+- The only new use of an existing record is the `failed` RESULT that closes an
+  interrupted INTENT.
+- `receipt verify` keeps its strict ownership. The D13 hook (`ownership_fn`) is
+  used only by the engine.
+
+**Tests.** `test_k8s_runtime_apply.py` has 31 tests and 52 source mutations.
+- A mutant counts only when a contract assertion fails and the code under test did
+  not crash. A mutant that only raises an exception is reported separately and
+  fails the suite.
+- It covers:
+- success with deferred readiness, and the namespaces-only run;
+- a rerun without writes, and an allowed status manager;
+- pins, a changed bundle, tampered manifests and the fingerprint;
+- the gates and plan order;
+- a damaged or missing journal;
+- a crash before and after the apply (re-apply, then quarantine);
+- UID changes, including a race before the write;
+- a foreign owner, a foreign field (after the run and during the apply), and an
+  unverified manager;
+- an SSA conflict and stage order;
+- the CRD timeout and API read timeout, and an inactive Namespace;
+- C1;
+- dry-run denial and the D9 classes;
+- D13 cases;
+- the fake's read scope and force refusal, the `apply` CLI refusal, and no
+  network or process imports;
+- a foreign object appearing before the apply or just before the write, an update
+  whose UID changed, a normal owned update, and writes without a precondition;
+- incomplete ownership on the `CONSISTENT` and `REAPPLY_SAFE` paths: an empty
+  `fieldsV1`, metadata without spec, missing webhook fields, unknown nested paths,
+  nested status paths;
+- deferred items that a later STAGE_DONE does not resolve;
+- ownership proven before the success RESULT: a foreign manager or too few
+  runtime fields in the readback, a UID change after an owned update, and a
+  readback that fails after the write, each quarantined with no newly owned UID
+  and no adoption on rerun;
+- the fake's write-time ownership check: a foreign manager added to the same UID
+  just before the write (namespace labels, CRD spec) is refused with the object
+  unchanged, while a status-subresource update and a normal owned update proceed;
+- the runtime's own ownership lost on the same UID just before the write, on a
+  namespace and a CRD: `managedFields` removed, the runtime's Apply entry removed
+  (a status entry kept), a required nested path dropped, an emptied entry, an
+  extra path and malformed evidence. Each is refused with the object and the
+  write serial unchanged, no new success RESULT, no STAGE_DONE, the owned UID
+  kept, and a rerun that neither writes nor adopts.
+
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
 `apply` and `destroy` are not implemented (6c-B3a added only the receipt foundation

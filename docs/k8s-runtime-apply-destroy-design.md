@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation implemented offline.**
+**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A fake engine implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -20,6 +20,35 @@ of Step 1 item 6c. It has four parts:
   - a read-only `receipt verify`.
 
   See the [script description](../scripts/local-workflow/README.md#receipt-crash-recovery-and-transport-boundary-item-6c-b3a-offline-foundation).
+- 6c-B3b-Apply-A (Owner, 2026-11-22) added a fake-only apply engine for the
+  `namespaces` and `base` stages, with no command line. See the
+  [script description](../scripts/local-workflow/README.md#fake-apply-engine-for-the-first-two-stages-item-6c-b3b-apply-a-offline-only).
+  - It ends in exit 6 `APPLIED_WITH_DEFERRED`, because `base`'s validator serving
+    waits for `istiod`.
+  - Deviation from section 4.1: deferral is derived instead of journaled with a new
+    `DEFERRED` record. The journal schema is unchanged.
+  - Constraint (review of PR #91): a later stage's STAGE_DONE never resolves a
+    deferred item.
+    - Webhook serving needs its own verification evidence (`caBundle` populated
+      by the allowed manager, endpoints, a classified probe).
+    - Without that evidence the item stays DEFERRED / NOT_VERIFIED.
+    - Supplying that evidence is an acceptance gate for Apply-B.
+  - Writes are conditional (create only if absent, update only on the recorded
+    UID) and checked atomically by the fake; the Live mechanism is NOT_VERIFIED.
+  - D13 ownership needs field-level evidence: the runtime must own exactly the
+    manifest's nested leaf paths.
+  - Review of PR #91 (P1-07): a success RESULT, and with it a newly owned UID, is
+    written only after the readback proves OWNED. A write that landed but whose
+    ownership or UID is unproven is quarantined (`ownership_unproven`,
+    `uid_changed`, `creation_unproven`), never recorded as "not applied". It is
+    neither re-applied nor adopted without the Owner (D16).
+  - Review of PR #91 (P1-08): the fake's conditional write also checks field
+    ownership. An update proceeds only while the object still proves OWNED
+    under D13, including the runtime's own Apply entry (exactly the required
+    paths). A foreign manager, a missing or partial runtime entry, or malformed
+    evidence refuses the write before anything changes (`foreign_field_refused`,
+    `not_owned_refused`, `ownership_not_verified_refused`). This is a property
+    of the fake. Real API atomicity is NOT_VERIFIED.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.
@@ -758,10 +787,26 @@ Deleting the EKS cluster alone is not complete teardown.
   runtime never claims it, the controller webhook keeps its public CA, there is no
   `--force-conflicts`, and the renderer moves to contract 5. istiod's field manager,
   real CA rotation and webhook serving stay NOT_VERIFIED.
+- **Approved (Owner, 2026-11-22), for the 6c-B3b-Apply-A Source/Offline
+  implementation only** (none of these is Live evidence):
+  - **D2**: Secrets are metadata-only fakes. Their Live content, ownership and
+    presence stay NOT_VERIFIED, and full Secret reads are forbidden.
+  - **D3**: the apply read contract adds Pods, Nodes, EndpointSlices and the named
+    ConfigMap, strictly limited by namespace and label, as design scope. There is
+    no real cluster access. Destroy discovery and inventory reads stay unapproved.
+  - **D9**: server-side dry-run and admission probe classification, against fakes
+    only. Live use needs D20.
+  - **D11**: API read 20 s, CRD established 120 s, Deployment ready 600 s, tested
+    with a fake clock, with no unbounded retry. Any other timeout is presented
+    before it is implemented. The 5 s CRD poll interval is a cadence inside
+    the 120 s bound.
+  - **D13**: the section 10 allowlist as a Source/Offline contract.
+    - Unconfirmed manager names and field paths are not treated as confirmed.
+    - An unknown manager, a foreign field or unclear ownership fails closed.
+    - There is no `--force-conflicts`.
 - **Every other row is OPEN (not decided).** That includes:
-  - the rest of D3;
-  - D13, so other field managers leave ownership NOT_VERIFIED;
-  - D2, D5, D6, D9, D11, D12 and D18;
+  - the rest of D3 (destroy discovery and inventory reads);
+  - D5, D6, D12 and D18;
   - every Category 2 and 3 decision.
 
 ### Category 1: before Source/Offline implementation

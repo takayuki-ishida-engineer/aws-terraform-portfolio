@@ -354,8 +354,11 @@ approval. The Owner may reorder them.
    under the Owner's D7, D8, D10, D16, D17, D19 (interface only) and partial D3
    decisions, as code only. 6c-B3b-C1 resolved finding F23 in code: under Owner
    decision D23 the renderer moves to contract 5, and the three Istio webhooks never
-   carry a `caBundle` (istiod owns it). `apply` and `destroy` still refuse; the rest
-   of 6c-B3b, G9 and 6c-B4 each need their own Owner approval.
+   carry a `caBundle` (istiod owns it). 6c-B3b-Apply-A added a fake-only apply engine
+   for the `namespaces` and `base` stages (Owner decisions D2, D3, D9, D11 and D13,
+   Source/Offline). It ends in `APPLIED_WITH_DEFERRED` and has no command line.
+   `apply` and `destroy` still refuse; stages 3 to 9, G9 and 6c-B4 each need their
+   own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
