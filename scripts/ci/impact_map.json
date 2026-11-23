@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "comment": "PR Safety CI impact map (Owner decision 2026-11-23). Changed files select Full CI steps by Terraform configuration, module sources, step inputs (paths, imports and path literals) and the explicit rules below. A changed file that nothing maps fails closed. Editing this file is a CI change: high-risk, Full CI required.",
+  "max_changed_files": 300,
+  "full_ci": {
+    "workflow": ".github/workflows/terraform-offline-ci.yml",
+    "job": "offline-validation",
+    "job_name": "Credential-free Terraform validation",
+    "timeout_minutes": 60
+  },
+  "pr_safety": {
+    "workflow": ".github/workflows/pr-safety-ci.yml",
+    "job": "pr-safety",
+    "job_name": "PR Safety CI",
+    "timeout_minutes": 60
+  },
+  "contracts": {
+    "workflow": ".github/workflows/aws-emulator-contracts.yml",
+    "job": "static-contracts",
+    "steps": {
+      "Offline unit negative and mutation contracts only": "emulator_contracts_unit",
+      "Step 2 rehearsal gate tests (offline; never starts the emulator)": "emulator_contracts_rehearsal",
+      "Evidence ledger tests (offline negative, mutation and tamper)": "emulator_contracts_ledger_tests",
+      "Evidence ledger check (schema, safety, index, reconciliation)": "emulator_contracts_ledger_check"
+    }
+  },
+  "steps": {
+    "always": [
+      "provider_cache",
+      "disk_cleanup",
+      "storage_after_cleanup",
+      "terraform",
+      "format",
+      "hygiene",
+      "ci_policy",
+      "storage_final"
+    ],
+    "full_only": {
+      "checkout": "PR Safety CI checks out the merge commit with full history in its own first step.",
+      "trigger": "Verifies the Full CI event, target pull request and exact HEAD; PR Safety CI verifies its merge commit in the impact step.",
+      "storage_after_modules": "Asserts the complete twenty-two-configuration provider sharing contract, which only a Full CI run initializes.",
+      "summary": "Full CI result table over every step; PR Safety CI writes its own impact and outcome summary."
+    },
+    "selectable": [
+      "dev",
+      "storage_after_first_init",
+      "root_integration",
+      "network",
+      "platform",
+      "eks_platform",
+      "private_ingress",
+      "vpc",
+      "secrets",
+      "account_policies",
+      "iam",
+      "cloudwatch_logs",
+      "reference",
+      "self_tests",
+      "lambda_workload",
+      "artifact_bucket",
+      "http_api",
+      "r1_r2_guards",
+      "kubernetes_runtime",
+      "kubernetes_runtime_plan",
+      "kubernetes_certificates",
+      "image_mirror",
+      "cognito",
+      "api",
+      "rest_core",
+      "tfstate",
+      "registry",
+      "developer_access",
+      "committed_values",
+      "toolkit",
+      "emulator_contracts_unit",
+      "emulator_contracts_rehearsal",
+      "emulator_contracts_ledger_tests",
+      "emulator_contracts_ledger_check"
+    ]
+  },
+  "companions": {
+    "dev": ["storage_after_first_init"]
+  },
+  "prerequisites": {
+    "storage_after_first_init": ["dev"],
+    "root_integration": ["dev"],
+    "reference": ["iam", "account_policies"],
+    "lambda_workload": ["reference"],
+    "toolkit": ["iam", "account_policies"],
+    "rest_core": ["api"],
+    "kubernetes_runtime_plan": ["kubernetes_runtime"],
+    "committed_values": ["dev", "network", "platform", "api", "tfstate", "registry", "developer_access"]
+  },
+  "configurations": {
+    "infra/services/dev/ca-central-1/serverless-api": ["dev", "root_integration", "committed_values"],
+    "infra/services/dev/ca-central-1/network": ["network", "committed_values"],
+    "infra/services/dev/ca-central-1/platform": ["platform", "committed_values"],
+    "infra/services/dev/ca-central-1/api": ["api", "rest_core", "committed_values"],
+    "infra/services/dev/ca-central-1/tfstate": ["tfstate", "committed_values"],
+    "infra/services/dev/ca-central-1/registry": ["registry", "committed_values"],
+    "infra/services/dev/ca-central-1/developer-access": ["developer_access", "committed_values"],
+    "infra/modules/eks_platform": ["eks_platform"],
+    "infra/modules/private_ingress": ["private_ingress"],
+    "infra/modules/vpc": ["vpc"],
+    "infra/modules/secrets_manager": ["secrets"],
+    "infra/modules/iam_account_policies": ["account_policies", "reference", "toolkit"],
+    "infra/modules/iam_access": ["iam", "reference", "self_tests", "toolkit"],
+    "infra/modules/cloudwatch_logs": ["cloudwatch_logs"],
+    "infra/modules/lambda_workload": ["lambda_workload"],
+    "infra/modules/s3_artifact_bucket": ["artifact_bucket"],
+    "infra/modules/api_gateway_http": ["http_api", "r1_r2_guards"],
+    "infra/modules/cognito_auth": ["cognito"],
+    "infra/modules/api_gateway_rest": ["rest_core"],
+    "infra/modules/tfstate_bucket": ["tfstate"],
+    "infra/modules/ecr_repository": ["registry"],
+    "infra/modules/developer_access": ["developer_access"]
+  },
+  "rules": [
+    {
+      "id": "kubernetes-runtime",
+      "paths": ["kubernetes/**"],
+      "exclude": ["**/*.md"],
+      "steps": ["kubernetes_runtime", "kubernetes_runtime_plan"],
+      "reason": "Pinned charts, manifests, image and dependency locks and tools are rendered and validated by the runtime checks and the offline plan."
+    },
+    {
+      "id": "ci-tooling",
+      "paths": ["scripts/ci/**", ".github/workflows/terraform-offline-ci.yml", ".github/workflows/pr-safety-ci.yml"],
+      "steps": [],
+      "reason": "Covered by the always-on ci_policy step (CI tooling tests, generated-workflow drift, workflow safety, secret scan, real-operation guards); changed Full CI step definitions are selected separately. High-risk: Full CI runs on the pull request."
+    },
+    {
+      "id": "emulator-workflows",
+      "paths": [".github/workflows/aws-emulator-*.yml"],
+      "steps": ["emulator_contracts_unit", "emulator_contracts_rehearsal"],
+      "reason": "The offline emulator contracts check the emulator workflow definitions; the always-on workflow safety lint checks every workflow."
+    },
+    {
+      "id": "emulator-tooling",
+      "paths": ["scripts/emulator-verification/**", "scripts/emulator-rehearsal/**", "scripts/emulator-evidence/**", "docs/evidence/**"],
+      "steps": ["emulator_contracts_unit", "emulator_contracts_rehearsal", "emulator_contracts_ledger_tests", "emulator_contracts_ledger_check"],
+      "reason": "Offline emulator contracts and the evidence ledger (never starts the emulator)."
+    },
+    {
+      "id": "repository-hygiene",
+      "paths": ["scripts/repository-hygiene/**"],
+      "steps": [],
+      "reason": "Covered by the always-on hygiene step (self-test and tracked-file check)."
+    },
+    {
+      "id": "gitignore",
+      "paths": [".gitignore"],
+      "steps": ["committed_values"],
+      "reason": "The committed-values step checks ignored local files with git status --ignored; the always-on hygiene step checks tracked files."
+    },
+    {
+      "id": "terraform-testing",
+      "paths": ["scripts/terraform-testing/**"],
+      "steps": ["root_integration", "network", "platform", "tfstate", "registry", "developer_access"],
+      "reason": "The isolated-root helper is imported by the DEV root required-input checkers."
+    },
+    {
+      "id": "documentation",
+      "paths": ["**/*.md", ".gitattributes", ".editorconfig", "**/.gitkeep"],
+      "steps": [],
+      "reason": "Documentation and editor settings: always-on checks only, unless a test reads the file (then its step is selected through step inputs)."
+    }
+  ],
+  "high_risk": {
+    "ci": [".github/**", "scripts/ci/**"],
+    "credential-prevention": ["scripts/repository-hygiene/**", ".gitignore"],
+    "iam": ["infra/modules/iam_access/**", "infra/modules/iam_account_policies/**", "infra/**/iam.tf", "infra/**/policies.tf", "scripts/aws-policy-validation/**"],
+    "rbac-and-kubernetes-supply-chain": ["kubernetes/**", "infra/**/access.tf"],
+    "security-boundary": ["infra/**/security.tf", "scripts/local-workflow/preflight.py"],
+    "provider-state-backend-account": ["infra/**/providers.tf", "infra/**/versions.tf", "infra/**/backend.tf", "infra/**/.terraform.lock.hcl", "infra/**/*.example"]
+  }
+}

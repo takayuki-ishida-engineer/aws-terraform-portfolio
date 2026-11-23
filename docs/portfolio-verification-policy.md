@@ -38,7 +38,9 @@ mandatory at portfolio level; lifecycle for every resource is not a blanket
 implementation PR prerequisite. No real AWS fallback is permitted.
 
 For every Terraform implementation, require affected offline/security checks,
-unchanged Full CI, independent review and user approval. For separately approved
+PR Safety CI on every PR and Full CI under the
+[CI execution policy](#ci-execution-policy--owner-decision-2026-11-23), independent
+review and user approval. For separately approved
 Emulator work, identify supported operations, establish isolation, exercise the
 approved lifecycle, independently verify identity/cleanup and record evidence.
 The mandatory controls include pinned signature-verified Emulator, loopback HTTPS,
@@ -49,11 +51,11 @@ exact ownership, independent create/delete checks and full temporary-file cleanu
 Never weaken production security or alter operational Roots/State for the emulator.
 
 Preserve every existing Native/Mock Plan/Python/Security/Negative/Mutation check.
-Emulator execution is separate from required Full CI. A dedicated workflow_dispatch
+Emulator execution is separate from the required CI (PR Safety CI and Full CI). A dedicated workflow_dispatch
 workflow may be designed in a separately approved PR and run only after its merge,
 on standard public GitHub-hosted Ubuntu runners without additional charges.
 No such workflow is introduced here. Documentation changes require documentation
-checks and existing Full CI on every PR, without lifecycle replay.
+checks and PR Safety CI on every PR, without lifecycle replay.
 PASS means directly demonstrated; PARTIAL means partial evidence; PARTIAL-SKIP
 requires actual evidence of the specific unimplemented API (for example HTTP 501).
 FAIL is a Terraform/configuration defect requiring correction/retest; BLOCKED is
@@ -223,8 +225,9 @@ exists as a GitHub review on the related pull requests.
 ### Default portfolio completion path
 
 Real AWS deployment is not mandatory. Core Implementation uses correct source and
-architecture, affected offline/security/mutation/evidence checks and complete
-credential-free Full CI on every PR, with independent review and user approval.
+architecture, affected offline/security/mutation/evidence checks, credential-free
+PR Safety CI on every PR and complete Full CI at milestones and on high-risk changes,
+with independent review and user approval.
 Representative Emulator lifecycle remains a separate portfolio-level requirement,
 not a blanket per-resource PR gate. CORE PORTFOLIO COMPLETE independently requires all approved Core scope implemented,
 reviewed, owner-approved and merged with offline/security quality, Full CI and
@@ -260,7 +263,7 @@ implementation or Live authorization. Label each component/environment separatel
 | Evidence state | Required evidence | Limitation |
 | --- | --- | --- |
 | Defined, not deployed | Approved architecture/environment contract | Does not establish implemented source or a passed test |
-| Core Implementation — offline tested | Source revision, affected fmt/init/validate/Native/Mock/Negative/Security/Mutation/Evidence, exact-HEAD Full CI, independent review and user approval | Not whole-portfolio completion, deployed identity, authorization or service operation |
+| Core Implementation — offline tested | Source revision, affected fmt/init/validate/Native/Mock/Negative/Security/Mutation/Evidence, exact-HEAD PR Safety CI PASS (and Full CI PASS where the CI execution policy requires it), independent review and user approval | Not whole-portfolio completion, deployed identity, authorization or service operation |
 | EMULATOR DEMONSTRATED | Pinned versions, all fourteen controls, actual representative lifecycle, independent identity/cleanup evidence | Limited to successfully measured resource/API behavior; not real AWS deployment or security effectiveness |
 | DEV Live tested with explicit approved evidence | Separately authorized scenario, actual outcomes and redacted evidence | Applies only to scenarios/resources/revisions actually verified |
 | OPEN / awaiting approval | Explicit unresolved decision, scenario or approval | No assumption of implementation, authorization or success |
@@ -374,13 +377,80 @@ rejections/35 mutations/22 capture faults; API 28 mutations/25 capture faults/4
 source mutations; retained R1 source mutations 3 and exact move-set negatives 6.
 Historical HTTP API 17/19 and R1 438/153 remain tied to their earlier revisions,
 not current counts. New security behavior needs its own tests.
-Never remove/disable/skip/weaken CI checks for efficiency or migration.
+Never remove/disable/skip/weaken CI checks for efficiency or migration: Full CI keeps
+every check, and PR Safety CI selects Full CI steps by impact (Owner decision 2026-11-23).
 
-Codex performs affected local checks and opens the PR; GitHub Actions runs complete
-regression, and independent review verifies completed CI and merge authorization.
-Documentation-only changes use consistency/links/scope/secret/diff checks, not
-unrelated full local regression. Do not repeatedly inspect successful logs. Verify exact-HEAD Full CI completion
-for every PR before the independent-review/owner-approval handoff. V5 extends CI with actual pinned runtime validation without weakening existing checks.
+Codex performs affected local checks and opens the PR; PR Safety CI runs the
+impact-scoped regression on every PR, Full CI runs complete regression at milestones
+and on high-risk changes, and independent review verifies completed CI and merge
+authorization. Documentation-only changes use consistency/links/scope/secret/diff
+checks, not unrelated full local regression. Do not repeatedly inspect successful logs.
+Verify the required CI on the exact HEAD for every PR before the
+independent-review/owner-approval handoff. V5 extends CI with actual pinned runtime validation without weakening existing checks.
+
+## CI execution policy — Owner decision 2026-11-23
+
+The Owner changed how CI runs; the checks themselves are unchanged. History above
+(runs, counts and acceptance records) keeps its original wording.
+
+| Workflow | Check name | Runs | Content |
+| --- | --- | --- | --- |
+| PR Safety CI (`pr-safety-ci.yml`, generated) | `PR Safety CI` | Every pull request to `main`, no path filter | Always-on: hygiene, credential and secret scan, `terraform fmt`, workflow and CI execution safety, CI tooling tests, real AWS/EKS operation guards, syntax of changed files. Impact-selected Full CI steps, copied byte for byte, with prerequisites |
+| Full CI (`terraform-offline-ci.yml`) | `Credential-free Terraform validation` | A pull request changing a high-risk path; an Owner `workflow_dispatch` for a milestone. Never a push to `main` | Every check, count, mutation, security check and evidence contract; 60-minute timeout |
+| AWS Emulator offline contracts | `static-contracts` | Unchanged: every pull request and push to `main` | Offline emulator, rehearsal-gate and evidence-ledger contracts |
+
+**Impact map.** `scripts/ci/impact.py` maps each changed file to Full CI steps through
+its Terraform configuration, every configuration that sources it, step inputs (paths
+named in step commands, imported and literally named Python, read data) and the
+explicit rules in `scripts/ci/impact_map.json`. The job summary prints the mapping.
+An unmapped path, an undeterminable dependency, an unparsable workflow or Python
+file, an unsupported module source or more than 300 changed files fails the check.
+Every tracked file must map; `impact.py check` enforces that on every run.
+
+**Statuses.** They are never interchangeable.
+
+| Status | Meaning |
+| --- | --- |
+| PR Safety CI PASS | PR Safety CI completed successfully on the exact pull request HEAD (its merge commit with current `main`), and its last step confirmed that exactly the selected and always-on steps ran. Never reported as Full CI PASS |
+| Full CI PASS | Full CI completed successfully on the exact pull request HEAD, through the high-risk path filter or an Owner dispatch for that HEAD. A result for an earlier HEAD is never reused; cancelled, skipped, pending or running is not success |
+| FULL CI NOT RUN | Full CI did not run on the exact HEAD; reports say so in these words |
+
+**Milestone completion.** Claude's Owner-designated final task, Codex Root completion
+and Owner-designated milestones are complete only with Full CI PASS and PR Safety CI
+PASS on the exact HEAD, Offline Contracts success, independent review and explicit
+Owner approval. A high-risk pull request also needs Full CI PASS before merge
+approval. A Full CI failure stops milestone completion and merge approval.
+
+**Full CI trigger and SHA management.** The Owner dispatches Full CI on the pull
+request branch with `pull_request_number`, `expected_head_sha` (exact 40 hex) and a
+`reason`. The trigger step refuses the run unless the event is `pull_request` to `main`
+(merge commit whose second parent is the event HEAD) or a dispatch by the Owner as
+actor and triggering actor, on a branch other than `main`, whose HEAD equals the
+expected SHA and contains the current `main`. The job summary records the pull
+request, HEAD, base `main` and tested tree. A new HEAD needs a new run.
+`workflow_dispatch` is available only once this workflow is on the default branch;
+until then Full CI runs through the path filter, which includes `.github/**`.
+
+**Review and Owner approval.** Unchanged: independent ChatGPT review and explicit
+Owner approval for every pull request, then Squash Merge. Before merge: the HEAD
+equals the reviewed SHA, base `main` is unchanged, the required CI succeeded on that
+HEAD and Full CI PASS exists where required.
+
+**CI failure.** Stop, read the failed step and its logs, make the smallest correction
+on the same branch, re-run affected local checks, push only when no run of that
+workflow is queued or in progress, and verify the required CI again on the new HEAD.
+
+**After merge.** No Full CI re-run on the same tree. `scripts/ci/merge_check.py`
+confirms that the squash commit's only parent is the reviewed base `main` and that its
+tree equals the reviewed merge result; a mismatch stops further merges for
+investigation. Offline Contracts and, on its trigger paths, the Emulator rehearsal
+still run on the push to `main`.
+
+**Branch Protection.** Changed only by the Owner, after independent review of the
+change that introduced this policy: add `PR Safety CI` as required, then remove
+`Credential-free Terraform validation`. See
+[scripts/ci/README.md](../scripts/ci/README.md#branch-protection-migration) for the
+steps and the rollback.
 
 ## DEV Live — approved limits, scenario details OPEN
 

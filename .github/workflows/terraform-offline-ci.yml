@@ -1,18 +1,65 @@
 name: Terraform offline CI
 
+# Full CI (Owner decision 2026-11-23). Every pull request runs PR Safety CI
+# (.github/workflows/pr-safety-ci.yml, impact-scoped). Full CI runs only:
+# - automatically on a pull request that changes a high-risk path below (CI, credential
+#   prevention, IAM, RBAC and the Kubernetes supply chain, security boundaries, provider,
+#   State, backend and account settings); this list equals "high_risk" in
+#   scripts/ci/impact_map.json, which the ci_policy step checks;
+# - by an Owner workflow_dispatch for a designated milestone (Claude's designated final
+#   task, Codex Root completion, an Owner milestone or a high-risk change), on the pull
+#   request branch at its exact HEAD.
+# It never runs on a push to main: a squash merge of a verified HEAD is checked by tree
+# equality instead (scripts/ci/merge_check.py). The trigger step refuses anything else.
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+    paths:
+      - .github/**
+      - scripts/ci/**
+      - scripts/repository-hygiene/**
+      - .gitignore
+      - infra/modules/iam_access/**
+      - infra/modules/iam_account_policies/**
+      - infra/**/iam.tf
+      - infra/**/policies.tf
+      - scripts/aws-policy-validation/**
+      - kubernetes/**
+      - infra/**/access.tf
+      - infra/**/security.tf
+      - scripts/local-workflow/preflight.py
+      - infra/**/providers.tf
+      - infra/**/versions.tf
+      - infra/**/backend.tf
+      - infra/**/.terraform.lock.hcl
+      - infra/**/*.example
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Target pull request number; dispatch on that pull request's branch
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact 40-hex HEAD SHA of the pull request; must equal the dispatched branch HEAD
+        required: true
+        type: string
+      reason:
+        description: Why Full CI is required for this HEAD
+        required: true
+        type: choice
+        options:
+          - owner-milestone
+          - claude-final-task
+          - codex-root-completion
+          - high-risk-change
 
 permissions:
   contents: read
 
 # Runs never cancel each other (Owner, 2026-11-18): one run of this workflow at a
-# time, pull requests and main pushes alike; a later run waits until the earlier
-# one finishes. GitHub still replaces an older *pending* run in the same group, so
-# the next push or merge waits until the previous run has finished successfully.
+# time; a later run waits until the earlier one finishes. GitHub still replaces an
+# older *pending* run in the same group, so never start a run while another run of
+# this workflow is queued or in progress.
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
@@ -35,6 +82,7 @@ jobs:
       AWS_CONFIG_FILE: /dev/null
     steps:
       - name: Prepare job-local provider cache and disk measurements
+        id: provider_cache
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/terraform-plugin-cache"
@@ -152,9 +200,31 @@ jobs:
           python3 "$RUNNER_TEMP/provider-storage.py" before_cleanup
 
       - name: Check out repository
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Verify the Full CI trigger, target pull request and exact HEAD
+        id: trigger
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_SHA: ${{ github.sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          REF: ${{ github.ref }}
+          OWNER: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          INPUT_PR: ${{ inputs.pull_request_number }}
+          INPUT_SHA: ${{ inputs.expected_head_sha }}
+          INPUT_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/full_ci_trigger.py
 
       - name: Free disk space using the approved cleanup allowlist
         id: disk_cleanup
@@ -163,6 +233,28 @@ jobs:
           echo "Disk usage before cleanup:"
           df -h /
           cleanup_before_bytes=$(df -B1 --output=avail / | tail -n 1)
+          # Conditional cleanup: since every configuration shares one job-local provider
+          # binary (about 0.8 GB), a whole Full CI run used under 2 GB of the root
+          # filesystem. The allowlisted removal took about three minutes, so it runs only
+          # when less than 20 GiB is available; later checkpoints still measure the disk.
+          readonly cleanup_threshold_bytes=21474836480
+          if (( cleanup_before_bytes >= cleanup_threshold_bytes )); then
+            printf 'Cleanup skipped: %s bytes available (threshold %s bytes).\n' "$cleanup_before_bytes" "$cleanup_threshold_bytes"
+            git --version
+            python3 --version
+            node --version
+            {
+              printf 'before_available_bytes=%s\n' "$cleanup_before_bytes"
+              printf 'after_available_bytes=%s\n' "$cleanup_before_bytes"
+              printf 'freed_bytes=0\n'
+              printf 'performed=false\n'
+            } >> "$GITHUB_OUTPUT"
+            {
+              printf '## Runner disk cleanup\n\n'
+              printf 'Skipped: %s bytes available, at or above the %s-byte threshold.\n' "$cleanup_before_bytes" "$cleanup_threshold_bytes"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
           readonly -a cleanup_paths=(
             /usr/share/dotnet
@@ -199,6 +291,7 @@ jobs:
             printf 'before_available_bytes=%s\n' "$cleanup_before_bytes"
             printf 'after_available_bytes=%s\n' "$cleanup_after_bytes"
             printf 'freed_bytes=%s\n' "$cleanup_freed_bytes"
+            printf 'performed=true\n'
           } >> "$GITHUB_OUTPUT"
           {
             printf '## Runner disk cleanup\n\n'
@@ -206,6 +299,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Measure disk usage after runner cleanup
+        id: storage_after_cleanup
         run: |
           set -euo pipefail
           python3 "$RUNNER_TEMP/provider-storage.py" after_cleanup
@@ -231,6 +325,32 @@ jobs:
           python3 scripts/repository-hygiene/check_tracked_files.py --self-test
           python3 scripts/repository-hygiene/check_tracked_files.py
 
+      - name: Verify the CI policy tooling, workflow safety, secret scan and real-operation guards
+        id: ci_policy
+        env:
+          KUBECONFIG: /dev/null
+        run: |
+          set -euo pipefail
+          umask 077
+          # Offline only. The PR Safety impact map, its generated workflow, the Full CI
+          # trigger and merge checks are tested (unit, negative and mutation); every
+          # workflow keeps its safety invariants; no tracked file holds a credential;
+          # and every real AWS/EKS operation entry point is refused under CI markers.
+          python3 - <<'PYCI'
+          import sys, unittest
+          sys.path.insert(0, "scripts/ci")
+          import test_ci
+          result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_ci))
+          if not result.wasSuccessful() or result.skipped or result.testsRun != 24 or len(test_ci.MUTATIONS) != 47:
+              raise SystemExit("CI policy tooling tests failed, skipped or changed the reviewed counts.")
+          print("CI policy tooling tests passed:", result.testsRun, "- mutations detected:", len(test_ci.MUTATIONS))
+          PYCI
+          python3 scripts/ci/pr_safety_workflow.py --check
+          python3 scripts/ci/impact.py check
+          python3 scripts/ci/safety_checks.py workflows
+          python3 scripts/ci/safety_checks.py secrets
+          python3 scripts/ci/safety_checks.py guards
+
       - name: Validate development root with its committed lock
         id: dev
         working-directory: infra/services/dev/ca-central-1/serverless-api
@@ -241,6 +361,7 @@ jobs:
           git diff --exit-code -- .terraform.lock.hcl
 
       - name: Measure provider storage after the first initialization
+        id: storage_after_first_init
         run: |
           set -euo pipefail
           python3 "$RUNNER_TEMP/provider-storage.py" after_first_init
@@ -920,6 +1041,7 @@ jobs:
           PY
 
       - name: Verify retained R1 and R2 ownership and move guards
+        id: r1_r2_guards
         working-directory: infra/modules/api_gateway_http
         run: |
           set -euo pipefail
@@ -1313,6 +1435,7 @@ jobs:
           git status --porcelain --ignored -- infra/services/dev/ca-central-1 | { ! grep -E 'committed|no-tfvars|local\.auto\.tfvars$|\.tfplan|backend_override\.tf$|\.tfbackend$'; }
 
       - name: Measure shared provider storage after all modules
+        id: storage_after_modules
         run: |
           set -euo pipefail
           python3 "$RUNNER_TEMP/provider-storage.py" after_modules
@@ -1346,8 +1469,11 @@ jobs:
             --output-dir "$RUNNER_TEMP/policy-validation-results"
 
       - name: Summarize actual validation results
+        id: summary
         if: ${{ always() }}
         env:
+          TRIGGER_RESULT: ${{ steps.trigger.outcome }}
+          CI_POLICY_RESULT: ${{ steps.ci_policy.outcome }}
           REST_RESULT: ${{ steps.rest_core.outcome }}
           REST_PASSED: ${{ steps.rest_core.outputs.passed }}
           INSTALL_RESULT: ${{ steps.terraform.outcome }}
@@ -1404,6 +1530,8 @@ jobs:
           import os
 
           rows = [
+            ("Full CI trigger, target pull request and exact HEAD", "TRIGGER_RESULT", ""),
+            ("CI policy tooling, workflow safety, secret scan and real-operation guards", "CI_POLICY_RESULT", ""),
             ("V7-A REST Core", "REST_RESULT", os.environ.get("REST_PASSED", "")),
             ("Terraform installation", "INSTALL_RESULT", ""),
             ("Repository formatting", "FORMAT_RESULT", ""),
@@ -1446,6 +1574,7 @@ jobs:
           PY
 
       - name: Record final provider and disk usage even after failure
+        id: storage_final
         if: always()
         run: |
           set -euo pipefail

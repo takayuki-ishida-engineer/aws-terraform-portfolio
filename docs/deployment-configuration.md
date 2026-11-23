@@ -54,7 +54,8 @@ placeholders and run the local workflow. Verified offline with Terraform 1.17.0.
 
 ### Guard
 
-`scripts/repository-hygiene/check_tracked_files.py` runs in Full CI. It fails when
+`scripts/repository-hygiene/check_tracked_files.py` runs in Full CI and in every PR
+Safety CI run. It fails when
 Git tracks any of these, even when they were force-added past `.gitignore`:
 
 - `local.auto.tfvars`, `*.local.tfvars` and their JSON forms

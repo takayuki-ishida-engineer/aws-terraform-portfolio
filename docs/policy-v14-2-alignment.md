@@ -15,6 +15,14 @@ operation and no new AWS service. The file name of this record stays as it is
 so that existing links keep working. Other documents that cite v14.2 as current
 authority mean this record, as amended by v14.4.
 
+**Owner decision 2026-11-23 (CI execution).** For §12.2 and the Full CI wording
+below, every pull request now needs PR Safety CI on its exact HEAD, and Full CI runs
+at Owner-designated milestones (Claude's designated final task, Codex Root
+completion, Owner milestones) and on high-risk changes, never on a push to `main`.
+Full CI keeps all of its checks. Review, Owner approval and Squash Merge are
+unchanged. See the [CI execution policy](../AGENTS.md#ci-execution-policy-owner-decision-2026-11-23).
+The Master Policy PDF itself is not changed.
+
 | v14.4 | Aligned in |
 | --- | --- |
 | §12.2 PR order: latest main, new branch, approved change, affected checks, commit/push/PR, exact-HEAD Full CI, independent ChatGPT review, explicit Owner approval, Squash Merge | [AGENTS.md](../AGENTS.md#git-workflow-and-verification) |
@@ -106,8 +114,9 @@ AI credits/add-ons or external paid services. Owner-reported $0 Budgets and Usag
 blocked observations are historical evidence, not proof of run-time verification
 or a mathematical guarantee of zero future charges. This PR performs no Billing
 audit or settings change; inaccessible Billing information must not be presented
-as verified through an invented API. Preserve the existing required Full CI, its coverage,
-read-only permissions, allowed pinned Actions and Branch Protection. Review any
+as verified through an invented API. Preserve Full CI and its coverage (run under the
+Owner's CI execution policy of 2026-11-23), PR Safety CI, read-only permissions,
+allowed pinned Actions and Branch Protection. Review any
 new Action or permission separately under Public repository governance.
 
 #### Owner amendment (2026-11-20): automatic Step 2 rehearsals

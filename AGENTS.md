@@ -157,8 +157,9 @@ For a separately approved Emulator demonstration:
 8. Record the tested SHA, exact operations, cleanup, limitations and residual risk.
    Only actually successful operations may be marked EMULATOR DEMONSTRATED.
 
-Core implementation PRs require all affected offline/security checks, the existing
-Full CI on every PR, independent ChatGPT review and explicit user approval before merge.
+Core implementation PRs require all affected offline/security checks, PR Safety CI on
+every PR and Full CI where the [CI execution policy](#ci-execution-policy-owner-decision-2026-11-23)
+requires it, independent ChatGPT review and explicit user approval before merge.
 Report unexecuted Emulator lifecycle as NOT_TESTED and unmet isolation controls
 as environment BLOCKED; neither is a resource-compatibility PASS or API skip.
 
@@ -173,9 +174,9 @@ No Larger Runner, paid self-hosted/external service, Artifact upload, persistent
 cache, registry push, Git LFS or Packages use in the new Emulator workflow.
 Owner-reported Budget existence is not run-time verification or a Billing audit;
 never claim inaccessible Billing data was verified. See the alignment record.
-Do not change the existing required Full CI or Branch Protection. Docker namespace
+An Emulator workflow never changes the required checks or Branch Protection. Docker namespace
 isolation is a proposed method, not proof: all fourteen controls above still apply.
-Documentation-only changes do not require lifecycle replay, but still run Full CI.
+Documentation-only changes do not require lifecycle replay, but still run PR Safety CI.
 
 Limited standing authorization (Owner decision 2026-11-20, PR #74, adopted by
 Master Policy v14.4 §13.2): the Step 2 rehearsal workflow
@@ -255,8 +256,8 @@ stops early.
   unrecoverable is recorded EVIDENCE_GAP and never inferred as success. Entries
   are append-only; a correction keeps its reason, review and history.
 - **Authority.** The workflow never pushes or opens pull requests. Ledger entries
-  go through the normal pull request, Full CI, independent review and Owner merge
-  approval.
+  go through the normal pull request, its required CI, independent review and Owner
+  merge approval.
 - **Retention.** Logs, job summaries and run records expire under GitHub
   retention: at most 90 days on a public repository, with the actual setting
   confirmed by the Owner. A README badge, a run URL or a job summary is never
@@ -297,8 +298,9 @@ and requires a separate user decision; Codex must not initiate it.
 
 Real AWS deployment is not mandatory for portfolio completion. Core Implementation
 requires approved architecture/ownership, fmt, locked init, validate, affected
-Native/Mock/Negative/Security/Mutation/Evidence checks, secret-free State, existing
-Full CI on every PR, independent review and user approval. Representative Emulator
+Native/Mock/Negative/Security/Mutation/Evidence checks, secret-free State, PR Safety
+CI on every PR and Full CI under the CI execution policy, independent review and user
+approval. Representative Emulator
 lifecycle demonstration remains mandatory at portfolio level, separately from
 per-resource implementation PR acceptance. CORE PORTFOLIO COMPLETE is independently
 assessed from all approved Core scope implemented, offline/security quality, Full
@@ -327,8 +329,9 @@ remain unchanged. No Live gate is closed by emulator evidence.
 
 - For each new development task, create a new working branch from the latest
   `main`. Never commit directly to `main`.
-- Follow branch -> commit -> push -> PR -> exact-HEAD Full CI -> independent
-  ChatGPT review -> explicit Owner approval -> Squash merge (v14.4 §12.2). Commit
+- Follow branch -> commit -> push -> PR -> exact-HEAD PR Safety CI (and Full CI where
+  the CI execution policy requires it) -> independent ChatGPT review -> explicit Owner
+  approval -> Squash merge (v14.4 §12.2, CI per the Owner decision of 2026-11-23). Commit
   and push changes before creating a PR. Continue review corrections on the
   existing open PR branch.
 - Require PR review and approval before merge. Do not merge automatically; merge
@@ -338,10 +341,73 @@ remain unchanged. No Live gate is closed by emulator evidence.
 - Follow `.editorconfig`, inspect the diff and changed file scope, check for
   secrets, and run `git diff --check` before finishing.
 - Never start a CI run while another run of the same workflow is queued or in
-  progress, and never accept a cancelled run as a result. After a merge, wait for
-  the main push run to finish successfully before pushing or merging the next
-  change; do not push to a pull request while its CI is running. The workflows do
-  not cancel in-progress runs (Owner, 2026-11-18).
+  progress, and never accept a cancelled run as a result. Full CI no longer runs on
+  a push to `main`; after a merge, run the post-merge tree check and wait for the
+  push runs that remain (Offline Contracts and, on its trigger paths, the Emulator
+  rehearsal) to finish before pushing or merging the next change. Do not push to a
+  pull request while its CI is running. The workflows do not cancel in-progress
+  runs (Owner, 2026-11-18).
+
+### CI execution policy (Owner decision 2026-11-23)
+
+Every pull request to `main` runs **PR Safety CI** (check name `PR Safety CI`,
+`.github/workflows/pr-safety-ci.yml`, generated from Full CI by
+`scripts/ci/pr_safety_workflow.py`). Its always-on steps check repository hygiene,
+credential and secret prevention, `terraform fmt`, workflow and CI execution
+safety, the CI tooling tests and the existing real AWS/EKS operation guards; it also
+parses every changed file. Its impact step maps each changed file to the Full CI
+steps that verify it through Terraform configurations, module sources (cross-module
+dependents), step inputs and the explicit rules in `scripts/ci/impact_map.json`, and
+prints that mapping. Selected steps run exactly as in Full CI, with their
+prerequisites; the last step checks that exactly those steps ran. An unmapped path,
+an undeterminable dependency or more than 300 changed files fails closed. See
+[scripts/ci/README.md](scripts/ci/README.md).
+
+**Full CI** (`Terraform offline CI`, check name `Credential-free Terraform validation`)
+keeps every check, count, mutation, security check and evidence contract and its
+60-minute timeout. It runs only:
+- automatically on a pull request that changes a high-risk path: CI, credential
+  prevention, IAM, RBAC and the Kubernetes supply chain, security boundaries, and
+  provider, State, backend or account settings (`high_risk` in the map);
+- by an Owner `workflow_dispatch` on the pull request branch, naming the pull request,
+  its exact 40-hex HEAD SHA and the reason: Claude's Owner-designated final task, Codex
+  Root completion, an Owner-designated milestone, or a high-risk change the Owner
+  designates. The branch must contain the current `main`.
+
+It never runs on a push to `main`, and a squash-merged HEAD is not re-run. Statuses
+are never interchangeable:
+- **PR Safety CI PASS**: PR Safety CI completed successfully on the exact pull request
+  HEAD. It is never reported as Full CI PASS.
+- **Full CI PASS**: Full CI completed successfully on the exact pull request HEAD. A
+  result for an earlier HEAD is never reused; cancelled, skipped, pending or running
+  is never success.
+- **FULL CI NOT RUN**: Full CI did not run on the exact HEAD; report it in these words.
+
+Rules:
+- A normal pull request needs PR Safety CI PASS. A high-risk pull request also needs
+  Full CI PASS. A milestone (Owner-designated, Claude's designated final task, Codex
+  Root completion) is complete only with Full CI PASS and PR Safety CI PASS on its
+  exact HEAD, Offline Contracts success, independent review and Owner approval.
+- Reports name the pull request URL, exact HEAD SHA, the PR Safety CI result, the Full
+  CI result or FULL CI NOT RUN, and the Offline Contracts result.
+- On a CI failure: stop, read the failed step and its logs, make the smallest
+  correction on the same branch, re-run the affected local checks, push only when no
+  run of that workflow is queued or in progress, and verify the required CI again on
+  the new exact HEAD. A Full CI failure stops milestone completion and merge approval.
+- Before merge: the pull request HEAD equals the reviewed SHA, base `main` is
+  unchanged since review, the required CI succeeded on that HEAD, and Full CI
+  succeeded on that exact HEAD where required.
+- After an Owner-approved squash merge, run `scripts/ci/merge_check.py` with the squash
+  commit, the reviewed HEAD and the reviewed base `main`: the only parent must be that
+  base and the tree must equal the reviewed merge result. On a mismatch, stop and
+  investigate.
+- Only the Owner changes Branch Protection: add `PR Safety CI` as a required check
+  first, then remove `Credential-free Terraform validation`. Never use an admin
+  bypass, a force merge or disabled protection.
+- Changing the map, the generator or a workflow is a CI change: high-risk, Full CI
+  required. The Emulator rehearsal trigger paths, the fourteen controls, the evidence
+  ledger, Offline Contracts, credential-free CI, SHA-pinned least-privilege Actions,
+  non-cancelling runs and $0 cost are unchanged.
 
 ### Codex execution efficiency and verification
 
@@ -349,8 +415,7 @@ remain unchanged. No Live gate is closed by emulator evidence.
   components, directly affected existing components, and relevant security,
   negative and mutation cases. Run appropriate formatting, initialization,
   validation and static checks for affected files and modules.
-- Skip unrelated, previously verified local regressions when GitHub Actions runs
-  the complete suite. Do not repeat successful tests without relevant changes or
+- Skip unrelated, previously verified local regressions when CI runs them. Do not repeat successful tests without relevant changes or
   new failure evidence. Inspect detailed logs when investigating failures; avoid
   repeatedly analyzing large successful logs.
 - Never reduce necessary verification for IAM permissions, policies, trust or
@@ -359,23 +424,25 @@ remain unchanged. No Live gate is closed by emulator evidence.
   dependencies or resource ownership; destructive lifecycle behavior; or GitHub
   Actions security controls. Run affected tests and security checks locally before
   opening a PR. If impact is uncertain, use the broader relevant test scope.
-- Preserve every existing GitHub Actions test and security check. Never remove,
-  disable, skip, weaken or reduce CI coverage for efficiency. Codex Cloud owns
-  implementation, affected local validation, relevant security checks and PR
-  creation. GitHub Actions owns complete regression testing, including Terraform
-  mocks, Python tests, IAM references, mutations and independent guardrails.
+- Preserve every existing Full CI test and security check. Never remove, disable,
+  skip or weaken them, and never narrow the PR Safety CI impact map to save time.
+  Codex Cloud owns implementation, affected local validation, relevant security
+  checks and PR creation. PR Safety CI owns impact-scoped regression on every PR;
+  Full CI owns complete regression testing (Terraform mocks, Python tests, IAM
+  references, mutations and independent guardrails) at milestones and on high-risk
+  changes.
   Independent reviewers verify completed PR CI, implementation and security, and
   authorize merge. Local success does not establish complete regression success.
 - After required affected local verification, commit, push and open the PR. Report
   its URL, exact HEAD SHA, changed files, actual local checks/results and relevant
-  tests intentionally delegated to GitHub Actions. Confirm the expected workflow's
-  Full CI completed on that exact PR HEAD before stopping for independent review
-  and owner approval. This applies to every PR, including docs/policy-only PRs.
+  tests intentionally delegated to GitHub Actions. Confirm PR Safety CI (and Full CI
+  where required) completed on that exact PR HEAD before stopping for independent
+  review and owner approval. This applies to every PR, including docs/policy-only PRs.
   Never claim pending/running CI passed.
 - Investigate subsequent CI failures in a separate follow-up task using the actual
   failed step and relevant logs. Continue on the existing open PR branch, make the
   smallest justified correction, rerun affected local tests and relevant security
-  checks, push to the same PR, verify exact-HEAD Full CI completion and stop. Do not
+  checks, push to the same PR, verify the required CI on the exact HEAD and stop. Do not
   rerun unrelated tests or introduce speculative fixes.
 - Use the minimum tool calls and analysis needed for reliable work. Avoid repeated
   reads of unchanged files, unnecessary full local suites, redundant successful
@@ -405,7 +472,8 @@ synthetic account guards, no real AWS credentials or authenticated real AWS acce
 (including real AWS Plan/Apply/Destroy/Import) in Codex Cloud, no paid fallback or
 unauthorized spending, no Terraform/repository secret values, architecture and
 Module/Root/State ownership, required Native/Mock/Negative/Security/Mutation/Evidence
-checks, existing Full CI, Branch Protection and independent review/Owner approval.
+checks, the required CI under the CI execution policy, Branch Protection and independent
+review/Owner approval.
 
 Future work requires explicit Owner authorization of the next task or phase.
 For each newly authorized task, start from latest main on a new working branch,
