@@ -711,8 +711,8 @@ of them is Live evidence.
    - pre-apply: `base` needs `namespaces` accepted, and no Istio webhook may carry
      a `caBundle` (C1);
    - a fake server-side dry-run of every object;
-   - per object: INTENT, then fake server-side apply without force, then RESULT
-     with the UID read back, then the D13 ownership check. Every write is
+   - per object: INTENT, then fake server-side apply without force, then the
+     readback and the D13 ownership check, then RESULT. Every write is
      conditional:
      - create only if the object is absent; update only on the recorded UID;
      - an object that appears where none was recorded stops the run before its
@@ -720,7 +720,24 @@ of them is Live evidence.
      - a change between the engine's read and the write fails the fake's atomic
        check (`precondition_failed`), and the foreign object is left byte for byte
        unchanged;
-     - how a real API server would enforce the same condition is NOT_VERIFIED;
+     - the same atomic check refuses the write when any manager other than the
+       runtime's own Apply entry owns a field, unless it is the D13 status rule
+       (`foreign_field_refused`). The object, its `resourceVersion` and its
+       `managedFields` stay unchanged, and the RESULT is `failed`;
+     - how a real API server would enforce the same conditions is NOT_VERIFIED;
+   - after a write lands, the success RESULT (and the newly owned UID) is
+     recorded only when the readback proves OWNED. Otherwise the outcome is
+     quarantined and the run stops with exit 4, never recorded as "not
+     applied":
+
+     | Readback | QUARANTINE reason | Stop reason |
+     | --- | --- | --- |
+     | Object absent | `creation_unproven` (create) or `uid_changed` (update) | `apply_not_observed` |
+     | Another UID | `uid_changed` | `uid_changed` |
+     | Foreign owner, foreign field or too few runtime fields | `ownership_unproven` | `foreign_owner`, `foreign_field` or `ownership_not_verified` |
+
+     A readback timeout leaves the INTENT open; the rerun quarantines it as
+     `QUARANTINE_REQUIRED`. A quarantined object is never re-applied or adopted.
    - minimal completion: Namespace Active with its labels, CRD Established and
      NamesAccepted, webhook without a runtime `caBundle`;
    - STAGE_DONE.
@@ -747,7 +764,8 @@ of them is Live evidence.
   | 4 | APPLY_FAILED | Conflict, foreign ownership, UID change, quarantine, C1 or denied dry-run |
   | 5 | READINESS_TIMEOUT | A readiness wait expired |
 
-**Journal schema: unchanged.** No record type was added.
+**Journal schema: unchanged.** No record type was added. The QUARANTINE record
+gained the reason `ownership_unproven`.
 - Deferral is derived from the journal: a closed stage whose resolving stage is not
   closed.
 - The only new use of an existing record is the `failed` RESULT that closes an
@@ -755,7 +773,7 @@ of them is Live evidence.
 - `receipt verify` keeps its strict ownership. The D13 hook (`ownership_fn`) is
   used only by the engine.
 
-**Tests.** `test_k8s_runtime_apply.py` has 24 tests and 40 source mutations.
+**Tests.** `test_k8s_runtime_apply.py` has 27 tests and 46 source mutations.
 - A mutant counts only when a contract assertion fails and the code under test did
   not crash. A mutant that only raises an exception is reported separately and
   fails the suite.
@@ -781,7 +799,14 @@ of them is Live evidence.
 - incomplete ownership on the `CONSISTENT` and `REAPPLY_SAFE` paths: an empty
   `fieldsV1`, metadata without spec, missing webhook fields, unknown nested paths,
   nested status paths;
-- deferred items that a later STAGE_DONE does not resolve.
+- deferred items that a later STAGE_DONE does not resolve;
+- ownership proven before the success RESULT: a foreign manager or too few
+  runtime fields in the readback, a UID change after an owned update, and a
+  readback that fails after the write, each quarantined with no newly owned UID
+  and no adoption on rerun;
+- the fake's write-time ownership check: a foreign manager added to the same UID
+  just before the write (namespace labels, CRD spec) is refused with the object
+  unchanged, while a status-subresource update and a normal owned update proceed.
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 

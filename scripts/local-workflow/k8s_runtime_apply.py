@@ -40,9 +40,14 @@ Flow:
    - minimal completion;
    - STAGE_DONE.
 
-Every write is conditional: create only if absent, update only on the recorded UID. An object that
-appears where none was recorded stops the run before its INTENT. The fake enforces the condition
-atomically; the Live mechanism is NOT_VERIFIED.
+Every write is conditional: create only if absent, update only on the recorded UID, and (for an
+update) only while no manager other than the runtime's Apply entry and the D13 status rule owns any
+field. An object that appears where none was recorded stops the run before its INTENT. The fake enforces
+these conditions atomically and refuses before changing anything; the Live mechanism is NOT_VERIFIED.
+
+A success RESULT is written only after the readback proves the UID and the field ownership. A landed write
+that cannot be proven is quarantined (reason ``ownership_unproven`` or ``uid_changed``), never recorded as
+owned and never turned back into "not applied".
 
 ``base`` leaves the istiod-default-validator serving deferred to the ``istiod``
 stage, which is not approved here. So a successful run ends in exit 6
@@ -103,6 +108,10 @@ class ApplyConflict(Exception):
 
 class PreconditionFailed(Exception):
     """The fake's atomic write precondition (absent, or the expected UID) did not hold; nothing was changed."""
+
+
+class OwnershipRefused(Exception):
+    """The fake refused a write because another manager owns fields of the object; nothing was changed."""
 
 
 def field_paths(value, prefix=()):
@@ -254,6 +263,18 @@ class FakeAdapter:
             raise PreconditionFailed("object_exists")
         if "uid" in precondition and (current is None or current["metadata"].get("uid") != precondition["uid"]):
             raise PreconditionFailed("uid_mismatch")
+        # Atomic in this fake as well: every manager other than the runtime's own Apply entry must be the D13
+        # structural status rule, or the write is refused before anything changes. This is a property of the
+        # fake, not a claim about the real API server (NOT_VERIFIED).
+        for managed in (current or {}).get("metadata", {}).get("managedFields") or []:
+            if managed.get("manager") == field_manager and managed.get("operation") == "Apply" \
+                    and not managed.get("subresource"):
+                continue
+            seen = {"manager": managed.get("manager"), "operation": managed.get("operation"),
+                    "subresource": managed.get("subresource", ""),
+                    "paths": frozenset(paths_of(managed.get("fieldsV1") or {}))}
+            if not status_only(seen, current["kind"]):
+                raise OwnershipRefused(str(managed.get("manager")))
         if key in self.conflicts:
             raise ApplyConflict(key)
         entry = {"manager": field_manager, "operation": "Apply", "fieldsType": "FieldsV1",
@@ -511,24 +532,34 @@ class Engine:
             self.adapter.server_side_apply(identity, self.manifest(identity), self.manager, force=False,
                                            precondition=precondition)
         except PreconditionFailed:
-            self.store.result(seq, identity, None, None, None, "failed")
+            self.store.result(seq, identity, None, None, None, "failed")  # refused before the write: not applied
             stop(4, "precondition_failed")
+        except OwnershipRefused:
+            self.store.result(seq, identity, None, None, None, "failed")  # refused before the write: not applied
+            stop(4, "foreign_field_refused")
         except ApplyConflict:
             self.store.result(seq, identity, None, None, None, "failed")
             stop(4, "field_conflict")
         except AdapterTimeout:
             stop(3, "api_timeout")  # outcome unknown: the INTENT stays open for reconciliation
-        after = self.read(identity)
-        if after is None or (recorded is not None and after["metadata"].get("uid") != recorded):
-            self.store.result(seq, identity, None, None, None, "failed")
-            stop(4, "uid_changed" if after is not None else "apply_not_observed")
+        # The write landed. From here a refusal must not look like "not applied": an unproven outcome is
+        # quarantined (closing the INTENT), so it is neither re-applied nor adopted without the Owner (D16).
+        # A success RESULT, and with it a newly owned UID, is written only after ownership is proven.
+        after = self.read(identity)  # a timeout stops with the INTENT open; the rerun reconciles it
+        if after is None:
+            self.store.quarantine(identity, None, "uid_changed" if recorded is not None else "creation_unproven")
+            stop(4, "apply_not_observed")
         meta = after["metadata"]
-        self.store.result(seq, identity, meta["uid"], str(meta.get("resourceVersion", "0")),
-                          int(meta.get("generation", 0)), "applied")
+        if recorded is not None and meta.get("uid") != recorded:
+            self.store.quarantine(identity, meta.get("uid"), "uid_changed")
+            stop(4, "uid_changed")
         owned = d13_ownership(observed_of(after, self.manifest(identity)), self.manager)
         if owned != "OWNED":
+            self.store.quarantine(identity, meta.get("uid"), "ownership_unproven")
             stop(4, {"NOT_OWNED": "foreign_owner", "OWNERSHIP_NOT_VERIFIED": "ownership_not_verified"}
                  .get(owned, "foreign_field"))
+        self.store.result(seq, identity, meta["uid"], str(meta.get("resourceVersion", "0")),
+                          int(meta.get("generation", 0)), "applied")
 
     def minimal_completion(self, identity):
         manifest = self.manifest(identity)

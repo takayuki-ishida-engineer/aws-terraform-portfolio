@@ -37,6 +37,16 @@ of Step 1 item 6c. It has four parts:
     UID) and checked atomically by the fake; the Live mechanism is NOT_VERIFIED.
   - D13 ownership needs field-level evidence: the runtime must own exactly the
     manifest's nested leaf paths.
+  - Review of PR #91 (P1-07): a success RESULT, and with it a newly owned UID, is
+    written only after the readback proves OWNED. A write that landed but whose
+    ownership or UID is unproven is quarantined (`ownership_unproven`,
+    `uid_changed`, `creation_unproven`), never recorded as "not applied". It is
+    neither re-applied nor adopted without the Owner (D16).
+  - Review of PR #91 (P1-08): the fake's conditional write also checks field
+    ownership. Any manager other than the runtime's own Apply entry and the D13
+    status rule refuses the write before anything changes
+    (`foreign_field_refused`). This is a property of the fake. Real API
+    atomicity is NOT_VERIFIED.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.

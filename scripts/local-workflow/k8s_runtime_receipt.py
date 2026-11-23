@@ -93,7 +93,8 @@ RECORD_FIELDS = {
 IDENTITY_FIELDS = {"apiVersion", "kind", "namespace", "name"}
 ACTIONS = {"create", "update", "noop"}
 OUTCOMES = {"applied", "unchanged", "failed"}
-QUARANTINE_REASONS = {"creation_unproven", "uid_changed"}
+# ownership_unproven (6c-B3b-Apply-A): an apply that landed but whose field ownership could not be proven.
+QUARANTINE_REASONS = {"creation_unproven", "uid_changed", "ownership_unproven"}
 SETTLED_VERDICTS = {"CONSISTENT", "ABSENT"}
 
 

@@ -667,21 +667,145 @@ def scenario_uid_changed_live_only(case, mods):
         case.assertEqual(len(r.journal()), before)
 
 
+def taint_after_write(r, target, edit):
+    """Change the object right after the fake write lands, before the engine's readback."""
+    original = r.adapter.server_side_apply
+
+    def tainted(identity, manifest, field_manager, force=False, dry_run=False, precondition=None):
+        answer = original(identity, manifest, field_manager, force, dry_run, precondition)
+        if not dry_run and k8s_runtime_receipt.key_of(identity) == target:
+            edit(r.adapter.objects[target])
+        return answer
+    r.adapter.server_side_apply = tainted
+
+
+def records_for(r, key, kind):
+    return [rec for rec in r.journal() if rec["type"] == kind and k8s_runtime_receipt.key_of(rec["identity"]) == key]
+
+
+def owned_uid(r, key):
+    state = k8s_runtime_receipt.load(r.store.dir, r.plan, r.store.expected)["state"]
+    return state["objects"].get(key, {}).get("owned_uid")
+
+
+def assert_quarantined_not_owned(case, r, key, reason, uid_expected):
+    applied = [rec for rec in records_for(r, key, "RESULT") if rec["outcome"] != "failed"]
+    case.assertEqual(applied, [], "no success RESULT before ownership is proven")
+    quarantine = records_for(r, key, "QUARANTINE")
+    case.assertEqual([(q["reason"], q["observed_uid"]) for q in quarantine], [(reason, uid_expected)])
+    case.assertIsNone(owned_uid(r, key), "the unproven UID must not become owned in the receipt")
+
+
 def scenario_foreign_field_during_apply(case, mods):
-    """A foreign manager appears on the object as it is applied: the post-apply ownership check must stop."""
+    """P1-07: a foreign manager shows up in the readback; no success RESULT, the outcome is quarantined."""
     with run_for(mods) as r:
         target = crd_key(r)
-        original = r.adapter.server_side_apply
-
-        def tainted(identity, manifest, field_manager, force=False, dry_run=False, precondition=None):
-            answer = original(identity, manifest, field_manager, force, dry_run, precondition)
-            if not dry_run and k8s_runtime_receipt.key_of(identity) == target:
-                r.adapter.objects[target]["metadata"]["managedFields"].append(
-                    {"manager": "helm", "operation": "Update", "fieldsV1": {"f:spec": {}}})
-            return answer
-        r.adapter.server_side_apply = tainted
+        taint_after_write(r, target, lambda o: o["metadata"]["managedFields"].append(
+            {"manager": "helm", "operation": "Update", "fieldsV1": {"f:spec": {}}}))
         case.assertEqual(outcome(r.run()), (4, "APPLY_FAILED", "foreign_field"))
+        assert_quarantined_not_owned(case, r, target, "ownership_unproven", r.adapter.objects[target]["metadata"]["uid"])
         case.assertFalse(any(rec["type"] == "STAGE_DONE" and rec["stage"] == "base" for rec in r.journal()))
+
+
+def scenario_runtime_fields_short_after_apply(case, mods):
+    """P1-07: the readback shows the runtime owning too few fields; quarantined, not recorded as owned."""
+    with run_for(mods) as r:
+        target = r.key("namespaces", 0)
+        taint_after_write(r, target, lambda o: runtime_entry(o).update(fieldsV1={"f:metadata": {}}))
+        case.assertEqual(outcome(r.run()), (4, "APPLY_FAILED", "ownership_not_verified"))
+        assert_quarantined_not_owned(case, r, target, "ownership_unproven", r.adapter.objects[target]["metadata"]["uid"])
+
+
+def scenario_uid_changed_after_apply(case, mods):
+    """P1-07: an owned update lands, then the readback shows another UID; quarantined, never "not applied"."""
+    with run_for(mods) as r:
+        first, second = r.key("namespaces", 0), r.key("namespaces", 1)
+        r.adapter.conflicts.add(second)
+        r.run()
+        recorded = owned_uid(r, first)
+        r.adapter.conflicts.clear()
+        replaced = "00000000-0000-4000-9000-0000000000f3"
+        taint_after_write(r, first, lambda o: o["metadata"].update(uid=replaced))
+        case.assertEqual(outcome(r.run(store=r.new_store())), (4, "APPLY_FAILED", "uid_changed"))
+        quarantine = records_for(r, first, "QUARANTINE")
+        case.assertEqual([(q["reason"], q["observed_uid"]) for q in quarantine], [("uid_changed", replaced)])
+        case.assertEqual(owned_uid(r, first), recorded, "the receipt keeps only the UID proven earlier")
+        last_results = records_for(r, first, "RESULT")
+        case.assertEqual([rec["outcome"] for rec in last_results], ["applied"], "no failed RESULT after a landed write")
+
+
+def scenario_crash_before_success_result(case, mods):
+    """P1-07: the readback fails after the write landed; the INTENT stays open, the rerun quarantines, never adopts."""
+    with run_for(mods) as r:
+        target = r.key("namespaces", 0)
+        taint_after_write(r, target, lambda o: r.adapter.latency.__setitem__(target, 25))
+        case.assertEqual(outcome(r.run()), (3, "UNDETERMINED", "api_timeout"))
+        case.assertEqual(r.journal()[-1]["type"], "INTENT")
+        case.assertIsNone(owned_uid(r, target))
+        r.adapter.latency.clear()
+        live_uid = r.adapter.objects[target]["metadata"]["uid"]
+        case.assertEqual(outcome(r.run(store=r.new_store())), (4, "APPLY_FAILED", "quarantined"))
+        case.assertEqual([(q["reason"], q["observed_uid"]) for q in records_for(r, target, "QUARANTINE")],
+                         [("creation_unproven", live_uid)])
+        r.adapter.calls.clear()
+        case.assertEqual(outcome(r.run(store=r.new_store()))[2], "quarantined")
+        case.assertEqual(r.applies(), [], "a quarantined object is neither re-applied nor adopted")
+        case.assertIsNone(owned_uid(r, target))
+
+
+def stage_open_with_owned_crd(r):
+    """Base stage left open with every CRD applied and owned (the webhook conflicts)."""
+    validator = next(k8s_runtime_receipt.key_of(i) for i in r.members["base"]
+                     if i["kind"] == "ValidatingWebhookConfiguration")
+    r.adapter.conflicts.add(validator)
+    case_outcome = outcome(r.run())
+    r.adapter.conflicts.clear()
+    return case_outcome
+
+
+def scenario_foreign_manager_before_write(case, mods):
+    """P1-08: after the engine's read, a foreign manager appears on the same UID; the write is refused unchanged."""
+    cases = [("namespaces", 0, {"f:metadata": {"f:labels": {"f:team": {}}}}),
+             ("base", 0, {"f:spec": {"f:names": {"f:shortNames": {}}}})]
+    for stage, index, fields in cases:
+        with run_for(mods) as r:
+            if stage == "namespaces":
+                r.adapter.conflicts.add(r.key("namespaces", 1))
+                r.run()
+                r.adapter.conflicts.clear()
+                target = r.key("namespaces", 0)
+            else:
+                case.assertEqual(stage_open_with_owned_crd(r)[2], "field_conflict")
+                target = crd_key(r)
+            uid_before = owned_uid(r, target)
+
+            def add_foreign(adapter, target=target, fields=fields):
+                adapter.objects[target]["metadata"]["managedFields"].append(
+                    {"manager": "someone-else", "operation": "Apply", "fieldsType": "FieldsV1", "fieldsV1": fields})
+                CAPTURED[target] = snapshot(r, target)
+            r.adapter.before_write[target] = add_foreign
+            case.assertEqual(outcome(r.run(store=r.new_store())), (4, "APPLY_FAILED", "foreign_field_refused"))
+            case.assertEqual(snapshot(r, target), CAPTURED.pop(target), "object, resourceVersion, managedFields unchanged")
+            last = records_for(r, target, "RESULT")[-1]
+            case.assertEqual(last["outcome"], "failed")
+            case.assertEqual(owned_uid(r, target), uid_before)
+
+
+CAPTURED = {}
+
+
+def scenario_status_update_allowed(case, mods):
+    """P1-08: a status-subresource Update on an owned CRD is allowed; the owned update proceeds and keeps it."""
+    with run_for(mods) as r:
+        case.assertEqual(stage_open_with_owned_crd(r)[2], "field_conflict")
+        target = crd_key(r)
+        status = {"manager": "kube-apiserver", "operation": "Update", "subresource": "status",
+                  "fieldsType": "FieldsV1", "fieldsV1": {"f:status": {"f:conditions": {}}}}
+        r.adapter.objects[target]["metadata"]["managedFields"].append(status)
+        r.adapter.calls.clear()
+        case.assertEqual(r.run(store=r.new_store())["exit_code"], 6)
+        case.assertIn(("apply", target), r.adapter.calls)
+        case.assertIn(status, r.adapter.objects[target]["metadata"]["managedFields"])
 
 
 # ---- unit tests ----------------------------------------------------------------------------------------------------
@@ -731,8 +855,19 @@ class EngineTests(unittest.TestCase):
     def test_uid_race_before_write(self):
         scenario_uid_changed_live_only(self, real_mods())
 
-    def test_foreign_field_during_apply(self):
+    def test_ownership_proven_before_success_result(self):
         scenario_foreign_field_during_apply(self, real_mods())
+        scenario_runtime_fields_short_after_apply(self, real_mods())
+
+    def test_landed_write_never_reverts_to_not_applied(self):
+        scenario_uid_changed_after_apply(self, real_mods())
+        scenario_crash_before_success_result(self, real_mods())
+
+    def test_write_refused_when_foreign_manager_appears(self):
+        scenario_foreign_manager_before_write(self, real_mods())
+
+    def test_status_update_allowed_at_write(self):
+        scenario_status_update_allowed(self, real_mods())
 
     def test_stage_order(self):
         scenario_stage_order(self, real_mods())
@@ -800,6 +935,20 @@ MUTATIONS = [
     ("conflict_result", A, '            self.store.result(seq, identity, None, None, None, "failed")\n            stop(4, "field_conflict")',
      '            stop(4, "field_conflict")', scenario_conflict),
     ("post_apply_ownership", A, '        if owned != "OWNED":', "        if False:", scenario_foreign_field_during_apply),
+    ("result_after_ownership", A, '            self.store.quarantine(identity, meta.get("uid"), "ownership_unproven")\n',
+     '            self.store.result(seq, identity, meta["uid"], "1", 1, "applied")\n', scenario_runtime_fields_short_after_apply),
+    ("success_result_first", A, "        owned = d13_ownership(observed_of(after, self.manifest(identity)), self.manager)\n",
+     '        self.store.result(seq, identity, meta["uid"], "1", 1, "applied")\n'
+     "        owned = d13_ownership(observed_of(after, self.manifest(identity)), self.manager)\n",
+     scenario_foreign_field_during_apply),
+    ("uid_after_apply_quarantine", A, '            self.store.quarantine(identity, meta.get("uid"), "uid_changed")\n',
+     '            self.store.result(seq, identity, None, None, None, "failed")\n', scenario_uid_changed_after_apply),
+    ("uid_after_apply_check", A, '        if recorded is not None and meta.get("uid") != recorded:\n            self.store.quarantine',
+     '        if False:\n            self.store.quarantine', scenario_uid_changed_after_apply),
+    ("fake_ownership_check", A, '            if not status_only(seen, current["kind"]):\n                raise OwnershipRefused(str(managed.get("manager")))',
+     "            pass", scenario_foreign_manager_before_write),
+    ("fake_status_allowance", A, '            if not status_only(seen, current["kind"]):', "            if True:",
+     scenario_status_update_allowed),
     ("namespace_active", A, '            if obj is None or (obj.get("status") or {}).get("phase") != "Active":',
      "            if obj is None:", scenario_namespace_inactive),
     ("crd_conditions", A, '                if obj is not None and conditions_true(obj, ("Established", "NamesAccepted")):',
@@ -873,7 +1022,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 40)
+        self.assertEqual(len(MUTATIONS), 46)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)
