@@ -107,8 +107,10 @@ of Step 1 item 6c. It has four parts:
   - Behind it, tested directly: controller accepted and the TargetGroupBinding
     CRD Established; policy type checking without warnings (an absent report is
     NOT_VERIFIED, since no timeout is approved for it); bindings exactly `Deny`;
-    ownership and no drift; probes A, A' and B classified exactly (class and
-    reviewed message) against the fake.
+    ownership and no drift; probes A, A' and B classified against the fake. Each
+    answer must be the whole 403 policy denial naming exactly the expected
+    policy, one of its own bindings and one of its reviewed messages verbatim. A
+    missing answer stops (`not_run`) and is never ready.
   - Live probes (D20) are fixed NOT_VERIFIED, so the stage is never PASS.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN

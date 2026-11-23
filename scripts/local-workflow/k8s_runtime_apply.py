@@ -11,8 +11,10 @@ Apply-B4 (admission, Owner instruction 2026-11-23, Source/Offline only), design 
 - Behind it (tested directly): pre-apply needs the controller accepted and the TargetGroupBinding CRD
   Established; minimal completion needs each policy type-checked without warnings (no report is
   NOT_VERIFIED, no timeout being approved) and each binding exactly ``["Deny"]`` on its policy; final
-  acceptance inputs are ownership, no drift, and probes A, A' and B classified against the fake with
-  the exact policy and one of its reviewed messages. Live probes (D20) stay NOT_VERIFIED.
+  acceptance inputs are ownership, no drift, and probes A, A' and B classified against the fake: each
+  answer must be the whole text of a 403 policy denial naming exactly the expected policy, one of its
+  own bindings and one of its reviewed messages verbatim. A missing answer stops (``not_run``), so it
+  never counts as ready. Live probes (D20) stay NOT_VERIFIED.
 
 Apply-B3 (mesh_security, Owner instruction 2026-11-23, Source/Offline only), design section 4.1:
 - Pre-apply: istiod in-stage readiness in this run and the base validator serving resolved. The
@@ -767,6 +769,20 @@ def classify_admission(status, body):
     return "unknown"
 
 
+# The whole body of a ValidatingAdmissionPolicy denial, with an optional "<resource> "<name>" is forbidden: "
+# prefix. One line only; nothing before or after. Used where the policy, binding and message must be exact.
+VAP_DENIAL = re.compile(r'(?:[a-z0-9.\-]+ "[^"\n]*" is forbidden: )?ValidatingAdmissionPolicy \'([^\'\n]+)\' '
+                        r'with binding \'([^\'\n]+)\' denied request: ([^\n]+)')
+
+
+def parse_vap_denial(status, body):
+    """(policy, binding, message) of an exact 403 policy denial, or None."""
+    if status != 403 or not isinstance(body, str):
+        return None
+    match = VAP_DENIAL.fullmatch(body)
+    return match.groups() if match else None
+
+
 def probe_passes(expected_class, status, body):
     """A probe passes only on the exact expected class; a different denial is not a pass."""
     return classify_admission(status, body) == expected_class
@@ -1019,12 +1035,41 @@ class Engine:
         self.verify_owned_no_drift("admission")
         project = self.report["project"]
         for name, suffix in ADMISSION_PROBES:
-            policy = self.manifest({"apiVersion": "admissionregistration.k8s.io/v1",
-                                    "kind": "ValidatingAdmissionPolicy", "namespace": "", "name": project + suffix})
-            messages = {v.get("message") for v in policy["spec"].get("validations") or [] if v.get("message")}
-            self.fake_probe(name, {"vap_denied:" + project + suffix}, messages)
+            self.admission_probe(name, project + suffix)
         self.evidence["admission_in_stage_readiness"] = "MET"
         return "MET"
+
+    def admission_probe(self, name, policy_name):
+        """Section 11, against the fake only: the probe must be refused by exactly this policy, through its own
+        binding, with one of its reviewed messages, verbatim. A missing answer is not a pass."""
+        answer = self.adapter.probe(name)
+        if answer is None:
+            stop(3, "probe_" + name + ":not_run")
+        if not (isinstance(answer, tuple) and len(answer) == 2 and isinstance(answer[0], int)
+                and isinstance(answer[1], str)):
+            stop(3, "probe_" + name + ":unknown")
+        status, body = answer
+        denial = parse_vap_denial(status, body)
+        if denial is None:
+            if status == 403 and VAP_DENIED.search(body):
+                stop(4, "probe_" + name + ":denial_not_exact")  # a policy denial mixed with other text or lines
+            outcome = classify_admission(status, body)
+            stop(3 if outcome in ("webhook_unreachable", "unknown", "dry_run_unsupported") else 4,
+                 "probe_" + name + ":" + outcome)
+        policy, binding, message = denial
+        if policy != policy_name:
+            stop(4, "probe_" + name + ":vap_denied:" + policy)
+        bindings = {self.manifest(i)["metadata"]["name"] for i in self.members("admission")
+                    if i["kind"] == "ValidatingAdmissionPolicyBinding"
+                    and self.manifest(i)["spec"].get("policyName") == policy_name}
+        if binding not in bindings:
+            stop(4, "probe_" + name + ":wrong_binding")
+        manifest = self.manifest({"apiVersion": "admissionregistration.k8s.io/v1",
+                                  "kind": "ValidatingAdmissionPolicy", "namespace": "", "name": policy_name})
+        messages = {v.get("message") for v in manifest["spec"].get("validations") or [] if v.get("message")}
+        if message not in messages:
+            stop(4, "probe_" + name + ":message_mismatch")
+        self.evidence["fake_probe_" + name] = "CLASSIFIED_FAKE_ONLY"
 
     def mesh_readiness(self):
         """Final acceptance inputs of mesh_security: all five objects present, runtime-owned, with no diff."""
@@ -1417,7 +1462,7 @@ class Engine:
         self.fake_probe("F", {"webhook_denied:" + n for n in names})
         self.fake_probe("G", {"allowed"})
 
-    def fake_probe(self, name, expected, messages=None):
+    def fake_probe(self, name, expected):
         """D9 against the fake only. A wrong class stops; a fake pass never meets a Live requirement (D20)."""
         answer = self.adapter.probe(name)
         if answer is None:
@@ -1430,8 +1475,6 @@ class Engine:
                  "probe_" + name + ":" + outcome)
         if name == "G" and not self.injected(body):
             stop(4, "probe_G:injection_missing")
-        if messages is not None and not any(isinstance(body, str) and m in body for m in messages):
-            stop(4, "probe_" + name + ":message_mismatch")  # the right policy, but not its reviewed message
         self.evidence["fake_probe_" + name] = "CLASSIFIED_FAKE_ONLY"
 
     def injected(self, body):

@@ -1032,15 +1032,28 @@ design sections 4.1 and 11:
 | Minimal completion | Each policy reports type checking without warnings. No report is NOT_VERIFIED (no timeout is approved for it) | 4 `policy_type_warnings`; 3 `policy_type_check_not_verified` |
 | Minimal completion | Each binding is exactly `validationActions: ["Deny"]` on its own policy | 4 `binding_not_deny` |
 | Final acceptance input | All four objects present, D13 OWNED and without drift | `object_not_present`, `foreign_field`, `drift_detected:<kind>/<name>` |
-| Final acceptance input | Probes A (LoadBalancer Service), A' (Ingress) and B (TargetGroupBinding) classified against the fake: exactly `vap_denied:<policy>` and one of that policy's reviewed messages | `probe_<name>:<class>` (3 for unreachable or unknown, else 4); `probe_<name>:message_mismatch` |
+| Final acceptance input | Probes A (LoadBalancer Service), A' (Ingress) and B (TargetGroupBinding), classified against the fake | See below |
 
-A different denial is not a pass: `authz_denied`, a webhook denial or the other
-policy all stop. A fake pass is recorded as `CLASSIFIED_FAKE_ONLY`. The Live probes
-(D20) are a deferred item fixed at NOT_VERIFIED, so the stage is never PASS.
+Each probe answer must be the whole text of a 403 policy denial, one line,
+optionally after the API server's `<resource> "<name>" is forbidden: ` prefix:
+`ValidatingAdmissionPolicy '<policy>' with binding '<binding>' denied request: <message>`.
 
-**Tests.** `test_k8s_runtime_apply.py` has 55 tests and 145 source mutations
-(4 tests and 12 mutations for Apply-B4): the unreachable run, pre-apply, type
-checking, bindings, ownership, drift, and each probe misclassification.
+| Answer | Stop |
+| --- | --- |
+| Missing | 3 `probe_<name>:not_run` (never ready) |
+| Not a `(status, body)` pair of int and text | 3 `probe_<name>:unknown` |
+| A policy denial mixed with other text or lines | 4 `probe_<name>:denial_not_exact` |
+| Another policy | 4 `probe_<name>:vap_denied:<policy>` |
+| A binding that is not one of the expected policy's bindings | 4 `probe_<name>:wrong_binding` |
+| A message that is not one of that policy's reviewed messages, verbatim (no substring, suffix, truncation or case change) | 4 `probe_<name>:message_mismatch` |
+| Any other outcome (`authz_denied`, a webhook denial, `schema_invalid`, `allowed`, `webhook_unreachable`, `unknown`, `dry_run_unsupported`) | `probe_<name>:<class>` (3 for unreachable, unknown or dry-run, else 4) |
+
+A fake pass is recorded as `CLASSIFIED_FAKE_ONLY`. The Live probes (D20) are a
+deferred item fixed at NOT_VERIFIED, so the stage is never PASS.
+
+**Tests.** `test_k8s_runtime_apply.py` has 55 tests and 152 source mutations
+(4 tests and 19 mutations for Apply-B4): the unreachable run, pre-apply, type
+checking, bindings, ownership, drift, and each probe answer above.
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 

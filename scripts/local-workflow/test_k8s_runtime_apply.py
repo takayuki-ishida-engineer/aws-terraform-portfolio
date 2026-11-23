@@ -2064,29 +2064,65 @@ def scenario_admission_contract(case, mods):
 
 
 def scenario_admission_probes(case, mods):
-    """Section 11: a probe passes only on the exact policy class and one of its reviewed messages."""
-    cases = [("A", (403, 'User "operator" cannot create resource "services"'), (4, "probe_A:authz_denied")),
-             ("A", (201, "{}"), (4, "probe_A:allowed")),
-             ("A", (403, vap_denial("test-target-registration", TGB_ONLY)), (4, "probe_A:vap_denied:test-target-registration")),
-             ("A_prime", (500, 'failed calling webhook "x"'), (3, "probe_A_prime:webhook_unreachable")),
-             ("A_prime", (403, vap_denial("test-no-lb-service", "some other text")), (4, "probe_A_prime:message_mismatch")),
-             ("B", (403, 'User "operator" cannot create resource "targetgroupbindings"'), (4, "probe_B:authz_denied")),
-             ("B", (403, 'admission webhook "vtargetgroupbinding.elbv2.k8s.aws" denied the request'),
-              (4, "probe_B:webhook_denied:vtargetgroupbinding.elbv2.k8s.aws")),
-             ("B", (403, vap_denial("test-target-registration", NO_LB)), (4, "probe_B:message_mismatch")),
-             ("B", (403, "forbidden"), (3, "probe_B:unknown"))]
+    """Section 11: each probe must be the whole 403 denial of exactly the expected policy, through its own
+    binding, with one of its reviewed messages verbatim. Missing answers and every other outcome stop."""
+    forbidden = 'services "probe" is forbidden: '
+    cases = [
+        # Missing or malformed answers: never ready.
+        ("A", None, (3, "probe_A:not_run")),
+        ("A_prime", None, (3, "probe_A_prime:not_run")),
+        ("B", None, (3, "probe_B:not_run")),
+        ("B", [403, vap_denial("test-target-registration", TGB_ONLY)], (3, "probe_B:unknown")),
+        ("A", ("403", vap_denial("test-no-lb-service", NO_LB)), (3, "probe_A:unknown")),
+        ("B", (403, None), (3, "probe_B:unknown")),
+        # Wrong policy, wrong binding, altered messages.
+        ("A", (403, vap_denial("test-target-registration", TGB_ONLY)), (4, "probe_A:vap_denied:test-target-registration")),
+        ("B", (403, "ValidatingAdmissionPolicy 'test-target-registration' with binding 'test-no-lb-service' denied request: "
+               + TGB_ONLY), (4, "probe_B:wrong_binding")),
+        ("A_prime", (403, "ValidatingAdmissionPolicy 'test-no-lb-service' with binding 'other-binding' denied request: "
+                     + NO_LB), (4, "probe_A_prime:wrong_binding")),
+        ("A_prime", (403, vap_denial("test-no-lb-service", "some other text")), (4, "probe_A_prime:message_mismatch")),
+        ("B", (403, vap_denial("test-target-registration", NO_LB)), (4, "probe_B:message_mismatch")),
+        ("B", (403, vap_denial("test-target-registration", TGB_ONLY + " Also allowed.")), (4, "probe_B:message_mismatch")),
+        ("B", (403, vap_denial("test-target-registration", TGB_ONLY[:-1])), (4, "probe_B:message_mismatch")),
+        ("A", (403, vap_denial("test-no-lb-service", NO_LB.upper())), (4, "probe_A:message_mismatch")),
+        # Not the whole text of a denial: substrings and extra lines are refused.
+        ("A", (403, vap_denial("test-no-lb-service", NO_LB) + "\nadmission webhook \"x\" denied the request"),
+         (4, "probe_A:denial_not_exact")),
+        ("B", (403, "note: " + vap_denial("test-target-registration", TGB_ONLY)), (4, "probe_B:denial_not_exact")),
+        ("B", (403, vap_denial("test-target-registration", TGB_ONLY) + " "), (4, "probe_B:message_mismatch")),
+        ("A", (200, vap_denial("test-no-lb-service", NO_LB)), (4, "probe_A:allowed")),
+        # Other kinds of refusal or outcome.
+        ("A", (403, 'User "operator" cannot create resource "services"'), (4, "probe_A:authz_denied")),
+        ("A", (201, "{}"), (4, "probe_A:allowed")),
+        ("A_prime", (500, 'failed calling webhook "x"'), (3, "probe_A_prime:webhook_unreachable")),
+        ("B", (403, 'admission webhook "vtargetgroupbinding.elbv2.k8s.aws" denied the request'),
+         (4, "probe_B:webhook_denied:vtargetgroupbinding.elbv2.k8s.aws")),
+        ("B", (422, "Invalid value"), (4, "probe_B:schema_invalid")),
+        ("B", (403, "forbidden"), (3, "probe_B:unknown")),
+        ("A", (400, "admission webhook has side effects and does not support dry run"), (3, "probe_A:dry_run_unsupported")),
+    ]
     for name, answer, expected in cases:
         with run_for(mods) as r:
             engine = staged_admission(mods, r)
-            r.adapter.probes[name] = answer
-            case.assertEqual(stop_of(mods, engine.in_stage_readiness, "admission"), expected, name)
+            if answer is None:
+                r.adapter.probes.pop(name)
+            else:
+                r.adapter.probes[name] = answer
+            case.assertEqual(stop_of(mods, engine.in_stage_readiness, "admission"), expected, (name, answer))
+            case.assertNotIn("admission_in_stage_readiness", engine.evidence)
+    # The real API's "<resource> "<name>" is forbidden: " prefix is accepted with the exact rest.
     with run_for(mods) as r:
         engine = staged_admission(mods, r)
-        for name in ("A", "A_prime", "B"):
-            r.adapter.probes.pop(name)
+        r.adapter.probes["A"] = (403, forbidden + vap_denial("test-no-lb-service", NO_LB))
         case.assertIsNone(stop_of(mods, engine.in_stage_readiness, "admission"))
-        case.assertEqual([engine.evidence.get("fake_probe_" + n) for n in ("A", "A_prime", "B")], ["NOT_RUN"] * 3)
+        case.assertEqual(engine.evidence.get("admission_in_stage_readiness"), "MET")
         case.assertEqual(len(mods.apply.outstanding_deferred("admission", set(), engine.evidence)), 1)
+    parse = mods.apply.parse_vap_denial
+    case.assertEqual(parse(403, vap_denial("p", "m")), ("p", "p", "m"))
+    case.assertIsNone(parse(403, vap_denial("p", "m") + "\nx"))
+    case.assertIsNone(parse(401, vap_denial("p", "m")))
+    case.assertIsNone(parse(403, "x " + vap_denial("p", "m")))
 
 
 # ---- unit tests ----------------------------------------------------------------------------------------------------
@@ -2565,11 +2601,20 @@ MUTATIONS = [
     ("admission_readiness_call", A, '        if stage == "admission":\n            return self.admission_readiness()\n', "",
      scenario_admission_contract),
     ("admission_owned_no_drift", A, '        self.verify_owned_no_drift("admission")\n', "", scenario_admission_contract),
-    ("admission_probe_policy", A, '            self.fake_probe(name, {"vap_denied:" + project + suffix}, messages)',
-     '            self.fake_probe(name, {"vap_denied:" + project + "-no-lb-service", "vap_denied:" + project + "-target-registration"}, messages)',
+    ("admission_probe_missing", A, '            stop(3, "probe_" + name + ":not_run")', "            return", scenario_admission_probes),
+    ("admission_probe_shape", A, '            stop(3, "probe_" + name + ":unknown")\n        status, body = answer\n        denial',
+     '            pass\n        status, body = answer\n        denial', scenario_admission_probes),
+    ("admission_probe_policy", A, "        if policy != policy_name:", "        if False:", scenario_admission_probes),
+    ("admission_probe_binding", A, "        if binding not in bindings:", "        if False:", scenario_admission_probes),
+    ("admission_probe_message", A, "        if message not in messages:",
+     "        if not any(m in message for m in messages):", scenario_admission_probes),
+    ("admission_probe_message_any", A, "        if message not in messages:", "        if False:", scenario_admission_probes),
+    ("vap_denial_fullmatch", A, "    match = VAP_DENIAL.fullmatch(body)", "    match = VAP_DENIAL.search(body)",
      scenario_admission_probes),
-    ("admission_probe_message", A, "        if messages is not None and not any(isinstance(body, str) and m in body for m in messages):",
-     "        if False:", scenario_admission_probes),
+    ("vap_denial_status", A, "    if status != 403 or not isinstance(body, str):", "    if not isinstance(body, str):",
+     scenario_admission_probes),
+    ("admission_probe_not_exact", A, "            if status == 403 and VAP_DENIED.search(body):", "            if False:",
+     scenario_admission_probes),
     ("admission_live_fixed", A, '                      "live_probe_A": "NOT_VERIFIED", "live_probe_A_prime": "NOT_VERIFIED",',
      '                      "live_probe_A_prime": "NOT_VERIFIED",', scenario_admission_contract),
     ("receipt_ownership_hook", R, "    owns = ownership_fn or ownership", "    owns = ownership", scenario_status_manager_allowed),
@@ -2601,7 +2646,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 145)
+        self.assertEqual(len(MUTATIONS), 152)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)
