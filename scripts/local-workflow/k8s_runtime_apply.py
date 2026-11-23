@@ -23,9 +23,19 @@ evidence:
   runtime's Apply entry must own exactly the manifest's leaf paths (nested, never collapsed).
   - Only the structural status rule is treated as verified.
   - The istiod and controller manager names are unverified, so their entries
-    leave ownership NOT_VERIFIED, and only within their section 10 rows (istiod:
-    the caBundle and failurePolicy of the bundle's own webhooks; the controller:
-    TargetGroupBinding finalizers). Outside those rows they are ``FOREIGN_FIELD``.
+    leave ownership NOT_VERIFIED, and only within their section 10 rows
+    (``within_section10``). Outside those rows they are ``FOREIGN_FIELD``:
+    - istiod (``pilot-discovery``): Update, no subresource, on exactly the three Istio
+      webhook objects (kind and name, cluster-scoped), owning only the ``caBundle`` of a
+      fixed webhook present on the object, or its ``failurePolicy`` while the live value
+      is ``Fail``;
+    - the controller: Update, no subresource, on TargetGroupBinding ``<project>-gateway``
+      in ``<project>-ingress``, owning exactly the finalizer ``elbv2.k8s.aws/resources``.
+      Any other finalizer on a TargetGroupBinding is ``FOREIGN_FIELD``.
+  - Malformed evidence is ``OWNERSHIP_NOT_VERIFIED``: managedFields that is not a list of
+    well-formed entries, a fieldsV1 tree that is not mappings with prefixed keys, a
+    duplicate manager/operation/subresource entry, a malformed webhook list or
+    finalizer list.
   - Any unknown manager or field is ``FOREIGN_FIELD``.
   - Conflicts are never forced.
 
@@ -110,6 +120,10 @@ STATUS_KINDS = {"CustomResourceDefinition", "Deployment", "ValidatingAdmissionPo
 # Section 10 managers whose names are not confirmed on a real cluster: never treated as verified.
 UNVERIFIED_MANAGERS = ("pilot-discovery", "aws-load-balancer-controller")
 ISTIOD_MANAGER = "pilot-discovery"
+LBC_MANAGER = "aws-load-balancer-controller"
+LBC_FINALIZER = "elbv2.k8s.aws/resources"
+RUNTIME_SUFFIX = "-k8s-runtime"
+FIELD_PREFIXES = ("f:", "k:", "v:", "i:")
 WEBHOOK_KINDS = ("ValidatingWebhookConfiguration", "MutatingWebhookConfiguration")
 PRESENT_KINDS = {"ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding", "Service", "ConfigMap", "Deployment"}
 WORKLOAD_STAGES = ("controller", "istiod")
@@ -309,6 +323,7 @@ class FakeAdapter:
         self.endpoints = {}        # Service key -> EndpointSlice list that replaces the derived one
         self.istiod_patches_cabundle = True
         self.istio_ca_bundle = "ZmFrZS1pc3Rpb2QtY2E="
+        self.project = None        # learnt from the runtime field manager of the first write
         self.probes = {}           # probe name -> (status, body)
 
     def _wait(self, key):
@@ -333,13 +348,14 @@ class FakeAdapter:
 
     def _istiod_acts(self):
         """The fake istiod: once its Deployment is ready it writes the caBundle of every Istio webhook (D23)."""
-        if not self.istiod_patches_cabundle:
+        if not self.istiod_patches_cabundle or self.project is None:
             return
         if not any(o["kind"] == "Deployment" and o["metadata"]["name"].startswith("istiod") and self._ready(k, o)
                    for k, o in self.objects.items()):
             return
+        allowed = istio_webhooks(self.project)
         for obj in self.objects.values():
-            if obj["kind"] not in WEBHOOK_KINDS or obj["metadata"]["name"].startswith("aws-load-balancer-controller"):
+            if (obj["kind"], obj["metadata"]["name"]) not in allowed:
                 continue
             if all(w.get("clientConfig", {}).get("caBundle") for w in obj.get("webhooks", [])):
                 continue
@@ -461,6 +477,7 @@ class FakeAdapter:
         self._scope(key)
         if force:
             raise AdapterError("force_conflicts_refused")
+        self.project = project_of(field_manager) or self.project
         self.calls.append(("dry_run" if dry_run else "apply", key))
         if dry_run:
             return self.dry_run.get(key, (200, ""))
@@ -517,12 +534,29 @@ class FakeAdapter:
         return 200, ""
 
 
+def fields_tree_well_formed(tree):
+    """A fieldsV1 tree: mappings all the way down, every key ``.`` or prefixed ``f:``, ``k:``, ``v:`` or ``i:``."""
+    return isinstance(tree, dict) and all(
+        isinstance(key, str) and (key == "." or key.startswith(FIELD_PREFIXES)) and fields_tree_well_formed(value)
+        for key, value in tree.items())
+
+
 def managed_entry_well_formed(entry):
     """A managedFields entry this fake can read: a mapping with string manager, operation and subresource,
-    and a mapping fieldsV1. Anything else is malformed evidence."""
+    and a well-formed fieldsV1 tree. Anything else is malformed evidence."""
     return (isinstance(entry, dict) and isinstance(entry.get("manager"), str)
             and isinstance(entry.get("operation"), str) and isinstance(entry.get("subresource", ""), str)
-            and isinstance(entry.get("fieldsV1", {}), dict))
+            and fields_tree_well_formed(entry.get("fieldsV1", {})))
+
+
+def live_webhooks(obj):
+    """{webhook name: failurePolicy} of a webhook configuration, or None when the list is malformed."""
+    items = obj.get("webhooks")
+    items = [] if items is None else items
+    if not isinstance(items, list) or not all(isinstance(w, dict) and isinstance(w.get("name"), str) for w in items):
+        return None
+    names = [w["name"] for w in items]
+    return None if len(set(names)) != len(names) else {w["name"]: w.get("failurePolicy") for w in items}
 
 
 def observed_of(obj, manifest=None):
@@ -530,13 +564,23 @@ def observed_of(obj, manifest=None):
 
     Malformed managedFields evidence is flagged (``malformed``), never dropped silently; D13 fails it closed.
     """
-    entries = obj["metadata"].get("managedFields")
+    meta = obj["metadata"]
+    entries = meta.get("managedFields")
     entries = [] if entries is None else entries
     malformed = not isinstance(entries, list) or not all(managed_entry_well_formed(m) for m in entries)
     managers = [] if malformed else [
         {"manager": m["manager"], "operation": m["operation"], "subresource": m.get("subresource", ""),
          "paths": frozenset(paths_of(m.get("fieldsV1") or {}))} for m in entries]
-    return {"uid": obj["metadata"].get("uid"), "kind": obj["kind"], "managers": managers, "malformed": malformed,
+    # The API server keeps one entry per manager, operation and subresource; a duplicate is not evidence.
+    triples = [(m["manager"], m["operation"], m["subresource"]) for m in managers]
+    malformed = malformed or len(set(triples)) != len(triples)
+    webhooks = live_webhooks(obj) if obj["kind"] in WEBHOOK_KINDS else {}
+    finalizers = meta.get("finalizers")
+    finalizers = [] if finalizers is None else finalizers
+    if webhooks is None or not isinstance(finalizers, list) or not all(isinstance(f, str) for f in finalizers):
+        malformed, webhooks, finalizers = True, {}, []
+    return {"uid": meta.get("uid"), "kind": obj["kind"], "name": meta.get("name"), "namespace": meta.get("namespace", ""),
+            "webhooks": webhooks, "finalizers": list(finalizers), "managers": managers, "malformed": malformed,
             "required": required_paths(manifest) if manifest is not None else None}
 
 
@@ -547,18 +591,58 @@ def status_only(entry, kind):
             and bool(paths) and all(path and path[0] == "f:status" for path in paths))
 
 
-def within_section10(entry, observed):
-    """The section 10 row of an unverified manager: istiod may own only the caBundle (and failurePolicy) of
-    the object's own webhooks; the controller only TargetGroupBinding finalizers. Anything wider is foreign."""
+def project_of(runtime_manager):
+    if isinstance(runtime_manager, str) and runtime_manager.endswith(RUNTIME_SUFFIX) \
+            and len(runtime_manager) > len(RUNTIME_SUFFIX):
+        return runtime_manager[:-len(RUNTIME_SUFFIX)]
+    return None
+
+
+def istio_webhooks(project):
+    """C1/D23 and section 10: the three Istio webhook objects istiod may write, with their fixed webhook names."""
+    return {("ValidatingWebhookConfiguration", "istiod-default-validator"): {"validation.istio.io"},
+            ("ValidatingWebhookConfiguration", "istio-validator-" + project + "-v1-istio-system"):
+                {"rev.validation.istio.io"},
+            ("MutatingWebhookConfiguration", "istio-sidecar-injector-" + project + "-v1"):
+                {"rev.namespace.sidecar-injector.istio.io", "rev.object.sidecar-injector.istio.io"}}
+
+
+def webhook_key(name):
+    return 'k:{"name":' + json.dumps(name) + "}"
+
+
+def within_section10(entry, observed, project):
+    """The section 10 row of an unverified manager; anything outside its row is foreign.
+
+    - istiod: Update, no subresource, on one of the three Istio webhook objects (exact kind and name,
+      cluster-scoped), owning only ``f:webhooks[name=<fixed>].f:clientConfig.f:caBundle`` of a fixed webhook
+      present on the object, or its ``f:failurePolicy`` while the live value is ``Fail``.
+    - the controller: Update, no subresource, on TargetGroupBinding ``<project>-gateway`` in
+      ``<project>-ingress``, owning exactly the finalizer ``elbv2.k8s.aws/resources``.
+    """
     paths = entry.get("paths") or frozenset()
-    if not paths or entry.get("operation") != "Update" or entry.get("subresource"):
+    if not paths or entry.get("operation") != "Update" or entry.get("subresource") or project is None:
         return False
     if entry.get("manager") == ISTIOD_MANAGER:
-        names = {p[1] for p in observed.get("required") or () if len(p) > 1 and p[0] == "f:webhooks"}
-        return observed.get("kind") in WEBHOOK_KINDS and all(
-            len(p) >= 3 and p[0] == "f:webhooks" and p[1] in names
-            and p[2:] in (("f:clientConfig", "f:caBundle"), ("f:failurePolicy",)) for p in paths)
-    return observed.get("kind") == "TargetGroupBinding" and all(p[:2] == ("f:metadata", "f:finalizers") for p in paths)
+        fixed = istio_webhooks(project).get((observed.get("kind"), observed.get("name")))
+        if fixed is None or observed.get("namespace"):
+            return False
+        live = observed.get("webhooks") or {}
+        keys = {webhook_key(name): name for name in fixed if name in live}
+        for path in paths:
+            if len(path) < 3 or path[0] != "f:webhooks" or path[1] not in keys:
+                return False
+            if path[2:] == ("f:clientConfig", "f:caBundle"):
+                continue
+            if path[2:] == ("f:failurePolicy",) and live[keys[path[1]]] == "Fail":
+                continue
+            return False
+        return True
+    if entry.get("manager") == LBC_MANAGER:
+        return (observed.get("kind") == "TargetGroupBinding" and observed.get("name") == project + "-gateway"
+                and observed.get("namespace") == project + "-ingress"
+                and set(paths) == {("f:metadata", "f:finalizers", "v:" + json.dumps(LBC_FINALIZER))})
+    return False
 
 
 def d13_ownership(observed, runtime_manager):
@@ -571,6 +655,7 @@ def d13_ownership(observed, runtime_manager):
     """
     if observed.get("malformed"):
         return "OWNERSHIP_NOT_VERIFIED"
+    project = project_of(runtime_manager)
     managers = observed.get("managers") or []
     runtime = [m for m in managers if m.get("manager") == runtime_manager and m.get("operation") == "Apply"
                and not m.get("subresource")]
@@ -580,9 +665,12 @@ def d13_ownership(observed, runtime_manager):
     for entry in managers:
         if entry in runtime or status_only(entry, observed.get("kind")):
             continue
-        if entry.get("manager") in UNVERIFIED_MANAGERS and within_section10(entry, observed):
+        if entry.get("manager") in UNVERIFIED_MANAGERS and within_section10(entry, observed, project):
             verdict = "OWNERSHIP_NOT_VERIFIED"
             continue
+        return "FOREIGN_FIELD"
+    # Section 10: any finalizer other than the controller's on a TargetGroupBinding stops.
+    if observed.get("kind") == "TargetGroupBinding" and set(observed.get("finalizers") or ()) - {LBC_FINALIZER}:
         return "FOREIGN_FIELD"
     required = observed.get("required")
     owned = set().union(*(set(m.get("paths") or ()) for m in runtime))
@@ -998,7 +1086,7 @@ class Engine:
             stop(2, "kind_not_in_approved_stages")
 
     def runtime_claims_istio_cabundle(self, obj, manifest):
-        if identity_of(obj)["name"].startswith("aws-load-balancer-controller"):
+        if (obj["kind"], identity_of(obj)["name"]) not in istio_webhooks(self.report["project"]):
             return False
         observed = observed_of(obj, manifest)
         return observed["malformed"] or any(cabundle_paths(m) for m in observed["managers"]
@@ -1020,6 +1108,7 @@ class Engine:
         if stage == "controller":
             self.check_controller_webhooks(stage)
         else:
+            self.check_istio_webhooks()
             self.istiod_evidence()
             self.run_probes()
         return "MET"
@@ -1047,6 +1136,24 @@ class Engine:
                 for obj in self.istio_webhooks() for w in obj.get("webhooks") or []):
             return "cabundle_not_populated"
         return None
+
+    def check_istio_webhooks(self):
+        """After istiod writes the caBundle: every Istio webhook keeps failurePolicy Fail, and its ownership
+        is at worst NOT_VERIFIED (istiod's unconfirmed name), never foreign or lost."""
+        for stage in ("base", "istiod"):
+            for identity in self.members(stage):
+                if identity["kind"] not in WEBHOOK_KINDS:
+                    continue
+                obj = self.read(identity)
+                if obj is None:
+                    stop(3, "object_not_present")
+                if any(w.get("failurePolicy") != "Fail" for w in obj.get("webhooks") or []) or not obj.get("webhooks"):
+                    stop(4, "istio_failure_policy_not_fail")
+                verdict = d13_ownership(observed_of(obj, self.manifest(identity)), self.manager)
+                if verdict == "FOREIGN_FIELD":
+                    stop(4, "foreign_field")
+                if verdict == "NOT_OWNED":
+                    stop(4, "foreign_owner")
 
     def endpoints_ready(self, stage, identity):
         try:
@@ -1102,21 +1209,21 @@ class Engine:
     def istiod_evidence(self):
         """Evidence for the base validator's deferred serving item; it can never be fully MET here."""
         validators = [i for i in self.members("base") if i["kind"] in WEBHOOK_KINDS]
-        populated, owners = True, set()
+        populated, owners, in_row = True, set(), True
         for identity in validators:
             obj = self.read(identity)
             populated = populated and obj is not None and all(
                 w.get("clientConfig", {}).get("caBundle") for w in obj.get("webhooks") or [])
             observed = observed_of(obj, self.manifest(identity)) if obj is not None else {"managers": [],
                                                                                          "malformed": True}
-            if observed["malformed"]:
-                owners.add(None)
+            in_row = in_row and d13_ownership(observed, self.manager) == "OWNERSHIP_NOT_VERIFIED"
             owners |= {(m["manager"], m["operation"]) for m in observed["managers"] if cabundle_paths(m)}
         self.evidence["base_validator_cabundle_populated"] = "MET" if populated else "NOT_MET"
         self.evidence["istiod_endpoints_ready"] = "MET"
-        # The allowed Istio manager's name is NOT_VERIFIED (D13), so its ownership is at best NOT_VERIFIED.
+        # Only istiod, inside its section 10 row, may own the caBundle; its name is NOT_VERIFIED (D13), so the
+        # best this can be is NOT_VERIFIED.
         self.evidence["istio_cabundle_manager_verified"] = (
-            "NOT_VERIFIED" if owners == {(ISTIOD_MANAGER, "Update")} else "NOT_MET")
+            "NOT_VERIFIED" if in_row and owners == {(ISTIOD_MANAGER, "Update")} else "NOT_MET")
 
     def proxy_image(self):
         entry = next((e for e in self.lock.get("images") or [] if e["purpose"] == "istio-proxy"), None)

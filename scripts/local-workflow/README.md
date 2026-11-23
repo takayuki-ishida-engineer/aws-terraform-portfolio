@@ -862,11 +862,26 @@ unparseable `imageID` or another node architecture give 3
 `digest_not_verified`; any other digest gives 4 `digest_mismatch`.
 
 **Ownership.** The controller webhooks must stay OWNED by the runtime with the
-bundle value (`controller_webhook_cabundle_not_runtime_owned`). D13 now enforces
-the section 10 rows by path: istiod (`pilot-discovery`) only the `caBundle` and
-`failurePolicy` of the object's own webhooks, the controller only
-TargetGroupBinding finalizers; anything wider is `FOREIGN_FIELD`. Their names stay
-NOT_VERIFIED, so:
+bundle value (`controller_webhook_cabundle_not_runtime_owned`). D13 enforces the
+design section 10 rows element by element. Inside a row the result is
+`OWNERSHIP_NOT_VERIFIED` (the manager name is unconfirmed); anything outside is
+`FOREIGN_FIELD`:
+
+| Row | Manager, operation | Object | Fields and values |
+| --- | --- | --- | --- |
+| Status | Any manager, Update, `subresource: status` | CRD, Deployment, ValidatingAdmissionPolicy, TargetGroupBinding | `f:status` only (verified) |
+| istiod | `pilot-discovery`, Update, no subresource | Exactly `ValidatingWebhookConfiguration/istiod-default-validator`, `ValidatingWebhookConfiguration/istio-validator-<project>-v1-istio-system`, `MutatingWebhookConfiguration/istio-sidecar-injector-<project>-v1` (cluster-scoped) | `f:webhooks[name=<fixed>].f:clientConfig.f:caBundle` of a fixed webhook on the live object (`validation.istio.io`; `rev.validation.istio.io`; `rev.namespace.sidecar-injector.istio.io`, `rev.object.sidecar-injector.istio.io`), or its `f:failurePolicy` while the live value is `Fail` |
+| Controller | `aws-load-balancer-controller`, Update, no subresource | `TargetGroupBinding/<project>-gateway` in `<project>-ingress` | Exactly the finalizer `elbv2.k8s.aws/resources`; any other finalizer on a TargetGroupBinding is foreign |
+
+Malformed evidence gives `OWNERSHIP_NOT_VERIFIED`, never ownership: managedFields
+that is not a list of well-formed entries, a fieldsV1 tree that is not mappings
+with `f:`/`k:`/`v:`/`i:` keys, a duplicate manager/operation/subresource entry, or
+a malformed webhook or finalizer list.
+
+After istiod has written the `caBundle`, the istiod stage re-checks the three
+Istio webhooks: `failurePolicy` must still be `Fail`
+(`istio_failure_policy_not_fail`), and their ownership must not be foreign or lost
+(`foreign_field`, `foreign_owner`). The names stay NOT_VERIFIED, so:
 - after istiod has filled the Istio webhook `caBundle`, every rerun stops before
   any write (`ownership_not_verified`) and nothing is adopted;
 - istiod filling a `caBundle` before the engine's readback is quarantined
@@ -894,8 +909,8 @@ through `controller` or `istiod` ends in exit 6 `APPLIED_WITH_DEFERRED`:
 The report's `evidence` lists what the fake observed (digests, `caBundle`,
 endpoints, fake probe classes).
 
-**Tests.** `test_k8s_runtime_apply.py` now has 42 tests and 90 source mutations
-(11 tests and 38 mutations for Apply-B1). They cover:
+**Tests.** `test_k8s_runtime_apply.py` now has 45 tests and 109 source mutations
+(14 tests and 57 mutations for Apply-B1). They cover:
 - a run through istiod and through controller, a rerun, and the rerun stop after
   istiod;
 - each pre-apply check (Secret absent, full or leaking, unregistered; no, foreign
@@ -904,7 +919,11 @@ endpoints, fake probe classes).
 - each readiness failure and the 600 s bound, and istiod never starting while the
   controller is not ready;
 - the digest classes;
-- the IRSA annotation, the controller webhook ownership and the section 10 rows;
+- the IRSA annotation and the controller webhook ownership;
+- every element of the section 10 rows (kind, object name, scope, project, webhook
+  name, manager, operation, subresource, path, `failurePolicy` value, the
+  TargetGroupBinding name, namespace and finalizer) with malformed evidence, races
+  at write time and after the write, the istiod-stage re-check and reruns;
 - each probe misclassification and missing injection;
 - the fake read scope (Pods, EndpointSlices and Secret metadata).
 

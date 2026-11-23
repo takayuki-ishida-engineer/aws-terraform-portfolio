@@ -58,9 +58,13 @@ of Step 1 item 6c. It has four parts:
   - In-stage readiness shares the D11 Deployment bound (600 s); the istiod
     `caBundle` wait introduces no new timeout.
   - Section 9 digest classification; only `MATCH_PLATFORM` passes.
-  - Section 10 rows are enforced by path: istiod only the `caBundle` and
-    `failurePolicy` of the object's own webhooks, the controller only
-    TargetGroupBinding finalizers. Their names stay NOT_VERIFIED, so a rerun
+  - Section 10 rows are enforced element by element (kind, object name and
+    scope, fixed webhook name present on the object, manager, operation,
+    subresource, path, the `failurePolicy` value `Fail`, the TargetGroupBinding
+    `<project>-gateway` in `<project>-ingress` and its single finalizer).
+    Outside a row is `FOREIGN_FIELD`; malformed evidence is
+    `OWNERSHIP_NOT_VERIFIED`. The istiod stage re-checks the three Istio
+    webhooks after the `caBundle` is written. Their names stay NOT_VERIFIED, so a rerun
     after istiod has filled a `caBundle` stops (`ownership_not_verified`), and
     istiod filling one before the engine's readback is quarantined. This is the
     accepted D13 risk ("false stops until Live names are confirmed").
