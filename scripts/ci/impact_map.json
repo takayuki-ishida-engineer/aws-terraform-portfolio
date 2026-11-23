@@ -79,99 +79,290 @@
     ]
   },
   "companions": {
-    "dev": ["storage_after_first_init"]
+    "dev": [
+      "storage_after_first_init"
+    ]
   },
   "prerequisites": {
-    "storage_after_first_init": ["dev"],
-    "root_integration": ["dev"],
-    "reference": ["iam", "account_policies"],
-    "lambda_workload": ["reference"],
-    "toolkit": ["iam", "account_policies"],
-    "rest_core": ["api"],
-    "kubernetes_runtime_plan": ["kubernetes_runtime"],
-    "committed_values": ["dev", "network", "platform", "api", "tfstate", "registry", "developer_access"]
+    "storage_after_first_init": [
+      "dev"
+    ],
+    "root_integration": [
+      "dev"
+    ],
+    "reference": [
+      "iam",
+      "account_policies"
+    ],
+    "lambda_workload": [
+      "reference"
+    ],
+    "toolkit": [
+      "iam",
+      "account_policies"
+    ],
+    "rest_core": [
+      "api"
+    ],
+    "kubernetes_runtime_plan": [
+      "kubernetes_runtime"
+    ],
+    "committed_values": [
+      "dev",
+      "network",
+      "platform",
+      "api",
+      "tfstate",
+      "registry",
+      "developer_access"
+    ]
   },
   "configurations": {
-    "infra/services/dev/ca-central-1/serverless-api": ["dev", "root_integration", "committed_values"],
-    "infra/services/dev/ca-central-1/network": ["network", "committed_values"],
-    "infra/services/dev/ca-central-1/platform": ["platform", "committed_values"],
-    "infra/services/dev/ca-central-1/api": ["api", "rest_core", "committed_values"],
-    "infra/services/dev/ca-central-1/tfstate": ["tfstate", "committed_values"],
-    "infra/services/dev/ca-central-1/registry": ["registry", "committed_values"],
-    "infra/services/dev/ca-central-1/developer-access": ["developer_access", "committed_values"],
-    "infra/modules/eks_platform": ["eks_platform"],
-    "infra/modules/private_ingress": ["private_ingress"],
-    "infra/modules/vpc": ["vpc"],
-    "infra/modules/secrets_manager": ["secrets"],
-    "infra/modules/iam_account_policies": ["account_policies", "reference", "toolkit"],
-    "infra/modules/iam_access": ["iam", "reference", "self_tests", "toolkit"],
-    "infra/modules/cloudwatch_logs": ["cloudwatch_logs"],
-    "infra/modules/lambda_workload": ["lambda_workload"],
-    "infra/modules/s3_artifact_bucket": ["artifact_bucket"],
-    "infra/modules/api_gateway_http": ["http_api", "r1_r2_guards"],
-    "infra/modules/cognito_auth": ["cognito"],
-    "infra/modules/api_gateway_rest": ["rest_core"],
-    "infra/modules/tfstate_bucket": ["tfstate"],
-    "infra/modules/ecr_repository": ["registry"],
-    "infra/modules/developer_access": ["developer_access"]
+    "infra/services/dev/ca-central-1/serverless-api": [
+      "dev",
+      "root_integration",
+      "committed_values"
+    ],
+    "infra/services/dev/ca-central-1/network": [
+      "network",
+      "committed_values"
+    ],
+    "infra/services/dev/ca-central-1/platform": [
+      "platform",
+      "committed_values"
+    ],
+    "infra/services/dev/ca-central-1/api": [
+      "api",
+      "rest_core",
+      "committed_values"
+    ],
+    "infra/services/dev/ca-central-1/tfstate": [
+      "tfstate",
+      "committed_values"
+    ],
+    "infra/services/dev/ca-central-1/registry": [
+      "registry",
+      "committed_values"
+    ],
+    "infra/services/dev/ca-central-1/developer-access": [
+      "developer_access",
+      "committed_values"
+    ],
+    "infra/modules/eks_platform": [
+      "eks_platform"
+    ],
+    "infra/modules/private_ingress": [
+      "private_ingress"
+    ],
+    "infra/modules/vpc": [
+      "vpc"
+    ],
+    "infra/modules/secrets_manager": [
+      "secrets"
+    ],
+    "infra/modules/iam_account_policies": [
+      "account_policies",
+      "reference",
+      "toolkit"
+    ],
+    "infra/modules/iam_access": [
+      "iam",
+      "reference",
+      "self_tests",
+      "toolkit"
+    ],
+    "infra/modules/cloudwatch_logs": [
+      "cloudwatch_logs"
+    ],
+    "infra/modules/lambda_workload": [
+      "lambda_workload"
+    ],
+    "infra/modules/s3_artifact_bucket": [
+      "artifact_bucket"
+    ],
+    "infra/modules/api_gateway_http": [
+      "http_api",
+      "r1_r2_guards"
+    ],
+    "infra/modules/cognito_auth": [
+      "cognito"
+    ],
+    "infra/modules/api_gateway_rest": [
+      "rest_core"
+    ],
+    "infra/modules/tfstate_bucket": [
+      "tfstate"
+    ],
+    "infra/modules/ecr_repository": [
+      "registry"
+    ],
+    "infra/modules/developer_access": [
+      "developer_access"
+    ]
   },
   "rules": [
     {
       "id": "kubernetes-runtime",
-      "paths": ["kubernetes/**"],
-      "exclude": ["**/*.md"],
-      "steps": ["kubernetes_runtime", "kubernetes_runtime_plan"],
+      "paths": [
+        "kubernetes/**"
+      ],
+      "exclude": [
+        "**/*.md"
+      ],
+      "steps": [
+        "kubernetes_runtime",
+        "kubernetes_runtime_plan"
+      ],
       "reason": "Pinned charts, manifests, image and dependency locks and tools are rendered and validated by the runtime checks and the offline plan."
     },
     {
       "id": "ci-tooling",
-      "paths": ["scripts/ci/**", ".github/workflows/terraform-offline-ci.yml", ".github/workflows/pr-safety-ci.yml"],
+      "paths": [
+        "scripts/ci/**",
+        ".github/workflows/terraform-offline-ci.yml",
+        ".github/workflows/pr-safety-ci.yml"
+      ],
       "steps": [],
       "reason": "Covered by the always-on ci_policy step (CI tooling tests, generated-workflow drift, workflow safety, secret scan, real-operation guards); changed Full CI step definitions are selected separately. High-risk: Full CI runs on the pull request."
     },
     {
       "id": "emulator-workflows",
-      "paths": [".github/workflows/aws-emulator-*.yml"],
-      "steps": ["emulator_contracts_unit", "emulator_contracts_rehearsal"],
+      "paths": [
+        ".github/workflows/aws-emulator-*.yml"
+      ],
+      "steps": [
+        "emulator_contracts_unit",
+        "emulator_contracts_rehearsal"
+      ],
       "reason": "The offline emulator contracts check the emulator workflow definitions; the always-on workflow safety lint checks every workflow."
     },
     {
       "id": "emulator-tooling",
-      "paths": ["scripts/emulator-verification/**", "scripts/emulator-rehearsal/**", "scripts/emulator-evidence/**", "docs/evidence/**"],
-      "steps": ["emulator_contracts_unit", "emulator_contracts_rehearsal", "emulator_contracts_ledger_tests", "emulator_contracts_ledger_check"],
+      "paths": [
+        "scripts/emulator-verification/**",
+        "scripts/emulator-rehearsal/**",
+        "scripts/emulator-evidence/**",
+        "docs/evidence/**"
+      ],
+      "steps": [
+        "emulator_contracts_unit",
+        "emulator_contracts_rehearsal",
+        "emulator_contracts_ledger_tests",
+        "emulator_contracts_ledger_check"
+      ],
       "reason": "Offline emulator contracts and the evidence ledger (never starts the emulator)."
     },
     {
       "id": "repository-hygiene",
-      "paths": ["scripts/repository-hygiene/**"],
+      "paths": [
+        "scripts/repository-hygiene/**"
+      ],
       "steps": [],
       "reason": "Covered by the always-on hygiene step (self-test and tracked-file check)."
     },
     {
       "id": "gitignore",
-      "paths": [".gitignore"],
-      "steps": ["committed_values"],
+      "paths": [
+        ".gitignore"
+      ],
+      "steps": [
+        "committed_values"
+      ],
       "reason": "The committed-values step checks ignored local files with git status --ignored; the always-on hygiene step checks tracked files."
     },
     {
       "id": "terraform-testing",
-      "paths": ["scripts/terraform-testing/**"],
-      "steps": ["root_integration", "network", "platform", "tfstate", "registry", "developer_access"],
+      "paths": [
+        "scripts/terraform-testing/**"
+      ],
+      "steps": [
+        "root_integration",
+        "network",
+        "platform",
+        "tfstate",
+        "registry",
+        "developer_access"
+      ],
       "reason": "The isolated-root helper is imported by the DEV root required-input checkers."
     },
     {
       "id": "documentation",
-      "paths": ["**/*.md", ".gitattributes", ".editorconfig", "**/.gitkeep"],
+      "paths": [
+        "**/*.md",
+        ".gitattributes",
+        ".editorconfig",
+        "**/.gitkeep"
+      ],
       "steps": [],
       "reason": "Documentation and editor settings: always-on checks only, unless a test reads the file (then its step is selected through step inputs)."
     }
   ],
   "high_risk": {
-    "ci": [".github/**", "scripts/ci/**"],
-    "credential-prevention": ["scripts/repository-hygiene/**", ".gitignore"],
-    "iam": ["infra/modules/iam_access/**", "infra/modules/iam_account_policies/**", "infra/**/iam.tf", "infra/**/policies.tf", "scripts/aws-policy-validation/**"],
-    "rbac-and-kubernetes-supply-chain": ["kubernetes/**", "infra/**/access.tf"],
-    "security-boundary": ["infra/**/security.tf", "scripts/local-workflow/preflight.py"],
-    "provider-state-backend-account": ["infra/**/providers.tf", "infra/**/versions.tf", "infra/**/backend.tf", "infra/**/.terraform.lock.hcl", "infra/**/*.example"]
+    "ci": [
+      ".github/**",
+      "scripts/ci/**"
+    ],
+    "credential-prevention": [
+      "scripts/repository-hygiene/**",
+      ".gitignore"
+    ],
+    "iam": [
+      "infra/modules/iam_access/**",
+      "infra/modules/iam_account_policies/**",
+      "infra/**/iam.tf",
+      "infra/**/policies.tf",
+      "scripts/aws-policy-validation/**"
+    ],
+    "rbac-and-kubernetes-supply-chain": [
+      "kubernetes/**",
+      "infra/**/access.tf"
+    ],
+    "security-boundary": [
+      "infra/**/security.tf",
+      "scripts/local-workflow/preflight.py"
+    ],
+    "provider-state-backend-account": [
+      "infra/**/providers.tf",
+      "infra/**/versions.tf",
+      "infra/**/backend.tf",
+      "infra/**/.terraform.lock.hcl",
+      "infra/**/*.example"
+    ],
+    "terraform-security-boundary": [
+      "infra/modules/api_gateway_http/main.tf",
+      "infra/modules/api_gateway_rest/main.tf",
+      "infra/modules/cognito_auth/main.tf",
+      "infra/modules/developer_access/main.tf",
+      "infra/modules/ecr_repository/main.tf",
+      "infra/modules/eks_platform/cluster.tf",
+      "infra/modules/private_ingress/main.tf",
+      "infra/modules/s3_artifact_bucket/main.tf",
+      "infra/modules/secrets_manager/main.tf",
+      "infra/modules/tfstate_bucket/main.tf",
+      "infra/modules/vpc/endpoints.tf",
+      "infra/modules/vpc/main.tf",
+      "infra/modules/vpc/routing.tf",
+      "infra/services/dev/ca-central-1/developer-access/main.tf"
+    ]
+  },
+  "high_risk_content": {
+    "comment": "Content-based high-risk detection. Terraform files that declare a resource or data source of terraform_security_types (or a provider or backend block) are listed in high_risk.terraform-security-boundary, so the Full CI path filter starts Full CI for them; impact.py check keeps that list equal to the computed set. Changed lines matching the diff keywords in the scoped files are high-risk too, but the path filter cannot see them: PR Safety CI reports REQUIRED - OWNER DISPATCH NEEDED.",
+    "terraform_security_types": "aws_iam_[a-z0-9_]+|aws_ssoadmin_[a-z0-9_]+|aws_organizations_[a-z0-9_]+|aws_security_group[a-z0-9_]*|aws_vpc_security_group_[a-z0-9_]+|aws_vpc|aws_subnet|aws_route[a-z0-9_]*|aws_nat_gateway|aws_internet_gateway|aws_egress_only_internet_gateway|aws_vpc_endpoint[a-z0-9_]*|aws_network_acl[a-z0-9_]*|aws_eip|aws_lb[a-z0-9_]*|aws_s3_bucket_policy|aws_s3_bucket_public_access_block|aws_s3_bucket_server_side_encryption_configuration|aws_s3_bucket_versioning|aws_s3_bucket_ownership_controls|aws_s3_account_public_access_block|aws_kms_[a-z0-9_]+|aws_secretsmanager_[a-z0-9_]+|aws_eks_access_[a-z0-9_]+|aws_eks_cluster|aws_eks_pod_identity_association|aws_lambda_permission|aws_api_gateway_authorizer|aws_apigatewayv2_authorizer|aws_cognito_user_pool[a-z0-9_]*|aws_ecr_[a-z0-9_]+|aws_cloudwatch_log_resource_policy|aws_ssm_[a-z0-9_]+",
+    "terraform_diff_scope": [
+      "infra/**/*.tf",
+      "infra/**/*.tf.json",
+      "infra/**/*.tfvars"
+    ],
+    "terraform_diff_exclude": [
+      "infra/**/tests/**"
+    ],
+    "terraform_diff_keywords": "0\\.0\\.0\\.0/0|::/0|(?<![A-Za-z0-9])(cidr\\w*|principals?|assume_role\\w*|policy\\w*|policies|kms\\w*|public\\w*|encrypt\\w*|allowed_account_ids|security_groups?\\w*|ingress|egress|from_port|to_port|protocol|actions?|not_actions?|effect|condition|endpoint_(?:public|private)_access\\w*|authori[sz]\\w*|iam\\w*|tls\\w*|ssl\\w*|https?|permissions?\\w*|trust\\w*|sts|secrets?\\w*|password\\w*|force_destroy|prevent_destroy|deletion_protection\\w*|recovery_window\\w*|versioning|block_public\\w*|restrict_public\\w*|ignore_public\\w*)(?![A-Za-z0-9])",
+    "guard_diff_scope": [
+      "scripts/local-workflow/*.py"
+    ],
+    "guard_diff_exclude": [
+      "scripts/local-workflow/test_*.py"
+    ],
+    "guard_diff_keywords": "automation_refusal|live_refused|CI_MARKERS|CLOUD_SESSION_MARKERS|operation_not_approved|check_operation|refuse_operation|GateError|APPROVED_OPERATIONS|subprocess|Popen|os\\.system|os\\.exec|os\\.spawn|\\bsocket\\b|urllib|http\\.client|\\brequests\\b|[\\\"'](?:kubectl|aws|skopeo|terraform|helm|openssl|session-manager-plugin)[\\\"']|--execute"
   }
 }

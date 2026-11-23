@@ -25,6 +25,7 @@ required. Nothing here calls AWS, Kubernetes or any network service.
 import argparse
 import ast
 import collections
+import difflib
 import functools
 import json
 import os
@@ -39,6 +40,9 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "kubernetes/vendor/pyyaml"))
 import yaml  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import expected_counts  # noqa: E402
+
 MAP_FILE = "scripts/ci/impact_map.json"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 LITERAL = re.compile(r"[A-Za-z0-9_.@+/-]+")
@@ -48,6 +52,8 @@ PROVIDER_SOURCE = re.compile(r"^(?:[a-z0-9-]+(?:\.[a-z0-9-]+)+/)?[a-z0-9-]+/[a-z
 STEP_IMPORT = re.compile(r"^\s*(?:import\s+([A-Za-z_][\w, ]*)|from\s+([A-Za-z_]\w*)\s+import\b)", re.M)
 WORKSPACE = ("$GITHUB_WORKSPACE/", "${GITHUB_WORKSPACE}/")
 PR_SAFETY_OWN_STEPS = ("checkout", "impact", "changed_files")
+COUNTS_FILE = expected_counts.COUNTS_FILE
+LOAD_CALL = re.compile(r"""\bload\(["']([a-z0-9_]+)["']\)""")
 
 
 class ImpactError(Exception):
@@ -419,6 +425,21 @@ def changed_step_definitions(head_steps, base_tree, mapping, selectable):
     return changed, []
 
 
+def changed_lines(base_tree, head_tree, path):
+    """Added and removed lines of one file, or None when they cannot be read (treated as risky)."""
+    texts = []
+    for tree in (base_tree, head_tree):
+        if tree is None or path not in tree.fileset:
+            texts.append("")
+            continue
+        try:
+            texts.append(tree.read(path))
+        except ImpactError:
+            return None
+    return [line[1:] for line in difflib.unified_diff(texts[0].splitlines(), texts[1].splitlines(), lineterm="", n=0)
+            if line[:1] in "+-" and not line.startswith(("+++", "---"))]
+
+
 class Analysis:
     def __init__(self, head_tree, base_tree=None):
         self.head, self.base = head_tree, base_tree
@@ -431,6 +452,9 @@ class Analysis:
             index = PythonIndex(tree)
             for step_id in self.selectable:
                 self.inputs.setdefault(step_id, set()).update(step_inputs(tree, index, self.steps.by_id[step_id]))
+        for inputs in self.inputs.values():
+            # The counts file is mapped per changed suite (select), never as a whole-file input.
+            inputs.discard(COUNTS_FILE)
 
     def check_map(self):
         mapping, steps = self.mapping, self.mapping["steps"]
@@ -452,6 +476,32 @@ class Analysis:
         for rule in mapping["rules"]:
             require(set(rule) <= {"id", "paths", "exclude", "steps", "reason"} and rule["paths"] and rule["reason"], "rule_shape:" + str(rule.get("id")))
         require(isinstance(mapping["max_changed_files"], int) and 0 < mapping["max_changed_files"] <= 300, "max_changed_files")
+        # Expected counts: every schema suite is loaded by a step, and every loaded suite exists.
+        self.suite_steps = collections.defaultdict(set)
+        for step_id in self.steps.order:
+            for suite in LOAD_CALL.findall(self.steps.by_id[step_id]["run"]):
+                self.suite_steps[suite].add(step_id)
+        require(set(self.suite_steps) == set(expected_counts.SCHEMA), "expected_count_suites_differ_from_steps:"
+                + ",".join(sorted(set(self.suite_steps) ^ set(expected_counts.SCHEMA))))
+        require(COUNTS_FILE in self.head.fileset, "counts_file_missing")
+        try:
+            expected_counts.parse(self.head.read(COUNTS_FILE))
+        except expected_counts.CountsError as error:
+            raise ImpactError("expected_counts_invalid:" + str(error)) from error
+        # Terraform files that declare a security-boundary resource are listed (Full CI path filter).
+        content = mapping["high_risk_content"]
+        for key in ("terraform_security_types", "terraform_diff_keywords", "guard_diff_keywords"):
+            try:
+                re.compile(content[key])
+            except (re.error, TypeError, KeyError) as error:
+                raise ImpactError("high_risk_content_regex_invalid:" + key) from error
+        types = re.compile(r'^\s*(?:resource|data)\s+"(?:' + content["terraform_security_types"] + r')"|^\s*(?:provider|backend)\s+"', re.M)
+        others = [pattern for category, patterns in mapping["high_risk"].items() if category != "terraform-security-boundary" for pattern in patterns]
+        computed = sorted(name for name in self.head.files if name.startswith("infra/") and name.endswith(".tf")
+                          and types.search(self.head.read(name)) and not matches(name, others))
+        require(computed == mapping["high_risk"]["terraform-security-boundary"],
+                "terraform_security_files_differ (regenerate high_risk.terraform-security-boundary):"
+                + ",".join(sorted(set(computed) ^ set(mapping["high_risk"]["terraform-security-boundary"]))))
 
     def map_file(self, path):
         """Steps and reasons for one path; an empty reason list means unmapped."""
@@ -464,6 +514,8 @@ class Analysis:
                 for dependent in sorted(self.terraform.all_dependents(config)):
                     steps.update(self.mapping["configurations"][dependent])
                     reasons.append("sourced by " + dependent)
+        if path == COUNTS_FILE:
+            reasons.append("expected counts: the steps that load each changed suite")
         inputs = sorted(step_id for step_id in self.selectable if path in self.inputs.get(step_id, ()))
         if inputs:
             steps.update(inputs)
@@ -476,6 +528,25 @@ class Analysis:
 
     def high_risk(self, path):
         return sorted(category for category, patterns in self.mapping["high_risk"].items() if matches(path, patterns))
+
+    def full_ci_paths(self):
+        return [pattern for patterns in self.mapping["high_risk"].values() for pattern in patterns]
+
+    def diff_risks(self, path):
+        """High-risk categories from the changed lines of one file (detected by PR Safety CI only)."""
+        content = self.mapping["high_risk_content"]
+        rules = (("security-sensitive-terraform-change", content["terraform_diff_scope"], content["terraform_diff_exclude"],
+                  content["terraform_diff_keywords"]),
+                 ("real-operation-guard-change", content["guard_diff_scope"], content["guard_diff_exclude"],
+                  content["guard_diff_keywords"]))
+        found = []
+        for category, scope, exclude, keywords in rules:
+            if not matches(path, scope) or matches(path, exclude):
+                continue
+            lines = changed_lines(self.base, self.head, path)
+            if lines is None or any(re.search(keywords, line, re.I) for line in lines):
+                found.append(category)
+        return found
 
     def expand(self, steps):
         selected = set(steps)
@@ -494,12 +565,20 @@ class Analysis:
                 "too_many_changed_files:%d>%d (GitHub path filters evaluate at most 300; split the pull request)"
                 % (len(changes), self.mapping["max_changed_files"]))
         rows, unmapped, chosen, risks = [], [], set(), collections.defaultdict(list)
+        counts = {"changed_suites": [], "approved_reductions": []}
         for status, path in changes:
             steps, reasons = self.map_file(path)
+            if path == COUNTS_FILE:
+                suites, approved = self.count_changes(status)
+                counts = {"changed_suites": suites, "approved_reductions": approved}
+                for suite in suites:
+                    steps |= self.suite_steps[suite]
+                if approved:
+                    risks["expected-count-reduction"].append(path)
             if not reasons:
                 unmapped.append(path)
             chosen |= steps
-            categories = self.high_risk(path)
+            categories = sorted(set(self.high_risk(path)) | set(self.diff_risks(path)))
             for category in categories:
                 risks[category].append(path)
             rows.append({"path": path, "status": status, "steps": sorted(steps), "reasons": reasons, "high_risk": categories})
@@ -512,10 +591,30 @@ class Analysis:
             definitions, notes = changed_step_definitions(self.steps, self.base, self.mapping, self.selectable)
             chosen |= definitions
         selected = self.expand(chosen)
+        automatic = any(matches(path, self.full_ci_paths()) for path in changed_paths)
+        required = bool(risks)
         return {"selected": selected, "always": self.always,
                 "skipped": [step_id for step_id in self.selectable if step_id not in selected],
                 "changed": rows, "changed_step_definitions": sorted(definitions), "notes": notes,
-                "high_risk": dict(sorted(risks.items())), "full_ci_required": bool(risks)}
+                "expected_counts": counts, "high_risk": dict(sorted(risks.items())), "full_ci_required": required,
+                "full_ci_automatic": automatic, "owner_dispatch_required": required and not automatic}
+
+    def count_changes(self, status):
+        """Suites whose expected counts changed, and approved decreases; unapproved decreases fail closed."""
+        require(status != "D" and COUNTS_FILE in self.head.fileset, "counts_file_deleted")
+        try:
+            head = expected_counts.parse(self.head.read(COUNTS_FILE))
+        except expected_counts.CountsError as error:
+            raise ImpactError("expected_counts_invalid:" + str(error)) from error
+        base = None
+        if self.base is not None and COUNTS_FILE in self.base.fileset:
+            try:
+                base = json.loads(self.base.read(COUNTS_FILE))
+            except (json.JSONDecodeError, ImpactError):
+                base = None
+        unapproved, approved = expected_counts.reductions(base or {}, head)
+        require(not unapproved, "expected_count_decrease_without_approved_reductions_record:" + ",".join(unapproved))
+        return expected_counts.changed_suites(base, head), approved
 
     def coverage(self):
         unmapped = [path for path in self.head.files if not self.map_file(path)[1]]
@@ -558,12 +657,24 @@ def summary(report):
               "Not selected: " + (", ".join(report["skipped"]) or "none")]
     if report["changed_step_definitions"]:
         lines += ["", "Changed step definitions: " + ", ".join(report["changed_step_definitions"])]
-    if report["full_ci_required"]:
-        lines += ["", "**FULL CI REQUIRED** (high-risk: " + ", ".join(report["high_risk"]) + "). Full CI must succeed on this exact HEAD "
-                  "before merge approval; PR Safety CI PASS is not Full CI PASS."]
-    else:
-        lines += ["", "No high-risk path changed. Full CI runs only when the Owner designates a milestone (FULL CI NOT RUN otherwise)."]
+    if report["expected_counts"]["changed_suites"]:
+        lines += ["", "Changed expected-count suites: " + ", ".join(report["expected_counts"]["changed_suites"])]
+    lines += ["", "Tested tree: `" + report.get("tested_tree", "?") + "` (the evidence for the post-merge tree check)", "",
+              verdict(report)]
     return "\n".join(lines) + "\n"
+
+
+def verdict(report):
+    """One line a reviewer and the Owner act on before merge approval."""
+    if not report["full_ci_required"]:
+        return ("Full CI verdict: NOT REQUIRED by the impact map. PR Safety CI PASS suffices unless the Owner or reviewer "
+                "designates a milestone or a high-risk change.")
+    categories = ", ".join(report["high_risk"])
+    if report["owner_dispatch_required"]:
+        return ("Full CI verdict: **REQUIRED - OWNER DISPATCH NEEDED** (" + categories + "). The path filter does not start Full "
+                "CI for this change: the Owner dispatches it for this exact HEAD, and merge approval waits for Full CI PASS.")
+    return ("Full CI verdict: **REQUIRED - STARTED AUTOMATICALLY** (" + categories + "). Merge approval waits for Full CI PASS "
+            "on this exact HEAD; PR Safety CI PASS is not Full CI PASS.")
 
 
 def verify(report_path, workflow_path, results):
@@ -582,7 +693,7 @@ def verify(report_path, workflow_path, results):
     missing = sorted(expected - set(generated))
     require(not missing, "selected_steps_missing_from_workflow:" + ",".join(missing))
     require(not problems, "step_outcomes:" + "; ".join(problems))
-    return generated
+    return generated, report
 
 
 def main(argv=None):
@@ -610,7 +721,8 @@ def main(argv=None):
             else:
                 base, head = merge_changes(args.event_head)
             analysis = Analysis(Tree(head), Tree(base))
-            report = {"base": base, "head": head, **analysis.select(diff(base, head))}
+            tested_tree = git("rev-parse", "--verify", head + "^{tree}").strip()
+            report = {"base": base, "head": head, "tested_tree": tested_tree, **analysis.select(diff(base, head))}
             Path(args.report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
             text = summary(report)
             print(text)
@@ -618,6 +730,7 @@ def main(argv=None):
                 with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
                     output.write("selected=" + json.dumps(report["selected"]) + "\n")
                     output.write("full_ci_required=" + ("true" if report["full_ci_required"] else "false") + "\n")
+                    output.write("owner_dispatch_required=" + ("true" if report["owner_dispatch_required"] else "false") + "\n")
                 with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
                     output.write(text)
         elif args.command == "check":
@@ -633,8 +746,11 @@ def main(argv=None):
                                   "high_risk": analysis.high_risk(path)}))
         else:
             results = json.loads(os.environ.get("STEP_RESULTS") or "{}")
-            generated = verify(args.report, args.workflow, results)
-            print(json.dumps({"status": "passed", "verified_steps": len(generated)}))
+            generated, report = verify(args.report, args.workflow, results)
+            print(json.dumps({"status": "passed", "verified_steps": len(generated), "base": report["base"], "head": report["head"],
+                              "tested_tree": report.get("tested_tree"), "full_ci_required": report["full_ci_required"],
+                              "owner_dispatch_required": report["owner_dispatch_required"]}))
+            print(verdict(report))
     except ImpactError as error:
         print("PR Safety CI impact check failed closed: " + str(error), file=sys.stderr)
         return 1

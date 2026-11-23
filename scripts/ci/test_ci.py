@@ -22,14 +22,15 @@ sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(HERE))
+import expected_counts  # noqa: E402
 import full_ci_trigger  # noqa: E402
 import impact  # noqa: E402
 import merge_check  # noqa: E402
 import pr_safety_workflow  # noqa: E402
 import safety_checks  # noqa: E402
 
-EXPECTED_TESTS = 24
-EXPECTED_MUTATIONS = 47
+EXPECTED_TESTS = 31
+EXPECTED_MUTATIONS = 73
 FULL = ".github/workflows/terraform-offline-ci.yml"
 SAFETY = ".github/workflows/pr-safety-ci.yml"
 SHA_A, SHA_B, SHA_C, SHA_D = ("a" * 40, "b" * 40, "c" * 40, "d" * 40)
@@ -59,7 +60,8 @@ def fails(function, *args, **kwargs):
     """The error text when function fails closed, else None."""
     try:
         function(*args, **kwargs)
-    except (impact.ImpactError, full_ci_trigger.TriggerError, merge_check.MergeError, safety_checks.SafetyError) as error:
+    except (impact.ImpactError, full_ci_trigger.TriggerError, merge_check.MergeError, safety_checks.SafetyError,
+            expected_counts.CountsError) as error:
         return str(error)
     return None
 
@@ -91,12 +93,58 @@ def pull_request_case(**override):
 
 def dispatch_case(**override):
     env = {"EVENT_NAME": "workflow_dispatch", "RUN_SHA": SHA_C, "RUN_ATTEMPT": "1", "REF": "refs/heads/claude/x", "OWNER": "owner",
-           "ACTOR": "owner", "TRIGGERING_ACTOR": "owner", "INPUT_PR": "97", "INPUT_SHA": SHA_C, "INPUT_REASON": "owner-milestone"}
+           "ACTOR": "owner", "TRIGGERING_ACTOR": "owner", "INPUT_PR": "97", "INPUT_SHA": SHA_C, "INPUT_REASON": "owner-milestone",
+           "REPOSITORY": "owner/repo"}
     env.update(override.pop("env", {}))
     answers = {"rev-parse HEAD": (0, SHA_C), "rev-parse refs/remotes/origin/main": (0, SHA_B),
                f"merge-base --is-ancestor {SHA_B} HEAD": (0, ""), "rev-parse HEAD^{tree}": (0, SHA_D)}
     answers.update(override.pop("answers", {}))
     return env, runner_for(answers)
+
+
+def good_pull(**change):
+    pull = {"number": 97, "state": "open", "base": {"ref": "main", "repo": {"full_name": "owner/repo"}},
+            "head": {"ref": "claude/x", "sha": SHA_C, "repo": {"full_name": "owner/repo"}}}
+    for path, value in change.items():
+        target = pull
+        keys = path.split("__")
+        for key in keys[:-1]:
+            target = target[key]
+        target[keys[-1]] = value
+    return pull
+
+
+def fetch_of(pull):
+    return lambda repository, number: pull
+
+
+COUNTS = expected_counts.COUNTS_FILE
+
+
+def counts_doc():
+    return json.loads(tree().read(COUNTS))
+
+
+def counts_text(edit):
+    doc = counts_doc()
+    edit(doc)
+    return json.dumps(doc, indent=2) + "\n"
+
+
+def pair(changes_by_path):
+    """(head analysis over edited files, base = the committed tree)."""
+    return module_analysis(impact, changes_by_path)
+
+
+def module_analysis(module, changes_by_path):
+    base = module.Tree()
+    return module.Analysis(base.with_files(changes_by_path), base)
+
+
+def apply_fake_change():
+    """A Fake-only engine change: a new helper with no guard or process keyword."""
+    text = tree().read("scripts/local-workflow/k8s_runtime_apply.py")
+    return text + "\n\ndef fake_destroy_plan_order(stages):\n    return list(reversed(stages))\n"
 
 
 def workflow_text(name):
@@ -188,7 +236,8 @@ def probe_imports(module):
 
 def probe_high_risk(module):
     analysis = module.Analysis(module.Tree())
-    assert analysis.select(changes("scripts/local-workflow/preflight.py"))["full_ci_required"], "high-risk path not reported"
+    report = analysis.select(changes("scripts/local-workflow/preflight.py"))
+    assert report["full_ci_required"] and "security-boundary" in report["high_risk"], "high-risk path not reported"
 
 
 def probe_glob(module):
@@ -237,12 +286,37 @@ def probe_trigger_pr_head(module):
     assert fails_trigger(module, env, run), "merge commit without the event head accepted"
 
 
-def fails_trigger(module, env, run):
+def fails_trigger(module, env, run, fetch=None):
     try:
-        module.verify(env, run)
+        module.verify(env, run, fetch or fetch_of(good_pull()))
     except module.TriggerError:
         return True
     return False
+
+
+def probe_trigger_binding(module):
+    for change in ({"head__ref": "other"}, {"head__sha": SHA_A}, {"base__ref": "develop"}, {"state": "closed"}, {"number": 98},
+                   {"head__repo": {"full_name": "fork/repo"}}):
+        env, run = dispatch_case()
+        assert fails_trigger(module, env, run, fetch_of(good_pull(**change))), f"pull request mismatch accepted: {change}"
+    env, run = dispatch_case()
+    assert fails_trigger(module, env, run, fetch_of("not_found")), "missing pull request accepted"
+
+
+def probe_trigger_not_found(module):
+    env, run = dispatch_case()
+    try:
+        module.verify(env, run, fetch_of("not_found"))
+    except module.TriggerError as error:
+        assert "not_found" in str(error), "missing pull request not reported as not found: " + str(error)
+        return
+    raise AssertionError("missing pull request accepted")
+
+
+def probe_trigger_unverified(module):
+    env, run = dispatch_case()
+    record = module.verify(env, run, fetch_of(None))
+    assert record["pull_request_binding"].startswith("NOT_VERIFIED_BY_WORKFLOW"), "unanswered API claimed as verified"
 
 
 def probe_trigger_actor(module):
@@ -254,12 +328,12 @@ def probe_trigger_actor(module):
 
 def probe_trigger_ref(module):
     env, run = dispatch_case(env={"REF": "refs/heads/main"})
-    assert fails_trigger(module, env, run), "dispatch on main accepted"
+    assert fails_trigger(module, env, run, fetch_of(good_pull(head__ref="main"))), "dispatch on main accepted"
 
 
 def probe_trigger_sha(module):
     env, run = dispatch_case(env={"INPUT_SHA": SHA_A})
-    assert fails_trigger(module, env, run), "expected SHA different from the dispatched commit accepted"
+    assert fails_trigger(module, env, run, fetch_of(good_pull(head__sha=SHA_A))), "expected SHA different from the dispatched commit accepted"
 
 
 def probe_trigger_main(module):
@@ -372,30 +446,167 @@ def probe_generator_full_only(module):
     assert "id: trigger\n" not in text and "id: storage_after_modules\n" not in text, "Full-CI-only step copied"
 
 
+TREE_V, TREE_X = "e" * 40, "f" * 40
+
+
 def probe_merge_parent(module):
-    run = merge_runner(parent=SHA_D)
-    assert fails_merge(module, run), "squash commit on another parent accepted"
+    assert fails_merge(module, merge_runner(parent=SHA_D)), "squash commit on another parent accepted"
 
 
 def probe_merge_tree(module):
-    run = merge_runner(squash_tree="e" * 40)
-    assert fails_merge(module, run), "squash tree different from the reviewed merge result accepted"
+    assert fails_merge(module, merge_runner(squash_tree=TREE_X)), "squash tree different from the verified tree accepted"
 
 
-def merge_runner(parent=SHA_B, squash_tree=SHA_D, merged_tree=SHA_D):
+def probe_merge_evidence(module):
+    assert fails_merge(module, merge_runner(merged_tree=TREE_X)), "verified tree that is not the reviewed merge accepted"
+
+
+def probe_merge_dispatch_tree(module):
+    assert fails_merge(module, merge_runner(head_tree=TREE_X), "dispatch"), "verified tree that is not the reviewed HEAD accepted"
+
+
+def probe_merge_dispatch_base(module):
+    assert fails_merge(module, merge_runner(head_tree=TREE_V, ancestor=1), "dispatch"), "HEAD without the base accepted"
+
+
+def merge_runner(parent=SHA_B, squash_tree=TREE_V, merged_tree=TREE_V, head_tree=TREE_V, ancestor=0):
     return runner_for({f"rev-list --parents -n 1 {SHA_A}": (0, f"{SHA_A} {parent}"), f"rev-parse {SHA_A}^{{tree}}": (0, squash_tree),
-                       f"merge-tree --write-tree {SHA_B} {SHA_C}": (0, merged_tree)})
+                       f"merge-tree --write-tree {SHA_B} {SHA_C}": (0, merged_tree), f"rev-parse {SHA_C}^{{tree}}": (0, head_tree),
+                       f"merge-base --is-ancestor {SHA_B} {SHA_C}": (ancestor, "")})
 
 
-def fails_merge(module, run):
+def fails_merge(module, run, evidence="pull_request"):
     try:
-        module.verify(SHA_A, SHA_C, SHA_B, run)
+        module.verify(SHA_A, SHA_C, SHA_B, TREE_V, evidence, run)
     except module.MergeError:
         return True
     return False
 
 
+def probe_counts_schema(module):
+    for edit in (lambda d: d["suites"].pop("toolkit"), lambda d: d["suites"].update(extra={"tests": 1}),
+                 lambda d: d["suites"]["toolkit"].pop("tests"), lambda d: d["suites"]["toolkit"].update(more=1)):
+        doc = counts_doc()
+        edit(doc)
+        try:
+            module.validate(doc)
+        except module.CountsError:
+            continue
+        raise AssertionError("counts schema drift accepted")
+
+
+def probe_counts_values(module):
+    for value in (True, 0, -1, "153", 153.0, None):
+        doc = counts_doc()
+        doc["suites"]["toolkit"]["tests"] = value
+        try:
+            module.validate(doc)
+        except module.CountsError:
+            continue
+        raise AssertionError(f"count value {value!r} accepted")
+
+
+def probe_counts_reason(module):
+    doc = counts_doc()
+    doc["approved_reductions"] = [{"suite": "toolkit", "key": "tests", "from": 153, "to": 150, "reason": "short"}]
+    try:
+        module.validate(doc)
+    except module.CountsError:
+        return
+    raise AssertionError("reduction without a reason accepted")
+
+
+def probe_counts_reduction(module):
+    base, head = counts_doc(), counts_doc()
+    head["suites"]["toolkit"]["tests"] = 150
+    unapproved, _approved = module.reductions(base, head)
+    assert unapproved == ["toolkit.tests:153->150"], "unrecorded decrease not reported"
+
+
+def decreased(record=False):
+    def edit(doc):
+        doc["suites"]["k8s_runtime_apply_tests"]["tests"] -= 1
+        if record:
+            old = doc["suites"]["k8s_runtime_apply_tests"]["tests"] + 1
+            doc["approved_reductions"].append({"suite": "k8s_runtime_apply_tests", "key": "tests", "from": old, "to": old - 1,
+                                               "reason": "Two engine tests merged into one parametrized test (reviewed)."})
+    return counts_text(edit)
+
+
+def probe_select_unapproved_decrease(module):
+    analysis = module_analysis(module, {COUNTS: decreased()})
+    assert fails_with(module, analysis.select, changes(COUNTS)), "unrecorded count decrease accepted"
+
+
+def probe_select_approved_decrease(module):
+    report = module_analysis(module, {COUNTS: decreased(record=True)}).select(changes(COUNTS))
+    assert report["full_ci_required"] and "expected-count-reduction" in report["high_risk"], "recorded decrease not high-risk"
+
+
+def increased():
+    def edit(doc):
+        doc["suites"]["k8s_runtime_apply_tests"]["tests"] += 2
+        doc["suites"]["k8s_runtime_apply_tests"]["mutations"] += 5
+    return counts_text(edit)
+
+
+def probe_count_increase_is_normal(module):
+    report = module_analysis(module, {COUNTS: increased(), "scripts/local-workflow/k8s_runtime_apply.py": apply_fake_change()}).select(
+        changes(COUNTS, "scripts/local-workflow/k8s_runtime_apply.py"))
+    assert report["selected"] == ["kubernetes_runtime", "kubernetes_runtime_plan"], "count increase selected " + str(report["selected"])
+    assert not report["full_ci_required"], "Fake-only change with a count increase required Full CI"
+
+
+def probe_counts_suites_loaded(module):
+    text = module.Tree().read(FULL).replace('load("toolkit")', 'load("toolkit_renamed")')
+    assert fails_with(module, module.Analysis, module.Tree().with_files({FULL: text})), "suite loaded by no step accepted"
+
+
+def probe_terraform_security_list(module):
+    text = module.Tree().read("infra/modules/vpc/outputs.tf") + '\nresource "aws_security_group" "x" {}\n'
+    assert fails_with(module, module.Analysis, module.Tree().with_files({"infra/modules/vpc/outputs.tf": text})), \
+        "unlisted security-boundary Terraform file accepted"
+
+
+def probe_diff_risk(module):
+    path = "infra/modules/developer_access/variables.tf"
+    text = module.Tree().read(path) + '\nvariable "extra_cidr" {\n  type = string\n}\n'
+    report = module_analysis(module, {path: text}).select(changes(path))
+    assert report["full_ci_required"] and report["owner_dispatch_required"], "security-sensitive Terraform change not flagged"
+
+
+def probe_guard_diff(module):
+    path = "scripts/local-workflow/k8s_runtime.py"
+    text = module.Tree().read(path).replace("def refuse_operation(name):", "def refuse_operation(name):\n    # operation_not_approved stays\n", 1)
+    report = module_analysis(module, {path: text}).select(changes(path))
+    assert "real-operation-guard-change" in report["high_risk"] and report["owner_dispatch_required"], "guard change not flagged"
+
+
+def probe_automatic(module):
+    report = module_analysis(module, {}).select(changes("infra/modules/vpc/routing.tf"))
+    assert report["full_ci_required"] and report["full_ci_automatic"] and not report["owner_dispatch_required"], \
+        "path-filtered change not required and automatic"
+
+
+def probe_count_selects_suite(module):
+    network = counts_text(lambda doc: doc["suites"]["network"].update(native_tests=16))
+    selected = module_analysis(module, {COUNTS: network}).select(changes(COUNTS))["selected"]
+    assert selected == ["network"], "changed suite selected " + str(selected)
+
+
+def probe_verdict(module):
+    report = {"full_ci_required": True, "owner_dispatch_required": True, "high_risk": {"x": []}}
+    assert "OWNER DISPATCH NEEDED" in module.verdict(report), "dispatch verdict missing"
+
+
+def probe_hard_coded_count(module):
+    problems = module.check_workflow("terraform-offline-ci.yml", workflow_text("terraform-offline-ci.yml").replace(
+        'result.testsRun != load("toolkit")["tests"]', "result.testsRun != 153"), impact_map())
+    assert any("hard-coded-expected-count" in problem for problem in problems), "hard-coded count accepted"
+
+
 IMPACT, TRIGGER, SAFETY_CHECKS, GENERATOR, MERGE = "impact.py", "full_ci_trigger.py", "safety_checks.py", "pr_safety_workflow.py", "merge_check.py"
+COUNTS_MODULE = "expected_counts.py"
 MUTATIONS = [
     (IMPACT, 'require(not unmapped, "unmapped_paths', 'require(True or not unmapped, "unmapped_paths', probe_unmapped),
     (IMPACT, 'len(changes) <= self.mapping["max_changed_files"],', 'True,', probe_too_many),
@@ -443,7 +654,33 @@ MUTATIONS = [
     (GENERATOR, 'return "\\n".join([lines[0], "        if: " + condition] + lines[1:])', 'return raw', probe_generator_condition),
     (GENERATOR, '        if step["id"] in full_only:\n            continue', '        if False:\n            continue', probe_generator_full_only),
     (MERGE, 'require(parents[1:2] == [base], "squash_parent_is_not_the_reviewed_base_main")', 'require(True, "squash_parent_is_not_the_reviewed_base_main")', probe_merge_parent),
-    (MERGE, 'require(squash_tree == expected_tree,', 'require(True,', probe_merge_tree),
+    (MERGE, 'require(squash_tree == verified_tree,', 'require(True,', probe_merge_tree),
+    (MERGE, 'require(merged == verified_tree,', 'require(True,', probe_merge_evidence),
+    (MERGE, 'require(git("rev-parse", reviewed_head + "^{tree}") == verified_tree,', 'require(True,', probe_merge_dispatch_tree),
+    (MERGE, 'require(runner(["merge-base", "--is-ancestor", base, reviewed_head])[0] == 0,', 'require(True,', probe_merge_dispatch_base),
+    (TRIGGER, 'require(head.get("ref") == branch,', 'require(True,', probe_trigger_binding),
+    (TRIGGER, 'require(head.get("sha") == expected, "dispatch_pull_request_head_mismatch")', 'require(True, "dispatch_pull_request_head_mismatch")', probe_trigger_binding),
+    (TRIGGER, 'require(base.get("ref") == "main", "dispatch_pull_request_base_not_main")', 'require(True, "dispatch_pull_request_base_not_main")', probe_trigger_binding),
+    (TRIGGER, 'require(pull.get("state") == "open",', 'require(True,', probe_trigger_binding),
+    (TRIGGER, 'require(pull != "not_found",', 'require(True,', probe_trigger_not_found),
+    (TRIGGER, 'if pull is None:\n        return NOT_VERIFIED', 'if pull is None:\n        return "VERIFIED_BY_PUBLIC_API"', probe_trigger_unverified),
+    (COUNTS_MODULE, 'require(not missing and not unknown,', 'require(True,', probe_counts_schema),
+    (COUNTS_MODULE, 'require(isinstance(values, dict) and sorted(values) == sorted(keys),', 'require(isinstance(values, dict),', probe_counts_schema),
+    (COUNTS_MODULE, 'return type(value) is int and value > 0', 'return isinstance(value, (int, float, str)) or value is None', probe_counts_values),
+    (COUNTS_MODULE, 'require(isinstance(record["reason"], str) and len(record["reason"].strip()) >= 20,', 'require(True,', probe_counts_reason),
+    (COUNTS_MODULE, '(approved if (suite, key, old, value) in records else unapproved).append(entry)', 'approved.append(entry)', probe_counts_reduction),
+    (IMPACT, 'require(not unapproved, "expected_count_decrease_without_approved_reductions_record:"', 'require(True, "expected_count_decrease_without_approved_reductions_record:"', probe_select_unapproved_decrease),
+    (IMPACT, 'risks["expected-count-reduction"].append(path)', 'pass', probe_select_approved_decrease),
+    (IMPACT, 'steps |= self.suite_steps[suite]', 'pass', probe_count_selects_suite),
+    (IMPACT, 'inputs.discard(COUNTS_FILE)', 'pass', probe_count_increase_is_normal),
+    (IMPACT, 'require(set(self.suite_steps) == set(expected_counts.SCHEMA),', 'require(True,', probe_counts_suites_loaded),
+    (IMPACT, 'require(computed == mapping["high_risk"]["terraform-security-boundary"],', 'require(True,', probe_terraform_security_list),
+    (IMPACT, 'if lines is None or any(re.search(keywords, line, re.I) for line in lines):', 'if False:', probe_diff_risk),
+    (IMPACT, 'automatic = any(matches(path, self.full_ci_paths()) for path in changed_paths)', 'automatic = True', probe_diff_risk),
+    (IMPACT, '"owner_dispatch_required": required and not automatic}', '"owner_dispatch_required": False}', probe_guard_diff),
+    (IMPACT, 'required = bool(risks)', 'required = False', probe_automatic),
+    (IMPACT, '    if report["owner_dispatch_required"]:', '    if False:', probe_verdict),
+    (SAFETY_CHECKS, 'if HARD_CODED_COUNT.search(text):', 'if False:', probe_hard_coded_count),
 ]
 
 
@@ -506,7 +743,7 @@ class ImpactTests(unittest.TestCase):
     def test_high_risk_paths_require_full_ci(self):
         report = analysis().select(changes("scripts/local-workflow/preflight.py", ".github/workflows/terraform-offline-ci.yml"))
         self.assertTrue(report["full_ci_required"])
-        self.assertEqual(sorted(report["high_risk"]), ["ci", "security-boundary"])
+        self.assertEqual(sorted(report["high_risk"]), ["ci", "real-operation-guard-change", "security-boundary"])
         probe_high_risk(impact)
 
     def test_unsupported_module_sources_fail_closed(self):
@@ -557,14 +794,16 @@ class GeneratorTests(unittest.TestCase):
 class TriggerTests(unittest.TestCase):
     def test_allowed_triggers(self):
         env, run = pull_request_case()
-        self.assertEqual(full_ci_trigger.verify(env, run)["head_sha"], SHA_C)
+        record = full_ci_trigger.verify(env, run, fetch_of(None))
+        self.assertEqual((record["head_sha"], record["tested_tree"], record["evidence"]), (SHA_C, SHA_D, "pull_request"))
         env, run = dispatch_case()
-        record = full_ci_trigger.verify(env, run)
-        self.assertEqual((record["pull_request"], record["head_sha"], record["reason"]), (97, SHA_C, "owner-milestone"))
+        record = full_ci_trigger.verify(env, run, fetch_of(good_pull()))
+        self.assertEqual((record["pull_request"], record["head_sha"], record["reason"], record["pull_request_binding"]),
+                         (97, SHA_C, "owner-milestone", "VERIFIED_BY_PUBLIC_API"))
 
     def test_refusals(self):
         for probe in (probe_trigger_pr_head, probe_trigger_actor, probe_trigger_ref, probe_trigger_sha, probe_trigger_main,
-                      probe_trigger_event, probe_trigger_checkout, probe_trigger_reason):
+                      probe_trigger_event, probe_trigger_checkout, probe_trigger_reason, probe_trigger_binding, probe_trigger_unverified, probe_trigger_not_found):
             probe(full_ci_trigger)
         for env in ({"BASE_REF": "develop"}, {"PR_HEAD_SHA": "short"}):
             self.assertTrue(fails_trigger(full_ci_trigger, *pull_request_case(env=env)), env)
@@ -575,10 +814,12 @@ class TriggerTests(unittest.TestCase):
 
 class MergeCheckTests(unittest.TestCase):
     def test_tree_and_parent(self):
-        self.assertEqual(merge_check.verify(SHA_A, SHA_C, SHA_B, merge_runner())["tree"], SHA_D)
-        probe_merge_parent(merge_check)
-        probe_merge_tree(merge_check)
+        self.assertEqual(merge_check.verify(SHA_A, SHA_C, SHA_B, TREE_V, "pull_request", merge_runner())["tree"], TREE_V)
+        self.assertEqual(merge_check.verify(SHA_A, SHA_C, SHA_B, TREE_V, "dispatch", merge_runner())["evidence"], "dispatch")
+        for probe in (probe_merge_parent, probe_merge_tree, probe_merge_evidence, probe_merge_dispatch_tree, probe_merge_dispatch_base):
+            probe(merge_check)
         self.assertTrue(fails_merge(merge_check, runner_for({f"rev-list --parents -n 1 {SHA_A}": (0, f"{SHA_A} {SHA_B} {SHA_C}")})))
+        self.assertIn("evidence_kind_invalid", fails(merge_check.verify, SHA_A, SHA_C, SHA_B, TREE_V, "recomputed", merge_runner()))
 
 
 class SafetyCheckTests(unittest.TestCase):
@@ -639,6 +880,59 @@ class SafetyCheckTests(unittest.TestCase):
         self.assertEqual(count, 3)
         self.assertTrue(any(problem.startswith("bad.py:syntax") for problem in problems))
         self.assertTrue(any(problem.startswith("whitespace:") for problem in problems))
+
+
+class ExpectedCountsTests(unittest.TestCase):
+    def test_committed_counts_are_valid_and_exact(self):
+        self.assertEqual(expected_counts.load("k8s_runtime_apply_tests"), counts_doc()["suites"]["k8s_runtime_apply_tests"])
+        self.assertEqual(sorted(counts_doc()["suites"]), sorted(expected_counts.SCHEMA))
+        self.assertIn("counts_unknown_suite", fails(expected_counts.load, "nonexistent"))
+        self.assertIn("counts_unparsable", fails(expected_counts.parse, "{"))
+        self.assertIn("counts_top_level_fields", fails(expected_counts.validate, {**counts_doc(), "generated_from_run": 1}))
+        for probe in (probe_counts_schema, probe_counts_values, probe_counts_reason, probe_counts_reduction):
+            probe(expected_counts)
+
+    def test_count_changes_select_only_their_steps(self):
+        probe_count_increase_is_normal(impact)
+        probe_count_selects_suite(impact)
+        probe_counts_suites_loaded(impact)
+        probe_hard_coded_count(safety_checks)
+
+    def test_decreases_fail_closed_unless_recorded(self):
+        probe_select_unapproved_decrease(impact)
+        probe_select_approved_decrease(impact)
+        self.assertIn("counts_file_deleted", fails(analysis().select, [("D", COUNTS)]))
+
+
+class HighRiskTests(unittest.TestCase):
+    def test_security_boundary_terraform_starts_full_ci(self):
+        for path in ("infra/modules/developer_access/main.tf", "infra/modules/tfstate_bucket/main.tf", "infra/modules/vpc/routing.tf"):
+            report = pair({}).select(changes(path))
+            self.assertIn("terraform-security-boundary", report["high_risk"], path)
+            self.assertTrue(report["full_ci_automatic"] and not report["owner_dispatch_required"], path)
+        probe_automatic(impact)
+        probe_terraform_security_list(impact)
+
+    def test_security_sensitive_lines_need_an_owner_dispatch(self):
+        probe_diff_risk(impact)
+        probe_guard_diff(impact)
+        probe_verdict(impact)
+
+    def test_normal_changes_need_no_full_ci(self):
+        outputs = "infra/modules/vpc/outputs.tf"
+        cases = {outputs: tree().read(outputs) + "\n# Outputs are documented in the README.\n",
+                 "scripts/local-workflow/k8s_runtime_apply.py": apply_fake_change(),
+                 "scripts/local-workflow/test_k8s_runtime_apply.py": tree().read("scripts/local-workflow/test_k8s_runtime_apply.py")
+                 + "\n# subprocess and operation_not_approved appear in tests only\n"}
+        for path, text in cases.items():
+            report = pair({path: text}).select(changes(path))
+            self.assertFalse(report["full_ci_required"], (path, report["high_risk"]))
+            self.assertIn("NOT REQUIRED", impact.verdict(report))
+
+    def test_ci_logic_changes_start_full_ci(self):
+        for path in ("scripts/ci/impact.py", "scripts/ci/expected_counts.py", ".github/workflows/terraform-offline-ci.yml"):
+            report = pair({}).select(changes(path))
+            self.assertTrue(report["full_ci_required"] and report["full_ci_automatic"], path)
 
 
 class MutationTests(unittest.TestCase):

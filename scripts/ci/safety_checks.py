@@ -59,6 +59,8 @@ FORBIDDEN_TEXT = [
     (re.compile(r"self-hosted|larger-runner|ubuntu-latest"), "runner"),
     (re.compile(r"cancel-in-progress:\s*true"), "cancelling-concurrency"),
 ]
+HARD_CODED_COUNT = re.compile(r"testsRun != \d|MUTATIONS\) != \d|['\"](?:native_tests|semantic_mutations|passed)['\"]: ?\d"
+                              r"|native_tests=\d|_rejections\"?\)? ?!= ?\d|source_mutations\"?\)? ?!= ?\d")
 EXPECTED_JOB_ENV = {
     "TF_IN_AUTOMATION": "true", "TF_INPUT": "false", "CHECKPOINT_DISABLE": "1", "PYTHONDONTWRITEBYTECODE": "1",
     "AWS_EC2_METADATA_DISABLED": "true", "AWS_SHARED_CREDENTIALS_FILE": "/dev/null", "AWS_CONFIG_FILE": "/dev/null",
@@ -194,6 +196,8 @@ def check_workflow(name, text, impact_map):
             problems.append(name + ":trigger-step-must-follow-checkout")
         if (steps[1].get("with") or {}).get("fetch-depth") != 0:
             problems.append(name + ":checkout-fetch-depth")
+        if HARD_CODED_COUNT.search(text):
+            problems.append(name + ":hard-coded-expected-count (keep counts in tests/expected-counts.json)")
     if name == Path(safety["workflow"]).name:
         job = jobs.get(safety["job"]) or {}
         if job.get("name") != safety["job_name"] or job.get("timeout-minutes") != safety["timeout_minutes"]:

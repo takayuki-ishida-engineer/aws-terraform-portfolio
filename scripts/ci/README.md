@@ -10,13 +10,15 @@ AWS service-reference downloads that the existing Full CI steps already make.
 
 | File | Purpose |
 | --- | --- |
-| `impact_map.json` | Step classes, prerequisites, configurations, explicit rules, high-risk paths |
+| `impact_map.json` | Step classes, prerequisites, configurations, explicit rules, high-risk paths and content rules |
+| `expected_counts.py` | Loads and validates the reviewed expected counts (`load(suite)`); its `SCHEMA` fixes every suite and key |
+| `../../tests/expected-counts.json` | The reviewed expected test, mutation and evidence counts (data, not CI logic) |
 | `impact.py` | Maps changed files to Full CI steps (`select`), checks the map and that every tracked file maps (`check`), explains one path (`explain`), verifies step outcomes (`verify`) |
 | `pr_safety_workflow.py` | Generates `.github/workflows/pr-safety-ci.yml` from Full CI (`--write`), and fails when the committed file is stale (`--check`) |
 | `full_ci_trigger.py` | First Full CI step after checkout: refuses any trigger except a high-risk pull request or an Owner milestone dispatch for an exact HEAD |
-| `merge_check.py` | Post-merge tree check: squash parent and tree equal the reviewed base and merge result |
+| `merge_check.py` | Post-merge tree check: squash parent is the reviewed base and the squash tree equals the tree CI verified |
 | `safety_checks.py` | `workflows`, `secrets`, `guards` (always-on) and `changed` (syntax and `git diff --check` of the changed files) |
-| `test_ci.py` | 24 unit and negative tests and 47 source mutations, run in the `ci_policy` step |
+| `test_ci.py` | 31 unit and negative tests and 73 source mutations, run in the `ci_policy` step |
 
 ## PR Safety CI
 
@@ -40,7 +42,7 @@ environment as Full CI. Steps:
 6. **Verify**: exactly the selected and always-on steps succeeded and every other copied
    step was skipped (`impact.py verify` over `toJSON(steps)`).
 
-`ci_policy` runs `test_ci.py` (pinned 24 tests and 47 mutations),
+`ci_policy` runs `test_ci.py` (24 → 31 tests and 47 → 73 mutations, pinned in `tests/expected-counts.json`),
 `pr_safety_workflow.py --check`, `impact.py check`, and `safety_checks.py workflows`,
 `secrets` and `guards`:
 
@@ -60,6 +62,51 @@ environment as Full CI. Steps:
   `handoff.py`, `eks_tunnel.py`, `empty_bucket.py`, `k8s_certs.py` register/delete,
   `k8s_runtime_input.py`, `k8s_runtime.py` status/receipt verify/apply/destroy and
   `mirror_images.py mirror`) must exit 1 with their exact refusal under CI markers.
+
+## Expected counts (data, not workflow)
+
+Every pinned count (native tests, plans, negative cases, mutations, evidence faults,
+unittest totals) lives in [`tests/expected-counts.json`](../../tests/expected-counts.json).
+Full CI steps, and therefore the PR Safety CI copies of them, read it with
+`load("<suite>")`; the comparisons, statuses, evidence types and structural contracts
+(the plan stages, the 22-configuration provider sharing, image lock purposes, the
+runtime contract version) stay in the workflow. `safety_checks.py workflows` refuses
+a hard-coded count in the Full CI workflow.
+
+- **Same values in both CIs**: PR Safety CI copies the Full CI steps byte for byte.
+- **A changed value runs its tests**: the impact step diffs the file against the base
+  branch and selects exactly the steps that `load()` each changed suite (for example
+  `k8s_runtime_apply_tests` selects the Kubernetes runtime steps). The file is never a
+  whole-file input of every step.
+- **Fail closed** (`expected_counts.py`): missing or unknown suites or keys, values that
+  are not positive integers (booleans, strings, floats, zero), unknown top-level fields,
+  a deleted file, and malformed `approved_reductions` records. Every `SCHEMA` suite
+  must be loaded by a step and every loaded suite must exist.
+- **Decreases**: a value lower than on the base branch fails PR Safety CI unless
+  `approved_reductions` holds `{suite, key, from, to, reason}` for it. A recorded
+  decrease is high-risk (`expected-count-reduction`): the Owner dispatches Full CI and
+  the reviewer confirms the reason.
+- **Never generated**: values are reviewed expectations, updated by hand with the tests
+  they count; they are never copied from a run's observed counts.
+
+A normal count update (G9, D19, Fake-only Destroy tests added to the existing suites,
+receipt or certificate tests) therefore changes only `tests/expected-counts.json` and
+the tests: no workflow change and no automatic Full CI. Adding a suite or key, or a new
+test module with its own step, is a CI change (`expected_counts.py`, the workflow): high-risk.
+
+### Extending for new Roots and Modules (Codex)
+
+A new configuration needs, in one pull request (a CI change, so Full CI runs on it):
+
+1. its Full CI step, which loads its counts with `load("<suite>")` instead of literals;
+2. the suite in `expected_counts.SCHEMA` and its values in `tests/expected-counts.json`;
+3. the step in `steps.selectable`, its configuration in `configurations` (and
+   prerequisites if it reads another step's output);
+4. `python3 scripts/ci/pr_safety_workflow.py --write` and `python3 scripts/ci/impact.py check`
+   (which also lists any new security-boundary Terraform file for the path filter);
+5. the twenty-two-configuration provider-sharing list in the Full CI measurement step.
+
+Later count changes in that configuration are data-only, like the Kubernetes suites.
 
 ## The impact map
 
@@ -144,6 +191,46 @@ python3 scripts/ci/impact.py explain infra/modules/vpc/main.tf
 python3 scripts/ci/impact.py select --base origin/main --head HEAD --report /tmp/impact.json
 ```
 
+## High-risk determination and merge approval
+
+PR Safety CI prints one verdict line, also repeated by its last step:
+
+| Verdict | When | Before merge approval |
+| --- | --- | --- |
+| NOT REQUIRED | No high-risk path, content or changed line | PR Safety CI PASS (unless the Owner designates a milestone) |
+| REQUIRED - STARTED AUTOMATICALLY | A changed path is in Full CI's path filter | Full CI PASS on this exact HEAD |
+| REQUIRED - OWNER DISPATCH NEEDED | High-risk content the path filter cannot see | The Owner dispatches Full CI for this HEAD; Full CI PASS |
+
+Sources of high risk:
+
+1. **Paths** (`high_risk`, equal to Full CI's `paths`): CI and its tooling, credential
+   prevention, IAM modules and `iam.tf`/`policies.tf`, the Kubernetes tree (RBAC and
+   supply chain), `access.tf`, `security.tf`, `preflight.py`, provider, version, backend,
+   lock and example files.
+2. **Terraform content** (`terraform-security-boundary`): every Terraform file that
+   declares a security-boundary resource or data source (IAM and SSO, security groups,
+   VPC, subnets, routes, gateways and endpoints, load balancers, S3 bucket policy, public
+   access block, encryption and versioning, KMS, Secrets Manager, EKS cluster and access,
+   Lambda permissions, authorizers, Cognito, ECR, SSM) or a provider or backend block.
+   `impact.py check` keeps the list equal to the files' actual content, so a new such
+   resource in an unlisted file fails until the list (and the path filter) is updated.
+   This covers, for example, `developer_access/main.tf` (IAM role, trust, security group),
+   `tfstate_bucket/main.tf` (State bucket policy, public access block) and `vpc/routing.tf`.
+3. **Changed Terraform lines** in other `infra/**` Terraform and tfvars files (tests
+   excluded) that mention CIDRs, principals, policies, KMS, public access, encryption,
+   ports, ingress or egress, IAM, TLS, secrets or deletion protection.
+4. **Changed real-operation guard lines** in `scripts/local-workflow/*.py` (tests
+   excluded): the CI and cloud-session refusals, operation gates, and any process,
+   socket or HTTP call or `aws`, `kubectl`, `skopeo`, `terraform`, `helm` or `openssl`
+   invocation. Fake-only engine logic and tests that touch none of these are normal
+   changes and need no Full CI.
+5. **Recorded expected-count decreases.**
+
+Only sources 1 and 2 start Full CI by themselves. For 3 to 5 the verdict says OWNER
+DISPATCH NEEDED: the reviewer must not approve and the Owner must not merge on PR
+Safety CI PASS alone. The reviewer or the Owner may also designate any other change
+for Full CI.
+
 ## Full CI
 
 Workflow `Terraform offline CI`, check name **`Credential-free Terraform validation`**,
@@ -155,7 +242,8 @@ Workflow `Terraform offline CI`, check name **`Credential-free Terraform validat
   `infra/**/policies.tf`, `scripts/aws-policy-validation/**`, `kubernetes/**`,
   `infra/**/access.tf`, `infra/**/security.tf`, `scripts/local-workflow/preflight.py`,
   `infra/**/providers.tf`, `infra/**/versions.tf`, `infra/**/backend.tf`,
-  `infra/**/.terraform.lock.hcl` and `infra/**/*.example`.
+  `infra/**/.terraform.lock.hcl`, `infra/**/*.example`, and every Terraform file listed in
+  `terraform-security-boundary` (see below).
 - `workflow_dispatch` by the Owner for a milestone: Actions → Terraform offline CI →
   Run workflow, **branch = the pull request branch**, `pull_request_number`,
   `expected_head_sha` = the exact 40-hex HEAD of that branch, `reason` =
@@ -166,8 +254,17 @@ The `trigger` step refuses a push or any other event; a dispatch by someone othe
 than the Owner (actor and triggering actor); a dispatch on `main` or a tag; an
 expected SHA that is not the dispatched commit; a branch that does not contain the
 current `main` (update it, then dispatch for the new HEAD); and a pull request run whose
-merge commit lacks the event HEAD. The summary records the pull request, HEAD, base
-`main` and tested tree.
+merge commit lacks the event HEAD.
+
+For a dispatch it also binds the pull request number through the public, read-only
+GitHub REST API without a token: the pull request must exist, be open, target `main`
+in this repository, and have the dispatched branch and the exact HEAD; any mismatch
+refuses the run. If the API cannot answer (rate limit or network), the record says
+`NOT_VERIFIED_BY_WORKFLOW` and the reviewer and the Owner must match the pull request,
+branch, HEAD and base on GitHub themselves; the workflow never claims it checked.
+The record (event, pull request, HEAD, base `main`, `tested_tree`, `evidence`,
+`pull_request_binding`) is in the job summary and is printed again as "Full CI
+evidence" by the Summarize step.
 
 Migration note: GitHub offers `workflow_dispatch` only once the workflow file on the
 default branch declares it. Until this change is merged, Full CI runs through the
@@ -192,20 +289,27 @@ which stay unchanged. No matrix, parallel jobs, persistent cache or paid runner.
 ## Merge procedure
 
 Before an Owner-approved squash merge: the pull request HEAD equals the reviewed SHA,
-base `main` is unchanged since review, PR Safety CI succeeded on that HEAD, and Full
-CI succeeded on that exact HEAD where the policy requires it. After the merge:
+base `main` is unchanged since review, PR Safety CI succeeded on that HEAD, the
+verdict line is honored (Full CI PASS on that exact HEAD where required), and the
+verified tree is taken from the run record: Full CI's `tested_tree` and `evidence`, or
+PR Safety CI's `tested_tree` (verify step log and job summary; evidence
+`pull_request`). After the merge:
 
 ```bash
 git fetch origin main
 ```
 
 ```bash
-python3 scripts/ci/merge_check.py --squash <new main SHA> --reviewed-head <reviewed PR HEAD> --base <reviewed base main SHA>
+python3 scripts/ci/merge_check.py --squash <new main SHA> --reviewed-head <reviewed PR HEAD> --base <reviewed base main SHA> --verified-tree <tested_tree> --evidence pull_request
 ```
 
-It passes only if the squash commit's single parent is the reviewed base and its tree
-equals `git merge-tree --write-tree <base> <reviewed HEAD>`. On a mismatch, stop and
-investigate; no further merge until resolved. Full CI is not re-run on main.
+It passes only if the squash commit's single parent is the reviewed base, its tree
+equals the tree CI verified, and that tree belongs to the reviewed HEAD: the merge of
+that HEAD into that base for `pull_request` evidence, or the HEAD's own tree (with
+the base as its ancestor) for `dispatch` evidence. A recomputed merge tree alone is
+never accepted. On a mismatch, stop and investigate; no further merge until resolved.
+Full CI is not re-run on main. If `main` moved after the run, the verified tree no
+longer matches: update the branch and run CI again.
 
 ## Branch protection migration
 
@@ -236,7 +340,11 @@ on it.
 - A pull request may change its own PR Safety workflow; independent review and the
   automatic Full CI run on `.github/**` changes are the controls, as before.
 - Whether a high-risk pull request got Full CI PASS is checked by the reviewer and the
-  Owner; PR Safety CI cannot see another workflow's result. Its summary states FULL CI
-  REQUIRED.
+  Owner; PR Safety CI cannot see another workflow's result. Its verdict line names the
+  requirement and whether an Owner dispatch is needed.
+- Keyword-based detection of changed lines over-approximates (some harmless edits need a
+  dispatch) and cannot see a security effect expressed without any listed keyword.
+- The pull request binding uses the unauthenticated public API; when it is rate-limited
+  the binding is NOT_VERIFIED_BY_WORKFLOW and depends on the manual GitHub check.
 - `infra/README.md` still describes the old Full CI triggers. It was not edited here,
   because any `infra/**` change starts the Emulator rehearsal on merge.

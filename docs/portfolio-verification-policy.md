@@ -407,6 +407,18 @@ An unmapped path, an undeterminable dependency, an unparsable workflow or Python
 file, an unsupported module source or more than 300 changed files fails the check.
 Every tracked file must map; `impact.py check` enforces that on every run.
 
+**Expected counts.** Every pinned count is reviewed data in `tests/expected-counts.json`,
+read by both CIs (`scripts/ci/expected_counts.py`). A count change selects only the
+steps of the changed suites and needs no workflow change; missing, unknown or invalid
+values fail closed; a decrease needs an `approved_reductions` record and is high-risk;
+values are never generated from observed run counts.
+
+**Full CI verdict.** PR Safety CI reports NOT REQUIRED, REQUIRED - STARTED
+AUTOMATICALLY (a high-risk path, including every Terraform file that declares a
+security-boundary resource) or REQUIRED - OWNER DISPATCH NEEDED (security-sensitive
+Terraform lines, real-operation guard lines or a recorded count decrease). For both
+REQUIRED verdicts, merge approval waits for Full CI PASS on the exact HEAD.
+
 **Statuses.** They are never interchangeable.
 
 | Status | Meaning |
@@ -426,8 +438,11 @@ request branch with `pull_request_number`, `expected_head_sha` (exact 40 hex) an
 `reason`. The trigger step refuses the run unless the event is `pull_request` to `main`
 (merge commit whose second parent is the event HEAD) or a dispatch by the Owner as
 actor and triggering actor, on a branch other than `main`, whose HEAD equals the
-expected SHA and contains the current `main`. The job summary records the pull
-request, HEAD, base `main` and tested tree. A new HEAD needs a new run.
+expected SHA and contains the current `main`. A dispatch also binds the pull request
+number to the branch, HEAD and base `main` through the read-only public API; a mismatch
+refuses the run, and an unanswered API is recorded NOT_VERIFIED_BY_WORKFLOW, leaving
+the match to the reviewer and the Owner on GitHub. The job summary records the pull
+request, HEAD, base `main`, tested tree and binding. A new HEAD needs a new run.
 `workflow_dispatch` is available only once this workflow is on the default branch;
 until then Full CI runs through the path filter, which includes `.github/**`.
 
@@ -441,9 +456,9 @@ on the same branch, re-run affected local checks, push only when no run of that
 workflow is queued or in progress, and verify the required CI again on the new HEAD.
 
 **After merge.** No Full CI re-run on the same tree. `scripts/ci/merge_check.py`
-confirms that the squash commit's only parent is the reviewed base `main` and that its
-tree equals the reviewed merge result; a mismatch stops further merges for
-investigation. Offline Contracts and, on its trigger paths, the Emulator rehearsal
+confirms that the squash commit's only parent is the reviewed base `main`, that its
+tree equals the tree CI recorded as verified (`tested_tree`), and that this tree
+belongs to the reviewed HEAD; a mismatch stops further merges for investigation. Offline Contracts and, on its trigger paths, the Emulator rehearsal
 still run on the push to `main`.
 
 **Branch Protection.** Changed only by the Owner, after independent review of the

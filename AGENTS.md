@@ -365,10 +365,14 @@ an undeterminable dependency or more than 300 changed files fails closed. See
 
 **Full CI** (`Terraform offline CI`, check name `Credential-free Terraform validation`)
 keeps every check, count, mutation, security check and evidence contract and its
-60-minute timeout. It runs only:
+60-minute timeout. Expected counts live in `tests/expected-counts.json`, read by both
+CIs through `scripts/ci/expected_counts.py`; a count change is data only, selects the
+steps of the changed suites, never comes from observed run counts, and a decrease
+needs an `approved_reductions` record and is high-risk. It runs only:
 - automatically on a pull request that changes a high-risk path: CI, credential
-  prevention, IAM, RBAC and the Kubernetes supply chain, security boundaries, and
-  provider, State, backend or account settings (`high_risk` in the map);
+  prevention, IAM, RBAC and the Kubernetes supply chain, security boundaries,
+  provider, State, backend or account settings, and every Terraform file that declares
+  a security-boundary resource (`high_risk` in the map);
 - by an Owner `workflow_dispatch` on the pull request branch, naming the pull request,
   its exact 40-hex HEAD SHA and the reason: Claude's Owner-designated final task, Codex
   Root completion, an Owner-designated milestone, or a high-risk change the Owner
@@ -384,8 +388,13 @@ are never interchangeable:
 - **FULL CI NOT RUN**: Full CI did not run on the exact HEAD; report it in these words.
 
 Rules:
-- A normal pull request needs PR Safety CI PASS. A high-risk pull request also needs
-  Full CI PASS. A milestone (Owner-designated, Claude's designated final task, Codex
+- PR Safety CI prints a Full CI verdict: NOT REQUIRED, REQUIRED - STARTED
+  AUTOMATICALLY, or REQUIRED - OWNER DISPATCH NEEDED (security-sensitive Terraform
+  lines, real-operation guard lines or a recorded count decrease, which the path filter
+  cannot see). Fake-only implementation and count increases are NOT REQUIRED.
+- A normal pull request needs PR Safety CI PASS. A pull request whose verdict is
+  REQUIRED also needs Full CI PASS on its exact HEAD; the reviewer does not approve and
+  the Owner does not merge on PR Safety CI PASS alone. A milestone (Owner-designated, Claude's designated final task, Codex
   Root completion) is complete only with Full CI PASS and PR Safety CI PASS on its
   exact HEAD, Offline Contracts success, independent review and Owner approval.
 - Reports name the pull request URL, exact HEAD SHA, the PR Safety CI result, the Full
@@ -397,9 +406,13 @@ Rules:
 - Before merge: the pull request HEAD equals the reviewed SHA, base `main` is
   unchanged since review, the required CI succeeded on that HEAD, and Full CI
   succeeded on that exact HEAD where required.
+- A Full CI dispatch binds the pull request number to the branch, exact HEAD and base
+  `main` through the read-only public API; when the API cannot answer, the record says
+  NOT_VERIFIED_BY_WORKFLOW and the reviewer and the Owner match them on GitHub.
 - After an Owner-approved squash merge, run `scripts/ci/merge_check.py` with the squash
-  commit, the reviewed HEAD and the reviewed base `main`: the only parent must be that
-  base and the tree must equal the reviewed merge result. On a mismatch, stop and
+  commit, the reviewed HEAD, the reviewed base `main` and the `tested_tree` that CI
+  recorded: the only parent must be that base, the squash tree must equal the verified
+  tree, and that tree must belong to the reviewed HEAD. On a mismatch, stop and
   investigate.
 - Only the Owner changes Branch Protection: add `PR Safety CI` as a required check
   first, then remove `Credential-free Terraform validation`. Never use an admin
