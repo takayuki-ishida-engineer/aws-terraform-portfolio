@@ -1868,10 +1868,17 @@ def scenario_mesh_gate(case, mods):
         case.assertFalse(any(c[1] in stage_keys(r, "mesh_security") for c in r.adapter.calls if c[0] in ("apply", "dry_run")))
 
 
+def place(r, keys):
+    """Put bundle objects into the fake as the runtime would have applied them (fake-only test setup)."""
+    for key in keys:
+        identity = dict(zip(("apiVersion", "kind", "namespace", "name"), key.split("|")))
+        r.adapter.server_side_apply(identity, r.manifest(key), "test-k8s-runtime", precondition={"absent": True})
+
+
 def staged_mesh(mods, r):
-    """Fake-only setup behind the gate: istiod ready, then the five mesh_security objects placed as if applied."""
+    """Fake-only setup behind the gate: the five mesh_security objects placed as if applied. The stage's own
+    checks read only these objects, so no earlier stage is run (the gate itself is tested separately)."""
     ready_cluster(r)
-    assert r.run(through="istiod")["exit_code"] == 6
     for identity in r.members["mesh_security"]:
         r.adapter.server_side_apply(identity, r.manifest(k8s_runtime_receipt.key_of(identity)), "test-k8s-runtime",
                                     precondition={"absent": True})
@@ -1981,9 +1988,10 @@ def scenario_admission_unreachable(case, mods):
 
 
 def staged_admission(mods, r):
-    """Fake-only setup behind the gate: istiod ready, then the four admission objects placed as if applied."""
+    """Fake-only setup behind the gate: the TargetGroupBinding CRD and the four admission objects placed as if
+    applied. The stage's own checks read only these objects and the fake probes, so no earlier stage is run."""
     ready_cluster(r)
-    assert r.run(through="istiod")["exit_code"] == 6
+    place(r, [mods.apply.TGB_CRD])
     for identity in r.members["admission"]:
         r.adapter.server_side_apply(identity, r.manifest(k8s_runtime_receipt.key_of(identity)), "test-k8s-runtime",
                                     precondition={"absent": True})
