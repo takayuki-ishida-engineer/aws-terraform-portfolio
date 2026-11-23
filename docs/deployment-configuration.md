@@ -361,8 +361,11 @@ approval. The Owner may reorder them.
    `controller` and `istiod` stages: pre-apply (Secret metadata, fake ECR evidence,
    nodes, the controller CA), in-stage readiness, digest classification and fake
    probes. Every deferred item stays DEFERRED, so the run still ends in
-   `APPLIED_WITH_DEFERRED`. `apply` and `destroy` still refuse; stages 5 to 9, G9
-   and 6c-B4 each need their own Owner approval.
+   `APPLIED_WITH_DEFERRED`. 6c-B3b-Apply-B2 adds the `gateway` stage behind its
+   pre-apply gate. Because the base validator serving cannot be verified without
+   Live evidence, every run stops before the gateway
+   (`deferred_readiness_unresolved`). `apply` and `destroy` still refuse; stages 6
+   to 9, G9 and 6c-B4 each need their own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 """Fake-only apply engine for the first four runtime stages (Step 1 items 6c-B3b-Apply-A and Apply-B1).
 
-Source and offline only. It applies the ``namespaces`` (2 objects), ``base`` (16
-objects), ``controller`` (13 objects) and ``istiod`` (12 objects) stages to a
-``FakeAdapter`` and nothing else. Stage 5 (``gateway``) onward is refused.
+Source and offline only. It covers the ``namespaces`` (2 objects), ``base`` (16
+objects), ``controller`` (13 objects), ``istiod`` (12 objects) and ``gateway`` (5 objects)
+stages against a ``FakeAdapter`` and nothing else. Stage 6 (``mesh_security``) onward is refused.
+
+Apply-B2 (gateway, Owner instruction 2026-11-23, Source/Offline only), design section 4.1:
+- Pre-apply, in order: istiod in-stage readiness in this run, the injector caBundle populated, both
+  gateway Secrets (metadata only, D2), the locked istio-proxy index and amd64 child (fake ECR, D4),
+  and the base validator serving resolved. That last item needs Live probe F (D20) and a confirmed
+  istiod manager name (D13), which no fake can supply, so the gateway stage always stops before any
+  write with ``deferred_readiness_unresolved:base_validator_serving`` (exit 3). This is the design's
+  "stop before gateway" and is never bypassed.
+- The stage's own contract is implemented behind that gate and tested directly: minimal completion,
+  in-stage readiness (Deployment, Pods, revision injection with ``sidecar.istio.io/status`` and the
+  locked ``istio-proxy`` image, ``MATCH_PLATFORM`` digest) and the deferred gateway TLS serving item,
+  which stays BLOCKED while ingress is BLOCKED.
 - It has no command line. ``k8s_runtime.py apply`` still refuses
   (``operation_not_approved``).
 - Any other adapter is refused, and ``RealAdapter`` cannot be constructed.
@@ -109,7 +121,7 @@ sys.path.insert(0, str(HERE))
 import k8s_runtime  # noqa: E402
 import k8s_runtime_receipt as receipt  # noqa: E402
 
-APPROVED_STAGES = ("namespaces", "base", "controller", "istiod")
+APPROVED_STAGES = ("namespaces", "base", "controller", "istiod", "gateway")
 API_READ_TIMEOUT_SECONDS = 20
 CRD_ESTABLISHED_TIMEOUT_SECONDS = 120
 DEPLOYMENT_READY_TIMEOUT_SECONDS = 600
@@ -126,7 +138,8 @@ RUNTIME_SUFFIX = "-k8s-runtime"
 FIELD_PREFIXES = ("f:", "k:", "v:", "i:")
 WEBHOOK_KINDS = ("ValidatingWebhookConfiguration", "MutatingWebhookConfiguration")
 PRESENT_KINDS = {"ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding", "Service", "ConfigMap", "Deployment"}
-WORKLOAD_STAGES = ("controller", "istiod")
+WORKLOAD_STAGES = ("controller", "istiod", "gateway")
+SIDECAR_STATUS = "sidecar.istio.io/status"
 # Ready endpoint ports the plan names for each workload stage's Service.
 ENDPOINT_PORTS = {"controller": {9443}, "istiod": {15017, 15012}}
 LOCK_PATH = HERE.parent.parent / "kubernetes" / "images.lock.json"
@@ -145,6 +158,7 @@ DEFERRED = {
     "istiod": [{"item": "CA in use (istio-ca-root-cert equals the local public root, D21)", "resolved_by": "istiod",
                 "requires": ["live_ca_root_match"]},
                {"item": "sidecar injection (probe G)", "resolved_by": "gateway", "requires": ["live_probe_G"]}],
+    "gateway": [{"item": "gateway TLS serving", "resolved_by": "ingress", "requires": ["ingress_blocked"]}],
 }
 # Requirements no fake evidence can meet: Live-only (D20, D21) or BLOCKED (D1, ingress). They always win.
 FIXED_REQUIREMENTS = {"live_probe_F": "NOT_VERIFIED", "live_probe_B": "NOT_VERIFIED", "live_probe_G": "NOT_VERIFIED",
@@ -392,7 +406,8 @@ class FakeAdapter:
             for index in range(obj["spec"].get("replicas", 1)):
                 pods.append({
                     "metadata": {"name": obj["metadata"]["name"] + "-" + str(index), "namespace": namespace,
-                                 "labels": dict(selector)},
+                                 "labels": dict(selector), "annotations": config.get(
+                                     "annotations", self._injected(obj))},
                     "spec": {"nodeName": config.get("node", "node-a"),
                              "containers": [{"name": c["name"],
                                              "image": config.get("spec_images", {}).get(c["name"], c["image"])}
@@ -402,6 +417,18 @@ class FakeAdapter:
                                                       "imageID": config.get("image_ids", {}).get(c["name"])}
                                                      for c in containers]}})
         return pods
+
+    def _injected(self, deployment):
+        """The fake injector: a Pod asking for revision injection gets sidecar.istio.io/status once the
+        injector webhook has its caBundle."""
+        labels = deployment["spec"]["template"]["metadata"].get("labels") or {}
+        if labels.get("sidecar.istio.io/inject") != "true":
+            return {}
+        ready = any(o["kind"] == "MutatingWebhookConfiguration" and o["metadata"]["name"].startswith("istio-sidecar-injector")
+                    and o.get("webhooks") and all(w.get("clientConfig", {}).get("caBundle") for w in o["webhooks"])
+                    for o in self.objects.values())
+        return {SIDECAR_STATUS: json.dumps({"containers": ["istio-proxy"], "revision": labels.get("istio.io/rev")})} \
+            if ready else {}
 
     def list_endpoint_slices(self, namespace, service):
         """D3: EndpointSlices only of an approved Service."""
@@ -887,7 +914,9 @@ class Engine:
         return state
 
     def pre_apply(self, stage, done):
-        if stage == "base":
+        if stage == "gateway":
+            self.gateway_pre_apply(done)
+        elif stage == "base":
             if "namespaces" not in done:
                 stop(2, "pre_apply_not_verified:namespaces_not_accepted")
             if c1_violations([self.manifest(i) for i in self.members(stage)]):
@@ -900,6 +929,21 @@ class Engine:
             self.check_secrets(stage)
             self.check_registry(stage)
             self.check_nodes(stage)
+
+    def gateway_pre_apply(self, done):
+        """Design 4.1 gateway row, plus the base row's "stop before gateway" when validator serving is unproven."""
+        if "istiod" not in done or self.evidence.get("istiod_in_stage_readiness") != "MET":
+            stop(3, "pre_apply_not_verified:istiod_not_ready")
+        injector = [i for i in self.members("istiod") if i["kind"] == "MutatingWebhookConfiguration"]
+        for identity in injector:
+            obj = self.read(identity)
+            if obj is None or not obj.get("webhooks") or not all(
+                    w.get("clientConfig", {}).get("caBundle") for w in obj.get("webhooks") or []):
+                stop(3, "pre_apply_not_verified:injector_cabundle")
+        self.check_secrets("gateway")
+        self.check_registry("gateway")
+        if outstanding_deferred("base", done, self.evidence):
+            stop(3, "deferred_readiness_unresolved:base_validator_serving")
 
     def stage_report(self, stage):
         return next(s for s in self.report["stages"] if s["name"] == stage)
@@ -1104,14 +1148,30 @@ class Engine:
             if self.clock.now() - started >= DEPLOYMENT_READY_TIMEOUT_SECONDS:
                 stop(5, unmet)
             self.clock.sleep(READINESS_POLL_SECONDS)
+        if stage == "gateway":
+            self.check_injection(stage)
         self.check_digests(stage)
         if stage == "controller":
             self.check_controller_webhooks(stage)
-        else:
+        elif stage == "istiod":
             self.check_istio_webhooks()
             self.istiod_evidence()
             self.run_probes()
+        self.evidence[stage + "_in_stage_readiness"] = "MET"
         return "MET"
+
+    def check_injection(self, stage):
+        """Revision injection: every gateway Pod carries sidecar.istio.io/status and the locked istio-proxy."""
+        wanted = self.proxy_image()
+        for identity in self.deployments(stage):
+            for pod in self.list_pods(identity):
+                annotations = (pod.get("metadata") or {}).get("annotations") or {}
+                containers = (pod.get("spec") or {}).get("containers") or []
+                if not isinstance(annotations.get(SIDECAR_STATUS), str) or not annotations[SIDECAR_STATUS] or \
+                        wanted is None or not any(c.get("name") == "istio-proxy" and c.get("image") == wanted
+                                                  for c in containers):
+                    stop(4, "injection_missing")
+        self.evidence[stage + "_injection"] = "MET"
 
     def list_pods(self, identity):
         manifest = self.manifest(identity)
@@ -1129,7 +1189,7 @@ class Engine:
             if len(pods) != manifest["spec"].get("replicas", 1) or not all(pod_ready(p) for p in pods):
                 return "pods_not_ready"
         for identity in self.members(stage):
-            if identity["kind"] == "Service" and not self.endpoints_ready(stage, identity):
+            if identity["kind"] == "Service" and stage in ENDPOINT_PORTS and not self.endpoints_ready(stage, identity):
                 return "endpoints_not_ready"
         if stage == "istiod" and not all(
                 w.get("clientConfig", {}).get("caBundle")
