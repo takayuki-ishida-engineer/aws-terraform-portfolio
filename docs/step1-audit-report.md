@@ -26,7 +26,8 @@ resolved, and what remains open with its owning item or the Owner decision it ne
   journal, crash reconciliation and transport contract, code only; F22 and F23 stay
   open. Item 6c-B3b-C1: F23 resolved in code (renderer contract 5, Owner decision
   D23), Live NOT_VERIFIED; F22 stays open. Item 6c-B3b-Apply-A: the fake-only apply
-  engine for the namespaces and base stages, code only; item 6c stays open).
+  engine for the namespaces and base stages, code only. Item 6c-B3b-Apply-B1: the
+  same engine for the controller and istiod stages, code only; item 6c stays open).
 
 ## 1. Delivered in item 2
 

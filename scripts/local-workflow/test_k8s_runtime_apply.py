@@ -39,6 +39,9 @@ import common  # noqa: E402  (kubernetes/tools, on sys.path through k8s_runtime)
 import render  # noqa: E402
 
 FIXTURE = preflight.REPOSITORY / "kubernetes/tests/fixtures/runtime.json"
+FIXTURE_DOC = common.parse(FIXTURE.read_text())
+STAGES = ("namespaces", "base", "controller", "istiod")
+KEEP = object()
 HELM = os.environ.get("K8S_RUNTIME_HELM", "")
 KUBE_SYSTEM_UID = "11111111-2222-4333-8444-555555555555"
 CACHE = {}
@@ -94,21 +97,27 @@ class Run:
         self.store = self.new_store(store_manifest)
         self.clock = mods.apply.FakeClock()
         self.members = {s: [dict(zip(("apiVersion", "kind", "namespace", "name"), k.split("|")))
-                            for k in self.plan.members[s]] for s in ("namespaces", "base")}
-        scope = [k for s in ("namespaces", "base") for k in self.plan.members[s]]
-        self.adapter = mods.apply.FakeAdapter(self.clock, kube_uid, scope)
+                            for k in self.plan.members[s]] for s in STAGES}
+        scope = [k for s in STAGES for k in self.plan.members[s]]
+        secrets = [(x["namespace"], x["name"]) for st in self.report["stages"] if st["name"] in STAGES
+                   for x in st.get("required_secrets") or []]
+        self.adapter = mods.apply.FakeAdapter(self.clock, kube_uid, scope, secrets)
+        self.registry = mods.apply.FakeRegistry()
+        self.ca = FIXTURE_DOC["runtime"]["webhook_ca_bundle"]
 
     def new_store(self, store_manifest=None):
         return self.mods.receipt.Store(self.tmp / "state", self.fp, self.report["project"],
                                        store_manifest or self.report["manifest_sha256"], self.report["input_sha256"],
                                        self.plan)
 
-    def run(self, through="base", manifest=None, input_sha=None, adapter=None, store=None):
+    def run(self, through="base", manifest=None, input_sha=None, adapter=None, store=None, registry=KEEP, ca=KEEP):
         try:
             return self.mods.apply.apply_stages(self.report, self.objects, store or self.store,
                                                 adapter or self.adapter, self.clock,
                                                 manifest or self.report["manifest_sha256"],
-                                                input_sha or self.report["input_sha256"], self.arn, through)
+                                                input_sha or self.report["input_sha256"], self.arn, through,
+                                                registry=self.registry if registry is KEEP else registry,
+                                                webhook_ca_bundle=self.ca if ca is KEEP else ca)
         except Exception as raised:  # noqa: BLE001 - recorded as a crash, never as a detection
             return {"exit_code": crash(raised), "status": type(raised).__name__, "reason": str(raised), "stages": []}
 
@@ -121,6 +130,12 @@ class Run:
 
     def key(self, stage, index):
         return k8s_runtime_receipt.key_of(self.members[stage][index])
+
+    def kind_key(self, stage, kind, nth=0):
+        return [k8s_runtime_receipt.key_of(i) for i in self.members[stage] if i["kind"] == kind][nth]
+
+    def manifest(self, key):
+        return next(o for o in self.objects if k8s_runtime_apply.key_of(k8s_runtime_apply.identity_of(o)) == key)
 
     def cleanup(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -239,7 +254,8 @@ def scenario_gates(case, mods):
         impostor = Impostor(r.adapter)
         case.assertEqual(outcome(r.run(adapter=impostor)), (1, "REFUSED", "real_adapter_not_approved"))
         case.assertEqual(impostor.used, [])
-        case.assertEqual(outcome(r.run(through="controller")), (1, "REFUSED", "stage_not_approved:controller"))
+        case.assertEqual(outcome(r.run(through="gateway")), (1, "REFUSED", "stage_not_approved:gateway"))
+        case.assertEqual(outcome(r.run(through="ingress")), (1, "REFUSED", "stage_not_approved:ingress"))
         case.assertEqual(r.journal(), [])
         case.assertEqual(r.applies(), [])
         with case.assertRaises(mods.apply.AdapterError):
@@ -318,8 +334,16 @@ def scenario_foreign_field(case, mods):
         validator = next(k8s_runtime_receipt.key_of(i) for i in r.members["base"]
                          if i["kind"] == "ValidatingWebhookConfiguration")
         r.adapter.objects[validator]["metadata"]["managedFields"].append(
-            {"manager": "pilot-discovery", "operation": "Update", "fieldsV1": {"f:webhooks": {}}})
+            {"manager": "pilot-discovery", "operation": "Update",
+             "fieldsV1": {"f:webhooks": {'k:{"name":"validation.istio.io"}': {"f:clientConfig": {"f:caBundle": {}}}}}})
         case.assertEqual(outcome(r.run(store=r.new_store()))[2], "ownership_not_verified")
+    with run_for(mods) as r:
+        r.run()
+        validator = next(k8s_runtime_receipt.key_of(i) for i in r.members["base"]
+                         if i["kind"] == "ValidatingWebhookConfiguration")
+        r.adapter.objects[validator]["metadata"]["managedFields"].append(
+            {"manager": "pilot-discovery", "operation": "Update", "fieldsV1": {"f:webhooks": {}}})
+        case.assertEqual(outcome(r.run(store=r.new_store()))[2], "foreign_field")
 
 
 def scenario_conflict(case, mods):
@@ -462,9 +486,10 @@ def scenario_d13(case, mods):
     case.assertEqual(own(observed(namespace, full["Namespace"], spoof), "test-k8s-runtime"), "FOREIGN_FIELD")
     case.assertEqual(own({"kind": "Namespace", "managers": [spoof], "required": full["Namespace"]},
                          "test-k8s-runtime"), "NOT_OWNED")
+    # Section 10: istiod is allowed only on the three Istio webhook objects (see scenario_section10).
     istiod = other("pilot-discovery", {("f:webhooks", 'k:{"name":"w.example.io"}', "f:clientConfig", "f:caBundle")})
     case.assertEqual(own(observed(webhook, full["ValidatingWebhookConfiguration"], istiod), "test-k8s-runtime"),
-                     "OWNERSHIP_NOT_VERIFIED")
+                     "FOREIGN_FIELD")
     case.assertEqual(own(dict(observed(namespace, full["Namespace"]), required=None), "test-k8s-runtime"),
                      "OWNERSHIP_NOT_VERIFIED")
     case.assertEqual(a.paths_of({"f:spec": {"f:names": {"f:kind": {}, "f:plural": {}}}}),
@@ -592,11 +617,22 @@ def scenario_write_needs_precondition(case, mods):
 def scenario_deferred_needs_evidence(case, mods):
     """A later stage's STAGE_DONE never resolves a deferred item; only verified evidence could."""
     outstanding = mods.apply.outstanding_deferred
-    everything = {"namespaces", "base", "controller", "istiod", "gateway"}
+    everything = {"namespaces", "base", "controller", "istiod", "gateway", "admission", "ingress"}
     case.assertEqual(len(outstanding("base", everything, {})), 1)
-    case.assertEqual(outstanding("base", everything, {mods.apply.DEFERRED["base"][0]["item"]: True}), [])
-    case.assertEqual(outstanding("base", everything, {mods.apply.DEFERRED["base"][0]["item"]: "yes"})[0]["resolved_by"],
+    case.assertEqual(outstanding("base", everything, {mods.apply.DEFERRED["base"][0]["item"]: True})[0]["resolved_by"],
                      "istiod")
+    requirements = {req for items in mods.apply.DEFERRED.values() for item in items for req in item["requires"]}
+    case.assertEqual(outstanding("base", everything, {req: "yes" for req in requirements})[0]["status"],
+                     "NOT_VERIFIED")
+    # Even evidence claiming every requirement MET, Live ones included, resolves nothing that is Live or BLOCKED.
+    claimed = {req: "MET" for req in requirements}
+    for stage in ("base", "controller", "istiod"):
+        left = outstanding(stage, everything, claimed)
+        case.assertEqual(len(left), len(mods.apply.DEFERRED[stage]), stage)
+        case.assertTrue(all(v in ("NOT_VERIFIED", "BLOCKED") for item in left for k, v in item["evidence"].items()
+                            if k.startswith("live_") or k == "ingress_blocked"))
+    case.assertEqual([i["status"] for i in outstanding("controller", everything, claimed)], ["NOT_VERIFIED", "BLOCKED"])
+    case.assertEqual(outstanding("namespaces", everything, {}), [])
 
 
 def scenario_adapter_boundary(case, mods):
@@ -933,6 +969,713 @@ def scenario_write_time_ownership(case, mods):
     scenario_write_refused_runtime_lost(case, mods)
 
 
+# ---- Apply-B1: controller and istiod ------------------------------------------------------------------------------
+
+LOCK = json.loads(k8s_runtime_apply.LOCK_PATH.read_text())
+HOST = "000000000000.dkr.ecr.ca-central-1.amazonaws.com/"
+
+
+def lock_of(purpose):
+    entry = next(e for e in LOCK["images"] if e["purpose"] == purpose)
+    return entry["digest"], entry["platforms"]["linux/amd64"]["digest"]
+
+
+def secret_metadata(namespace, name, project="test"):
+    return {"apiVersion": "meta.k8s.io/v1", "kind": "PartialObjectMetadata",
+            "metadata": {"name": name, "namespace": namespace, "uid": "00000000-0000-4000-9000-00000000c001",
+                         "resourceVersion": "5",
+                         "labels": {"app.kubernetes.io/part-of": project, "app.kubernetes.io/managed-by": "k8s_certs.py"},
+                         "managedFields": [{"manager": project + "-k8s-certs", "operation": "Apply",
+                                            "fieldsV1": {"f:type": {}, "f:data": {}}}]}}
+
+
+def proxy_ref():
+    return HOST + "test-dev-ecr-istio-proxy@" + lock_of("istio-proxy")[0]
+
+
+def injected_pod(image=None):
+    return json.dumps({"kind": "Pod", "spec": {"containers": [{"name": "app", "image": "registry.example/app:1"},
+                                                              {"name": "istio-proxy", "image": image or proxy_ref()}]}})
+
+
+def ready_cluster(r):
+    """Fake evidence for a clean controller and istiod run: Secrets, ECR, image IDs and the fake probes."""
+    for stage in r.report["stages"]:
+        if stage["name"] in ("controller", "istiod"):
+            for secret in stage["required_secrets"]:
+                r.adapter.secrets[(secret["namespace"], secret["name"])] = secret_metadata(secret["namespace"],
+                                                                                         secret["name"])
+    for entry in LOCK["images"]:
+        r.registry.manifests[("test-dev-ecr-" + entry["purpose"], entry["digest"])] = {
+            "kind": "index", "platforms": {"linux/amd64": entry["platforms"]["linux/amd64"]["digest"]}}
+    for stage in ("controller", "istiod"):
+        key = r.kind_key(stage, "Deployment")
+        containers = r.manifest(key)["spec"]["template"]["spec"]["containers"]
+        r.adapter.workloads[key] = {"image_ids": {c["name"]: c["image"].split("@")[0] + "@" + platform_of(c["image"])
+                                                  for c in containers}}
+    r.adapter.probes["F"] = (403, 'admission webhook "validation.istio.io" denied the request: configuration is invalid')
+    r.adapter.probes["G"] = (200, injected_pod())
+    return r
+
+
+def platform_of(image):
+    digest = image.split("@")[1]
+    return next(e["platforms"]["linux/amd64"]["digest"] for e in LOCK["images"] if e["digest"] == digest)
+
+
+def workload(r, stage):
+    return r.adapter.workloads[r.kind_key(stage, "Deployment")]
+
+
+def stage_keys(r, stage):
+    return set(r.plan.members[stage])
+
+
+def assert_no_writes(case, r, stage):
+    """Nothing of ``stage`` was dry-run, applied or journaled (a pre-apply stop)."""
+    keys = stage_keys(r, stage)
+    case.assertFalse(any(c[1] in keys for c in r.adapter.calls if c[0] in ("apply", "dry_run")), stage)
+    case.assertFalse(any(rec["type"] == "INTENT" and rec["stage"] == stage for rec in r.journal()), stage)
+
+
+def scenario_through_istiod(case, mods):
+    """Controller and istiod applied and ready; every deferred item stays DEFERRED, never PASS (exit 6)."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        result = r.run(through="istiod")
+        case.assertEqual(outcome(result), (6, "APPLIED_WITH_DEFERRED", None))
+        rows = {s["name"]: s for s in result["stages"]}
+        case.assertEqual([(s["name"], s["final_acceptance"]) for s in result["stages"]],
+                         [("namespaces", "PASS"), ("base", "DEFERRED"), ("controller", "DEFERRED"),
+                          ("istiod", "DEFERRED")])
+        case.assertEqual([rows[s]["in_stage_readiness"] for s in STAGES], ["NOT_APPLICABLE", "NOT_APPLICABLE", "MET", "MET"])
+        base = rows["base"]["deferred"][0]["evidence"]
+        case.assertEqual(base, {"base_validator_cabundle_populated": "MET", "istio_cabundle_manager_verified": "NOT_VERIFIED",
+                                "istiod_endpoints_ready": "MET", "live_probe_F": "NOT_VERIFIED"})
+        case.assertEqual([d["status"] for d in rows["controller"]["deferred"]], ["NOT_VERIFIED", "BLOCKED"])
+        case.assertEqual([d["resolved_by"] for d in rows["istiod"]["deferred"]], ["istiod", "gateway"])
+        case.assertEqual(result["runtime_final_acceptance"], "NOT_REACHED")
+        case.assertEqual((result["evidence"]["fake_probe_F"], result["evidence"]["fake_probe_G"]),
+                         ("CLASSIFIED_FAKE_ONLY", "CLASSIFIED_FAKE_ONLY"))
+        case.assertEqual((result["evidence"]["controller_digest"], result["evidence"]["istiod_digest"]),
+                         ("MATCH_PLATFORM", "MATCH_PLATFORM"))
+        types_ = [rec["type"] for rec in r.journal()]
+        case.assertEqual((types_.count("INTENT"), types_.count("RESULT"), types_.count("STAGE_DONE")), (43, 43, 4))
+        case.assertEqual(len(r.applies()), 43)
+        for name in ("aws-load-balancer-controller-webhook",):
+            for kind in ("ValidatingWebhookConfiguration", "MutatingWebhookConfiguration"):
+                obj = r.adapter.objects[r.kind_key("controller", kind)]
+                case.assertTrue(all(w["clientConfig"]["caBundle"] == r.ca for w in obj["webhooks"]), name)
+        istio = [r.kind_key("base", "ValidatingWebhookConfiguration"), r.kind_key("istiod", "ValidatingWebhookConfiguration"),
+                 r.kind_key("istiod", "MutatingWebhookConfiguration")]
+        for key in istio:
+            obj = r.adapter.objects[key]
+            case.assertTrue(all(w["clientConfig"].get("caBundle") for w in obj["webhooks"]), key)
+            runtime = runtime_entry(obj)
+            case.assertFalse(any(p[-1] == "f:caBundle" for p in k8s_runtime_apply.paths_of(runtime["fieldsV1"])), key)
+        case.assertEqual(r.registry.calls, [("test-dev-ecr-lbc", lock_of("lbc")[0]),
+                                            ("test-dev-ecr-istio-pilot", lock_of("istio-pilot")[0])])
+        case.assertFalse(any(c[0] == "get" and "|Secret|" in c[1] for c in r.adapter.calls), "no full Secret read")
+
+
+def scenario_through_controller(case, mods):
+    with run_for(mods) as r:
+        ready_cluster(r)
+        result = r.run(through="controller")
+        case.assertEqual(outcome(result), (6, "APPLIED_WITH_DEFERRED", None))
+        case.assertEqual(result["stages"][-1]["final_acceptance"], "DEFERRED")
+        case.assertEqual(result["stages"][1]["deferred"][0]["evidence"]["base_validator_cabundle_populated"],
+                         "NOT_VERIFIED")
+        assert_no_writes(case, r, "istiod")
+        # Rerun: the closed controller stage is re-verified (readiness again), not re-applied.
+        r.adapter.calls.clear()
+        again = r.run(through="controller", store=r.new_store())
+        case.assertEqual(outcome(again), (6, "APPLIED_WITH_DEFERRED", None))
+        case.assertEqual(r.applies(), [])
+        case.assertIn(("list", "pods|kube-system"), r.adapter.calls)
+
+
+def scenario_rerun_after_istiod(case, mods):
+    """istiod's caBundle entry is NOT_VERIFIED (D13): every rerun stops before any write, never adopts it."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.run(through="istiod")
+        r.adapter.calls.clear()
+        case.assertEqual(outcome(r.run(through="istiod", store=r.new_store())), (4, "APPLY_FAILED", "ownership_not_verified"))
+        case.assertEqual(r.applies(), [])
+
+
+def scenario_istiod_patches_before_readback(case, mods):
+    """istiod fills a caBundle before the engine's readback: ownership is unproven, so it is quarantined."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        workload(r, "istiod")["ready_after"] = 0
+        result = r.run(through="istiod")
+        case.assertEqual(outcome(result), (4, "APPLY_FAILED", "ownership_not_verified"))
+        case.assertEqual({rec["reason"] for rec in r.journal() if rec["type"] == "QUARANTINE"}, {"ownership_unproven"})
+
+
+def scenario_secret_presence(case, mods):
+    cases = [("controller", "kube-system", "aws-load-balancer-controller-tls"), ("istiod", "istio-system", "cacerts")]
+    for stage, namespace, name in cases:
+        with run_for(mods) as r:
+            ready_cluster(r)
+            del r.adapter.secrets[(namespace, name)]
+            case.assertEqual(outcome(r.run(through="istiod")),
+                             (3, "UNDETERMINED", "pre_apply_not_verified:secret_absent:" + namespace + "/" + name))
+            assert_no_writes(case, r, stage)
+
+
+def scenario_secret_metadata_only(case, mods):
+    full = {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "aws-load-balancer-controller-tls",
+                                                               "namespace": "kube-system"}, "data": {"tls.key": "c2VjcmV0"}}
+    leaked = dict(secret_metadata("kube-system", "aws-load-balancer-controller-tls"), data={"tls.key": "c2VjcmV0"})
+    for response in (full, leaked, dict(secret_metadata("kube-system", "aws-load-balancer-controller-tls"),
+                                        stringData={"x": "y"})):
+        with run_for(mods) as r:
+            ready_cluster(r)
+            r.adapter.secrets[("kube-system", "aws-load-balancer-controller-tls")] = response
+            result = r.run(through="controller")
+            case.assertEqual(outcome(result), (3, "UNDETERMINED", "secret_metadata_only_unsupported"))
+            case.assertNotIn("c2VjcmV0", json.dumps(result))
+            assert_no_writes(case, r, "controller")
+
+
+def scenario_secret_registration(case, mods):
+    def wrong_manager(m):
+        m["metadata"]["managedFields"][0]["manager"] = "kubectl"
+
+    def wrong_label(m):
+        m["metadata"]["labels"]["app.kubernetes.io/managed-by"] = "helm"
+
+    def wrong_namespace(m):
+        m["metadata"]["namespace"] = "default"
+    for edit in (wrong_manager, wrong_label, wrong_namespace):
+        with run_for(mods) as r:
+            ready_cluster(r)
+            edit(r.adapter.secrets[("istio-system", "cacerts")])
+            case.assertEqual(outcome(r.run(through="istiod")),
+                             (3, "UNDETERMINED", "pre_apply_not_verified:secret_not_registered:istio-system/cacerts"))
+            assert_no_writes(case, r, "istiod")
+
+
+def scenario_registry_evidence(case, mods):
+    with run_for(mods) as r:
+        ready_cluster(r)
+        case.assertEqual(outcome(r.run(through="controller", registry=None)),
+                         (3, "UNDETERMINED", "pre_apply_not_verified:ecr_evidence_unavailable"))
+        assert_no_writes(case, r, "controller")
+
+    class Impostor:
+        is_fake = True
+        manifests = {}
+
+        def describe(self, repository, digest):
+            return {"kind": "index", "platforms": {"linux/amd64": platform_of(HOST + repository + "@" + digest)}}
+    with run_for(mods) as r:
+        ready_cluster(r)
+        case.assertEqual(outcome(r.run(through="controller", registry=Impostor())),
+                         (1, "REFUSED", "real_registry_not_approved"))
+        case.assertEqual(r.journal(), [])
+
+
+def scenario_registry_digests(case, mods):
+    lbc_index, _ = lock_of("lbc")
+    pilot_index, _ = lock_of("istio-pilot")
+    with run_for(mods) as r:
+        ready_cluster(r)
+        del r.registry.manifests[("test-dev-ecr-lbc", lbc_index)]
+        case.assertEqual(outcome(r.run(through="controller"))[2], "pre_apply_not_verified:ecr_index_missing:lbc")
+        assert_no_writes(case, r, "controller")
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.registry.manifests[("test-dev-ecr-istio-pilot", pilot_index)]["platforms"]["linux/amd64"] = "sha256:" + "e" * 64
+        case.assertEqual(outcome(r.run(through="istiod")), (3, "UNDETERMINED", "digest_not_verified:ecr_platform_child:istio-pilot"))
+        assert_no_writes(case, r, "istiod")
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.registry.manifests[("test-dev-ecr-lbc", lbc_index)]["kind"] = "manifest"
+        case.assertEqual(outcome(r.run(through="controller"))[2], "pre_apply_not_verified:ecr_index_missing:lbc")
+
+
+def scenario_nodes(case, mods):
+    from_k = k8s_runtime_apply.fake_node
+    for nodes in ([], [from_k("n", "ca-central-1a", "amd64", ready=False)], [from_k("n", "ca-central-1a", "arm64")],
+                  [from_k("n", "ca-central-1b", "amd64")]):
+        with run_for(mods) as r:
+            ready_cluster(r)
+            r.adapter.nodes = nodes
+            case.assertEqual(outcome(r.run(through="controller")), (3, "UNDETERMINED", "pre_apply_not_verified:nodes"))
+            assert_no_writes(case, r, "controller")
+
+
+def scenario_bundle_ca(case, mods):
+    with run_for(mods) as r:
+        ready_cluster(r)
+        case.assertEqual(outcome(r.run(through="controller", ca="b3RoZXI=")), (3, "UNDETERMINED", "pre_apply_not_verified:bundle_ca_differs"))
+        assert_no_writes(case, r, "controller")
+    with run_for(mods) as r:
+        ready_cluster(r)
+        case.assertEqual(outcome(r.run(through="controller", ca=None)), (3, "UNDETERMINED", "pre_apply_not_verified:webhook_ca_bundle"))
+
+
+def rebundled(mods, edit):
+    objects, report, _ = bundle()
+    edit(objects)
+    report["manifest_sha256"] = sha(objects)
+    return run_for(mods, objects=objects, report=report, store_manifest=report["manifest_sha256"])
+
+
+def scenario_bundle_image_locked(case, mods):
+    def unlocked(objects):
+        deployment = next(o for o in objects if o["kind"] == "Deployment"
+                          and o["metadata"]["name"] == "aws-load-balancer-controller")
+        deployment["spec"]["template"]["spec"]["containers"][0]["image"] = HOST + "test-dev-ecr-lbc@sha256:" + "a" * 64
+    with rebundled(mods, unlocked) as r:
+        ready_cluster_safe(r)
+        case.assertEqual(outcome(r.run(through="controller")), (3, "UNDETERMINED", "digest_not_verified:bundle_image_not_locked"))
+        assert_no_writes(case, r, "controller")
+
+
+def ready_cluster_safe(r):
+    """ready_cluster for a re-bundled run whose images may not be locked: image IDs are left unset."""
+    try:
+        ready_cluster(r)
+    except StopIteration:
+        pass
+
+
+def scenario_dry_run_side_effects(case, mods):
+    def side_effects(objects):
+        webhook = next(o for o in objects if o["kind"] == "ValidatingWebhookConfiguration"
+                       and o["metadata"]["name"] == "aws-load-balancer-controller-webhook")
+        webhook["webhooks"][0]["sideEffects"] = "Some"
+    with rebundled(mods, side_effects) as r:
+        ready_cluster(r)
+        case.assertEqual(outcome(r.run(through="controller")), (3, "UNDETERMINED", "dry_run_unsupported"))
+        assert_no_writes(case, r, "controller")
+
+
+def scenario_deployment_readiness(case, mods):
+    def never(r):
+        workload(r, "controller")["ready_after"] = None
+
+    def stale(r):
+        workload(r, "controller")["status"] = {"observedGeneration": 0, "replicas": 1, "updatedReplicas": 1,
+                                               "readyReplicas": 1, "availableReplicas": 1,
+                                               "conditions": [{"type": "Available", "status": "True"}]}
+
+    def unavailable(r):
+        workload(r, "controller")["status"] = {"observedGeneration": 1, "replicas": 1, "updatedReplicas": 1,
+                                               "readyReplicas": 1, "availableReplicas": 1,
+                                               "conditions": [{"type": "Available", "status": "False"}]}
+
+    def pods(r):
+        workload(r, "controller")["pods_ready"] = False
+
+    def endpoints(r):
+        r.adapter.endpoints[r.kind_key("controller", "Service")] = [
+            {"ports": [{"port": 9443}], "endpoints": [{"addresses": ["10.0.0.1"], "conditions": {"ready": False}}]}]
+
+    def wrong_port(r):
+        r.adapter.endpoints[r.kind_key("controller", "Service")] = [
+            {"ports": [{"port": 443}], "endpoints": [{"addresses": ["10.0.0.1"], "conditions": {"ready": True}}]}]
+    for edit, reason in ((never, "deployment_not_ready"), (stale, "deployment_not_ready"),
+                         (unavailable, "deployment_not_ready"), (pods, "pods_not_ready"),
+                         (endpoints, "endpoints_not_ready"), (wrong_port, "endpoints_not_ready")):
+        with run_for(mods) as r:
+            ready_cluster(r)
+            edit(r)
+            started = r.clock.now()
+            case.assertEqual(outcome(r.run(through="istiod")), (5, "READINESS_TIMEOUT", reason))
+            case.assertGreaterEqual(r.clock.now() - started, 600)
+            assert_no_writes(case, r, "istiod")  # stop before istiod
+
+
+def scenario_istiod_endpoints(case, mods):
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.adapter.endpoints[r.kind_key("istiod", "Service")] = [
+            {"ports": [{"port": 15017}, {"port": 15010}], "endpoints": [{"addresses": ["10.0.0.2"], "conditions": {"ready": True}}]}]
+        case.assertEqual(outcome(r.run(through="istiod")), (5, "READINESS_TIMEOUT", "endpoints_not_ready"))
+
+
+def scenario_deployment_bound(case, mods):
+    """D11: a Deployment ready at 590 s is accepted; the bound is 600 s, not shorter."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        workload(r, "controller")["ready_after"] = 590
+        case.assertEqual(r.run(through="controller")["exit_code"], 6)
+
+
+def scenario_cabundle_population(case, mods):
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.adapter.istiod_patches_cabundle = False
+        result = r.run(through="istiod")
+        case.assertEqual(outcome(result), (5, "READINESS_TIMEOUT", "cabundle_not_populated"))
+        case.assertNotIn("fake_probe_F", result["evidence"])
+
+
+def scenario_digests(case, mods):
+    index, platform = lock_of("lbc")
+
+    def image_id(value):
+        def edit(r):
+            workload(r, "controller")["image_ids"]["aws-load-balancer-controller"] = value
+        return edit
+
+    def arm_node(r):
+        r.adapter.nodes.append(k8s_runtime_apply.fake_node("node-b", "ca-central-1a", "arm64"))
+        workload(r, "controller")["node"] = "node-b"
+
+    def spec_image(r):
+        workload(r, "controller")["spec_images"] = {"aws-load-balancer-controller": HOST + "test-dev-ecr-lbc:latest"}
+    cases = [(image_id(HOST + "test-dev-ecr-lbc@" + index), (3, "UNDETERMINED", "digest_not_verified:match_index")),
+             (image_id(HOST + "test-dev-ecr-lbc@sha256:" + "b" * 64), (4, "APPLY_FAILED", "digest_mismatch")),
+             (image_id(None), (3, "UNDETERMINED", "digest_not_verified:not_verified")),
+             (image_id("docker-pullable://nonsense"), (3, "UNDETERMINED", "digest_not_verified:not_verified")),
+             (arm_node, (3, "UNDETERMINED", "digest_not_verified:not_verified")),
+             (spec_image, (4, "APPLY_FAILED", "digest_mismatch:spec_image"))]
+    for edit, expected in cases:
+        with run_for(mods) as r:
+            ready_cluster(r)
+            edit(r)
+            case.assertEqual(outcome(r.run(through="istiod")), expected)
+            assert_no_writes(case, r, "istiod")
+    c = mods.apply.classify_image_digest
+    case.assertEqual(c("x@" + platform, index, platform, "amd64"), "MATCH_PLATFORM")
+    case.assertEqual(c("x@" + platform, index, platform, "arm64"), "NOT_VERIFIED")
+    case.assertEqual(c("x@" + index, index, platform, "amd64"), "MATCH_INDEX")
+    case.assertEqual(c("x@sha256:" + "c" * 64, index, platform, "amd64"), "digest_mismatch")
+    case.assertEqual(c("x@sha256:short", index, platform, "amd64"), "NOT_VERIFIED")
+
+
+def scenario_irsa_annotation(case, mods):
+    with run_for(mods) as r:
+        ready_cluster(r)
+        target = r.kind_key("controller", "ServiceAccount")
+        taint_after_write(r, target, lambda o: o["metadata"]["annotations"].pop("eks.amazonaws.com/role-arn"))
+        case.assertEqual(outcome(r.run(through="controller")), (3, "UNDETERMINED", "irsa_annotation_differs"))
+
+
+def scenario_controller_webhook_owned(case, mods):
+    """A foreign manager takes the controller webhook caBundle (same value) before readiness: stop."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        target = r.kind_key("controller", "ValidatingWebhookConfiguration")
+        original = r.adapter.list_pods
+
+        def taint(namespace, selector):
+            obj = r.adapter.objects[target]
+            if not any(m["manager"] == "cert-manager" for m in obj["metadata"]["managedFields"]):
+                obj["metadata"]["managedFields"].append({"manager": "cert-manager", "operation": "Update", "fieldsV1": {
+                    "f:webhooks": {'k:{"name":"vtargetgroupbinding.elbv2.k8s.aws"}': {"f:clientConfig": {"f:caBundle": {}}}}}})
+            return original(namespace, selector)
+        r.adapter.list_pods = taint
+        case.assertEqual(outcome(r.run(through="controller")),
+                         (4, "APPLY_FAILED", "controller_webhook_cabundle_not_runtime_owned"))
+
+
+def scenario_probes(case, mods):
+    cases = [("F", (500, 'Internal error: failed calling webhook "validation.istio.io"'), (3, "UNDETERMINED", "probe_F:webhook_unreachable")),
+             ("F", (403, 'User "x" cannot create resource "peerauthentications"'), (4, "APPLY_FAILED", "probe_F:authz_denied")),
+             ("F", (200, "{}"), (4, "APPLY_FAILED", "probe_F:allowed")),
+             ("G", (200, injected_pod(HOST + "test-dev-ecr-istio-proxy@sha256:" + "d" * 64)), (4, "APPLY_FAILED", "probe_G:injection_missing")),
+             ("G", (200, json.dumps({"spec": {"containers": [{"name": "app", "image": "x"}]}})), (4, "APPLY_FAILED", "probe_G:injection_missing")),
+             ("G", (200, "not json"), (4, "APPLY_FAILED", "probe_G:injection_missing")),
+             ("G", (403, 'admission webhook "rev.object.sidecar-injector.istio.io" denied the request'),
+              (4, "APPLY_FAILED", "probe_G:webhook_denied:rev.object.sidecar-injector.istio.io"))]
+    for name, answer, expected in cases:
+        with run_for(mods) as r:
+            ready_cluster(r)
+            r.adapter.probes[name] = answer
+            case.assertEqual(outcome(r.run(through="istiod")), expected)
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.adapter.probes.clear()
+        result = r.run(through="istiod")
+        case.assertEqual(result["exit_code"], 6)
+        case.assertEqual((result["evidence"]["fake_probe_F"], result["evidence"]["fake_probe_G"]), ("NOT_RUN", "NOT_RUN"))
+
+
+def section10_objects():
+    objects, _, _ = bundle()
+    found = {(o["kind"], o["metadata"]["name"]): o for o in objects}
+    return {"base": found[("ValidatingWebhookConfiguration", "istiod-default-validator")],
+            "validator": found[("ValidatingWebhookConfiguration", "istio-validator-test-v1-istio-system")],
+            "injector": found[("MutatingWebhookConfiguration", "istio-sidecar-injector-test-v1")],
+            "lbc": found[("ValidatingWebhookConfiguration", "aws-load-balancer-controller-webhook")],
+            "tgb": found[("TargetGroupBinding", "test-gateway")],
+            "deployment": found[("Deployment", "istiod-test-v1")]}
+
+
+def managed(manager, paths, operation="Update", subresource=None, fields=None):
+    entry = {"manager": manager, "operation": operation, "fieldsType": "FieldsV1",
+             "fieldsV1": fields if fields is not None else k8s_runtime_apply.fieldsv1_of(paths)}
+    if subresource is not None:
+        entry["subresource"] = subresource
+    return entry
+
+
+def section10_verdict(mods, manifest, *entries, edit=None, runtime="test-k8s-runtime"):
+    """D13 on a live copy of ``manifest``: the runtime owns exactly its paths, plus ``entries``."""
+    a = mods.apply
+    live = copy.deepcopy(manifest)
+    live["metadata"]["managedFields"] = [managed(runtime, a.required_paths(manifest), operation="Apply")] + list(entries)
+    if edit:
+        edit(live)
+    return a.d13_ownership(a.observed_of(live, manifest), runtime)
+
+
+def ca_path(name):
+    return ("f:webhooks", 'k:{"name":"' + name + '"}', "f:clientConfig", "f:caBundle")
+
+
+def fp_path(name):
+    return ("f:webhooks", 'k:{"name":"' + name + '"}', "f:failurePolicy")
+
+
+FINALIZER = ("f:metadata", "f:finalizers", 'v:"elbv2.k8s.aws/resources"')
+
+
+def scenario_section10(case, mods):
+    """Section 10, C1 and D13 by kind, object name, webhook name, manager, operation, subresource, path, value."""
+    o = section10_objects()
+    v = lambda manifest, *entries, **kw: section10_verdict(mods, manifest, *entries, **kw)  # noqa: E731
+    NV, FF = "OWNERSHIP_NOT_VERIFIED", "FOREIGN_FIELD"
+    istiod = lambda paths, **kw: managed("pilot-discovery", paths, **kw)  # noqa: E731
+    lbc = lambda paths, **kw: managed("aws-load-balancer-controller", paths, **kw)  # noqa: E731
+
+    def with_finalizers(*values):
+        return lambda live: live["metadata"].__setitem__("finalizers", list(values))
+
+    def set_policy(name, value):
+        def edit(live):
+            for w in live["webhooks"]:
+                if w["name"] == name:
+                    if value is None:
+                        w.pop("failurePolicy", None)
+                    else:
+                        w["failurePolicy"] = value
+        return edit
+    # Inside the rows: NOT_VERIFIED (the manager names are unconfirmed), never OWNED.
+    case.assertEqual(v(o["base"]), "OWNED")
+    case.assertEqual(v(o["base"], istiod({ca_path("validation.istio.io")})), NV)
+    case.assertEqual(v(o["validator"], istiod({ca_path("rev.validation.istio.io")})), NV)
+    both = {ca_path("rev.namespace.sidecar-injector.istio.io"), ca_path("rev.object.sidecar-injector.istio.io")}
+    case.assertEqual(v(o["injector"], istiod(both)), NV)
+    case.assertEqual(v(o["injector"], istiod(both | {fp_path("rev.object.sidecar-injector.istio.io")})), NV)
+    marked = {"f:webhooks": {".": {}, 'k:{"name":"validation.istio.io"}': {".": {}, "f:clientConfig": {"f:caBundle": {}}}}}
+    case.assertEqual(v(o["base"], istiod(None, fields=marked)), NV)
+    case.assertEqual(v(o["tgb"], lbc({FINALIZER}), edit=with_finalizers("elbv2.k8s.aws/resources")), NV)
+    case.assertEqual(v(o["tgb"], lbc({FINALIZER}), managed("kube-controller", {("f:status", "f:conditions")},
+                                                         subresource="status")), NV)
+    # Object identity: kind, name, project and scope.
+    case.assertEqual(v(o["lbc"], istiod({ca_path("vtargetgroupbinding.elbv2.k8s.aws")})), FF)
+    case.assertEqual(v(o["base"], istiod({ca_path("validation.istio.io")}),
+                       edit=lambda live: live.__setitem__("kind", "MutatingWebhookConfiguration")), FF)
+    case.assertEqual(v(o["base"], istiod({ca_path("validation.istio.io")}),
+                       edit=lambda live: live["metadata"].__setitem__("namespace", "istio-system")), FF)
+    case.assertEqual(v(o["validator"], istiod({ca_path("rev.validation.istio.io")}), runtime="prod-k8s-runtime"), FF)
+    case.assertEqual(v(o["deployment"], istiod({("f:spec", "f:replicas")})), FF)
+    # Webhook names: fixed for the object, and present on the live object.
+    case.assertEqual(v(o["base"], istiod({ca_path("other.istio.io")})), FF)
+    case.assertEqual(v(o["base"], istiod({ca_path("rev.validation.istio.io")})), FF)
+    case.assertEqual(v(o["injector"], istiod({ca_path("rev.object.sidecar-injector.istio.io")}),
+                       edit=lambda live: live.__setitem__("webhooks", [w for w in live["webhooks"]
+                                                                      if w["name"] != "rev.object.sidecar-injector.istio.io"])),
+                     FF)
+    # Paths and values.
+    case.assertEqual(v(o["base"], istiod({ca_path("validation.istio.io") + ("f:extra",)})), FF)
+    case.assertEqual(v(o["base"], istiod({("f:webhooks", 'k:{"name":"validation.istio.io"}', "f:clientConfig", "f:service")})), FF)
+    case.assertEqual(v(o["base"], istiod({("f:webhooks", 'k:{"name":"validation.istio.io"}', "f:rules")})), FF)
+    case.assertEqual(v(o["base"], istiod({("f:webhooks",)})), FF)
+    case.assertEqual(v(o["base"], istiod(set())), FF)
+    case.assertEqual(v(o["base"], istiod({fp_path("validation.istio.io")}), edit=set_policy("validation.istio.io", "Ignore")), FF)
+    case.assertEqual(v(o["base"], istiod({fp_path("validation.istio.io")}), edit=set_policy("validation.istio.io", None)), FF)
+    case.assertEqual(v(o["base"], istiod({fp_path("validation.istio.io")})), NV)
+    # Manager, operation and subresource.
+    case.assertEqual(v(o["base"], istiod({ca_path("validation.istio.io")}, operation="Apply")), FF)
+    case.assertEqual(v(o["base"], istiod({ca_path("validation.istio.io")}, subresource="status")), FF)
+    case.assertEqual(v(o["base"], lbc({ca_path("validation.istio.io")})), FF)
+    case.assertEqual(v(o["base"], managed("istiod", {ca_path("validation.istio.io")})), FF)
+    # C1: the runtime never owns an Istio caBundle; claiming it leaves ownership unproven.
+    a = mods.apply
+    claim = copy.deepcopy(o["base"])
+    claim["metadata"]["managedFields"] = [managed("test-k8s-runtime", set(a.required_paths(o["base"]))
+                                                  | {ca_path("validation.istio.io")}, operation="Apply")]
+    case.assertEqual(a.d13_ownership(a.observed_of(claim, o["base"]), "test-k8s-runtime"), NV)
+    # The controller row: TargetGroupBinding <project>-gateway in <project>-ingress, that finalizer only.
+    case.assertEqual(v(o["tgb"], lbc({("f:metadata", "f:finalizers", 'v:"example.io/other"')})), FF)
+    case.assertEqual(v(o["tgb"], lbc({("f:metadata", "f:finalizers")})), FF)
+    case.assertEqual(v(o["tgb"], lbc({FINALIZER, ("f:spec", "f:targetGroupARN")})), FF)
+    case.assertEqual(v(o["tgb"], lbc({FINALIZER}, operation="Apply")), FF)
+    case.assertEqual(v(o["tgb"], lbc({FINALIZER}), edit=lambda live: live["metadata"].__setitem__("name", "other")), FF)
+    case.assertEqual(v(o["tgb"], lbc({FINALIZER}), edit=lambda live: live["metadata"].__setitem__("namespace", "test-app")), FF)
+    case.assertEqual(v(o["tgb"], edit=with_finalizers("example.io/other")), FF)
+    case.assertEqual(v(o["tgb"], lbc({FINALIZER}), edit=with_finalizers("elbv2.k8s.aws/resources", "example.io/x")), FF)
+    case.assertEqual(v(o["deployment"], lbc({("f:metadata", "f:finalizers", 'v:"elbv2.k8s.aws/resources"')})), FF)
+    case.assertEqual(v(o["tgb"], istiod({FINALIZER})), FF)
+
+
+def scenario_section10_malformed(case, mods):
+    """Malformed evidence is never read as ownership: OWNERSHIP_NOT_VERIFIED, without a crash."""
+    o = section10_objects()
+    v = lambda manifest, *entries, **kw: section10_verdict(mods, manifest, *entries, **kw)  # noqa: E731
+    NV = "OWNERSHIP_NOT_VERIFIED"
+    a = mods.apply
+    case.assertEqual(v(o["base"], managed("test-k8s-runtime", a.required_paths(o["base"]), operation="Apply")), NV)
+    ca = {ca_path("validation.istio.io")}
+    case.assertEqual(v(o["base"], managed("pilot-discovery", ca), managed("pilot-discovery", ca)), NV)
+    case.assertEqual(v(o["base"], managed("kubectl", None, fields={"spec": {}})), NV)
+    case.assertEqual(v(o["base"], managed("pilot-discovery", None, fields={"f:webhooks": {'k:{"name":"validation.istio.io"}': {
+        "f:clientConfig": {"f:caBundle": "x"}}}}), managed("kubectl", None, fields={"f:spec": "x"})), NV)
+    case.assertEqual(v(o["base"], managed("pilot-discovery", ca),
+                       edit=lambda live: live["webhooks"].append(copy.deepcopy(live["webhooks"][0]))), NV)
+    case.assertEqual(v(o["base"], managed("pilot-discovery", ca), edit=lambda live: live.__setitem__("webhooks", {"x": 1})), NV)
+    case.assertEqual(v(o["base"], managed("pilot-discovery", ca),
+                       edit=lambda live: live["webhooks"][0].pop("name")), NV)
+    case.assertEqual(v(o["tgb"], edit=lambda live: live["metadata"].__setitem__("finalizers", "example.io/x")), NV)
+    case.assertEqual(v(o["tgb"], edit=lambda live: live["metadata"].__setitem__("finalizers", [1])), NV)
+
+
+def wrap_istiod(r, after):
+    """Let the fake istiod act, then run ``after`` on the adapter (a race right after istiod writes)."""
+    original = r.adapter._istiod_acts
+
+    def acts():
+        original()
+        written = [o for o in r.adapter.objects.values() if any(
+            isinstance(m, dict) and m.get("manager") == "pilot-discovery" for m in o["metadata"].get("managedFields") or [])]
+        if len(written) == 3 and not state:  # once, right after istiod has written all three webhooks
+            state.append(True)
+            after(r.adapter)
+    state = []
+    r.adapter._istiod_acts = acts
+
+
+def scenario_istio_webhooks_at_readiness(case, mods):
+    """After istiod writes the caBundle, the Istio webhooks must keep failurePolicy Fail and stay in the row."""
+    def ignore(adapter):
+        obj = adapter.objects[istio_key_of(adapter, "istio-validator-test-v1-istio-system")]
+        obj["webhooks"][0]["failurePolicy"] = "Ignore"
+        entry = next(m for m in obj["metadata"]["managedFields"] if m["manager"] == "pilot-discovery")
+        entry["fieldsV1"]["f:webhooks"]['k:{"name":"rev.validation.istio.io"}']["f:failurePolicy"] = {}
+
+    def foreign_writer(adapter):
+        for obj in adapter.objects.values():
+            for m in obj["metadata"].get("managedFields") or []:
+                if m.get("manager") == "pilot-discovery" and obj["metadata"]["name"] == "istiod-default-validator":
+                    m["manager"] = "kubectl-patch"
+
+    def wider(adapter):
+        obj = adapter.objects[istio_key_of(adapter, "istio-sidecar-injector-test-v1")]
+        entry = next(m for m in obj["metadata"]["managedFields"] if m["manager"] == "pilot-discovery")
+        entry["fieldsV1"]["f:webhooks"]['k:{"name":"rev.object.sidecar-injector.istio.io"}']["f:rules"] = {}
+    for after, expected in ((ignore, "istio_failure_policy_not_fail"), (foreign_writer, "foreign_field"),
+                            (wider, "foreign_field")):
+        with run_for(mods) as r:
+            ready_cluster(r)
+            wrap_istiod(r, after)
+            result = r.run(through="istiod")
+            case.assertEqual(outcome(result), (4, "APPLY_FAILED", expected))
+            case.assertNotIn("fake_probe_F", result["evidence"])
+
+
+def istio_key_of(adapter, name):
+    """The webhook configuration called ``name`` (a ConfigMap shares the injector's name)."""
+    return next(k for k, o in adapter.objects.items()
+                if o["metadata"]["name"] == name and o["kind"] in k8s_runtime_apply.WEBHOOK_KINDS)
+
+
+def scenario_section10_races(case, mods):
+    """istiod's manager on a controller webhook is foreign at write time, after the write and on a rerun."""
+    def istiod_on_lbc(obj):
+        obj["metadata"]["managedFields"].append(managed("pilot-discovery", {ca_path("vtargetgroupbinding.elbv2.k8s.aws")}))
+    with run_for(mods) as r:
+        ready_cluster(r)
+        target = r.kind_key("controller", "ValidatingWebhookConfiguration")
+        taint_after_write(r, target, istiod_on_lbc)
+        case.assertEqual(outcome(r.run(through="controller")), (4, "APPLY_FAILED", "foreign_field"))
+        case.assertEqual([q["reason"] for q in records_for(r, target, "QUARANTINE")], ["ownership_unproven"])
+        case.assertIsNone(owned_uid(r, target))
+    with run_for(mods) as r:
+        ready_cluster(r)
+        target = r.kind_key("controller", "ValidatingWebhookConfiguration")
+        r.adapter.conflicts.add(r.kind_key("controller", "ServiceAccount"))
+        case.assertEqual(outcome(r.run(through="controller"))[2], "field_conflict")
+        r.adapter.conflicts.clear()
+        captured = {}
+
+        def race(adapter):
+            istiod_on_lbc(adapter.objects[target])
+            captured["object"] = snapshot(r, target)
+        r.adapter.before_write[target] = race
+        case.assertEqual(outcome(r.run(through="controller", store=r.new_store())),
+                         (4, "APPLY_FAILED", "foreign_field_refused"))
+        case.assertEqual(snapshot(r, target), captured["object"])
+    # Rerun after istiod: a caBundle entry in the row stops as NOT_VERIFIED; a value outside it as foreign.
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.run(through="istiod")
+        base = istio_key_of(r.adapter, "istiod-default-validator")
+        obj = r.adapter.objects[base]
+        obj["webhooks"][0]["failurePolicy"] = "Ignore"
+        entry = next(m for m in obj["metadata"]["managedFields"] if m["manager"] == "pilot-discovery")
+        entry["fieldsV1"]["f:webhooks"]['k:{"name":"validation.istio.io"}']["f:failurePolicy"] = {}
+        r.adapter.calls.clear()
+        case.assertEqual(outcome(r.run(through="istiod", store=r.new_store())), (4, "APPLY_FAILED", "foreign_field"))
+        case.assertEqual(r.applies(), [])
+    # Rerun with malformed evidence on a controller object (normally OWNED): NOT_VERIFIED, no write.
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.run(through="controller")
+        target = r.kind_key("controller", "MutatingWebhookConfiguration")
+        obj = r.adapter.objects[target]
+        obj["metadata"]["managedFields"].append(copy.deepcopy(runtime_entry(obj)))
+        r.adapter.calls.clear()
+        case.assertEqual(outcome(r.run(through="controller", store=r.new_store())),
+                         (4, "APPLY_FAILED", "ownership_not_verified"))
+        case.assertEqual(r.applies(), [])
+
+
+def scenario_workload_read_scope(case, mods):
+    with run_for(mods) as r:
+        with case.assertRaises(mods.apply.AdapterError):
+            r.adapter.get_secret_metadata("test-ingress", "test-gateway-tls")
+        with case.assertRaises(mods.apply.AdapterError):
+            r.adapter.list_endpoint_slices("test-ingress", "test-gateway")
+        with case.assertRaises(mods.apply.AdapterError):
+            r.adapter.list_pods("kube-system", {"app": "anything"})
+
+
+def scenario_istiod_after_controller_ready(case, mods):
+    """The istiod stage never starts while the controller's in-stage readiness is unmet, even when closed."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.run(through="controller")
+        workload(r, "controller")["pods_ready"] = False
+        case.assertEqual(outcome(r.run(through="istiod", store=r.new_store())), (5, "READINESS_TIMEOUT", "pods_not_ready"))
+        assert_no_writes(case, r, "istiod")
+
+
+def scenario_runtime_cabundle_claim(case, mods):
+    """Defence behind D13: the runtime's own Apply entry must never own an Istio caBundle path."""
+    objects, report, arn = bundle()
+    with run_for(mods) as r:
+        engine = mods.apply.Engine(report, objects, r.store, r.adapter, r.clock, arn)
+        manifest = next(o for o in objects if o["metadata"]["name"] == "istiod-default-validator")
+        live = copy.deepcopy(manifest)
+        runtime = {"manager": "test-k8s-runtime", "operation": "Apply", "fieldsV1": {"f:webhooks": {}}}
+        live["metadata"]["managedFields"] = [runtime]
+        case.assertFalse(engine.runtime_claims_istio_cabundle(live, manifest))
+        runtime["fieldsV1"] = {"f:webhooks": {'k:{"name":"validation.istio.io"}': {"f:clientConfig": {"f:caBundle": {}}}}}
+        case.assertTrue(engine.runtime_claims_istio_cabundle(live, manifest))
+        live["metadata"]["managedFields"] = {"manager": "test-k8s-runtime"}
+        case.assertTrue(engine.runtime_claims_istio_cabundle(live, manifest))
+
+
 # ---- unit tests ----------------------------------------------------------------------------------------------------
 
 class EngineTests(unittest.TestCase):
@@ -1005,6 +1748,63 @@ class EngineTests(unittest.TestCase):
 
     def test_write_refused_malformed_ownership(self):
         scenario_write_refused_malformed(self, real_mods())
+
+    # Apply-B1: controller and istiod.
+    def test_through_istiod_is_deferred(self):
+        scenario_through_istiod(self, real_mods())
+
+    def test_through_controller_and_rerun(self):
+        scenario_through_controller(self, real_mods())
+
+    def test_rerun_after_istiod_stops(self):
+        scenario_rerun_after_istiod(self, real_mods())
+        scenario_istiod_patches_before_readback(self, real_mods())
+
+    def test_secret_preconditions(self):
+        scenario_secret_presence(self, real_mods())
+        scenario_secret_metadata_only(self, real_mods())
+        scenario_secret_registration(self, real_mods())
+
+    def test_registry_preconditions(self):
+        scenario_registry_evidence(self, real_mods())
+        scenario_registry_digests(self, real_mods())
+        scenario_bundle_image_locked(self, real_mods())
+
+    def test_node_and_ca_preconditions(self):
+        scenario_nodes(self, real_mods())
+        scenario_bundle_ca(self, real_mods())
+        scenario_dry_run_side_effects(self, real_mods())
+
+    def test_workload_readiness(self):
+        scenario_deployment_readiness(self, real_mods())
+        scenario_istiod_endpoints(self, real_mods())
+        scenario_deployment_bound(self, real_mods())
+        scenario_cabundle_population(self, real_mods())
+        scenario_istiod_after_controller_ready(self, real_mods())
+
+    def test_digest_classification(self):
+        scenario_digests(self, real_mods())
+
+    def test_workload_ownership(self):
+        scenario_irsa_annotation(self, real_mods())
+        scenario_controller_webhook_owned(self, real_mods())
+
+    def test_section10_rows(self):
+        scenario_section10(self, real_mods())
+
+    def test_section10_malformed_evidence(self):
+        scenario_section10_malformed(self, real_mods())
+
+    def test_section10_races_and_reruns(self):
+        scenario_istio_webhooks_at_readiness(self, real_mods())
+        scenario_section10_races(self, real_mods())
+
+    def test_fake_probes(self):
+        scenario_probes(self, real_mods())
+
+    def test_workload_read_scope(self):
+        scenario_workload_read_scope(self, real_mods())
+        scenario_runtime_cabundle_claim(self, real_mods())
 
     def test_stage_order(self):
         scenario_stage_order(self, real_mods())
@@ -1136,10 +1936,10 @@ MUTATIONS = [
      '        precondition = {"absent": True}', scenario_owned_update_succeeds),
     ("fake_precondition_required", A, '            raise AdapterError("precondition_required")', "            pass",
      scenario_write_needs_precondition),
-    ("deferred_by_stage_done", A, '    return [dict(d) for d in DEFERRED.get(stage, []) if evidence.get(d["item"]) is not True]',
-     '    return [dict(d) for d in DEFERRED.get(stage, []) if d["resolved_by"] not in done]', scenario_deferred_needs_evidence),
+    ("deferred_by_stage_done", A, '        if all(value == "MET" for value in status.values()):',
+     '        if item["resolved_by"] in done:', scenario_deferred_needs_evidence),
     ("d13_unverified", A, '            verdict = "OWNERSHIP_NOT_VERIFIED"\n            continue', "            continue",
-     scenario_d13),
+     scenario_section10),
     ("classify_unknown", A, '            return "authz_denied"\n        return "unknown"', '            return "authz_denied"\n        return "allowed"',
      scenario_classify),
     ("probe_exact", A, "    return classify_admission(status, body) == expected_class",
@@ -1152,6 +1952,114 @@ MUTATIONS = [
      "", scenario_uid_changed_live_only),
     ("close_interrupted_intent", A, '            self.store.result(intent["seq"], identity, None, None, None, "failed")\n', "",
      scenario_crash_before_apply),
+    # Apply-B1: controller and istiod.
+    ("registry_gate", A, "        if self.registry is not None and (not isinstance(self.registry, FakeRegistry)",
+     "        if False and (not isinstance(self.registry, FakeRegistry)", scenario_registry_evidence),
+    ("registry_required", A, '            stop(3, "pre_apply_not_verified:ecr_evidence_unavailable")', "            return",
+     scenario_registry_evidence),
+    ("ecr_index_kind", A, '            if not isinstance(found, dict) or found.get("kind") != "index":',
+     "            if not isinstance(found, dict):", scenario_registry_digests),
+    ("ecr_platform_child", A, '            if (found.get("platforms") or {}).get(REQUIRED_PLATFORM) != entry["platform"]:',
+     "            if False:", scenario_registry_digests),
+    ("bundle_image_locked", A, '        stop(3, "digest_not_verified:bundle_image_not_locked")',
+     '        return {"purpose": "unlocked", "repository": repository, "index": digest, "platform": digest}',
+     scenario_bundle_image_locked),
+    ("secret_check_call", A, "            self.check_secrets(stage)\n", "", scenario_secret_presence),
+    ("secret_absent", A, '                stop(3, "pre_apply_not_verified:secret_absent:" + where)', "                continue",
+     scenario_secret_presence),
+    ("secret_metadata_only", A, "            if not metadata_only(response):", "            if False:",
+     scenario_secret_metadata_only),
+    ("secret_data_key", A, 'and "data" not in response', "and True", scenario_secret_metadata_only),
+    ("secret_manager", A, '                    or labels.get("app.kubernetes.io/part-of") != project or not registered:',
+     '                    or labels.get("app.kubernetes.io/part-of") != project:', scenario_secret_registration),
+    ("secret_label", A, 'labels.get("app.kubernetes.io/managed-by") != "k8s_certs.py"', "False", scenario_secret_registration),
+    ("node_architecture", A, "                                   == NODE_ARCHITECTURE for n in nodes):",
+     "                                   is not None for n in nodes):", scenario_nodes),
+    ("node_ready", A, "            if not zone or not any(node_ready(n) and", "            if not zone or not any(True and",
+     scenario_nodes),
+    ("bundle_ca", A, '                    if webhook.get("clientConfig", {}).get("caBundle") != self.webhook_ca_bundle:',
+     "                    if False:", scenario_bundle_ca),
+    ("dry_run_side_effects_gate", A, "        if not dry_run_permitted(webhooks):", "        if False:",
+     scenario_dry_run_side_effects),
+    ("deployment_available", A, '    return (conditions_true(obj, ("Available",)) and isinstance(generation, int)',
+     "    return (isinstance(generation, int)", scenario_deployment_readiness),
+    ("observed_generation", A, "            and observed >= generation\n", "", scenario_deployment_readiness),
+    ("pods_ready", A, '            if len(pods) != manifest["spec"].get("replicas", 1) or not all(pod_ready(p) for p in pods):',
+     '            if len(pods) != manifest["spec"].get("replicas", 1):', scenario_deployment_readiness),
+    ("endpoints_check", A, '            if identity["kind"] == "Service" and not self.endpoints_ready(stage, identity):',
+     "            if False:", scenario_deployment_readiness),
+    ("endpoint_ready_flag", A, 'if any((e.get("conditions") or {}).get("ready") is True for e in piece.get("endpoints") or []):',
+     "if True:", scenario_deployment_readiness),
+    ("deployment_timeout_value", A, "DEPLOYMENT_READY_TIMEOUT_SECONDS = 600", "DEPLOYMENT_READY_TIMEOUT_SECONDS = 60",
+     scenario_deployment_bound),
+    ("readiness_before_next_stage", A, '                row["in_stage_readiness"] = self.in_stage_readiness(stage)',
+     '                row["in_stage_readiness"] = "MET"', scenario_deployment_readiness),
+    ("cabundle_wait", A, '        if stage == "istiod" and not all(', "        if False and not all(",
+     scenario_cabundle_population),
+    ("digest_match_index", A, '    if digest == index_digest:\n        return "MATCH_INDEX"',
+     '    if digest == index_digest:\n        return "MATCH_PLATFORM"', scenario_digests),
+    ("digest_mismatch_stop", A, '                    if verdict == "digest_mismatch":\n                        stop(4, "digest_mismatch")',
+     '                    if verdict == "digest_mismatch":\n                        continue', scenario_digests),
+    ("digest_node_architecture", A, '        return "MATCH_PLATFORM" if node_architecture == NODE_ARCHITECTURE else "NOT_VERIFIED"',
+     '        return "MATCH_PLATFORM"', scenario_digests),
+    ("digest_spec_image", A, '                    stop(4, "digest_mismatch:spec_image")', "                    pass", scenario_digests),
+    ("irsa_annotation", A, '                stop(3, "irsa_annotation_differs")', "                pass", scenario_irsa_annotation),
+    ("controller_webhook_owned", A,
+     '                if obj is None or d13_ownership(observed_of(obj, manifest), self.manager) != "OWNED" or \\',
+     "                if obj is None or \\", scenario_controller_webhook_owned),
+    ("probe_class", A, "        if outcome not in expected:", "        if False:", scenario_probes),
+    ("probe_injection", A, '        if name == "G" and not self.injected(body):', "        if False:", scenario_probes),
+    ("live_requirements_fixed", A, 'FIXED_REQUIREMENTS.get(req, evidence.get(req, "NOT_VERIFIED"))',
+     'evidence.get(req, FIXED_REQUIREMENTS.get(req, "NOT_VERIFIED"))', scenario_deferred_needs_evidence),
+    ("istio_manager_evidence", A, '"NOT_VERIFIED" if in_row and owners == {(ISTIOD_MANAGER, "Update")} else "NOT_MET")',
+     '"MET" if in_row and owners == {(ISTIOD_MANAGER, "Update")} else "NOT_MET")', scenario_through_istiod),
+    ("section10_rows", A, "        if entry.get(\"manager\") in UNVERIFIED_MANAGERS and within_section10(entry, observed, project):",
+     "        if entry.get(\"manager\") in UNVERIFIED_MANAGERS:", scenario_section10),
+    ("section10_webhook_names", A, '            if len(path) < 3 or path[0] != "f:webhooks" or path[1] not in keys:',
+     '            if len(path) < 3 or path[0] != "f:webhooks":', scenario_section10),
+    # D13 section 10 audit: every element of the rows is pinned by its own mutant.
+    ("istiod_object_allowlist", A, '        fixed = istio_webhooks(project).get((observed.get("kind"), observed.get("name")))',
+     "        fixed = set().union(*istio_webhooks(project).values())", scenario_section10),
+    ("istiod_cluster_scoped", A, '        if fixed is None or observed.get("namespace"):', "        if fixed is None:",
+     scenario_section10),
+    ("istiod_live_webhook", A, "        keys = {webhook_key(name): name for name in fixed if name in live}",
+     "        keys = {webhook_key(name): name for name in fixed}", scenario_section10),
+    ("istiod_cabundle_exact", A, '            if path[2:] == ("f:clientConfig", "f:caBundle"):',
+     '            if path[2:4] == ("f:clientConfig", "f:caBundle"):', scenario_section10),
+    ("istiod_failure_policy_value", A, '            if path[2:] == ("f:failurePolicy",) and live[keys[path[1]]] == "Fail":',
+     '            if path[2:] == ("f:failurePolicy",):', scenario_section10),
+    ("section10_operation", A, '    if not paths or entry.get("operation") != "Update" or entry.get("subresource") or project is None:',
+     '    if not paths or entry.get("subresource") or project is None:', scenario_section10),
+    ("section10_subresource", A, '    if not paths or entry.get("operation") != "Update" or entry.get("subresource") or project is None:',
+     '    if not paths or entry.get("operation") != "Update" or project is None:', scenario_section10),
+    ("section10_empty_paths", A, '    if not paths or entry.get("operation") != "Update" or entry.get("subresource") or project is None:',
+     '    if entry.get("operation") != "Update" or entry.get("subresource") or project is None:', scenario_section10),
+    ("lbc_object_name", A, '        return (observed.get("kind") == "TargetGroupBinding" and observed.get("name") == project + "-gateway"',
+     '        return (observed.get("kind") == "TargetGroupBinding"', scenario_section10),
+    ("lbc_namespace", A, '                and observed.get("namespace") == project + "-ingress"\n', "", scenario_section10),
+    ("lbc_finalizer_exact", A, '                and set(paths) == {("f:metadata", "f:finalizers", "v:" + json.dumps(LBC_FINALIZER))})',
+     '                and all(p[:2] == ("f:metadata", "f:finalizers") for p in paths))', scenario_section10),
+    ("tgb_other_finalizer", A,
+     '    if observed.get("kind") == "TargetGroupBinding" and set(observed.get("finalizers") or ()) - {LBC_FINALIZER}:',
+     "    if False:", scenario_section10),
+    ("duplicate_entries", A, "    malformed = malformed or len(set(triples)) != len(triples)", "    malformed = malformed",
+     scenario_section10_malformed),
+    ("fields_tree", A, '            and fields_tree_well_formed(entry.get("fieldsV1", {})))',
+     '            and isinstance(entry.get("fieldsV1", {}), dict))', scenario_section10_malformed),
+    ("webhooks_malformed", A, "    if webhooks is None or not isinstance(finalizers, list)",
+     "    if False or not isinstance(finalizers, list)", scenario_section10_malformed),
+    ("finalizers_malformed", A, "not isinstance(finalizers, list) or not all(isinstance(f, str) for f in finalizers)",
+     "False", scenario_section10_malformed),
+    ("istio_webhooks_recheck", A, "            self.check_istio_webhooks()\n", "", scenario_istio_webhooks_at_readiness),
+    ("istio_failure_policy_fail", A,
+     '                if any(w.get("failurePolicy") != "Fail" for w in obj.get("webhooks") or []) or not obj.get("webhooks"):',
+     "                if False:", scenario_istio_webhooks_at_readiness),
+    ("istio_foreign_at_readiness", A, '                if verdict == "FOREIGN_FIELD":\n                    stop(4, "foreign_field")',
+     '                if verdict == "FOREIGN_FIELD":\n                    pass', scenario_istio_webhooks_at_readiness),
+    ("runtime_cabundle_claim", A, '        return observed["malformed"] or any(cabundle_paths(m) for m in observed["managers"]',
+     '        return False and any(cabundle_paths(m) for m in observed["managers"]', scenario_runtime_cabundle_claim),
+    ("pods_scope", A, '            raise AdapterError("pods_out_of_scope")', "            return []", scenario_workload_read_scope),
+    ("secret_scope", A, '            raise AdapterError("secret_out_of_scope")', "            pass", scenario_workload_read_scope),
     ("receipt_ownership_hook", R, "    owns = ownership_fn or ownership", "    owns = ownership", scenario_status_manager_allowed),
 ]
 
@@ -1181,7 +2089,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 52)
+        self.assertEqual(len(MUTATIONS), 109)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)

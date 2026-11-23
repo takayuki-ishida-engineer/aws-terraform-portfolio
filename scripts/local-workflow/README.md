@@ -822,6 +822,116 @@ gained the reason `ownership_unproven`.
   write serial unchanged, no new success RESULT, no STAGE_DONE, the owned UID
   kept, and a rerun that neither writes nor adopts.
 
+### Controller and istiod stages (item 6c-B3b-Apply-B1, offline only)
+
+The same fake engine also applies the `controller` (13 objects) and `istiod` (12
+objects) stages (Owner instruction 2026-11-23). `through` may be `controller` or
+`istiod`; `gateway` and later stages are refused (`stage_not_approved`). It is
+still fake-only, with no command line, real adapter, cluster, AWS or Emulator.
+
+**Pre-apply** (design section 4.1). Each check stops before the stage is dry-run,
+journaled or applied:
+
+| Check | Evidence | Stop |
+| --- | --- | --- |
+| Base minimal completion | `base` closed (not its deferred item) | 2 `pre_apply_not_verified:base_not_accepted` |
+| Controller CA | Each controller webhook `caBundle` equals the pinned input's public CA | 3 `pre_apply_not_verified:webhook_ca_bundle` or `bundle_ca_differs` |
+| Required Secrets (D2) | Metadata-only read: `PartialObjectMetadata`, name and namespace, the `k8s_certs.py` labels and the `<project>-k8s-certs` Apply entry | 3 `secret_absent`, `secret_not_registered`; a full Secret or any `data`/`stringData` gives 3 `secret_metadata_only_unsupported`, discarded unprinted |
+| ECR (D4) | Only a `FakeRegistry`: the locked index exists as an index and its `linux/amd64` child equals the lock | 3 `ecr_evidence_unavailable` without a registry; `ecr_index_missing`; `digest_not_verified:ecr_platform_child`; another registry type gives 1 `real_registry_not_approved` |
+| Image lock | Each bundle image is `<account>.dkr.ecr.<region>.amazonaws.com/<project>-dev-ecr-<purpose>@<index>` of the lock | 3 `digest_not_verified:bundle_image_not_locked` |
+| Nodes (D3) | A Ready `amd64` node in the Deployment's zone | 3 `pre_apply_not_verified:nodes` |
+| Dry-run side effects | Every bundle webhook up to the stage has `sideEffects` `None` or `NoneOnDryRun` | 3 `dry_run_unsupported` |
+
+**Minimal completion.** The 2 controller CRDs Established and NamesAccepted; RBAC,
+Services, ConfigMaps and the Deployment present; the ServiceAccount IRSA
+annotation equals the bundle (`irsa_annotation_differs`). The controller webhooks
+keep the bundle `caBundle`. The runtime never claims an Istio webhook `caBundle`
+(`istio_cabundle_ownership_unsafe`); istiod may fill it later with its own entry.
+
+**In-stage readiness** within the D11 Deployment bound (600 s, polled every 5 s;
+no new timeout). It must hold before the next stage starts, and a closed stage is
+re-verified on a rerun. A timeout gives exit 5 with the first unmet reason:
+`deployment_not_ready` (Available, observed generation current, every replica
+ready), `pods_not_ready`, `endpoints_not_ready` (controller 9443; istiod 15017
+and 15012) or, for istiod, `cabundle_not_populated` on the three Istio webhooks.
+
+**Digests** (design section 9). Each Pod's spec image must equal the bundle
+(`digest_mismatch:spec_image`). The `imageID` digest must be the lock's amd64
+digest on an amd64 node (`MATCH_PLATFORM`). `MATCH_INDEX`, a missing or
+unparseable `imageID` or another node architecture give 3
+`digest_not_verified`; any other digest gives 4 `digest_mismatch`.
+
+**Ownership.** The controller webhooks must stay OWNED by the runtime with the
+bundle value (`controller_webhook_cabundle_not_runtime_owned`). D13 enforces the
+design section 10 rows element by element. Inside a row the result is
+`OWNERSHIP_NOT_VERIFIED` (the manager name is unconfirmed); anything outside is
+`FOREIGN_FIELD`:
+
+| Row | Manager, operation | Object | Fields and values |
+| --- | --- | --- | --- |
+| Status | Any manager, Update, `subresource: status` | CRD, Deployment, ValidatingAdmissionPolicy, TargetGroupBinding | `f:status` only (verified) |
+| istiod | `pilot-discovery`, Update, no subresource | Exactly `ValidatingWebhookConfiguration/istiod-default-validator`, `ValidatingWebhookConfiguration/istio-validator-<project>-v1-istio-system`, `MutatingWebhookConfiguration/istio-sidecar-injector-<project>-v1` (cluster-scoped) | `f:webhooks[name=<fixed>].f:clientConfig.f:caBundle` of a fixed webhook on the live object (`validation.istio.io`; `rev.validation.istio.io`; `rev.namespace.sidecar-injector.istio.io`, `rev.object.sidecar-injector.istio.io`), or its `f:failurePolicy` while the live value is `Fail` |
+| Controller | `aws-load-balancer-controller`, Update, no subresource | `TargetGroupBinding/<project>-gateway` in `<project>-ingress` | Exactly the finalizer `elbv2.k8s.aws/resources`; any other finalizer on a TargetGroupBinding is foreign |
+
+Malformed evidence gives `OWNERSHIP_NOT_VERIFIED`, never ownership: managedFields
+that is not a list of well-formed entries, a fieldsV1 tree that is not mappings
+with `f:`/`k:`/`v:`/`i:` keys, a duplicate manager/operation/subresource entry, or
+a malformed webhook or finalizer list.
+
+After istiod has written the `caBundle`, the istiod stage re-checks the three
+Istio webhooks: `failurePolicy` must still be `Fail`
+(`istio_failure_policy_not_fail`), and their ownership must not be foreign or lost
+(`foreign_field`, `foreign_owner`). The names stay NOT_VERIFIED, so:
+- after istiod has filled the Istio webhook `caBundle`, every rerun stops before
+  any write (`ownership_not_verified`) and nothing is adopted;
+- istiod filling a `caBundle` before the engine's readback is quarantined
+  (`ownership_unproven`).
+
+**Probes** (D9, fake only). After istiod is ready, probe F must be denied by the
+base validator's webhook and probe G must be allowed with the injected
+`istio-proxy` at the locked image. A wrong class stops (`probe_F:<class>`,
+`probe_G:<class>` or `probe_G:injection_missing`). A fake pass is recorded as
+`CLASSIFIED_FAKE_ONLY`; an absent answer as `NOT_RUN`. Neither meets a Live
+requirement (D20).
+
+**Deferred items.** Every requirement must be MET. Live-only (D20, D21) and BLOCKED
+(D1, ingress) requirements have a fixed status, so none of these can pass and a run
+through `controller` or `istiod` ends in exit 6 `APPLIED_WITH_DEFERRED`:
+
+| Stage | Item | Requirements |
+| --- | --- | --- |
+| base | Validator serving (resolved by istiod) | `caBundle` populated (fake MET); istiod manager verified (NOT_VERIFIED); istiod endpoints (fake MET); Live probe F (NOT_VERIFIED) |
+| controller | Webhook serving (resolved by admission) | Live probe B (NOT_VERIFIED) |
+| controller | IRSA and AWS calls (resolved by ingress) | BLOCKED |
+| istiod | CA in use, D21 (resolved after istiod) | Live root comparison (NOT_VERIFIED; the input has no public root yet) |
+| istiod | Injection (resolved by gateway) | Live probe G (NOT_VERIFIED) |
+
+The report's `evidence` lists what the fake observed (digests, `caBundle`,
+endpoints, fake probe classes).
+
+**Tests.** `test_k8s_runtime_apply.py` now has 45 tests and 109 source mutations
+(14 tests and 57 mutations for Apply-B1). They cover:
+- a run through istiod and through controller, a rerun, and the rerun stop after
+  istiod;
+- each pre-apply check (Secret absent, full or leaking, unregistered; no, foreign
+  or wrong ECR evidence; unlocked image; nodes; CA; side effects), each with no
+  write of the stage;
+- each readiness failure and the 600 s bound, and istiod never starting while the
+  controller is not ready;
+- the digest classes;
+- the IRSA annotation and the controller webhook ownership;
+- every element of the section 10 rows (kind, object name, scope, project, webhook
+  name, manager, operation, subresource, path, `failurePolicy` value, the
+  TargetGroupBinding name, namespace and finalizer) with malformed evidence, races
+  at write time and after the write, the istiod-stage re-check and reruns;
+- each probe misclassification and missing injection;
+- the fake read scope (Pods, EndpointSlices and Secret metadata).
+
+Still NOT_VERIFIED or NOT_TESTED (Live): every read and write on a real cluster;
+the real ECR read (D4); the istiod and controller manager names; what `imageID`
+reports; probes on a real cluster (D20); the CA in use (D21); IRSA and AWS calls
+(BLOCKED until ingress).
+
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
 `apply` and `destroy` are not implemented (6c-B3a added only the receipt foundation

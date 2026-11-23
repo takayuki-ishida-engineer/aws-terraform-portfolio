@@ -357,8 +357,12 @@ approval. The Owner may reorder them.
    carry a `caBundle` (istiod owns it). 6c-B3b-Apply-A added a fake-only apply engine
    for the `namespaces` and `base` stages (Owner decisions D2, D3, D9, D11 and D13,
    Source/Offline). It ends in `APPLIED_WITH_DEFERRED` and has no command line.
-   `apply` and `destroy` still refuse; stages 3 to 9, G9 and 6c-B4 each need their
-   own Owner approval.
+   6c-B3b-Apply-B1 (Owner, 2026-11-23) extends the same fake engine to the
+   `controller` and `istiod` stages: pre-apply (Secret metadata, fake ECR evidence,
+   nodes, the controller CA), in-stage readiness, digest classification and fake
+   probes. Every deferred item stays DEFERRED, so the run still ends in
+   `APPLIED_WITH_DEFERRED`. `apply` and `destroy` still refuse; stages 5 to 9, G9
+   and 6c-B4 each need their own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

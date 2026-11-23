@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A fake engine implemented offline.**
+**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A and Apply-B1 fake engine implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -49,6 +49,31 @@ of Step 1 item 6c. It has four parts:
     evidence refuses the write before anything changes (`foreign_field_refused`,
     `not_owned_refused`, `ownership_not_verified_refused`). This is a property
     of the fake. Real API atomicity is NOT_VERIFIED.
+- 6c-B3b-Apply-B1 (Owner, 2026-11-23) extends the fake engine to the `controller`
+  and `istiod` stages, Source/Offline only, under the decisions already approved
+  (D2, D3, D9, D11, D13). See the
+  [script description](../scripts/local-workflow/README.md#controller-and-istiod-stages-item-6c-b3b-apply-b1-offline-only).
+  - Pre-apply as in section 4.1. ECR (D4, a Category 2 decision) is read only
+    from an in-memory fake; without it the stage stops NOT_VERIFIED.
+  - In-stage readiness shares the D11 Deployment bound (600 s); the istiod
+    `caBundle` wait introduces no new timeout.
+  - Section 9 digest classification; only `MATCH_PLATFORM` passes.
+  - Section 10 rows are enforced element by element (kind, object name and
+    scope, fixed webhook name present on the object, manager, operation,
+    subresource, path, the `failurePolicy` value `Fail`, the TargetGroupBinding
+    `<project>-gateway` in `<project>-ingress` and its single finalizer).
+    Outside a row is `FOREIGN_FIELD`; malformed evidence is
+    `OWNERSHIP_NOT_VERIFIED`. The istiod stage re-checks the three Istio
+    webhooks after the `caBundle` is written. Their names stay NOT_VERIFIED, so a rerun
+    after istiod has filled a `caBundle` stops (`ownership_not_verified`), and
+    istiod filling one before the engine's readback is quarantined. This is the
+    accepted D13 risk ("false stops until Live names are confirmed").
+  - Probes F and G are classified against the fake only (D9). A fake pass is
+    recorded and never meets a Live requirement (D20).
+  - Deferred items: base validator serving, controller webhook serving (probe B)
+    and IRSA/AWS calls (BLOCKED), istiod CA in use (D21) and injection (probe G).
+    Each needs every requirement MET; Live and BLOCKED requirements have a fixed
+    status, so none can pass here.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.
