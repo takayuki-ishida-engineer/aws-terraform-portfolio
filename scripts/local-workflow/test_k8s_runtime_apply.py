@@ -808,6 +808,131 @@ def scenario_status_update_allowed(case, mods):
         case.assertIn(status, r.adapter.objects[target]["metadata"]["managedFields"])
 
 
+STATUS_ENTRY = {"manager": "kube-apiserver", "operation": "Update", "subresource": "status",
+                "fieldsType": "FieldsV1", "fieldsV1": {"f:status": {"f:conditions": {}}}}
+
+
+def prepare_owned_update(r, stage):
+    """Leave ``stage`` open with its first object (a namespace, or the first CRD) applied and owned."""
+    if stage == "namespaces":
+        r.adapter.conflicts.add(r.key("namespaces", 1))
+        r.run()
+        r.adapter.conflicts.clear()
+        return r.key("namespaces", 0)
+    stage_open_with_owned_crd(r)
+    return crd_key(r)
+
+
+def without_path(prefix):
+    """Race: drop one required nested leaf (the first under ``prefix``) from the runtime's Apply entry."""
+    def race(obj):
+        entry = runtime_entry(obj)
+        paths = k8s_runtime_apply.paths_of(entry["fieldsV1"])
+        victim = sorted(p for p in paths if p[:len(prefix)] == prefix)[0]
+        entry["fieldsV1"] = k8s_runtime_apply.fieldsv1_of(paths - {victim})
+    return race
+
+
+def with_extra_path(path):
+    def race(obj):
+        entry = runtime_entry(obj)
+        entry["fieldsV1"] = k8s_runtime_apply.fieldsv1_of(k8s_runtime_apply.paths_of(entry["fieldsV1"]) | {path})
+    return race
+
+
+def without_runtime_entry(obj):
+    obj["metadata"]["managedFields"].remove(runtime_entry(obj))
+
+
+def assert_refused_unchanged(case, r, stage, target, race, reason):
+    """Inject ``race`` after the engine's read and just before the fake write; prove nothing changed."""
+    uid_before = owned_uid(r, target)
+    applied_before = [rec for rec in records_for(r, target, "RESULT") if rec["outcome"] == "applied"]
+    captured = {}
+
+    def inject(adapter):
+        race(adapter.objects[target])
+        captured.update(object=copy.deepcopy(adapter.objects[target]), serial=adapter.serial)  # after the race
+    r.adapter.before_write[target] = inject
+    case.assertEqual(outcome(r.run(store=r.new_store())), (4, "APPLY_FAILED", reason))
+    case.assertIn("object", captured, "the race ran between the engine's read and the write")
+    before, after = captured["object"], r.adapter.objects[target]
+    case.assertEqual(json.dumps(after, sort_keys=True), json.dumps(before, sort_keys=True), "object unchanged")
+    for field in ("uid", "resourceVersion", "generation", "managedFields", "labels"):
+        case.assertEqual(after["metadata"].get(field, "<absent>"), before["metadata"].get(field, "<absent>"), field)
+    for field in ("spec", "status"):
+        case.assertEqual(after.get(field, "<absent>"), before.get(field, "<absent>"), field)
+    case.assertEqual(r.adapter.serial, captured["serial"], "the fake's write serial did not advance")
+    applied = [rec for rec in records_for(r, target, "RESULT") if rec["outcome"] == "applied"]
+    case.assertEqual(applied, applied_before, "no new success RESULT")
+    case.assertEqual(records_for(r, target, "RESULT")[-1]["outcome"], "failed", "refused before the write")
+    case.assertEqual(records_for(r, target, "QUARANTINE"), [], "an atomic refusal is not an unproven outcome")
+    case.assertFalse(any(rec["type"] == "STAGE_DONE" and rec["stage"] == stage for rec in r.journal()))
+    case.assertEqual(owned_uid(r, target), uid_before, "the verified owned UID stays recorded")
+    # No adoption and no silent restoration: a rerun stops before any write and leaves the object as it is.
+    r.adapter.calls.clear()
+    case.assertEqual(outcome(r.run(store=r.new_store()))[0], 4)
+    case.assertEqual(r.applies(), [])
+    case.assertEqual(json.dumps(r.adapter.objects[target], sort_keys=True), json.dumps(before, sort_keys=True))
+    case.assertEqual(owned_uid(r, target), uid_before)
+
+
+def scenario_write_refused_missing_managed_fields(case, mods):
+    """P1-08 case A: the whole managedFields collection disappears on the same UID before the update."""
+    for stage in ("namespaces", "base"):
+        with run_for(mods) as r:
+            target = prepare_owned_update(r, stage)
+            assert_refused_unchanged(case, r, stage, target, lambda o: o["metadata"].pop("managedFields"),
+                                     "not_owned_refused")
+
+
+def scenario_write_refused_missing_runtime_entry(case, mods):
+    """P1-08 case B: only the runtime's Apply entry disappears; a permitted status entry stays."""
+    for stage in ("namespaces", "base"):
+        with run_for(mods) as r:
+            target = prepare_owned_update(r, stage)
+            if stage == "base":
+                r.adapter.objects[target]["metadata"]["managedFields"].append(copy.deepcopy(STATUS_ENTRY))
+            assert_refused_unchanged(case, r, stage, target, without_runtime_entry, "not_owned_refused")
+            if stage == "base":
+                case.assertEqual(r.adapter.objects[target]["metadata"]["managedFields"], [STATUS_ENTRY])
+
+
+def scenario_write_refused_partial_runtime(case, mods):
+    """P1-08 case C: the runtime's Apply entry loses a required nested path, is emptied or claims extra."""
+    races = [("namespaces", without_path(("f:metadata", "f:labels"))),
+             ("base", without_path(("f:spec", "f:names"))),
+             ("base", lambda o: runtime_entry(o).update(fieldsV1={})),
+             ("namespaces", with_extra_path(("f:metadata", "f:annotations", "f:extra")))]
+    for stage, race in races:
+        with run_for(mods) as r:
+            target = prepare_owned_update(r, stage)
+            assert_refused_unchanged(case, r, stage, target, race, "ownership_not_verified_refused")
+
+
+def scenario_write_refused_malformed(case, mods):
+    """P1-08: malformed ownership evidence fails closed at write time, without a crash."""
+    races = [("namespaces", lambda o: o["metadata"].__setitem__("managedFields", {"manager": "test-k8s-runtime"})),
+             ("base", lambda o: runtime_entry(o).__setitem__("fieldsV1", ["f:spec"]))]
+    for stage, race in races:
+        with run_for(mods) as r:
+            target = prepare_owned_update(r, stage)
+            assert_refused_unchanged(case, r, stage, target, race, "ownership_not_verified_refused")
+
+
+def scenario_write_refused_runtime_lost(case, mods):
+    """Cases A, B and C together: the runtime's ownership lost on the same UID is never rebuilt by a write."""
+    scenario_write_refused_missing_managed_fields(case, mods)
+    scenario_write_refused_missing_runtime_entry(case, mods)
+    scenario_write_refused_partial_runtime(case, mods)
+
+
+def scenario_write_time_ownership(case, mods):
+    """Every write-time refusal: a foreign manager, and the runtime's ownership lost."""
+    scenario_foreign_manager_before_write(case, mods)
+    scenario_write_refused_runtime_lost(case, mods)
+
+
 # ---- unit tests ----------------------------------------------------------------------------------------------------
 
 class EngineTests(unittest.TestCase):
@@ -868,6 +993,18 @@ class EngineTests(unittest.TestCase):
 
     def test_status_update_allowed_at_write(self):
         scenario_status_update_allowed(self, real_mods())
+
+    def test_write_refused_missing_managed_fields(self):
+        scenario_write_refused_missing_managed_fields(self, real_mods())
+
+    def test_write_refused_missing_runtime_entry(self):
+        scenario_write_refused_missing_runtime_entry(self, real_mods())
+
+    def test_write_refused_partial_runtime_ownership(self):
+        scenario_write_refused_partial_runtime(self, real_mods())
+
+    def test_write_refused_malformed_ownership(self):
+        scenario_write_refused_malformed(self, real_mods())
 
     def test_stage_order(self):
         scenario_stage_order(self, real_mods())
@@ -945,10 +1082,32 @@ MUTATIONS = [
      '            self.store.result(seq, identity, None, None, None, "failed")\n', scenario_uid_changed_after_apply),
     ("uid_after_apply_check", A, '        if recorded is not None and meta.get("uid") != recorded:\n            self.store.quarantine',
      '        if False:\n            self.store.quarantine', scenario_uid_changed_after_apply),
-    ("fake_ownership_check", A, '            if not status_only(seen, current["kind"]):\n                raise OwnershipRefused(str(managed.get("manager")))',
-     "            pass", scenario_foreign_manager_before_write),
-    ("fake_status_allowance", A, '            if not status_only(seen, current["kind"]):', "            if True:",
+    ("fake_ownership_check", A, '            if verdict != "OWNED":\n                raise OwnershipRefused(verdict)',
+     "            pass", scenario_write_time_ownership),
+    ("fake_status_allowance", A, "            verdict = d13_ownership(observed_of(current, manifest), field_manager)",
+     '            verdict = d13_ownership(dict(observed_of(current, manifest), kind="Namespace"), field_manager)',
      scenario_status_update_allowed),
+    # The reviewed f01f5e2 defect: the runtime's own entry skipped by name, only other managers checked.
+    ("fake_runtime_entry_skipped", A, "            verdict = d13_ownership(observed_of(current, manifest), field_manager)",
+     '            verdict = "OWNED" if all(m.get("manager") == field_manager or status_only('
+     '{"subresource": m.get("subresource", ""), "operation": m.get("operation"), '
+     '"paths": frozenset(paths_of(m.get("fieldsV1") or {}))}, current["kind"]) '
+     'for m in current["metadata"].get("managedFields") or []) else "FOREIGN_FIELD"',
+     scenario_write_refused_runtime_lost),
+    ("fake_missing_runtime_accepted", A, "        if current is not None:\n            verdict = d13_ownership",
+     '        if current is not None and any(m.get("manager") == field_manager '
+     'for m in current["metadata"].get("managedFields") or []):\n            verdict = d13_ownership',
+     scenario_write_refused_missing_runtime_entry),
+    ("fake_incomplete_paths_accepted", A, '            if verdict != "OWNED":',
+     '            if verdict not in ("OWNED", "OWNERSHIP_NOT_VERIFIED"):', scenario_write_refused_partial_runtime),
+    ("fake_manager_name_only", A, "            verdict = d13_ownership(observed_of(current, manifest), field_manager)",
+     '            verdict = "OWNED" if any(m.get("manager") == field_manager '
+     'for m in current["metadata"].get("managedFields") or []) else "NOT_OWNED"',
+     scenario_write_refused_partial_runtime),
+    ("malformed_evidence_accepted", A, '    if observed.get("malformed"):\n        return "OWNERSHIP_NOT_VERIFIED"\n', "",
+     scenario_write_refused_malformed),
+    ("write_refusal_reason", A, '"NOT_OWNED": "not_owned_refused"', '"NOT_OWNED": "foreign_field_refused"',
+     scenario_write_refused_missing_managed_fields),
     ("namespace_active", A, '            if obj is None or (obj.get("status") or {}).get("phase") != "Active":',
      "            if obj is None:", scenario_namespace_inactive),
     ("crd_conditions", A, '                if obj is not None and conditions_true(obj, ("Established", "NamesAccepted")):',
@@ -1022,7 +1181,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 46)
+        self.assertEqual(len(MUTATIONS), 52)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)

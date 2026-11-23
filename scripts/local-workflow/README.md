@@ -720,10 +720,18 @@ of them is Live evidence.
      - a change between the engine's read and the write fails the fake's atomic
        check (`precondition_failed`), and the foreign object is left byte for byte
        unchanged;
-     - the same atomic check refuses the write when any manager other than the
-       runtime's own Apply entry owns a field, unless it is the D13 status rule
-       (`foreign_field_refused`). The object, its `resourceVersion` and its
-       `managedFields` stay unchanged, and the RESULT is `failed`;
+     - the same atomic check refuses an update unless the object's ownership
+       still proves OWNED under D13, the check the engine applies to its
+       readback. The runtime's own Apply entry is verified too, not skipped by
+       name. The object, its `resourceVersion`, its `managedFields` and the
+       fake's write serial stay unchanged, the RESULT is `failed` (not a
+       quarantine) and the run stops with exit 4:
+
+       | D13 verdict at write time | Example | Stop reason |
+       | --- | --- | --- |
+       | FOREIGN_FIELD | another manager owns a field | `foreign_field_refused` |
+       | NOT_OWNED | `managedFields` or the runtime's Apply entry is missing | `not_owned_refused` |
+       | OWNERSHIP_NOT_VERIFIED | the runtime entry is partial, empty, has extra paths or is malformed; an unverified manager | `ownership_not_verified_refused` |
      - how a real API server would enforce the same conditions is NOT_VERIFIED;
    - after a write lands, the success RESULT (and the newly owned UID) is
      recorded only when the readback proves OWNED. Otherwise the outcome is
@@ -773,7 +781,7 @@ gained the reason `ownership_unproven`.
 - `receipt verify` keeps its strict ownership. The D13 hook (`ownership_fn`) is
   used only by the engine.
 
-**Tests.** `test_k8s_runtime_apply.py` has 27 tests and 46 source mutations.
+**Tests.** `test_k8s_runtime_apply.py` has 31 tests and 52 source mutations.
 - A mutant counts only when a contract assertion fails and the code under test did
   not crash. A mutant that only raises an exception is reported separately and
   fails the suite.
@@ -806,7 +814,13 @@ gained the reason `ownership_unproven`.
   and no adoption on rerun;
 - the fake's write-time ownership check: a foreign manager added to the same UID
   just before the write (namespace labels, CRD spec) is refused with the object
-  unchanged, while a status-subresource update and a normal owned update proceed.
+  unchanged, while a status-subresource update and a normal owned update proceed;
+- the runtime's own ownership lost on the same UID just before the write, on a
+  namespace and a CRD: `managedFields` removed, the runtime's Apply entry removed
+  (a status entry kept), a required nested path dropped, an emptied entry, an
+  extra path and malformed evidence. Each is refused with the object and the
+  write serial unchanged, no new success RESULT, no STAGE_DONE, the owned UID
+  kept, and a rerun that neither writes nor adopts.
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 

@@ -35,15 +35,18 @@ Flow:
 5. Per stage:
    - pre-apply conditions, including C1 for ``base``;
    - fake server-side dry-run for every object;
-   - per object: INTENT, then fake server-side apply without force, then RESULT
-     with the UID read back, then the ownership check;
+   - per object: INTENT, then the conditional fake server-side apply without
+     force, then the readback with the UID and D13 ownership checks, then RESULT
+     (a success RESULT only when the readback proves OWNED, otherwise QUARANTINE);
    - minimal completion;
    - STAGE_DONE.
 
-Every write is conditional: create only if absent, update only on the recorded UID, and (for an
-update) only while no manager other than the runtime's Apply entry and the D13 status rule owns any
-field. An object that appears where none was recorded stops the run before its INTENT. The fake enforces
-these conditions atomically and refuses before changing anything; the Live mechanism is NOT_VERIFIED.
+Every write is conditional: create only if absent, and update only on the recorded UID and only while
+the object's field ownership still proves OWNED under D13 (the runtime's Apply entry owns exactly the
+manifest's required paths, every other manager is the status rule). A missing, emptied, partial, extra or
+malformed runtime entry fails closed like a foreign manager. An object that appears where none was
+recorded stops the run before its INTENT. The fake enforces these conditions atomically and refuses
+before changing anything (``WRITE_REFUSALS``); the Live mechanism is NOT_VERIFIED.
 
 A success RESULT is written only after the readback proves the UID and the field ownership. A landed write
 that cannot be proven is quarantined (reason ``ownership_unproven`` or ``uid_changed``), never recorded as
@@ -111,7 +114,15 @@ class PreconditionFailed(Exception):
 
 
 class OwnershipRefused(Exception):
-    """The fake refused a write because another manager owns fields of the object; nothing was changed."""
+    """The fake refused an update because the object's ownership did not prove OWNED; nothing was changed.
+
+    Its argument is the D13 verdict (FOREIGN_FIELD, NOT_OWNED or OWNERSHIP_NOT_VERIFIED).
+    """
+
+
+# Stop reason of a write the fake refused before changing anything, by D13 verdict.
+WRITE_REFUSALS = {"FOREIGN_FIELD": "foreign_field_refused", "NOT_OWNED": "not_owned_refused",
+                  "OWNERSHIP_NOT_VERIFIED": "ownership_not_verified_refused"}
 
 
 def field_paths(value, prefix=()):
@@ -263,18 +274,16 @@ class FakeAdapter:
             raise PreconditionFailed("object_exists")
         if "uid" in precondition and (current is None or current["metadata"].get("uid") != precondition["uid"]):
             raise PreconditionFailed("uid_mismatch")
-        # Atomic in this fake as well: every manager other than the runtime's own Apply entry must be the D13
-        # structural status rule, or the write is refused before anything changes. This is a property of the
-        # fake, not a claim about the real API server (NOT_VERIFIED).
-        for managed in (current or {}).get("metadata", {}).get("managedFields") or []:
-            if managed.get("manager") == field_manager and managed.get("operation") == "Apply" \
-                    and not managed.get("subresource"):
-                continue
-            seen = {"manager": managed.get("manager"), "operation": managed.get("operation"),
-                    "subresource": managed.get("subresource", ""),
-                    "paths": frozenset(paths_of(managed.get("fieldsV1") or {}))}
-            if not status_only(seen, current["kind"]):
-                raise OwnershipRefused(str(managed.get("manager")))
+        # Atomic in this fake as well: an update proceeds only while the object's ownership still proves OWNED
+        # under D13, the same check the engine applies to its readback. The runtime's own Apply entry is verified
+        # too (exactly the manifest's required paths), so a missing, emptied, partial, extra or malformed entry
+        # is refused like a foreign manager. Nothing (object, resourceVersion, managedFields, serial) changes
+        # before this check passes. This is a property of the fake, not a claim about the real API server
+        # (NOT_VERIFIED).
+        if current is not None:
+            verdict = d13_ownership(observed_of(current, manifest), field_manager)
+            if verdict != "OWNED":
+                raise OwnershipRefused(verdict)
         if key in self.conflicts:
             raise ApplyConflict(key)
         entry = {"manager": field_manager, "operation": "Apply", "fieldsType": "FieldsV1",
@@ -304,12 +313,26 @@ class FakeAdapter:
         return 200, ""
 
 
+def managed_entry_well_formed(entry):
+    """A managedFields entry this fake can read: a mapping with string manager, operation and subresource,
+    and a mapping fieldsV1. Anything else is malformed evidence."""
+    return (isinstance(entry, dict) and isinstance(entry.get("manager"), str)
+            and isinstance(entry.get("operation"), str) and isinstance(entry.get("subresource", ""), str)
+            and isinstance(entry.get("fieldsV1", {}), dict))
+
+
 def observed_of(obj, manifest=None):
-    """Presence data for reconcile and D13: UID, kind, each manager's full nested paths, the required paths."""
-    managers = [{"manager": m.get("manager"), "operation": m.get("operation"), "subresource": m.get("subresource", ""),
-                 "paths": frozenset(paths_of(m.get("fieldsV1") or {}))}
-                for m in obj["metadata"].get("managedFields") or []]
-    return {"uid": obj["metadata"].get("uid"), "kind": obj["kind"], "managers": managers,
+    """Presence data for reconcile and D13: UID, kind, each manager's full nested paths, the required paths.
+
+    Malformed managedFields evidence is flagged (``malformed``), never dropped silently; D13 fails it closed.
+    """
+    entries = obj["metadata"].get("managedFields")
+    entries = [] if entries is None else entries
+    malformed = not isinstance(entries, list) or not all(managed_entry_well_formed(m) for m in entries)
+    managers = [] if malformed else [
+        {"manager": m["manager"], "operation": m["operation"], "subresource": m.get("subresource", ""),
+         "paths": frozenset(paths_of(m.get("fieldsV1") or {}))} for m in entries]
+    return {"uid": obj["metadata"].get("uid"), "kind": obj["kind"], "managers": managers, "malformed": malformed,
             "required": required_paths(manifest) if manifest is not None else None}
 
 
@@ -325,8 +348,11 @@ def d13_ownership(observed, runtime_manager):
 
     OWNED needs the runtime's Apply entry to own exactly the required paths of the manifest, and every
     other manager to be the structural status rule. Unverified manager names give OWNERSHIP_NOT_VERIFIED;
-    any other manager or field gives FOREIGN_FIELD. A manager name alone never proves ownership.
+    any other manager or field gives FOREIGN_FIELD. A manager name alone never proves ownership, and
+    malformed managedFields evidence gives OWNERSHIP_NOT_VERIFIED.
     """
+    if observed.get("malformed"):
+        return "OWNERSHIP_NOT_VERIFIED"
     managers = observed.get("managers") or []
     runtime = [m for m in managers if m.get("manager") == runtime_manager and m.get("operation") == "Apply"
                and not m.get("subresource")]
@@ -534,9 +560,9 @@ class Engine:
         except PreconditionFailed:
             self.store.result(seq, identity, None, None, None, "failed")  # refused before the write: not applied
             stop(4, "precondition_failed")
-        except OwnershipRefused:
+        except OwnershipRefused as refused:
             self.store.result(seq, identity, None, None, None, "failed")  # refused before the write: not applied
-            stop(4, "foreign_field_refused")
+            stop(4, WRITE_REFUSALS.get(str(refused), "ownership_not_verified_refused"))
         except ApplyConflict:
             self.store.result(seq, identity, None, None, None, "failed")
             stop(4, "field_conflict")

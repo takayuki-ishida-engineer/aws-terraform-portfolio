@@ -43,10 +43,12 @@ of Step 1 item 6c. It has four parts:
     `uid_changed`, `creation_unproven`), never recorded as "not applied". It is
     neither re-applied nor adopted without the Owner (D16).
   - Review of PR #91 (P1-08): the fake's conditional write also checks field
-    ownership. Any manager other than the runtime's own Apply entry and the D13
-    status rule refuses the write before anything changes
-    (`foreign_field_refused`). This is a property of the fake. Real API
-    atomicity is NOT_VERIFIED.
+    ownership. An update proceeds only while the object still proves OWNED
+    under D13, including the runtime's own Apply entry (exactly the required
+    paths). A foreign manager, a missing or partial runtime entry, or malformed
+    evidence refuses the write before anything changes (`foreign_field_refused`,
+    `not_owned_refused`, `ownership_not_verified_refused`). This is a property
+    of the fake. Real API atomicity is NOT_VERIFIED.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.
