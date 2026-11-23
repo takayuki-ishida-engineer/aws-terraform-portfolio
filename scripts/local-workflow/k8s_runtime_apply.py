@@ -4,7 +4,15 @@
 Source and offline only. It covers the ``namespaces`` (2 objects), ``base`` (16
 objects), ``controller`` (13 objects), ``istiod`` (12 objects) and ``gateway`` (5 objects)
 stages, ``mesh_security`` (5 objects) and ``admission`` (4 objects), against a ``FakeAdapter`` and
-nothing else. Stage 8 (``binding_writer``) onward is refused.
+nothing else, and ``binding_writer`` (3 objects). Stage 9 (``ingress``) is refused.
+
+Apply-B5 (binding_writer, Owner instruction 2026-11-23, Source/Offline only), design 4.1, 7, 10, 11:
+- A run through binding_writer stops at the gateway gate first; the stage is unreachable today.
+- Behind it (tested directly): pre-apply re-verifies the admission minimal completion on the live
+  objects; minimal completion needs the three objects present and the ServiceAccount's
+  ``automountServiceAccountToken`` exactly ``false``; final acceptance inputs are ownership and no
+  drift. Effective permissions, impersonation and probes C to E wait for D1 and are fixed
+  NOT_TESTED; no fake answer is read for them, so the stage is never PASS.
 
 Apply-B4 (admission, Owner instruction 2026-11-23, Source/Offline only), design sections 4.1 and 11:
 - A run through admission stops at the gateway gate first; admission is unreachable today.
@@ -141,7 +149,8 @@ sys.path.insert(0, str(HERE))
 import k8s_runtime  # noqa: E402
 import k8s_runtime_receipt as receipt  # noqa: E402
 
-APPROVED_STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security", "admission")
+APPROVED_STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security", "admission",
+                   "binding_writer")
 API_READ_TIMEOUT_SECONDS = 20
 CRD_ESTABLISHED_TIMEOUT_SECONDS = 120
 DEPLOYMENT_READY_TIMEOUT_SECONDS = 600
@@ -173,6 +182,8 @@ NODE_ARCHITECTURE = "amd64"
 ZONE_LABEL = "topology.kubernetes.io/zone"
 IRSA_ANNOTATION = "eks.amazonaws.com/role-arn"
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
+# Section 7: undecided until D1 chooses the binding-writer method; nothing here exercises them.
+BINDING_WRITER_D1 = ["d1_effective_permissions", "d1_impersonation", "live_probe_C", "live_probe_D", "live_probe_E"]
 DEFERRED = {
     "base": [{"item": "istiod-default-validator serving (caBundle by istiod, endpoints, probe F)",
               "resolved_by": "istiod",
@@ -188,12 +199,16 @@ DEFERRED = {
                        "requires": ["traffic_enforcement"]}],
     "admission": [{"item": "admission probes A, A' and B on the cluster (D20)", "resolved_by": "admission",
                    "requires": ["live_probe_A", "live_probe_A_prime", "live_probe_B"]}],
+    "binding_writer": [{"item": "binding writer effective permissions, impersonation and probes C to E (D1)",
+                        "resolved_by": "D1", "requires": BINDING_WRITER_D1}],
 }
 # Requirements no fake evidence can meet: Live-only (D20, D21) or BLOCKED (D1, ingress). They always win.
 FIXED_REQUIREMENTS = {"live_probe_F": "NOT_VERIFIED", "live_probe_B": "NOT_VERIFIED", "live_probe_G": "NOT_VERIFIED",
                       "live_probe_A": "NOT_VERIFIED", "live_probe_A_prime": "NOT_VERIFIED",
                       "live_ca_root_match": "NOT_VERIFIED", "ingress_blocked": "BLOCKED",
-                      "traffic_enforcement": "NOT_TESTED"}
+                      "traffic_enforcement": "NOT_TESTED", "d1_effective_permissions": "NOT_TESTED",
+                      "d1_impersonation": "NOT_TESTED", "live_probe_C": "NOT_TESTED", "live_probe_D": "NOT_TESTED",
+                      "live_probe_E": "NOT_TESTED"}
 PROCEED_VERDICTS = {"ABSENT", "NOT_APPLIED", "REAPPLY_SAFE", "CONSISTENT"}
 STOP_VERDICTS = {"QUARANTINED": (4, "quarantined"), "UID_CHANGED": (4, "uid_changed"),
                  "NOT_OWNED": (4, "foreign_owner"), "OWNERSHIP_NOT_VERIFIED": (4, "ownership_not_verified"),
@@ -978,7 +993,9 @@ class Engine:
         return state
 
     def pre_apply(self, stage, done):
-        if stage == "admission":
+        if stage == "binding_writer":
+            self.binding_writer_pre_apply(done)
+        elif stage == "admission":
             self.admission_pre_apply(done)
         elif stage == "mesh_security":
             self.mesh_pre_apply(done)
@@ -1029,6 +1046,21 @@ class Engine:
         crd = self.read(dict(zip(("apiVersion", "kind", "namespace", "name"), TGB_CRD.split("|"))))
         if crd is None or not conditions_true(crd, ("Established", "NamesAccepted")):
             stop(3, "pre_apply_not_verified:tgb_crd_not_established")
+
+    def binding_writer_pre_apply(self, done):
+        """Design 4.1 binding_writer row: admission minimal completion, re-verified here on the live policies
+        and bindings (type checking without warnings, bindings exactly Deny), not just recalled from the run."""
+        if "admission" not in done:
+            stop(3, "pre_apply_not_verified:admission_not_accepted")
+        for identity in self.members("admission"):
+            self.minimal_completion(identity)
+
+    def binding_writer_readiness(self):
+        """Present, D13 OWNED and without drift. Effective permissions, impersonation and probes C to E wait
+        for D1 and stay NOT_TESTED; no fake answer is consulted for them."""
+        self.verify_owned_no_drift("binding_writer")
+        self.evidence["binding_writer_in_stage_readiness"] = "MET"
+        return "MET"
 
     def admission_readiness(self):
         """Ownership and no drift for the four objects, then probes A, A' and B classified against the fake."""
@@ -1284,6 +1316,9 @@ class Engine:
             wanted = (manifest["metadata"].get("annotations") or {}).get(IRSA_ANNOTATION)
             if wanted is not None and (obj["metadata"].get("annotations") or {}).get(IRSA_ANNOTATION) != wanted:
                 stop(3, "irsa_annotation_differs")
+            # A manifest that turns token automounting off must find exactly the boolean false live.
+            if manifest.get("automountServiceAccountToken") is False and obj.get("automountServiceAccountToken") is not False:
+                stop(4, "sa_automount_token_not_false")
         elif identity["kind"] in PRESENT_KINDS:
             if self.read(identity) is None:
                 stop(3, "object_not_present")
@@ -1303,6 +1338,8 @@ class Engine:
             return self.mesh_readiness()
         if stage == "admission":
             return self.admission_readiness()
+        if stage == "binding_writer":
+            return self.binding_writer_readiness()
         if stage not in WORKLOAD_STAGES:
             return "NOT_APPLICABLE"
         started = self.clock.now()
