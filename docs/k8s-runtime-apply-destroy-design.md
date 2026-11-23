@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A and Apply-B1 fake engine implemented offline.**
+**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A, Apply-B1 and Apply-B2 fake engine implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -74,6 +74,22 @@ of Step 1 item 6c. It has four parts:
     and IRSA/AWS calls (BLOCKED), istiod CA in use (D21) and injection (probe G).
     Each needs every requirement MET; Live and BLOCKED requirements have a fixed
     status, so none can pass here.
+- 6c-B3b-Apply-B2 (Owner, 2026-11-23) adds the `gateway` stage to the fake
+  engine, Source/Offline only. See the
+  [script description](../scripts/local-workflow/README.md#gateway-stage-item-6c-b3b-apply-b2-offline-only).
+  - Pre-apply: istiod in-stage readiness in the same run, the injector
+    `caBundle`, both gateway Secrets (metadata only), the `istio-proxy` digests
+    (fake ECR). Then the base row's rule: validator serving not verified after
+    istiod stops before the gateway.
+  - That item needs Live probe F (D20) and a confirmed istiod manager name
+    (D13), so the gateway is unreachable today. Every run stops with
+    `deferred_readiness_unresolved:base_validator_serving` before any gateway
+    write, and a rerun stops at reconcile (`ownership_not_verified`). Neither
+    is bypassed.
+  - The stage contract behind the gate is implemented and tested directly:
+    minimal completion, readiness, revision injection (`sidecar.istio.io/status`
+    and the locked `istio-proxy`), digest. The deferred gateway TLS serving
+    stays BLOCKED while ingress is BLOCKED.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.

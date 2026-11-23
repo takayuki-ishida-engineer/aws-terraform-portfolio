@@ -932,6 +932,47 @@ the real ECR read (D4); the istiod and controller manager names; what `imageID`
 reports; probes on a real cluster (D20); the CA in use (D21); IRSA and AWS calls
 (BLOCKED until ingress).
 
+### Gateway stage (item 6c-B3b-Apply-B2, offline only)
+
+The fake engine also covers the `gateway` stage (5 objects; Owner instruction
+2026-11-23, Source/Offline only). `through` may be `gateway`; `mesh_security` and
+later stages are refused. There is still no command line, real adapter, cluster,
+AWS or Emulator.
+
+**The gateway is unreachable today, by design.** Design section 4.1 says that
+when the base validator serving is not verified after istiod, the run stops
+before the gateway. That item needs Live probe F (D20) and a confirmed istiod
+manager name (D13). No fake can supply either, so every run through `gateway`
+stops before any gateway dry-run, INTENT or write:
+
+| Order | Pre-apply check | Stop |
+| --- | --- | --- |
+| 1 | istiod in-stage readiness in this run | 3 `pre_apply_not_verified:istiod_not_ready` |
+| 2 | Injector `caBundle` populated | 3 `pre_apply_not_verified:injector_cabundle` |
+| 3 | Both gateway Secrets (metadata only, D2) | 3 `secret_absent`, `secret_not_registered` or `secret_metadata_only_unsupported` |
+| 4 | Locked `istio-proxy` index and amd64 child (fake ECR, D4) | 3 `ecr_index_missing:istio-proxy` or `digest_not_verified:ecr_platform_child:istio-proxy` |
+| 5 | Base validator serving resolved | 3 `deferred_readiness_unresolved:base_validator_serving` (always, today) |
+
+A rerun cannot reach it either: after istiod has written the `caBundle`,
+reconcile stops with `ownership_not_verified` (D13).
+
+**The stage contract behind the gate** is implemented and tested directly
+against a fake that already holds the gateway objects:
+- minimal completion: ServiceAccount, Role, RoleBinding, Service and Deployment
+  present;
+- in-stage readiness within the D11 Deployment bound: Deployment Available and
+  Pods ready (`deployment_not_ready`, `pods_not_ready`);
+- revision injection: every Pod carries `sidecar.istio.io/status` and an
+  `istio-proxy` container with the locked image (`injection_missing`, exit 4);
+- digest: `MATCH_PLATFORM` only (`digest_not_verified`, `digest_mismatch`);
+- deferred: gateway TLS serving (resolved by ingress) stays BLOCKED, so the
+  gateway's final acceptance can never be PASS while ingress is BLOCKED.
+
+**Tests.** `test_k8s_runtime_apply.py` has 48 tests and 120 source mutations
+(3 tests and 11 mutations for Apply-B2): the unreachable gate and the rerun stop,
+each gateway pre-apply check, and the contract behind the gate (injection,
+digest, readiness, deferred TLS).
+
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
 `apply` and `destroy` are not implemented (6c-B3a added only the receipt foundation

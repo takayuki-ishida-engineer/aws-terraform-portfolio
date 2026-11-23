@@ -40,7 +40,7 @@ import render  # noqa: E402
 
 FIXTURE = preflight.REPOSITORY / "kubernetes/tests/fixtures/runtime.json"
 FIXTURE_DOC = common.parse(FIXTURE.read_text())
-STAGES = ("namespaces", "base", "controller", "istiod")
+STAGES = ("namespaces", "base", "controller", "istiod", "gateway")
 KEEP = object()
 HELM = os.environ.get("K8S_RUNTIME_HELM", "")
 KUBE_SYSTEM_UID = "11111111-2222-4333-8444-555555555555"
@@ -254,7 +254,7 @@ def scenario_gates(case, mods):
         impostor = Impostor(r.adapter)
         case.assertEqual(outcome(r.run(adapter=impostor)), (1, "REFUSED", "real_adapter_not_approved"))
         case.assertEqual(impostor.used, [])
-        case.assertEqual(outcome(r.run(through="gateway")), (1, "REFUSED", "stage_not_approved:gateway"))
+        case.assertEqual(outcome(r.run(through="mesh_security")), (1, "REFUSED", "stage_not_approved:mesh_security"))
         case.assertEqual(outcome(r.run(through="ingress")), (1, "REFUSED", "stage_not_approved:ingress"))
         case.assertEqual(r.journal(), [])
         case.assertEqual(r.applies(), [])
@@ -1001,14 +1001,14 @@ def injected_pod(image=None):
 def ready_cluster(r):
     """Fake evidence for a clean controller and istiod run: Secrets, ECR, image IDs and the fake probes."""
     for stage in r.report["stages"]:
-        if stage["name"] in ("controller", "istiod"):
+        if stage["name"] in ("controller", "istiod", "gateway"):
             for secret in stage["required_secrets"]:
                 r.adapter.secrets[(secret["namespace"], secret["name"])] = secret_metadata(secret["namespace"],
                                                                                          secret["name"])
     for entry in LOCK["images"]:
         r.registry.manifests[("test-dev-ecr-" + entry["purpose"], entry["digest"])] = {
             "kind": "index", "platforms": {"linux/amd64": entry["platforms"]["linux/amd64"]["digest"]}}
-    for stage in ("controller", "istiod"):
+    for stage in ("controller", "istiod", "gateway"):
         key = r.kind_key(stage, "Deployment")
         containers = r.manifest(key)["spec"]["template"]["spec"]["containers"]
         r.adapter.workloads[key] = {"image_ids": {c["name"]: c["image"].split("@")[0] + "@" + platform_of(c["image"])
@@ -1048,7 +1048,7 @@ def scenario_through_istiod(case, mods):
         case.assertEqual([(s["name"], s["final_acceptance"]) for s in result["stages"]],
                          [("namespaces", "PASS"), ("base", "DEFERRED"), ("controller", "DEFERRED"),
                           ("istiod", "DEFERRED")])
-        case.assertEqual([rows[s]["in_stage_readiness"] for s in STAGES], ["NOT_APPLICABLE", "NOT_APPLICABLE", "MET", "MET"])
+        case.assertEqual([rows[s]["in_stage_readiness"] for s in STAGES[:4]], ["NOT_APPLICABLE", "NOT_APPLICABLE", "MET", "MET"])
         base = rows["base"]["deferred"][0]["evidence"]
         case.assertEqual(base, {"base_validator_cabundle_populated": "MET", "istio_cabundle_manager_verified": "NOT_VERIFIED",
                                 "istiod_endpoints_ready": "MET", "live_probe_F": "NOT_VERIFIED"})
@@ -1643,9 +1643,11 @@ def scenario_section10_races(case, mods):
 def scenario_workload_read_scope(case, mods):
     with run_for(mods) as r:
         with case.assertRaises(mods.apply.AdapterError):
-            r.adapter.get_secret_metadata("test-ingress", "test-gateway-tls")
+            r.adapter.get_secret_metadata("kube-system", "some-other-secret")
         with case.assertRaises(mods.apply.AdapterError):
-            r.adapter.list_endpoint_slices("test-ingress", "test-gateway")
+            r.adapter.get_secret_metadata("test-app", "test-gateway-tls")
+        with case.assertRaises(mods.apply.AdapterError):
+            r.adapter.list_endpoint_slices("test-ingress", "some-other-service")
         with case.assertRaises(mods.apply.AdapterError):
             r.adapter.list_pods("kube-system", {"app": "anything"})
 
@@ -1674,6 +1676,146 @@ def scenario_runtime_cabundle_claim(case, mods):
         case.assertTrue(engine.runtime_claims_istio_cabundle(live, manifest))
         live["metadata"]["managedFields"] = {"manager": "test-k8s-runtime"}
         case.assertTrue(engine.runtime_claims_istio_cabundle(live, manifest))
+
+
+# ---- Apply-B2: gateway ---------------------------------------------------------------------------------------------
+
+def scenario_gateway_unreachable(case, mods):
+    """Design 4.1: base validator serving is unproven after istiod (Live probe F, istiod's name), so the run
+    stops before the gateway changes anything; it never becomes PASS or APPLIED."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        result = r.run(through="gateway")
+        case.assertEqual(outcome(result), (3, "UNDETERMINED", "deferred_readiness_unresolved:base_validator_serving"))
+        assert_no_writes(case, r, "gateway")
+        case.assertEqual([rec["stage"] for rec in r.journal() if rec["type"] == "STAGE_DONE"],
+                         ["namespaces", "base", "controller", "istiod"])
+        case.assertEqual([s["name"] for s in result["stages"]], ["namespaces", "base", "controller", "istiod"])
+        case.assertNotIn("PASS", [s["final_acceptance"] for s in result["stages"]])
+        case.assertEqual(result["evidence"]["istiod_in_stage_readiness"], "MET")
+        case.assertIn(("secret_metadata", "test-ingress/test-gateway-tls"), r.adapter.calls)
+        case.assertIn(("test-dev-ecr-istio-proxy", lock_of("istio-proxy")[0]), r.registry.calls)
+        # A rerun cannot reach the gateway either: istiod's caBundle entry is NOT_VERIFIED (D13).
+        r.adapter.calls.clear()
+        case.assertEqual(outcome(r.run(through="gateway", store=r.new_store())), (4, "APPLY_FAILED", "ownership_not_verified"))
+        case.assertEqual(r.applies(), [])
+        assert_no_writes(case, r, "gateway")
+
+
+def scenario_gateway_pre_apply(case, mods):
+    """The gateway's own preconditions stop first, each before any gateway write."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        del r.adapter.secrets[("test-ingress", "test-gateway-client-cacert")]
+        case.assertEqual(outcome(r.run(through="gateway")),
+                         (3, "UNDETERMINED", "pre_apply_not_verified:secret_absent:test-ingress/test-gateway-client-cacert"))
+        assert_no_writes(case, r, "gateway")
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.adapter.secrets[("test-ingress", "test-gateway-tls")] = dict(
+            secret_metadata("test-ingress", "test-gateway-tls"), data={"tls.key": "c2VjcmV0"})
+        result = r.run(through="gateway")
+        case.assertEqual(outcome(result), (3, "UNDETERMINED", "secret_metadata_only_unsupported"))
+        case.assertNotIn("c2VjcmV0", json.dumps(result))
+    with run_for(mods) as r:
+        ready_cluster(r)
+        del r.registry.manifests[("test-dev-ecr-istio-proxy", lock_of("istio-proxy")[0])]
+        case.assertEqual(outcome(r.run(through="gateway")),
+                         (3, "UNDETERMINED", "pre_apply_not_verified:ecr_index_missing:istio-proxy"))
+        assert_no_writes(case, r, "gateway")
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.adapter.istiod_patches_cabundle = False
+        case.assertEqual(outcome(r.run(through="gateway")), (5, "READINESS_TIMEOUT", "cabundle_not_populated"))
+        assert_no_writes(case, r, "gateway")
+    # Direct checks of the gate's first two conditions (unreachable through a normal run).
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.run(through="istiod")
+        engine = gateway_engine(mods, r)
+        done = {"namespaces", "base", "controller", "istiod"}
+        with case.assertRaises(mods.apply.ApplyStop) as stopped:
+            engine.gateway_pre_apply(done)
+        case.assertEqual(stopped.exception.reason, "pre_apply_not_verified:istiod_not_ready")
+        engine.evidence["istiod_in_stage_readiness"] = "MET"
+        injector = istio_key_of(r.adapter, "istio-sidecar-injector-test-v1")
+        r.adapter.istiod_patches_cabundle = False
+        r.adapter.objects[injector]["webhooks"][0]["clientConfig"].pop("caBundle")
+        with case.assertRaises(mods.apply.ApplyStop) as stopped:
+            engine.gateway_pre_apply(done)
+        case.assertEqual(stopped.exception.reason, "pre_apply_not_verified:injector_cabundle")
+        with case.assertRaises(mods.apply.ApplyStop) as stopped:
+            engine.gateway_pre_apply(done - {"istiod"})
+        case.assertEqual(stopped.exception.reason, "pre_apply_not_verified:istiod_not_ready")
+
+
+def gateway_engine(mods, r):
+    return mods.apply.Engine(r.report, r.objects, r.store, r.adapter, r.clock, r.arn, r.registry, r.ca)
+
+
+def staged_gateway(mods, r):
+    """Fake-only setup behind the gate: istiod ready, then the gateway objects placed in the fake as if applied."""
+    ready_cluster(r)
+    case_result = r.run(through="istiod")
+    assert case_result["exit_code"] == 6, case_result
+    for identity in r.members["gateway"]:
+        r.adapter.server_side_apply(identity, r.manifest(k8s_runtime_receipt.key_of(identity)), "test-k8s-runtime",
+                                    precondition={"absent": True})
+    return gateway_engine(mods, r)
+
+
+def scenario_gateway_contract(case, mods):
+    """The gateway stage contract behind the gate: minimal completion, readiness, injection, digest, deferred."""
+    with run_for(mods) as r:
+        engine = staged_gateway(mods, r)
+        for identity in r.members["gateway"]:
+            engine.minimal_completion(identity)
+        case.assertEqual(engine.in_stage_readiness("gateway"), "MET")
+        case.assertEqual((engine.evidence.get("gateway_injection"), engine.evidence.get("gateway_digest")),
+                         ("MET", "MATCH_PLATFORM"))
+        deferred = mods.apply.outstanding_deferred("gateway", set(mods.apply.APPROVED_STAGES), engine.evidence)
+        case.assertEqual([(d["resolved_by"], d["status"]) for d in deferred], [("ingress", "BLOCKED")])
+
+    def no_status(r):
+        workload(r, "gateway")["annotations"] = {}
+
+    def empty_status(r):
+        workload(r, "gateway")["annotations"] = {"sidecar.istio.io/status": ""}
+
+    def other_proxy(r):
+        workload(r, "gateway")["spec_images"] = {"istio-proxy": HOST + "test-dev-ecr-istio-proxy@sha256:" + "d" * 64}
+
+    def index_digest(r):
+        workload(r, "gateway")["image_ids"]["istio-proxy"] = HOST + "test-dev-ecr-istio-proxy@" + lock_of("istio-proxy")[0]
+
+    def other_digest(r):
+        workload(r, "gateway")["image_ids"]["istio-proxy"] = HOST + "test-dev-ecr-istio-proxy@sha256:" + "e" * 64
+
+    def never(r):
+        workload(r, "gateway")["ready_after"] = None
+
+    def pods(r):
+        workload(r, "gateway")["pods_ready"] = False
+    cases = [(no_status, (4, "injection_missing")), (empty_status, (4, "injection_missing")),
+             (other_proxy, (4, "injection_missing")), (index_digest, (3, "digest_not_verified:match_index")),
+             (other_digest, (4, "digest_mismatch")), (never, (5, "deployment_not_ready")), (pods, (5, "pods_not_ready"))]
+    for edit, expected in cases:
+        with run_for(mods) as r:
+            engine = staged_gateway(mods, r)
+            edit(r)
+            with case.assertRaises(mods.apply.ApplyStop) as stopped:
+                engine.in_stage_readiness("gateway")
+            case.assertEqual((stopped.exception.exit_code, stopped.exception.reason), expected)
+            case.assertNotIn("gateway_in_stage_readiness", engine.evidence)
+    # Without the injector's caBundle the fake injects nothing, so injection is missing.
+    with run_for(mods) as r:
+        engine = staged_gateway(mods, r)
+        workload(r, "gateway").pop("annotations", None)
+        r.adapter.istiod_patches_cabundle = False
+        r.adapter.objects[istio_key_of(r.adapter, "istio-sidecar-injector-test-v1")]["webhooks"][1]["clientConfig"].pop("caBundle")
+        with case.assertRaises(mods.apply.ApplyStop) as stopped:
+            engine.in_stage_readiness("gateway")
+        case.assertEqual(stopped.exception.reason, "injection_missing")
 
 
 # ---- unit tests ----------------------------------------------------------------------------------------------------
@@ -1801,6 +1943,16 @@ class EngineTests(unittest.TestCase):
 
     def test_fake_probes(self):
         scenario_probes(self, real_mods())
+
+    # Apply-B2: gateway.
+    def test_gateway_unreachable(self):
+        scenario_gateway_unreachable(self, real_mods())
+
+    def test_gateway_pre_apply(self):
+        scenario_gateway_pre_apply(self, real_mods())
+
+    def test_gateway_contract(self):
+        scenario_gateway_contract(self, real_mods())
 
     def test_workload_read_scope(self):
         scenario_workload_read_scope(self, real_mods())
@@ -1986,7 +2138,7 @@ MUTATIONS = [
     ("observed_generation", A, "            and observed >= generation\n", "", scenario_deployment_readiness),
     ("pods_ready", A, '            if len(pods) != manifest["spec"].get("replicas", 1) or not all(pod_ready(p) for p in pods):',
      '            if len(pods) != manifest["spec"].get("replicas", 1):', scenario_deployment_readiness),
-    ("endpoints_check", A, '            if identity["kind"] == "Service" and not self.endpoints_ready(stage, identity):',
+    ("endpoints_check", A, '            if identity["kind"] == "Service" and stage in ENDPOINT_PORTS and not self.endpoints_ready(stage, identity):',
      "            if False:", scenario_deployment_readiness),
     ("endpoint_ready_flag", A, 'if any((e.get("conditions") or {}).get("ready") is True for e in piece.get("endpoints") or []):',
      "if True:", scenario_deployment_readiness),
@@ -2060,6 +2212,25 @@ MUTATIONS = [
      '        return False and any(cabundle_paths(m) for m in observed["managers"]', scenario_runtime_cabundle_claim),
     ("pods_scope", A, '            raise AdapterError("pods_out_of_scope")', "            return []", scenario_workload_read_scope),
     ("secret_scope", A, '            raise AdapterError("secret_out_of_scope")', "            pass", scenario_workload_read_scope),
+    # Apply-B2: gateway.
+    ("gateway_base_gate", A, '        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")',
+     '        if False:\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")', scenario_gateway_unreachable),
+    ("gateway_istiod_ready", A, '        if "istiod" not in done or self.evidence.get("istiod_in_stage_readiness") != "MET":',
+     "        if False:", scenario_gateway_pre_apply),
+    ("gateway_istiod_evidence", A, '        if "istiod" not in done or self.evidence.get("istiod_in_stage_readiness") != "MET":',
+     '        if "istiod" not in done:', scenario_gateway_pre_apply),
+    ("gateway_injector", A, '            if obj is None or not obj.get("webhooks") or not all(',
+     '            if obj is None or not obj.get("webhooks") or False and all(', scenario_gateway_pre_apply),
+    ("gateway_secrets", A, '        self.check_secrets("gateway")\n', "", scenario_gateway_pre_apply),
+    ("gateway_registry", A, '        self.check_registry("gateway")\n', "", scenario_gateway_pre_apply),
+    ("gateway_pre_apply_call", A, '        if stage == "gateway":\n            self.gateway_pre_apply(done)\n        elif stage == "base":',
+     '        if stage == "base":', scenario_gateway_unreachable),
+    ("injection_call", A, '            self.check_injection(stage)\n', "            pass\n", scenario_gateway_contract),
+    ("injection_annotation", A, '                if not isinstance(annotations.get(SIDECAR_STATUS), str) or not annotations[SIDECAR_STATUS] or \\',
+     "                if False or \\", scenario_gateway_contract),
+    ("injection_image", A, 'wanted is None or not any(c.get("name") == "istio-proxy" and c.get("image") == wanted',
+     'wanted is None or not any(c.get("name") == "istio-proxy"', scenario_gateway_contract),
+    ("gateway_readiness_evidence", A, '        self.evidence[stage + "_in_stage_readiness"] = "MET"\n', "", scenario_gateway_unreachable),
     ("receipt_ownership_hook", R, "    owns = ownership_fn or ownership", "    owns = ownership", scenario_status_manager_allowed),
 ]
 
@@ -2089,7 +2260,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 109)
+        self.assertEqual(len(MUTATIONS), 120)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)
