@@ -40,7 +40,7 @@ import render  # noqa: E402
 
 FIXTURE = preflight.REPOSITORY / "kubernetes/tests/fixtures/runtime.json"
 FIXTURE_DOC = common.parse(FIXTURE.read_text())
-STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security")
+STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security", "admission")
 KEEP = object()
 HELM = os.environ.get("K8S_RUNTIME_HELM", "")
 KUBE_SYSTEM_UID = "11111111-2222-4333-8444-555555555555"
@@ -254,7 +254,7 @@ def scenario_gates(case, mods):
         impostor = Impostor(r.adapter)
         case.assertEqual(outcome(r.run(adapter=impostor)), (1, "REFUSED", "real_adapter_not_approved"))
         case.assertEqual(impostor.used, [])
-        case.assertEqual(outcome(r.run(through="admission")), (1, "REFUSED", "stage_not_approved:admission"))
+        case.assertEqual(outcome(r.run(through="binding_writer")), (1, "REFUSED", "stage_not_approved:binding_writer"))
         case.assertEqual(outcome(r.run(through="ingress")), (1, "REFUSED", "stage_not_approved:ingress"))
         case.assertEqual(r.journal(), [])
         case.assertEqual(r.applies(), [])
@@ -1015,7 +1015,19 @@ def ready_cluster(r):
                                                   for c in containers}}
     r.adapter.probes["F"] = (403, 'admission webhook "validation.istio.io" denied the request: configuration is invalid')
     r.adapter.probes["G"] = (200, injected_pod())
+    for name, policy, message in ADMISSION_ANSWERS:
+        r.adapter.probes[name] = (403, vap_denial(policy, message))
     return r
+
+
+NO_LB = "This namespace permits ClusterIP Services, not Ingress or external LB ownership."
+TGB_ONLY = "Only the reviewed Platform binding/identity is permitted."
+ADMISSION_ANSWERS = (("A", "test-no-lb-service", NO_LB), ("A_prime", "test-no-lb-service", NO_LB),
+                     ("B", "test-target-registration", TGB_ONLY))
+
+
+def vap_denial(policy, message):
+    return ("ValidatingAdmissionPolicy '" + policy + "' with binding '" + policy + "' denied request: " + message)
 
 
 def platform_of(image):
@@ -1954,6 +1966,129 @@ def scenario_mesh_contract(case, mods):
     case.assertFalse(d({"a": []}, {"a": []}))
 
 
+# ---- Apply-B4: admission -------------------------------------------------------------------------------------------
+
+def scenario_admission_unreachable(case, mods):
+    """A run through admission still stops at the gateway gate; nothing from gateway onward is written."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        result = r.run(through="admission")
+        case.assertEqual(outcome(result), (3, "UNDETERMINED", "deferred_readiness_unresolved:base_validator_serving"))
+        for stage in ("gateway", "mesh_security", "admission"):
+            assert_no_writes(case, r, stage)
+        case.assertNotIn("PASS", [s["final_acceptance"] for s in result["stages"]])
+        case.assertFalse(any(c[0] == "probe" and c[1] in ("A", "A_prime", "B") for c in r.adapter.calls))
+
+
+def staged_admission(mods, r):
+    """Fake-only setup behind the gate: istiod ready, then the four admission objects placed as if applied."""
+    ready_cluster(r)
+    assert r.run(through="istiod")["exit_code"] == 6
+    for identity in r.members["admission"]:
+        r.adapter.server_side_apply(identity, r.manifest(k8s_runtime_receipt.key_of(identity)), "test-k8s-runtime",
+                                    precondition={"absent": True})
+    return gateway_engine(mods, r)
+
+
+def admission_identity(r, kind, name):
+    return next(i for i in r.members["admission"] if i["kind"] == kind and i["name"] == name)
+
+
+def scenario_admission_pre_apply(case, mods):
+    with run_for(mods) as r:
+        engine = staged_admission(mods, r)
+        done = {"namespaces", "base", "controller", "istiod", "gateway", "mesh_security"}
+        case.assertIsNone(stop_of(mods, engine.pre_apply, "admission", done))
+        case.assertEqual(stop_of(mods, engine.pre_apply, "admission", done - {"controller"}),
+                         (3, "pre_apply_not_verified:controller_not_accepted"))
+        crd = mods.apply.TGB_CRD
+        r.adapter.crd_ready_after[crd] = None
+        case.assertEqual(stop_of(mods, engine.pre_apply, "admission", done),
+                         (3, "pre_apply_not_verified:tgb_crd_not_established"))
+        del r.adapter.objects[crd]
+        case.assertEqual(stop_of(mods, engine.pre_apply, "admission", done),
+                         (3, "pre_apply_not_verified:tgb_crd_not_established"))
+
+
+def scenario_admission_contract(case, mods):
+    """Behind the gate: type checking, Deny bindings, ownership, no drift, probes A/A'/B; never PASS."""
+    with run_for(mods) as r:
+        engine = staged_admission(mods, r)
+        for identity in r.members["admission"]:
+            case.assertIsNone(stop_of(mods, engine.minimal_completion, identity), identity["name"])
+        case.assertIsNone(stop_of(mods, engine.in_stage_readiness, "admission"))
+        case.assertEqual(engine.evidence.get("admission_in_stage_readiness"), "MET")
+        case.assertEqual([engine.evidence.get("fake_probe_" + n) for n in ("A", "A_prime", "B")],
+                         ["CLASSIFIED_FAKE_ONLY"] * 3)
+        deferred = mods.apply.outstanding_deferred("admission", set(mods.apply.APPROVED_STAGES), engine.evidence)
+        case.assertEqual([(d["status"], sorted(d["evidence"].values())) for d in deferred],
+                         [("NOT_VERIFIED", ["NOT_VERIFIED"] * 3)])
+        claimed = {"live_probe_A": "MET", "live_probe_A_prime": "MET", "live_probe_B": "MET"}
+        left = mods.apply.outstanding_deferred("admission", set(), claimed)
+        case.assertEqual([item["evidence"] for item in left], [{name: "NOT_VERIFIED" for name in claimed}])
+    vap, binding = "ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding"
+    minimal = [(vap, "test-no-lb-service", lambda r, k: r.adapter.policy_status.__setitem__(
+                    k, {"typeChecking": {"expressionWarnings": [{"fieldRef": "spec.validations[0]", "warning": "x"}]}}),
+                (4, "policy_type_warnings")),
+               (vap, "test-target-registration", lambda r, k: r.adapter.policy_status.__setitem__(k, {}),
+                (3, "policy_type_check_not_verified")),
+               (vap, "test-target-registration", lambda r, k: r.adapter.policy_status.__setitem__(k, {"typeChecking": "x"}),
+                (3, "policy_type_check_not_verified")),
+               (binding, "test-no-lb-service", lambda r, k: r.adapter.objects[k]["spec"].__setitem__(
+                    "validationActions", ["Audit"]), (4, "binding_not_deny")),
+               (binding, "test-no-lb-service", lambda r, k: r.adapter.objects[k]["spec"].__setitem__(
+                    "validationActions", ["Deny", "Warn"]), (4, "binding_not_deny")),
+               (binding, "test-target-registration", lambda r, k: r.adapter.objects[k]["spec"].__setitem__(
+                    "policyName", "test-no-lb-service"), (4, "binding_not_deny")),
+               (binding, "test-target-registration", lambda r, k: r.adapter.objects.pop(k), (3, "object_not_present")),
+               (vap, "test-no-lb-service", lambda r, k: r.adapter.objects.pop(k), (3, "object_not_present"))]
+    for kind, name, change, expected in minimal:
+        with run_for(mods) as r:
+            engine = staged_admission(mods, r)
+            identity = admission_identity(r, kind, name)
+            change(r, k8s_runtime_receipt.key_of(identity))
+            case.assertEqual(stop_of(mods, engine.minimal_completion, identity), expected, (kind, name))
+    readiness = [(vap, "test-no-lb-service", lambda o: o["spec"].__setitem__("failurePolicy", "Ignore"),
+                  (4, "drift_detected:ValidatingAdmissionPolicy/test-no-lb-service")),
+                 (vap, "test-target-registration", lambda o: o["spec"]["validations"].pop(),
+                  (4, "drift_detected:ValidatingAdmissionPolicy/test-target-registration")),
+                 (binding, "test-no-lb-service", lambda o: o["metadata"]["managedFields"].append(
+                     {"manager": "kubectl-edit", "operation": "Update", "fieldsV1": {"f:spec": {"f:validationActions": {}}}}),
+                  (4, "foreign_field"))]
+    for kind, name, change, expected in readiness:
+        with run_for(mods) as r:
+            engine = staged_admission(mods, r)
+            change(r.adapter.objects[k8s_runtime_receipt.key_of(admission_identity(r, kind, name))])
+            case.assertEqual(stop_of(mods, engine.in_stage_readiness, "admission"), expected)
+            case.assertNotIn("admission_in_stage_readiness", engine.evidence)
+
+
+def scenario_admission_probes(case, mods):
+    """Section 11: a probe passes only on the exact policy class and one of its reviewed messages."""
+    cases = [("A", (403, 'User "operator" cannot create resource "services"'), (4, "probe_A:authz_denied")),
+             ("A", (201, "{}"), (4, "probe_A:allowed")),
+             ("A", (403, vap_denial("test-target-registration", TGB_ONLY)), (4, "probe_A:vap_denied:test-target-registration")),
+             ("A_prime", (500, 'failed calling webhook "x"'), (3, "probe_A_prime:webhook_unreachable")),
+             ("A_prime", (403, vap_denial("test-no-lb-service", "some other text")), (4, "probe_A_prime:message_mismatch")),
+             ("B", (403, 'User "operator" cannot create resource "targetgroupbindings"'), (4, "probe_B:authz_denied")),
+             ("B", (403, 'admission webhook "vtargetgroupbinding.elbv2.k8s.aws" denied the request'),
+              (4, "probe_B:webhook_denied:vtargetgroupbinding.elbv2.k8s.aws")),
+             ("B", (403, vap_denial("test-target-registration", NO_LB)), (4, "probe_B:message_mismatch")),
+             ("B", (403, "forbidden"), (3, "probe_B:unknown"))]
+    for name, answer, expected in cases:
+        with run_for(mods) as r:
+            engine = staged_admission(mods, r)
+            r.adapter.probes[name] = answer
+            case.assertEqual(stop_of(mods, engine.in_stage_readiness, "admission"), expected, name)
+    with run_for(mods) as r:
+        engine = staged_admission(mods, r)
+        for name in ("A", "A_prime", "B"):
+            r.adapter.probes.pop(name)
+        case.assertIsNone(stop_of(mods, engine.in_stage_readiness, "admission"))
+        case.assertEqual([engine.evidence.get("fake_probe_" + n) for n in ("A", "A_prime", "B")], ["NOT_RUN"] * 3)
+        case.assertEqual(len(mods.apply.outstanding_deferred("admission", set(), engine.evidence)), 1)
+
+
 # ---- unit tests ----------------------------------------------------------------------------------------------------
 
 class EngineTests(unittest.TestCase):
@@ -2099,6 +2234,19 @@ class EngineTests(unittest.TestCase):
 
     def test_mesh_contract(self):
         scenario_mesh_contract(self, real_mods())
+
+    # Apply-B4: admission.
+    def test_admission_unreachable(self):
+        scenario_admission_unreachable(self, real_mods())
+
+    def test_admission_pre_apply(self):
+        scenario_admission_pre_apply(self, real_mods())
+
+    def test_admission_contract(self):
+        scenario_admission_contract(self, real_mods())
+
+    def test_admission_probes(self):
+        scenario_admission_probes(self, real_mods())
 
     def test_workload_read_scope(self):
         scenario_workload_read_scope(self, real_mods())
@@ -2378,14 +2526,14 @@ MUTATIONS = [
      'wanted is None or not any(c.get("name") == "istio-proxy"', scenario_gateway_contract),
     ("gateway_readiness_evidence", A, '        self.evidence[stage + "_in_stage_readiness"] = "MET"\n', "", scenario_gateway_unreachable),
     # Apply-B3: mesh_security.
-    ("mesh_gate_istiod", A, '        if self.evidence.get("istiod_in_stage_readiness") != "MET" or "istiod" not in done:\n            stop(3, "pre_apply_not_verified:istiod_not_ready")\n        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_readiness',
-     '        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_readiness', scenario_mesh_gate),
+    ("mesh_gate_istiod", A, '        if self.evidence.get("istiod_in_stage_readiness") != "MET" or "istiod" not in done:\n            stop(3, "pre_apply_not_verified:istiod_not_ready")\n        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def admission_pre_apply',
+     '        if outstanding_deferred("base", done, self.evidence):\n            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def admission_pre_apply', scenario_mesh_gate),
     ("mesh_gate_istiod_done", A, '        if self.evidence.get("istiod_in_stage_readiness") != "MET" or "istiod" not in done:',
      '        if self.evidence.get("istiod_in_stage_readiness") != "MET":', scenario_mesh_gate),
-    ("mesh_gate_base", A, '            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def mesh_readiness',
-     '            pass\n\n    def mesh_readiness', scenario_mesh_gate),
-    ("mesh_dispatch", A, '        if stage == "mesh_security":\n            self.mesh_pre_apply(done)\n        elif stage == "gateway":',
-     '        if stage == "gateway":', scenario_mesh_gate),
+    ("mesh_gate_base", A, '            stop(3, "deferred_readiness_unresolved:base_validator_serving")\n\n    def admission_pre_apply',
+     '            pass\n\n    def admission_pre_apply', scenario_mesh_gate),
+    ("mesh_dispatch", A, '        elif stage == "mesh_security":\n            self.mesh_pre_apply(done)\n',
+     '        elif False:\n            self.mesh_pre_apply(done)\n', scenario_mesh_gate),
     ("mesh_readiness_call", A, '        if stage == "mesh_security":\n            return self.mesh_readiness()\n', "",
      scenario_mesh_contract),
     ("mesh_ownership", A, '            if mesh_owned != "OWNED":\n                stop(*STOP_VERDICTS.get(mesh_owned, (4, "foreign_field")))',
@@ -2401,6 +2549,29 @@ MUTATIONS = [
     ("traffic_fixed", A, '"traffic_enforcement": "NOT_TESTED"}', '"traffic_enforcement": "MET"}', scenario_mesh_contract),
     ("not_tested_label", A, '                          else "NOT_TESTED" if "NOT_TESTED" in values else "NOT_VERIFIED"))',
      '                          else "NOT_VERIFIED"))', scenario_mesh_contract),
+    # Apply-B4: admission.
+    ("admission_dispatch", A, '        if stage == "admission":\n            self.admission_pre_apply(done)\n        elif stage == "mesh_security":',
+     '        if stage == "mesh_security":', scenario_admission_pre_apply),
+    ("admission_controller_done", A, '        if "controller" not in done:\n            stop(3, "pre_apply_not_verified:controller_not_accepted")',
+     '        if False:\n            stop(3, "pre_apply_not_verified:controller_not_accepted")', scenario_admission_pre_apply),
+    ("admission_tgb_crd", A, '        if crd is None or not conditions_true(crd, ("Established", "NamesAccepted")):',
+     "        if crd is None:", scenario_admission_pre_apply),
+    ("policy_type_missing", A, '            if not isinstance(checking, dict):\n                stop(3, "policy_type_check_not_verified")',
+     '            if not isinstance(checking, dict):\n                checking = {}', scenario_admission_contract),
+    ("policy_type_warnings", A, '            if checking.get("expressionWarnings"):', "            if False:", scenario_admission_contract),
+    ("binding_deny_exact", A, '            if spec.get("validationActions") != ["Deny"] or spec.get("policyName")',
+     '            if "Deny" not in (spec.get("validationActions") or []) or spec.get("policyName")', scenario_admission_contract),
+    ("binding_policy_name", A, ' or spec.get("policyName") != manifest["spec"]["policyName"]:', ":", scenario_admission_contract),
+    ("admission_readiness_call", A, '        if stage == "admission":\n            return self.admission_readiness()\n', "",
+     scenario_admission_contract),
+    ("admission_owned_no_drift", A, '        self.verify_owned_no_drift("admission")\n', "", scenario_admission_contract),
+    ("admission_probe_policy", A, '            self.fake_probe(name, {"vap_denied:" + project + suffix}, messages)',
+     '            self.fake_probe(name, {"vap_denied:" + project + "-no-lb-service", "vap_denied:" + project + "-target-registration"}, messages)',
+     scenario_admission_probes),
+    ("admission_probe_message", A, "        if messages is not None and not any(isinstance(body, str) and m in body for m in messages):",
+     "        if False:", scenario_admission_probes),
+    ("admission_live_fixed", A, '                      "live_probe_A": "NOT_VERIFIED", "live_probe_A_prime": "NOT_VERIFIED",',
+     '                      "live_probe_A_prime": "NOT_VERIFIED",', scenario_admission_contract),
     ("receipt_ownership_hook", R, "    owns = ownership_fn or ownership", "    owns = ownership", scenario_status_manager_allowed),
 ]
 
@@ -2430,7 +2601,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 133)
+        self.assertEqual(len(MUTATIONS), 145)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)

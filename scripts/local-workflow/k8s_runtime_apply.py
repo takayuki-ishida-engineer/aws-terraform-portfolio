@@ -3,8 +3,16 @@
 
 Source and offline only. It covers the ``namespaces`` (2 objects), ``base`` (16
 objects), ``controller`` (13 objects), ``istiod`` (12 objects) and ``gateway`` (5 objects)
-stages, and ``mesh_security`` (5 objects), against a ``FakeAdapter`` and nothing else. Stage 7
-(``admission``) onward is refused.
+stages, ``mesh_security`` (5 objects) and ``admission`` (4 objects), against a ``FakeAdapter`` and
+nothing else. Stage 8 (``binding_writer``) onward is refused.
+
+Apply-B4 (admission, Owner instruction 2026-11-23, Source/Offline only), design sections 4.1 and 11:
+- A run through admission stops at the gateway gate first; admission is unreachable today.
+- Behind it (tested directly): pre-apply needs the controller accepted and the TargetGroupBinding CRD
+  Established; minimal completion needs each policy type-checked without warnings (no report is
+  NOT_VERIFIED, no timeout being approved) and each binding exactly ``["Deny"]`` on its policy; final
+  acceptance inputs are ownership, no drift, and probes A, A' and B classified against the fake with
+  the exact policy and one of its reviewed messages. Live probes (D20) stay NOT_VERIFIED.
 
 Apply-B3 (mesh_security, Owner instruction 2026-11-23, Source/Offline only), design section 4.1:
 - Pre-apply: istiod in-stage readiness in this run and the base validator serving resolved. The
@@ -131,7 +139,7 @@ sys.path.insert(0, str(HERE))
 import k8s_runtime  # noqa: E402
 import k8s_runtime_receipt as receipt  # noqa: E402
 
-APPROVED_STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security")
+APPROVED_STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security", "admission")
 API_READ_TIMEOUT_SECONDS = 20
 CRD_ESTABLISHED_TIMEOUT_SECONDS = 120
 DEPLOYMENT_READY_TIMEOUT_SECONDS = 600
@@ -147,6 +155,10 @@ LBC_FINALIZER = "elbv2.k8s.aws/resources"
 RUNTIME_SUFFIX = "-k8s-runtime"
 FIELD_PREFIXES = ("f:", "k:", "v:", "i:")
 WEBHOOK_KINDS = ("ValidatingWebhookConfiguration", "MutatingWebhookConfiguration")
+POLICY_KINDS = ("ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding")
+TGB_CRD = "apiextensions.k8s.io/v1|CustomResourceDefinition||targetgroupbindings.elbv2.k8s.aws"
+# Section 11: which policy must deny each admission probe (by bundle policy name suffix).
+ADMISSION_PROBES = (("A", "-no-lb-service"), ("A_prime", "-no-lb-service"), ("B", "-target-registration"))
 PRESENT_KINDS = {"ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding", "Service", "ConfigMap", "Deployment",
                  "PeerAuthentication", "AuthorizationPolicy", "NetworkPolicy"}
 WORKLOAD_STAGES = ("controller", "istiod", "gateway")
@@ -172,9 +184,12 @@ DEFERRED = {
     "gateway": [{"item": "gateway TLS serving", "resolved_by": "ingress", "requires": ["ingress_blocked"]}],
     "mesh_security": [{"item": "mTLS and authorization enforcement (needs traffic)", "resolved_by": "traffic",
                        "requires": ["traffic_enforcement"]}],
+    "admission": [{"item": "admission probes A, A' and B on the cluster (D20)", "resolved_by": "admission",
+                   "requires": ["live_probe_A", "live_probe_A_prime", "live_probe_B"]}],
 }
 # Requirements no fake evidence can meet: Live-only (D20, D21) or BLOCKED (D1, ingress). They always win.
 FIXED_REQUIREMENTS = {"live_probe_F": "NOT_VERIFIED", "live_probe_B": "NOT_VERIFIED", "live_probe_G": "NOT_VERIFIED",
+                      "live_probe_A": "NOT_VERIFIED", "live_probe_A_prime": "NOT_VERIFIED",
                       "live_ca_root_match": "NOT_VERIFIED", "ingress_blocked": "BLOCKED",
                       "traffic_enforcement": "NOT_TESTED"}
 PROCEED_VERDICTS = {"ABSENT", "NOT_APPLIED", "REAPPLY_SAFE", "CONSISTENT"}
@@ -353,6 +368,7 @@ class FakeAdapter:
         self.istio_ca_bundle = "ZmFrZS1pc3Rpb2QtY2E="
         self.project = None        # learnt from the runtime field manager of the first write
         self.probes = {}           # probe name -> (status, body)
+        self.policy_status = {}    # ValidatingAdmissionPolicy key -> status (type checking without warnings by default)
 
     def _wait(self, key):
         latency = self.latency.get(key, 0)
@@ -510,6 +526,8 @@ class FakeAdapter:
                                             {"type": "Established", "status": state}]}
         if obj["kind"] == "Deployment":
             obj["status"] = self._deployment_status(key, self.objects[key])
+        if obj["kind"] == "ValidatingAdmissionPolicy":
+            obj["status"] = copy.deepcopy(self.policy_status.get(key, {"typeChecking": {}}))
         obj["metadata"].pop("_created", None)
         return obj
 
@@ -944,7 +962,9 @@ class Engine:
         return state
 
     def pre_apply(self, stage, done):
-        if stage == "mesh_security":
+        if stage == "admission":
+            self.admission_pre_apply(done)
+        elif stage == "mesh_security":
             self.mesh_pre_apply(done)
         elif stage == "gateway":
             self.gateway_pre_apply(done)
@@ -985,9 +1005,37 @@ class Engine:
         if outstanding_deferred("base", done, self.evidence):
             stop(3, "deferred_readiness_unresolved:base_validator_serving")
 
+    def admission_pre_apply(self, done):
+        """Design 4.1 admission row: the controller's minimal completion, with the TargetGroupBinding CRD
+        Established and NamesAccepted (the policy matches its resource)."""
+        if "controller" not in done:
+            stop(3, "pre_apply_not_verified:controller_not_accepted")
+        crd = self.read(dict(zip(("apiVersion", "kind", "namespace", "name"), TGB_CRD.split("|"))))
+        if crd is None or not conditions_true(crd, ("Established", "NamesAccepted")):
+            stop(3, "pre_apply_not_verified:tgb_crd_not_established")
+
+    def admission_readiness(self):
+        """Ownership and no drift for the four objects, then probes A, A' and B classified against the fake."""
+        self.verify_owned_no_drift("admission")
+        project = self.report["project"]
+        for name, suffix in ADMISSION_PROBES:
+            policy = self.manifest({"apiVersion": "admissionregistration.k8s.io/v1",
+                                    "kind": "ValidatingAdmissionPolicy", "namespace": "", "name": project + suffix})
+            messages = {v.get("message") for v in policy["spec"].get("validations") or [] if v.get("message")}
+            self.fake_probe(name, {"vap_denied:" + project + suffix}, messages)
+        self.evidence["admission_in_stage_readiness"] = "MET"
+        return "MET"
+
     def mesh_readiness(self):
         """Final acceptance inputs of mesh_security: all five objects present, runtime-owned, with no diff."""
-        for identity in self.members("mesh_security"):
+        self.verify_owned_no_drift("mesh_security")
+        self.evidence["mesh_security_no_drift"] = "MET"
+        self.evidence["mesh_security_in_stage_readiness"] = "MET"
+        return "MET"
+
+    def verify_owned_no_drift(self, stage):
+        """Every object of the stage present, D13 OWNED and without drift from the manifest."""
+        for identity in self.members(stage):
             obj, manifest = self.read(identity), self.manifest(identity)
             if obj is None:
                 stop(3, "object_not_present")
@@ -996,9 +1044,6 @@ class Engine:
                 stop(*STOP_VERDICTS.get(mesh_owned, (4, "foreign_field")))
             if manifest_drift(obj, manifest):
                 stop(4, "drift_detected:" + identity["kind"] + "/" + identity["name"])
-        self.evidence["mesh_security_no_drift"] = "MET"
-        self.evidence["mesh_security_in_stage_readiness"] = "MET"
-        return "MET"
 
     def stage_report(self, stage):
         return next(s for s in self.report["stages"] if s["name"] == stage)
@@ -1171,6 +1216,22 @@ class Engine:
                     [w.get("clientConfig", {}).get("caBundle") for w in obj.get("webhooks") or []] != \
                     [w.get("clientConfig", {}).get("caBundle") for w in manifest.get("webhooks") or []]:
                 stop(4, "controller_webhook_cabundle_differs")
+        elif identity["kind"] == "ValidatingAdmissionPolicy":
+            obj = self.read(identity)
+            if obj is None:
+                stop(3, "object_not_present")
+            checking = (obj.get("status") or {}).get("typeChecking")
+            if not isinstance(checking, dict):
+                stop(3, "policy_type_check_not_verified")  # not reported yet; no timeout is approved for it
+            if checking.get("expressionWarnings"):
+                stop(4, "policy_type_warnings")
+        elif identity["kind"] == "ValidatingAdmissionPolicyBinding":
+            obj = self.read(identity)
+            if obj is None:
+                stop(3, "object_not_present")
+            spec = obj.get("spec") or {}
+            if spec.get("validationActions") != ["Deny"] or spec.get("policyName") != manifest["spec"]["policyName"]:
+                stop(4, "binding_not_deny")
         elif identity["kind"] == "ServiceAccount":
             obj = self.read(identity)
             if obj is None:
@@ -1195,6 +1256,8 @@ class Engine:
         """Controller and istiod in-stage readiness within the D11 Deployment bound; anything else is N/A."""
         if stage == "mesh_security":
             return self.mesh_readiness()
+        if stage == "admission":
+            return self.admission_readiness()
         if stage not in WORKLOAD_STAGES:
             return "NOT_APPLICABLE"
         started = self.clock.now()
@@ -1354,7 +1417,7 @@ class Engine:
         self.fake_probe("F", {"webhook_denied:" + n for n in names})
         self.fake_probe("G", {"allowed"})
 
-    def fake_probe(self, name, expected):
+    def fake_probe(self, name, expected, messages=None):
         """D9 against the fake only. A wrong class stops; a fake pass never meets a Live requirement (D20)."""
         answer = self.adapter.probe(name)
         if answer is None:
@@ -1367,6 +1430,8 @@ class Engine:
                  "probe_" + name + ":" + outcome)
         if name == "G" and not self.injected(body):
             stop(4, "probe_G:injection_missing")
+        if messages is not None and not any(isinstance(body, str) and m in body for m in messages):
+            stop(4, "probe_" + name + ":message_mismatch")  # the right policy, but not its reviewed message
         self.evidence["fake_probe_" + name] = "CLASSIFIED_FAKE_ONLY"
 
     def injected(self, body):

@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A, Apply-B1, Apply-B2 and Apply-B3 fake engine implemented offline.**
+**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A, Apply-B1, Apply-B2, Apply-B3 and Apply-B4 fake engine implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -100,6 +100,16 @@ of Step 1 item 6c. It has four parts:
     first drift verification ("no diff": every manifest value present and equal on
     the live object). It is limited to these five objects and the fake.
   - mTLS and authorization enforcement is fixed NOT_TESTED, never PASS.
+- 6c-B3b-Apply-B4 (Owner, 2026-11-23) adds the `admission` stage, Source/Offline
+  only. See the
+  [script description](../scripts/local-workflow/README.md#admission-stage-item-6c-b3b-apply-b4-offline-only).
+  - A run stops at the gateway gate first, so admission is unreachable today.
+  - Behind it, tested directly: controller accepted and the TargetGroupBinding
+    CRD Established; policy type checking without warnings (an absent report is
+    NOT_VERIFIED, since no timeout is approved for it); bindings exactly `Deny`;
+    ownership and no drift; probes A, A' and B classified exactly (class and
+    reviewed message) against the fake.
+  - Live probes (D20) are fixed NOT_VERIFIED, so the stage is never PASS.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.

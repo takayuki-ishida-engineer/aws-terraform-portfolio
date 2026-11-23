@@ -30,7 +30,8 @@ resolved, and what remains open with its owning item or the Owner decision it ne
   same engine for the controller and istiod stages, code only. Item 6c-B3b-Apply-B2:
   the gateway stage behind its pre-apply gate, which stops every run today
   (base validator serving unverified), code only. Item 6c-B3b-Apply-B3: the
-  mesh_security stage behind the same gate, code only; item 6c stays open).
+  mesh_security stage behind the same gate, code only. Item 6c-B3b-Apply-B4: the
+  admission stage behind the same stop, code only; item 6c stays open).
 
 ## 1. Delivered in item 2
 

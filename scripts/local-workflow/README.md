@@ -978,7 +978,8 @@ digest, readiness, deferred TLS).
 The fake engine also covers the `mesh_security` stage (5 objects: the
 `<project>-app` Namespace, its ServiceAccount, a STRICT PeerAuthentication, an
 empty-rules AuthorizationPolicy and a default-deny NetworkPolicy; Owner instruction
-2026-11-23, Source/Offline only). `admission` and later stages are refused.
+2026-11-23, Source/Offline only). `binding_writer` and later stages are refused
+(since Apply-B4).
 
 **Unreachable today.** A run through `mesh_security` stops at the gateway gate
 first (`deferred_readiness_unresolved:base_validator_serving`), with no gateway or
@@ -1010,6 +1011,36 @@ claiming every fake-observable requirement MET leaves it shut.
 **Tests.** `test_k8s_runtime_apply.py` has 51 tests and 133 source mutations
 (3 tests and 13 mutations for Apply-B3): the unreachable run, the gate itself, and
 the contract behind it (minimal completion, ownership, drift, NOT_TESTED).
+
+### admission stage (item 6c-B3b-Apply-B4, offline only)
+
+The fake engine also covers the `admission` stage (4 objects: the
+`<project>-no-lb-service` and `<project>-target-registration`
+ValidatingAdmissionPolicies and their bindings; Owner instruction 2026-11-23,
+Source/Offline only). `binding_writer` and later stages are refused.
+
+**Unreachable today.** A run through `admission` stops at the gateway gate first
+(`deferred_readiness_unresolved:base_validator_serving`); nothing from the gateway
+onward is written and no admission probe is sent.
+
+**Behind the gate** (tested directly against a fake holding the four objects),
+design sections 4.1 and 11:
+
+| Point | Check | Stop |
+| --- | --- | --- |
+| Pre-apply | Controller accepted, and the TargetGroupBinding CRD Established and NamesAccepted | 3 `pre_apply_not_verified:controller_not_accepted` / `tgb_crd_not_established` |
+| Minimal completion | Each policy reports type checking without warnings. No report is NOT_VERIFIED (no timeout is approved for it) | 4 `policy_type_warnings`; 3 `policy_type_check_not_verified` |
+| Minimal completion | Each binding is exactly `validationActions: ["Deny"]` on its own policy | 4 `binding_not_deny` |
+| Final acceptance input | All four objects present, D13 OWNED and without drift | `object_not_present`, `foreign_field`, `drift_detected:<kind>/<name>` |
+| Final acceptance input | Probes A (LoadBalancer Service), A' (Ingress) and B (TargetGroupBinding) classified against the fake: exactly `vap_denied:<policy>` and one of that policy's reviewed messages | `probe_<name>:<class>` (3 for unreachable or unknown, else 4); `probe_<name>:message_mismatch` |
+
+A different denial is not a pass: `authz_denied`, a webhook denial or the other
+policy all stop. A fake pass is recorded as `CLASSIFIED_FAKE_ONLY`. The Live probes
+(D20) are a deferred item fixed at NOT_VERIFIED, so the stage is never PASS.
+
+**Tests.** `test_k8s_runtime_apply.py` has 55 tests and 145 source mutations
+(4 tests and 12 mutations for Apply-B4): the unreachable run, pre-apply, type
+checking, bindings, ownership, drift, and each probe misclassification.
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
