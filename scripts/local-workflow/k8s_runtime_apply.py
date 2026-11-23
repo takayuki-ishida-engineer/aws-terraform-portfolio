@@ -3,7 +3,17 @@
 
 Source and offline only. It covers the ``namespaces`` (2 objects), ``base`` (16
 objects), ``controller`` (13 objects), ``istiod`` (12 objects) and ``gateway`` (5 objects)
-stages against a ``FakeAdapter`` and nothing else. Stage 6 (``mesh_security``) onward is refused.
+stages, and ``mesh_security`` (5 objects), against a ``FakeAdapter`` and nothing else. Stage 7
+(``admission``) onward is refused.
+
+Apply-B3 (mesh_security, Owner instruction 2026-11-23, Source/Offline only), design section 4.1:
+- Pre-apply: istiod in-stage readiness in this run and the base validator serving resolved. The
+  latter is never met without Live evidence, and a run stops at the gateway first anyway, so
+  mesh_security is unreachable today; neither stop is bypassed.
+- Behind the gate (tested directly): minimal completion (``<project>-app`` Active with its labels,
+  the five objects present), then final acceptance inputs: D13 ownership OWNED and no drift between
+  the manifest and the live object (``drift_detected``). mTLS and authorization enforcement needs
+  traffic and stays NOT_TESTED, so the stage is never PASS.
 
 Apply-B2 (gateway, Owner instruction 2026-11-23, Source/Offline only), design section 4.1:
 - Pre-apply, in order: istiod in-stage readiness in this run, the injector caBundle populated, both
@@ -121,7 +131,7 @@ sys.path.insert(0, str(HERE))
 import k8s_runtime  # noqa: E402
 import k8s_runtime_receipt as receipt  # noqa: E402
 
-APPROVED_STAGES = ("namespaces", "base", "controller", "istiod", "gateway")
+APPROVED_STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security")
 API_READ_TIMEOUT_SECONDS = 20
 CRD_ESTABLISHED_TIMEOUT_SECONDS = 120
 DEPLOYMENT_READY_TIMEOUT_SECONDS = 600
@@ -137,7 +147,8 @@ LBC_FINALIZER = "elbv2.k8s.aws/resources"
 RUNTIME_SUFFIX = "-k8s-runtime"
 FIELD_PREFIXES = ("f:", "k:", "v:", "i:")
 WEBHOOK_KINDS = ("ValidatingWebhookConfiguration", "MutatingWebhookConfiguration")
-PRESENT_KINDS = {"ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding", "Service", "ConfigMap", "Deployment"}
+PRESENT_KINDS = {"ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding", "Service", "ConfigMap", "Deployment",
+                 "PeerAuthentication", "AuthorizationPolicy", "NetworkPolicy"}
 WORKLOAD_STAGES = ("controller", "istiod", "gateway")
 SIDECAR_STATUS = "sidecar.istio.io/status"
 # Ready endpoint ports the plan names for each workload stage's Service.
@@ -159,10 +170,13 @@ DEFERRED = {
                 "requires": ["live_ca_root_match"]},
                {"item": "sidecar injection (probe G)", "resolved_by": "gateway", "requires": ["live_probe_G"]}],
     "gateway": [{"item": "gateway TLS serving", "resolved_by": "ingress", "requires": ["ingress_blocked"]}],
+    "mesh_security": [{"item": "mTLS and authorization enforcement (needs traffic)", "resolved_by": "traffic",
+                       "requires": ["traffic_enforcement"]}],
 }
 # Requirements no fake evidence can meet: Live-only (D20, D21) or BLOCKED (D1, ingress). They always win.
 FIXED_REQUIREMENTS = {"live_probe_F": "NOT_VERIFIED", "live_probe_B": "NOT_VERIFIED", "live_probe_G": "NOT_VERIFIED",
-                      "live_ca_root_match": "NOT_VERIFIED", "ingress_blocked": "BLOCKED"}
+                      "live_ca_root_match": "NOT_VERIFIED", "ingress_blocked": "BLOCKED",
+                      "traffic_enforcement": "NOT_TESTED"}
 PROCEED_VERDICTS = {"ABSENT", "NOT_APPLIED", "REAPPLY_SAFE", "CONSISTENT"}
 STOP_VERDICTS = {"QUARANTINED": (4, "quarantined"), "UID_CHANGED": (4, "uid_changed"),
                  "NOT_OWNED": (4, "foreign_owner"), "OWNERSHIP_NOT_VERIFIED": (4, "ownership_not_verified"),
@@ -774,8 +788,24 @@ def outstanding_deferred(stage, done, evidence):
         status = {req: FIXED_REQUIREMENTS.get(req, evidence.get(req, "NOT_VERIFIED")) for req in item["requires"]}
         if all(value == "MET" for value in status.values()):
             continue
-        items.append(dict(item, evidence=status, status="BLOCKED" if "BLOCKED" in status.values() else "NOT_VERIFIED"))
+        values = set(status.values())
+        items.append(dict(item, evidence=status, status="BLOCKED" if "BLOCKED" in values
+                          else "NOT_TESTED" if "NOT_TESTED" in values else "NOT_VERIFIED"))
     return items
+
+
+def drift(live, desired):
+    """"kubectl diff" in this fake: every value the manifest sets must be in the live object. Mappings are
+    compared key by key (live may carry server-set extras); lists and scalars must be equal."""
+    if isinstance(desired, dict):
+        return not isinstance(live, dict) or any(key not in live or drift(live[key], value) for key, value in desired.items())
+    return live != desired
+
+
+def manifest_drift(obj, manifest):
+    """Drift of the fields the runtime applies: everything except apiVersion and kind (identity included)."""
+    fragment = {k: v for k, v in manifest.items() if k not in ("apiVersion", "kind")}
+    return drift(obj, fragment)
 
 
 def classify_image_digest(image_id, index_digest, platform_digest, node_architecture):
@@ -914,7 +944,9 @@ class Engine:
         return state
 
     def pre_apply(self, stage, done):
-        if stage == "gateway":
+        if stage == "mesh_security":
+            self.mesh_pre_apply(done)
+        elif stage == "gateway":
             self.gateway_pre_apply(done)
         elif stage == "base":
             if "namespaces" not in done:
@@ -944,6 +976,29 @@ class Engine:
         self.check_registry("gateway")
         if outstanding_deferred("base", done, self.evidence):
             stop(3, "deferred_readiness_unresolved:base_validator_serving")
+
+    def mesh_pre_apply(self, done):
+        """Design 4.1 mesh_security row: istiod in-stage readiness and the base validator serving resolved.
+        Validator not serving stops before apply; with failurePolicy Fail every Istio policy write would fail."""
+        if self.evidence.get("istiod_in_stage_readiness") != "MET" or "istiod" not in done:
+            stop(3, "pre_apply_not_verified:istiod_not_ready")
+        if outstanding_deferred("base", done, self.evidence):
+            stop(3, "deferred_readiness_unresolved:base_validator_serving")
+
+    def mesh_readiness(self):
+        """Final acceptance inputs of mesh_security: all five objects present, runtime-owned, with no diff."""
+        for identity in self.members("mesh_security"):
+            obj, manifest = self.read(identity), self.manifest(identity)
+            if obj is None:
+                stop(3, "object_not_present")
+            mesh_owned = d13_ownership(observed_of(obj, manifest), self.manager)
+            if mesh_owned != "OWNED":
+                stop(*STOP_VERDICTS.get(mesh_owned, (4, "foreign_field")))
+            if manifest_drift(obj, manifest):
+                stop(4, "drift_detected:" + identity["kind"] + "/" + identity["name"])
+        self.evidence["mesh_security_no_drift"] = "MET"
+        self.evidence["mesh_security_in_stage_readiness"] = "MET"
+        return "MET"
 
     def stage_report(self, stage):
         return next(s for s in self.report["stages"] if s["name"] == stage)
@@ -1138,6 +1193,8 @@ class Engine:
 
     def in_stage_readiness(self, stage):
         """Controller and istiod in-stage readiness within the D11 Deployment bound; anything else is N/A."""
+        if stage == "mesh_security":
+            return self.mesh_readiness()
         if stage not in WORKLOAD_STAGES:
             return "NOT_APPLICABLE"
         started = self.clock.now()

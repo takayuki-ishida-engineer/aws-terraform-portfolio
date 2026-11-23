@@ -935,8 +935,8 @@ reports; probes on a real cluster (D20); the CA in use (D21); IRSA and AWS calls
 ### Gateway stage (item 6c-B3b-Apply-B2, offline only)
 
 The fake engine also covers the `gateway` stage (5 objects; Owner instruction
-2026-11-23, Source/Offline only). `through` may be `gateway`; `mesh_security` and
-later stages are refused. There is still no command line, real adapter, cluster,
+2026-11-23, Source/Offline only). `through` may be `gateway` (and, since Apply-B3,
+`mesh_security`); `admission` and later stages are refused. There is still no command line, real adapter, cluster,
 AWS or Emulator.
 
 **The gateway is unreachable today, by design.** Design section 4.1 says that
@@ -972,6 +972,44 @@ against a fake that already holds the gateway objects:
 (3 tests and 11 mutations for Apply-B2): the unreachable gate and the rerun stop,
 each gateway pre-apply check, and the contract behind the gate (injection,
 digest, readiness, deferred TLS).
+
+### mesh_security stage (item 6c-B3b-Apply-B3, offline only)
+
+The fake engine also covers the `mesh_security` stage (5 objects: the
+`<project>-app` Namespace, its ServiceAccount, a STRICT PeerAuthentication, an
+empty-rules AuthorizationPolicy and a default-deny NetworkPolicy; Owner instruction
+2026-11-23, Source/Offline only). `admission` and later stages are refused.
+
+**Unreachable today.** A run through `mesh_security` stops at the gateway gate
+first (`deferred_readiness_unresolved:base_validator_serving`), with no gateway or
+mesh_security write. The stage's own pre-apply gate (design section 4.1) would
+stop it too:
+
+| Order | Check | Stop |
+| --- | --- | --- |
+| 1 | istiod in-stage readiness in this run | 3 `pre_apply_not_verified:istiod_not_ready` |
+| 2 | Base validator serving resolved ("validator not serving: stop before apply") | 3 `deferred_readiness_unresolved:base_validator_serving` |
+
+Item 2 needs Live probe F (D20) and a confirmed istiod name (D13); even evidence
+claiming every fake-observable requirement MET leaves it shut.
+
+**Behind the gate** (tested directly against a fake holding the five objects):
+- minimal completion: `<project>-app` Active with its labels, the ServiceAccount
+  and the three policies present (`namespace_not_active`, `namespace_labels_differ`,
+  `object_not_present`);
+- final acceptance inputs, for all five objects: D13 ownership OWNED
+  (`foreign_field`, `foreign_owner`, `ownership_not_verified`) and no drift
+  (`drift_detected:<kind>/<name>`, exit 4). Drift means a value the manifest sets
+  is missing or different on the live object: mappings key by key (server-set
+  extras are allowed), lists and scalars exactly. Examples: PeerAuthentication
+  `PERMISSIVE`, an AuthorizationPolicy rule or `DENY`, a NetworkPolicy egress rule,
+  a missing `ingress`, changed `policyTypes`, `automountServiceAccountToken: true`;
+- deferred: mTLS and authorization enforcement needs traffic and is fixed
+  NOT_TESTED, so the stage's final acceptance is never PASS.
+
+**Tests.** `test_k8s_runtime_apply.py` has 51 tests and 133 source mutations
+(3 tests and 13 mutations for Apply-B3): the unreachable run, the gate itself, and
+the contract behind it (minimal completion, ownership, drift, NOT_TESTED).
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 

@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A, Apply-B1 and Apply-B2 fake engine implemented offline.**
+**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A, Apply-B1, Apply-B2 and Apply-B3 fake engine implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -90,6 +90,16 @@ of Step 1 item 6c. It has four parts:
     minimal completion, readiness, revision injection (`sidecar.istio.io/status`
     and the locked `istio-proxy`), digest. The deferred gateway TLS serving
     stays BLOCKED while ingress is BLOCKED.
+- 6c-B3b-Apply-B3 (Owner, 2026-11-23) adds the `mesh_security` stage, Source/Offline
+  only. See the
+  [script description](../scripts/local-workflow/README.md#mesh_security-stage-item-6c-b3b-apply-b3-offline-only).
+  - Pre-apply: istiod in-stage readiness and the base validator serving resolved;
+    the latter needs Live evidence, and a run stops at the gateway first, so the
+    stage is unreachable today.
+  - Behind the gate, tested directly: minimal completion, D13 ownership and the
+    first drift verification ("no diff": every manifest value present and equal on
+    the live object). It is limited to these five objects and the fake.
+  - mTLS and authorization enforcement is fixed NOT_TESTED, never PASS.
 - Review history:
   - 2026-11-22: independent design review of the first draft, REQUEST DESIGN
     CHANGES.
