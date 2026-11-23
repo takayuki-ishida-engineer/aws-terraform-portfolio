@@ -1017,7 +1017,8 @@ the contract behind it (minimal completion, ownership, drift, NOT_TESTED).
 The fake engine also covers the `admission` stage (4 objects: the
 `<project>-no-lb-service` and `<project>-target-registration`
 ValidatingAdmissionPolicies and their bindings; Owner instruction 2026-11-23,
-Source/Offline only). `binding_writer` and later stages are refused.
+Source/Offline only). `ingress` is refused (since Apply-B5, `binding_writer` is
+covered).
 
 **Unreachable today.** A run through `admission` stops at the gateway gate first
 (`deferred_readiness_unresolved:base_validator_serving`); nothing from the gateway
@@ -1054,6 +1055,37 @@ deferred item fixed at NOT_VERIFIED, so the stage is never PASS.
 **Tests.** `test_k8s_runtime_apply.py` has 55 tests and 152 source mutations
 (4 tests and 19 mutations for Apply-B4): the unreachable run, pre-apply, type
 checking, bindings, ownership, drift, and each probe answer above.
+
+### binding_writer stage (item 6c-B3b-Apply-B5, offline only)
+
+The fake engine also covers the `binding_writer` stage (3 objects: the
+`<project>-binding-writer` ServiceAccount, Role and RoleBinding in
+`<project>-ingress`; Owner instruction 2026-11-23, Source/Offline only). `ingress`
+stays refused (`stage_not_approved:ingress`).
+
+**Unreachable today.** A run through `binding_writer` stops at the gateway gate
+first; nothing from the gateway onward is written.
+
+**Behind the gate** (tested directly against a fake holding the objects), design
+sections 4.1, 7, 10 and 11:
+
+| Point | Check | Stop |
+| --- | --- | --- |
+| Pre-apply | `admission` accepted, and its minimal completion re-verified on the live objects (type checking without warnings, bindings exactly `Deny`) | 3 `pre_apply_not_verified:admission_not_accepted`; `policy_type_warnings`, `policy_type_check_not_verified`, `binding_not_deny`, `object_not_present` |
+| Minimal completion | The three objects present; the ServiceAccount's `automountServiceAccountToken` is exactly boolean `false` (missing, `true`, `"false"` or `0` stop) | 3 `object_not_present`; 4 `sa_automount_token_not_false` |
+| Final acceptance input | D13 OWNED and no drift for all three (Role rules, RoleBinding subjects and roleRef, the ServiceAccount) | `foreign_field`, `foreign_owner`, `ownership_not_verified`, `drift_detected:<kind>/<name>` |
+| Writes | A field conflict is never forced | 4 `field_conflict` (failed RESULT) |
+
+The ServiceAccount check applies to every ServiceAccount whose manifest sets
+`automountServiceAccountToken: false`.
+
+**D1 is undecided.** The binding writer's effective permissions, impersonation and
+probes C to E (design section 7) are a deferred item fixed at NOT_TESTED. No fake
+probe C, D or E is sent or read, and evidence claiming any of them MET is ignored,
+so the stage is never PASS.
+
+**Tests.** `test_k8s_runtime_apply.py` has 58 tests and 163 source mutations
+(3 tests and 11 mutations for Apply-B5).
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 

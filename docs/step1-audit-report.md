@@ -31,7 +31,9 @@ resolved, and what remains open with its owning item or the Owner decision it ne
   the gateway stage behind its pre-apply gate, which stops every run today
   (base validator serving unverified), code only. Item 6c-B3b-Apply-B3: the
   mesh_security stage behind the same gate, code only. Item 6c-B3b-Apply-B4: the
-  admission stage behind the same stop, code only; item 6c stays open).
+  admission stage behind the same stop, code only. Item 6c-B3b-Apply-B5: the
+  binding_writer stage behind the same stop, D1 items NOT_TESTED, code only; item 6c
+  stays open).
 
 ## 1. Delivered in item 2
 

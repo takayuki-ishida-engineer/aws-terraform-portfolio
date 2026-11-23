@@ -367,8 +367,10 @@ approval. The Owner may reorder them.
    (`deferred_readiness_unresolved`). 6c-B3b-Apply-B3 adds `mesh_security` behind
    the same gate (ownership, no-drift and enforcement NOT_TESTED behind it).
    6c-B3b-Apply-B4 adds `admission` (type checking, `Deny` bindings, probes A/A'/B
-   against the fake) behind the same stop. `apply` and `destroy` still refuse;
-   stages 8 and 9, G9 and 6c-B4 each need their own Owner approval.
+   against the fake) behind the same stop. 6c-B3b-Apply-B5 adds `binding_writer`
+   (ownership, no drift, automount `false`; D1 items NOT_TESTED) behind the same
+   stop. `apply` and `destroy` still refuse; ingress, G9 and 6c-B4 each need their
+   own Owner approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.

@@ -40,7 +40,7 @@ import render  # noqa: E402
 
 FIXTURE = preflight.REPOSITORY / "kubernetes/tests/fixtures/runtime.json"
 FIXTURE_DOC = common.parse(FIXTURE.read_text())
-STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security", "admission")
+STAGES = ("namespaces", "base", "controller", "istiod", "gateway", "mesh_security", "admission", "binding_writer")
 KEEP = object()
 HELM = os.environ.get("K8S_RUNTIME_HELM", "")
 KUBE_SYSTEM_UID = "11111111-2222-4333-8444-555555555555"
@@ -254,7 +254,6 @@ def scenario_gates(case, mods):
         impostor = Impostor(r.adapter)
         case.assertEqual(outcome(r.run(adapter=impostor)), (1, "REFUSED", "real_adapter_not_approved"))
         case.assertEqual(impostor.used, [])
-        case.assertEqual(outcome(r.run(through="binding_writer")), (1, "REFUSED", "stage_not_approved:binding_writer"))
         case.assertEqual(outcome(r.run(through="ingress")), (1, "REFUSED", "stage_not_approved:ingress"))
         case.assertEqual(r.journal(), [])
         case.assertEqual(r.applies(), [])
@@ -2133,6 +2132,133 @@ def scenario_admission_probes(case, mods):
     case.assertIsNone(parse(403, "x " + vap_denial("p", "m")))
 
 
+# ---- Apply-B5: binding_writer --------------------------------------------------------------------------------------
+
+def scenario_binding_writer_unreachable(case, mods):
+    """A run through binding_writer still stops at the gateway gate; ingress stays refused."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        r.adapter.probes.update({"C": (201, "{}"), "D": (201, "{}"), "E": (201, "{}")})
+        result = r.run(through="binding_writer")
+        case.assertEqual(outcome(result), (3, "UNDETERMINED", "deferred_readiness_unresolved:base_validator_serving"))
+        for stage in ("gateway", "mesh_security", "admission", "binding_writer"):
+            assert_no_writes(case, r, stage)
+        case.assertFalse(any(c[0] == "probe" for c in r.adapter.calls if c[1] in ("C", "D", "E")))
+        case.assertEqual(outcome(r.run(through="ingress")), (1, "REFUSED", "stage_not_approved:ingress"))
+
+
+def staged_binding_writer(mods, r):
+    """Fake-only setup behind the gate: the admission objects (and the TargetGroupBinding CRD they need) and the
+    three binding_writer objects placed as if applied; no earlier stage is run."""
+    ready_cluster(r)
+    place(r, [mods.apply.TGB_CRD] + [k8s_runtime_receipt.key_of(i) for i in r.members["admission"]]
+          + [k8s_runtime_receipt.key_of(i) for i in r.members["binding_writer"]])
+    return gateway_engine(mods, r)
+
+
+def writer_key(r, kind):
+    return r.kind_key("binding_writer", kind)
+
+
+def scenario_binding_writer_pre_apply(case, mods):
+    """Pre-apply re-verifies the admission minimal completion on the live objects."""
+    done = {"namespaces", "base", "controller", "istiod", "gateway", "mesh_security", "admission"}
+    with run_for(mods) as r:
+        engine = staged_binding_writer(mods, r)
+        case.assertIsNone(stop_of(mods, engine.pre_apply, "binding_writer", done))
+        case.assertEqual(stop_of(mods, engine.pre_apply, "binding_writer", done - {"admission"}),
+                         (3, "pre_apply_not_verified:admission_not_accepted"))
+    vap = "admissionregistration.k8s.io/v1|ValidatingAdmissionPolicy||test-no-lb-service"
+    binding = "admissionregistration.k8s.io/v1|ValidatingAdmissionPolicyBinding||test-target-registration"
+    cases = [(lambda r: r.adapter.policy_status.__setitem__(vap, {"typeChecking": {"expressionWarnings": [{"warning": "x"}]}}),
+              (4, "policy_type_warnings")),
+             (lambda r: r.adapter.policy_status.__setitem__(vap, {}), (3, "policy_type_check_not_verified")),
+             (lambda r: r.adapter.objects[binding]["spec"].__setitem__("validationActions", ["Warn"]), (4, "binding_not_deny")),
+             (lambda r: r.adapter.objects.pop(binding), (3, "object_not_present"))]
+    for edit, expected in cases:
+        with run_for(mods) as r:
+            engine = staged_binding_writer(mods, r)
+            edit(r)
+            case.assertEqual(stop_of(mods, engine.pre_apply, "binding_writer", done), expected)
+
+
+def scenario_binding_writer_contract(case, mods):
+    """Behind the gate: present, owned, no drift, automount false; D1 items NOT_TESTED, never PASS."""
+    with run_for(mods) as r:
+        engine = staged_binding_writer(mods, r)
+        r.adapter.probes.update({"C": (201, "{}"), "D": (201, "{}"), "E": (201, "{}")})
+        for identity in r.members["binding_writer"]:
+            case.assertIsNone(stop_of(mods, engine.minimal_completion, identity), identity["kind"])
+        case.assertIsNone(stop_of(mods, engine.in_stage_readiness, "binding_writer"))
+        case.assertEqual(engine.evidence.get("binding_writer_in_stage_readiness"), "MET")
+        case.assertFalse(any(c[0] == "probe" for c in r.adapter.calls), "no probe C to E is sent or read")
+        left = mods.apply.outstanding_deferred("binding_writer", set(mods.apply.APPROVED_STAGES), engine.evidence)
+        case.assertEqual([(d["resolved_by"], d["status"]) for d in left], [("D1", "NOT_TESTED")])
+        claimed = {name: "MET" for name in mods.apply.BINDING_WRITER_D1}
+        left = mods.apply.outstanding_deferred("binding_writer", set(), claimed)
+        case.assertEqual([item["evidence"] for item in left], [{name: "NOT_TESTED" for name in claimed}])
+    sa = "ServiceAccount"
+    minimal = [(sa, lambda o: o.__setitem__("automountServiceAccountToken", True), (4, "sa_automount_token_not_false")),
+               (sa, lambda o: o.pop("automountServiceAccountToken"), (4, "sa_automount_token_not_false")),
+               (sa, lambda o: o.__setitem__("automountServiceAccountToken", "false"), (4, "sa_automount_token_not_false")),
+               (sa, lambda o: o.__setitem__("automountServiceAccountToken", 0), (4, "sa_automount_token_not_false"))]
+    for kind, change, expected in minimal:
+        with run_for(mods) as r:
+            engine = staged_binding_writer(mods, r)
+            change(r.adapter.objects[writer_key(r, kind)])
+            identity = next(i for i in r.members["binding_writer"] if i["kind"] == kind)
+            case.assertEqual(stop_of(mods, engine.minimal_completion, identity), expected)
+    for kind in (sa, "Role", "RoleBinding"):
+        with run_for(mods) as r:
+            engine = staged_binding_writer(mods, r)
+            del r.adapter.objects[writer_key(r, kind)]
+            identity = next(i for i in r.members["binding_writer"] if i["kind"] == kind)
+            case.assertEqual(stop_of(mods, engine.minimal_completion, identity), (3, "object_not_present"))
+            case.assertEqual(stop_of(mods, engine.in_stage_readiness, "binding_writer"), (3, "object_not_present"))
+    readiness = [
+        ("Role", lambda o: o["rules"][0]["verbs"].append("list"), (4, "drift_detected:Role/test-binding-writer")),
+        ("Role", lambda o: o["rules"][1]["resourceNames"].append("other"), (4, "drift_detected:Role/test-binding-writer")),
+        ("Role", lambda o: o["rules"].pop(), (4, "drift_detected:Role/test-binding-writer")),
+        ("RoleBinding", lambda o: o["subjects"][0].__setitem__("name", "default"), (4, "drift_detected:RoleBinding/test-binding-writer")),
+        ("RoleBinding", lambda o: o["roleRef"].__setitem__("kind", "ClusterRole"), (4, "drift_detected:RoleBinding/test-binding-writer")),
+        (sa, lambda o: o.__setitem__("automountServiceAccountToken", True), (4, "drift_detected:ServiceAccount/test-binding-writer")),
+        ("Role", lambda o: o["metadata"]["managedFields"].append(
+            {"manager": "kubectl-edit", "operation": "Update", "fieldsV1": {"f:rules": {}}}), (4, "foreign_field")),
+        ("RoleBinding", lambda o: o["metadata"]["managedFields"].remove(runtime_entry(o)), (4, "foreign_owner")),
+        (sa, lambda o: o["metadata"].__setitem__("managedFields", {"broken": True}), (4, "ownership_not_verified"))]
+    for kind, change, expected in readiness:
+        with run_for(mods) as r:
+            engine = staged_binding_writer(mods, r)
+            change(r.adapter.objects[writer_key(r, kind)])
+            case.assertEqual(stop_of(mods, engine.in_stage_readiness, "binding_writer"), expected, kind)
+            case.assertNotIn("binding_writer_in_stage_readiness", engine.evidence)
+
+
+def scenario_binding_writer_conflict(case, mods):
+    """A field conflict on a binding_writer write is never forced: failed RESULT and stop."""
+    with run_for(mods) as r:
+        ready_cluster(r)
+        engine = gateway_engine(mods, r)
+        target = writer_key(r, "Role")
+        r.adapter.conflicts.add(target)
+        identity = next(i for i in r.members["binding_writer"] if i["kind"] == "Role")
+        with r.store.lock():
+            r.store.begin()
+            # Receipt-level setup only: stages 1 to 7 recorded as applied, so a stage 8 INTENT is in order.
+            serial = 0
+            for stage in r.plan.stage_order[:r.plan.stage_order.index("binding_writer")]:
+                for key in r.plan.members[stage]:
+                    member = dict(zip(("apiVersion", "kind", "namespace", "name"), key.split("|")))
+                    serial += 1
+                    seq = r.store.intent(stage, member, {"state": "absent"}, "create")
+                    r.store.result(seq, member, "00000000-0000-4000-9000-%012x" % serial, "1", 1, "applied")
+                r.store.stage_done(stage)
+            state = mods.receipt.load(r.store.dir, r.plan, r.store.expected)["state"]
+            case.assertEqual(stop_of(mods, engine.apply_object, "binding_writer", identity, state), (4, "field_conflict"))
+        case.assertNotIn(target, r.adapter.objects)
+        case.assertEqual(records_for(r, target, "RESULT")[-1]["outcome"], "failed")
+
+
 # ---- unit tests ----------------------------------------------------------------------------------------------------
 
 class EngineTests(unittest.TestCase):
@@ -2291,6 +2417,17 @@ class EngineTests(unittest.TestCase):
 
     def test_admission_probes(self):
         scenario_admission_probes(self, real_mods())
+
+    # Apply-B5: binding_writer.
+    def test_binding_writer_unreachable(self):
+        scenario_binding_writer_unreachable(self, real_mods())
+
+    def test_binding_writer_pre_apply(self):
+        scenario_binding_writer_pre_apply(self, real_mods())
+
+    def test_binding_writer_contract(self):
+        scenario_binding_writer_contract(self, real_mods())
+        scenario_binding_writer_conflict(self, real_mods())
 
     def test_workload_read_scope(self):
         scenario_workload_read_scope(self, real_mods())
@@ -2590,12 +2727,12 @@ MUTATIONS = [
      scenario_mesh_contract),
     ("policy_kinds", A, '                 "PeerAuthentication", "AuthorizationPolicy", "NetworkPolicy"}', "                 }",
      scenario_mesh_contract),
-    ("traffic_fixed", A, '"traffic_enforcement": "NOT_TESTED"}', '"traffic_enforcement": "MET"}', scenario_mesh_contract),
+    ("traffic_fixed", A, '"traffic_enforcement": "NOT_TESTED",', '"traffic_enforcement": "MET",', scenario_mesh_contract),
     ("not_tested_label", A, '                          else "NOT_TESTED" if "NOT_TESTED" in values else "NOT_VERIFIED"))',
      '                          else "NOT_VERIFIED"))', scenario_mesh_contract),
     # Apply-B4: admission.
-    ("admission_dispatch", A, '        if stage == "admission":\n            self.admission_pre_apply(done)\n        elif stage == "mesh_security":',
-     '        if stage == "mesh_security":', scenario_admission_pre_apply),
+    ("admission_dispatch", A, '        elif stage == "admission":\n            self.admission_pre_apply(done)\n',
+     '        elif False:\n            self.admission_pre_apply(done)\n', scenario_admission_pre_apply),
     ("admission_controller_done", A, '        if "controller" not in done:\n            stop(3, "pre_apply_not_verified:controller_not_accepted")',
      '        if False:\n            stop(3, "pre_apply_not_verified:controller_not_accepted")', scenario_admission_pre_apply),
     ("admission_tgb_crd", A, '        if crd is None or not conditions_true(crd, ("Established", "NamesAccepted")):',
@@ -2625,6 +2762,26 @@ MUTATIONS = [
      scenario_admission_probes),
     ("admission_live_fixed", A, '                      "live_probe_A": "NOT_VERIFIED", "live_probe_A_prime": "NOT_VERIFIED",',
      '                      "live_probe_A_prime": "NOT_VERIFIED",', scenario_admission_contract),
+    # Apply-B5: binding_writer.
+    ("writer_dispatch", A, '        if stage == "binding_writer":\n            self.binding_writer_pre_apply(done)\n        elif stage == "admission":',
+     '        if stage == "admission":', scenario_binding_writer_pre_apply),
+    ("writer_admission_done", A, '        if "admission" not in done:\n            stop(3, "pre_apply_not_verified:admission_not_accepted")',
+     '        if False:\n            stop(3, "pre_apply_not_verified:admission_not_accepted")', scenario_binding_writer_pre_apply),
+    ("writer_admission_reverify", A, '        for identity in self.members("admission"):\n            self.minimal_completion(identity)\n',
+     "", scenario_binding_writer_pre_apply),
+    ("writer_readiness_call", A, '        if stage == "binding_writer":\n            return self.binding_writer_readiness()\n', "",
+     scenario_binding_writer_contract),
+    ("writer_owned_no_drift", A, '        self.verify_owned_no_drift("binding_writer")\n', "", scenario_binding_writer_contract),
+    ("sa_automount_check", A, ' and obj.get("automountServiceAccountToken") is not False:',
+     ' and obj.get("automountServiceAccountToken") is True:', scenario_binding_writer_contract),
+    ("sa_automount_call", A, '                stop(4, "sa_automount_token_not_false")', "                pass",
+     scenario_binding_writer_contract),
+    ("d1_permissions_fixed", A, '"d1_effective_permissions": "NOT_TESTED",', "", scenario_binding_writer_contract),
+    ("d1_impersonation_fixed", A, '                      "d1_impersonation": "NOT_TESTED",', "                     ",
+     scenario_binding_writer_contract),
+    ("d1_probe_c_fixed", A, ' "live_probe_C": "NOT_TESTED",', "", scenario_binding_writer_contract),
+    ("d1_probe_e_fixed", A, '                      "live_probe_E": "NOT_TESTED"}', "                      }",
+     scenario_binding_writer_contract),
     ("receipt_ownership_hook", R, "    owns = ownership_fn or ownership", "    owns = ownership", scenario_status_manager_allowed),
 ]
 
@@ -2654,7 +2811,7 @@ def mods_for(filename, old, new):
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
-        self.assertEqual(len(MUTATIONS), 152)
+        self.assertEqual(len(MUTATIONS), 163)
         undetected, crashed = [], []
         for name, filename, old, new, scenario in MUTATIONS:
             mods = mods_for(filename, old, new)
