@@ -728,7 +728,7 @@ def discovery_targets(core, groups, resource_lists):
         if not (required.get("namespaced") is True and "list" in required.get("verbs", ())
                 and required.get("kind") == kind):
             return {"status": "UNKNOWN", "reason": "discovery_required_resource_invalid"}
-    targets = []
+    targets, mapped = [], []
     for group, version in advertised:
         listing = resource_lists.get(group + "/" + version if group else "v1")
         if listing is None:
@@ -739,6 +739,9 @@ def discovery_targets(core, groups, resource_lists):
                 continue
             if RESOURCE.fullmatch(name) is None:
                 return {"status": "UNKNOWN", "reason": "unknown_resource_mapping"}
+            # 6c-B4b: every resource's verified mapping (namespaced or cluster-scoped) stays with the evidence, so a
+            # CRD is judged by its exact group, version and plural, never by its group alone.
+            mapped.append((group, version, name, resource["kind"], resource["namespaced"]))
             if not resource["namespaced"]:
                 continue
             if "list" in resource["verbs"]:
@@ -747,7 +750,8 @@ def discovery_targets(core, groups, resource_lists):
                 return {"status": "UNKNOWN", "reason": "resource_not_listable"}
     if not targets:
         return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}
-    return {"status": "COMPLETE", "targets": sorted(targets), "advertised": sorted(advertised)}
+    return {"status": "COMPLETE", "targets": sorted(targets), "advertised": sorted(advertised),
+            "resources": sorted(mapped)}
 
 
 # ---- metadata LIST and pagination ---------------------------------------------------------------------------------
@@ -1183,7 +1187,8 @@ class FakeDestroyTransport:
             return result
         self._targets = frozenset(result["targets"])
         evidence = self._issue("discovery", {"targets": [list(t) for t in result["targets"]],
-                                             "advertised": [list(a) for a in result["advertised"]]}, ("discovery",))
+                                             "advertised": [list(a) for a in result["advertised"]],
+                                             "resources": [list(r) for r in result["resources"]]}, ("discovery",))
         return {"status": "COMPLETE", "targets": result["targets"], "evidence": evidence}
 
     def list_namespace(self, discovery, namespace, group, version, resource):
@@ -1206,6 +1211,10 @@ class FakeDestroyTransport:
             if result["status"] != "COMPLETE":
                 break
         return merge_listed(targets, results)
+
+    def discovery_payload(self, discovery):
+        """The payload of this transport's own, current discovery evidence (stale or foreign evidence is refused)."""
+        return self._accept(discovery, "discovery")
 
     def read_crd(self, name):
         """A new read of a CRD withdraws every earlier read and verification of it first, whatever this read finds

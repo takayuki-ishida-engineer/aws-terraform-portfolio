@@ -571,12 +571,22 @@ def load(directory, plan, expected):
 class Store:
     """The writer. Every write holds the exclusive lock and is validated by replaying the journal first."""
 
-    def __init__(self, root, fp, project, manifest_sha256, input_sha256, plan):
+    def __init__(self, root, fp, project, manifest_sha256, input_sha256, plan, existing_only=False):
         root = Path(root).expanduser()
         need(not inside_repository(root), "receipt_inside_repository")
         self.plan = plan
         self.expected = {"fingerprint": fp, "project": project, "manifest_sha256": manifest_sha256,
                          "input_sha256": input_sha256}
+        # 6c-B4b (destroy): ``existing_only`` opens an existing receipt and never creates a directory, a journal or
+        # a HEADER; apply keeps the default, unchanged.
+        self.existing_only = bool(existing_only)
+        if self.existing_only:
+            self.dir = root / fp["id"]
+            check_dir(self.dir)
+            self.created_here = False
+            self._init_allowed = False
+            self.lock_fd = None
+            return
         make_dir(root)
         self.dir = root / fp["id"]
         # Only a directory this Store creates itself may be initialised, decided by the atomic mkdir
@@ -658,6 +668,11 @@ class Store:
         """
         need(self.lock_fd is not None, "receipt_not_locked")
         records, digests = self._records()
+        if self.existing_only:
+            # Destroy: a missing journal or snapshot is never repaired or initialised; only a verified stale
+            # snapshot is refreshed below.
+            need(records, "journal_missing" if os.path.lexists(self.dir / RECEIPT) else "receipt_missing")
+            need(os.path.lexists(self.dir / RECEIPT), "receipt_snapshot_missing")
         if records and not os.path.lexists(self.dir / RECEIPT):
             replayed = derive(records, self.plan)  # chain and schema already checked by _records
             check_header(replayed["header"], self.expected)  # fingerprint and pins before any repair

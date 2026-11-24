@@ -58,7 +58,7 @@ from test_k8s_runtime_destroy_foundation import (DESTROY_MUTATIONS, CrdAndServic
                                                  DiscoveryAndListTests)
 from test_k8s_runtime_destroy import (ENGINE_MUTATIONS, DestroyCrdTests, DestroyEngineMutationTests,  # noqa: E402,F401
                                       DestroyEngineTests, DestroyInventoryTests, DestroyOrderingTests,
-                                      DestroyReceiptTests, DestroyRecoveryTests)
+                                      DestroyReceiptTests, DestroyRecoveryTests, DestroyReviewTests)
 
 PROJECT = "acme"
 ARN = "arn:aws:eks:ca-central-1:444455556666:cluster/acme-dev-eks"

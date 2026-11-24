@@ -13,14 +13,22 @@ journal contracts (FORMAT 1, additive destroy records), unchanged.
 
 Preflight (before any write)
   The fake clock and the fake transport only; the caller's manifest and input SHA-256 pins against the plan and the
-  rendered objects; the reviewed stage table (9 stages, 62 objects, 17 CRDs, 45 other objects); one manifest per
-  plan identity and no Secret; one global D11 deadline for the whole run. The cluster fingerprint (D17) is the
+  rendered objects; the runtime contract version; the repository's reviewed stage table as the only stage layout:
+  the report and the bundle must equal it in stage names and order and in each stage's identities and their order
+  (9 stages, 62 objects, 17 CRDs, 45 other objects), and the destroy order comes from it; one global D11 deadline
+  for the whole run. The cluster fingerprint (D17) is the
   cluster ARN plus the ``kube-system`` UID read through the destroy transport. The runtime receipt of that
   fingerprint must exist and verify (journal chain, snapshot, project, fingerprint, pins); a missing, corrupt or
-  other-fingerprint receipt stops before anything is written, and no new receipt or journal is ever created. An
-  unresolved apply INTENT or any QUARANTINE stops. The G9 registration receipt must load and verify too. The DELETE
-  map and the CRD verification map come from the verified journal (``owned_uids``, ``crd_receipt_uids``) and the
-  plan identities from the reviewed plan; nothing a read returns can widen them, and there is no ownership input.
+  other-fingerprint receipt stops before anything is written, and no new receipt or journal is ever created: the
+  store is opened ``existing_only`` (no directory, journal or HEADER; a missing journal or snapshot is never
+  repaired, only a verified stale snapshot is refreshed). An unresolved apply INTENT or any QUARANTINE stops. The G9
+  registration receipt of exactly this project and runtime fingerprint must hold all four Secrets REGISTERED with
+  valid UIDs. After the lock, before the first journal write, everything is checked again (fingerprint, project,
+  pins, journal and snapshot, phase, open INTENT, quarantine, G9) and the DELETE and CRD maps come from that locked
+  journal (``owned_uids``, ``crd_receipt_uids``); the plan identities come from the reviewed table; nothing a read
+  returns can widen them, and there is no ownership input. The fingerprint is read again before every step and
+  every G9 cleanup; G9's own kube-system read must show the runtime's UID, otherwise G9 stops before any Secret
+  request.
 
 Order (D12, dependency safety over plain reverse order)
   The apply stages reversed, then ``namespace_phase`` with every Namespace: ingress, binding_writer, admission,
@@ -28,12 +36,16 @@ Order (D12, dependency safety over plain reverse order)
   stage a fixed kind order: the TargetGroupBinding first, policy bindings before policies, webhook configurations
   before their Deployments, then workloads, Services, RBAC, ServiceAccounts and ConfigMaps. Gates:
   - ingress: no TargetGroupBinding outside the receipt in ``<project>-ingress``;
-  - admission and controller: the runtime TargetGroupBinding confirmed absent (trusted NotFound) and none listed;
-    before admission, no LoadBalancer Service and no unknown Service in ``<project>-ingress`` (the runtime Service's
-    ``spec.type`` from the specialised read, never inferred from metadata);
+  - admission and controller: no TargetGroupBinding anywhere: the runtime one trusted absent, none listed in
+    ``<project>-ingress`` and the TargetGroupBinding CRD's cluster-wide instance LIST empty (or the CRD strictly never
+    created); before admission, no LoadBalancer Service and no unknown Service in ``<project>-ingress`` (the runtime
+    Service by exact resource, namespace, name and receipt UID, its ``spec.type`` from the specialised read);
   - istiod and base: every Istio CRD ZERO_INSTANCES or CRD_NOT_CREATED before an Istio webhook goes;
   - namespace_phase: the G9 cleanup COMPLETE (including the kube-system webhook TLS Secret) and, per namespace,
     a fresh discovery and a COMPLETE metadata inventory with only allowed leftovers (D3, D6, D18).
+  The same dependency evidence is read fresh again right before every dependency-sensitive DELETE (each admission
+  and controller object, each Istio webhook, a Deployment after its stage's webhooks are confirmed gone), not only
+  at the start of a step.
   The external dependencies of the TargetGroupBinding (the controller's IRSA role, the target group, the ELBv2 and
   STS endpoints, the tunnel) are Terraform roots outside this engine; they must still exist (runbook section 7).
 
@@ -50,8 +62,11 @@ Per object (D7, D13, D19)
 
 Crash recovery
   An open DESTROY_INTENT is resolved before anything else in its step: a trusted NotFound closes it
-  ``absent_confirmed``; another UID is quarantined (``delete_unproven``); the same UID needs D13 ownership and the
-  gates again, is closed ``failed`` and gets a new INTENT (never an unconditional resend). A stale snapshot is
+  ``absent_confirmed``; another UID is quarantined (``delete_unproven``); the same UID already terminating needs D13
+  ownership and the dependency gates again and then waits for absence under the same INTENT, with no new DELETE; the
+  same UID not terminating is closed ``failed`` and gets a new INTENT through the per-object checks (never an
+  unconditional resend). Every wait has its own D11 bound on the fake clock; a read that completes after that local
+  deadline is never evidence, and a poll never sleeps past it. A stale snapshot is
   refreshed from the journal (the store's existing rule). Every completed step is re-verified on resume and at the
   end: a destroyed object that reappears is quarantined (``recreated_after_delete``) and the run stops.
 
@@ -61,21 +76,29 @@ Namespaces (D3, D6, D18)
   UID; never deleted directly; waited for up to 600 s, terminating children included), allowed_leftover (exactly the
   ServiceAccount ``default``, the ConfigMaps ``kube-root-ca.crt`` and ``istio-ca-root-cert`` and Events),
   istiod_leftover (istio-system Leases: not confirmed Live, so BLOCKED), k8s_certs_secret (stop) and unknown_object
-  (stop). After DESTROY_INTENT a second fresh inventory must show exactly the same objects before the DELETE; an
-  object added in between stops the run. Real API cascade atomicity is NOT_VERIFIED. ``kube-system`` is never
-  inventoried or deleted.
+  (stop). The owner chain is proven from the current inventory alone. After DESTROY_INTENT a final gate reads the
+  namespace's identity, receipt UID and D13 ownership again, takes fresh G9 evidence and the TargetGroupBinding gate,
+  checks the fingerprint, and then a last fresh inventory must equal the first in every safety field (identity,
+  resources, owners, deletion state, finalizers, class); a failed final gate closes the INTENT ``failed``. An object
+  added after that last inventory and before the DELETE is not detected (a residual race of this Fake contract,
+  reported for an Owner decision); real API cascade atomicity is NOT_VERIFIED. ``kube-system`` is never inventoried
+  or deleted.
 
 CRDs (D5)
   The 17 CRDs are retained; no CRD DELETE exists. Each is read with the specialised CRD read and verified against
   the CRD receipt map (UID, group, plural, scope, storage version served, Established), then its instances are
-  listed (``limit=1``): ZERO_INSTANCES, or CRD_NOT_CREATED only with no creation evidence, no open INTENT, a trusted
-  NotFound and discovery not serving its group. The 15 Istio and 2 controller CRDs are reported separately.
+  listed (``limit=1``) only when a fresh discovery maps exactly its group, storage version and plural with its scope:
+  ZERO_INSTANCES, or CRD_NOT_CREATED only with no creation evidence, no receipt UID, no open INTENT, no quarantine, a
+  trusted NotFound and a COMPLETE discovery that does not serve its exact group and plural (another CRD of the same
+  group is no reason to refuse it). The 15 Istio and 2 controller CRDs are reported separately, and the report
+  separates retained (created, zero instances) from CRD_NOT_CREATED.
 
 Completion
   COMPLETE needs every destroy step in the journal, no open INTENT, no quarantine, all 45 non-CRD objects confirmed
   absent again, the G9 cleanup COMPLETE again, every CRD ZERO_INSTANCES or CRD_NOT_CREATED, ``kube-system`` present
   with its fingerprint UID, and the deadline not reached. Otherwise BLOCKED or UNKNOWN with a fixed reason.
 """
+import json
 import os
 import sys
 from pathlib import Path
@@ -91,13 +114,16 @@ import k8s_runtime_transport as transport  # noqa: E402
 
 NAMESPACE_PHASE = receipt.NAMESPACE_PHASE
 KUBE_SYSTEM = {"apiVersion": "v1", "kind": "Namespace", "namespace": "", "name": "kube-system"}
+KUBE_SYSTEM_PATH = "/api/v1/namespaces/kube-system"
 CRD_KIND = ("apiextensions.k8s.io/v1", "CustomResourceDefinition")
+TGB_CRD = "targetgroupbindings.elbv2.k8s.aws"
 SETTLED_CRD = ("ZERO_INSTANCES", "CRD_NOT_CREATED")
 # The order inside one destroy step (D12): dependency safety first, then a fixed kind order, then the plan order.
 KIND_ORDER = ("TargetGroupBinding", "Gateway", "ValidatingAdmissionPolicyBinding", "ValidatingAdmissionPolicy",
               "MutatingWebhookConfiguration", "ValidatingWebhookConfiguration", "AuthorizationPolicy",
               "PeerAuthentication", "NetworkPolicy", "Deployment", "Service", "ClusterRoleBinding", "RoleBinding",
               "ClusterRole", "Role", "ServiceAccount", "ConfigMap", "Namespace")
+WEBHOOK_KINDS = ("MutatingWebhookConfiguration", "ValidatingWebhookConfiguration")
 # Namespaces in namespace_phase: the application namespace first, istio-system last.
 NAMESPACE_ORDER = ("{project}-app", "{project}-ingress", "istio-system")
 EVENTS = {("", "events"), ("events.k8s.io", "events")}
@@ -115,6 +141,10 @@ class DestroyStop(Exception):
         self.status, self.reason = status, reason
 
 
+class FingerprintChanged(Exception):
+    """Raised to the G9 client when its kube-system read shows another cluster; G9 then stops before any DELETE."""
+
+
 def halt(status, reason):
     raise DestroyStop(status, reason)
 
@@ -127,20 +157,39 @@ def identity_of(key):
     return dict(zip(("apiVersion", "kind", "namespace", "name"), key.split("|")))
 
 
-def bounded_server(server, deadline):
-    """The G9 client's fake server under the run's global deadline and the D11 20 s request bound.
+def row_identity(row):
+    return dict(zip(("apiVersion", "kind", "namespace", "name"), row))
+
+
+class bounded_server:
+    """The G9 client's fake server under the run's global deadline, the D11 20 s request bound and the runtime's
+    cluster fingerprint.
 
     No request starts at or after the deadline; an answer at or after it, or later than 20 s, is a timeout, which
-    G9 records as BLOCKED (``transport_timeout``). G9 itself is unchanged."""
-    def call(request):
+    G9 records as BLOCKED (``transport_timeout``). A kube-system read showing another UID than the runtime receipt's
+    fingerprint is refused (``tripped``), so G9 stops at its fingerprint check before any Secret request. G9 itself
+    is unchanged."""
+
+    def __init__(self, server, deadline, kube_system_uid=None):
+        self.server, self.deadline, self.kube_system_uid, self.tripped = server, deadline, kube_system_uid, False
+
+    def __call__(self, request):
+        deadline = self.deadline
         if deadline.expired():
             raise TimeoutError("deadline_exceeded")
         start = deadline.clock.now()
-        answer = server(request)
+        answer = self.server(request)
         if deadline.expired() or deadline.clock.now() - start > transport.API_READ_TIMEOUT_SECONDS:
             raise TimeoutError("request_timeout")
+        if self.kube_system_uid is not None and request.get("path") == KUBE_SYSTEM_PATH:
+            try:
+                observed = json.loads(answer[1])["metadata"]["uid"]
+            except (ValueError, KeyError, TypeError, IndexError):
+                observed = None
+            if observed != self.kube_system_uid:
+                self.tripped = True
+                raise FingerprintChanged("fingerprint_changed")
         return answer
-    return call
 
 
 class Engine:
@@ -164,36 +213,47 @@ class Engine:
             k8s_runtime.check_pins(self.report, expected_manifest, expected_input)
         except k8s_runtime.GateError as error:
             halt("BLOCKED", str(error))
+        if self.report.get("runtime_contract_version") != k8s_runtime.CONTRACT_VERSION:
+            halt("BLOCKED", "runtime_contract_version_mismatch")
         if receipt.digest(receipt.canonical(self.objects_in).encode()) != self.report["manifest_sha256"]:
             halt("BLOCKED", "objects_do_not_match_plan")
         self.project = self.report["project"]
         self.manager = k8s_runtime.runtime_manager(self.project)
-        self.plan = receipt.Plan.from_report(self.report)
+        # The repository's reviewed stage table is the only source of the stage layout (B4B-F01): names, order,
+        # each stage's identities and their order. The caller's report and the bundle must equal it exactly.
+        try:
+            table = k8s_runtime.load_stage_table(self.project)
+        except k8s_runtime.PlanError as error:
+            halt("BLOCKED", "stage_table:" + str(error))
+        reported = [(s.get("name"), [(o.get("apiVersion"), o.get("kind"), o.get("namespace"), o.get("name"))
+                                     for o in s.get("objects", [])]) for s in self.report.get("stages", [])]
+        if reported != [(name, list(rows)) for name, rows in table]:
+            halt("BLOCKED", "plan_stage_identity_mismatch")
+        bundle = [tuple(receipt.key_of(apply.identity_of(o)).split("|")) if o.get("kind") != "Secret" else None
+                  for o in self.objects_in]
+        if bundle != [row for _, rows in table for row in rows]:
+            halt("BLOCKED", "bundle_stage_identity_mismatch")
+        self.plan = receipt.Plan([(name, [row_identity(r) for r in rows]) for name, rows in table])
         counts = [(stage, len(self.plan.members[stage])) for stage in self.plan.stage_order]
         if counts != list(k8s_runtime.STAGE_COUNTS) or sum(n for _, n in counts) != k8s_runtime.RESOURCE_COUNT:
             halt("BLOCKED", "plan_stage_table_changed")
-        self.manifests = {}
-        for obj in self.objects_in:
-            if obj.get("kind") == "Secret":
-                halt("BLOCKED", "secret_in_bundle")
-            self.manifests.setdefault(receipt.key_of(apply.identity_of(obj)), []).append(obj)
+        self.manifests = {receipt.key_of(apply.identity_of(o)): o for o in self.objects_in}
         keys = [k for stage in self.plan.stage_order for k in self.plan.members[stage]]
-        if sorted(self.manifests) != sorted(keys) or any(len(v) != 1 for v in self.manifests.values()):
-            halt("BLOCKED", "manifest_not_in_bundle")
         self.crd_keys = [k for k in keys if tuple(k.split("|")[:2]) == CRD_KIND]
         self.istio_crds = [k.split("|")[3] for k in self.plan.members["base"] if tuple(k.split("|")[:2]) == CRD_KIND]
         self.controller_crds = [k.split("|")[3] for k in self.plan.members["controller"]
                                 if tuple(k.split("|")[:2]) == CRD_KIND]
-        if (len(self.crd_keys), len(self.istio_crds), len(self.controller_crds)) != (17, 15, 2):
+        if (len(self.crd_keys), len(self.istio_crds), len(self.controller_crds)) != (17, 15, 2) \
+                or TGB_CRD not in self.controller_crds:
             halt("BLOCKED", "plan_crd_count_changed")
         self.non_crd = [k for k in keys if k not in self.crd_keys]
         # One global deadline for the whole run: never extended, reset or replaced (D11).
         self.deadline = transport.Deadline(self.clock, self.deadline_seconds)
-        probe = transport.open_destroy_transport(
+        self.probe = transport.open_destroy_transport(
             self.transport_kind, transport.DestroyPolicy(self.project, receipt.plan_identities(self.plan)),
             self.server, self.deadline)
         try:
-            kube_system = probe.get_metadata(KUBE_SYSTEM)
+            kube_system = self.probe.get_metadata(KUBE_SYSTEM)
         except transport.TransportError as error:
             halt(transport_status(str(error)), "fingerprint_unreadable:" + str(error))
         try:
@@ -205,21 +265,48 @@ class Engine:
         self.directory = Path(self.receipt_root).expanduser() / self.fp["id"]
         if not os.path.lexists(self.directory):
             halt("BLOCKED", "receipt:receipt_missing")  # never a fresh start: no receipt, no destroy
-        state = receipt.load(self.directory, self.plan, self.expected)["state"]
+        # An early read-only refusal; the locked revalidation in run() is what grants anything.
+        self.check_state(receipt.load(self.directory, self.plan, self.expected)["state"])
+        self.g9_eligible()
+
+    def check_state(self, state):
         if state["open_intent"] is not None and state["phase"] == "apply":
             halt("BLOCKED", "unresolved_apply_intent")
         if state["quarantined"]:
             halt("BLOCKED", "quarantined")
+
+    def g9_eligible(self):
+        """The G9 receipt of exactly this project and runtime fingerprint, with all four Secrets REGISTERED."""
         try:
-            g9_directory = g9.receipt_directory(Path(self.g9_root).expanduser(), self.fp, create=False)
-            with g9.locked(g9_directory):
-                g9.load_receipt(g9_directory, self.project, self.fp)
+            directory = g9.receipt_directory(Path(self.g9_root).expanduser(), self.fp, create=False)
+            with g9.locked(directory):
+                document = g9.load_receipt(directory, self.project, self.fp)
         except g9.CleanupError as error:
             halt("BLOCKED", "g9:" + str(error))
+        identities = [e["identity"] for e in document["secrets"]]
+        if identities != transport.secret_identities(self.project):
+            halt("BLOCKED", "g9_identity_mismatch")
+        if document["result"] != "REGISTERED" or any(
+                e["registration"] != "REGISTERED" or not isinstance(e["uid"], str)
+                or transport.UID.fullmatch(e["uid"]) is None for e in document["secrets"]):
+            halt("BLOCKED", "g9_registration_incomplete")
+        cluster = document["cluster"]
+        if (cluster["cluster_arn"], cluster["kube_system_uid"], cluster["fingerprint_id"]) != \
+                (self.fp["cluster_arn"], self.fp["kube_system_uid"], self.fp["id"]):
+            halt("BLOCKED", "g9_fingerprint_mismatch")
+
+    def check_fingerprint(self):
+        """The cluster is still the runtime receipt's (D17); a change stops every later deletion."""
+        try:
+            kube_system = self.probe.get_metadata(KUBE_SYSTEM)
+        except transport.TransportError as error:
+            halt(transport_status(str(error)), "read:" + str(error))
+        if kube_system is None or kube_system.get("uid") != self.fp["kube_system_uid"]:
+            halt("BLOCKED", "fingerprint_changed")
 
     def open_transport(self, state):
-        """The run's destroy transport: scopes from the reviewed plan and the verified journal only."""
-        specs = dict(transport.crd_spec_from_manifest(self.manifests[k][0]) for k in self.crd_keys)
+        """The run's destroy transport: scopes from the reviewed plan and the locked, verified journal only."""
+        specs = dict(transport.crd_spec_from_manifest(self.manifests[k]) for k in self.crd_keys)
         gateway_service = {"apiVersion": "v1", "kind": "Service", "namespace": self.project + "-ingress",
                            "name": self.project + "-gateway"}
         policy = transport.DestroyPolicy(self.project, receipt.plan_identities(self.plan),
@@ -247,7 +334,7 @@ class Engine:
 
     def ownership(self, identity, metadata):
         observed = apply.observed_of({"apiVersion": identity["apiVersion"], "kind": identity["kind"],
-                                      "metadata": metadata}, self.manifests[receipt.key_of(identity)][0])
+                                      "metadata": metadata}, self.manifests[receipt.key_of(identity)])
         return apply.d13_ownership(observed, self.manager)
 
     def discovery(self):
@@ -269,19 +356,28 @@ class Engine:
         self.results[key] = category
 
     def wait_absent(self, identity, uid):
-        """Poll an independent metadata read until a trusted NotFound, bounded by the kind's D11 wait."""
-        limit = self.clock.now() + WAIT_SECONDS.get(identity["kind"], 0)
+        """Poll an independent metadata read until a trusted NotFound, within the kind's own D11 wait (B4B-F07).
+
+        A read that completes after the local wait deadline is never evidence; a poll never sleeps past it."""
+        bound = WAIT_SECONDS.get(identity["kind"])
+        limit = self.clock.now() + (bound or 0)
         while True:
             metadata = self.read(identity)
+            if bound is not None and self.clock.now() > limit:
+                halt("BLOCKED", self.wait_reason(identity))
             if metadata is None:
                 return None
             if metadata["uid"] != uid:
                 return metadata["uid"]
             if self.clock.now() >= limit:
-                halt("BLOCKED", ("tgb_finalizer_stuck" if identity["kind"] == "TargetGroupBinding" else
-                                 "namespace_termination_timeout" if identity["kind"] == "Namespace" else
-                                 "delete_not_confirmed") + ":" + identity["name"])
-            self.clock.sleep(transport.DESTROY_POLL_SECONDS)
+                halt("BLOCKED", self.wait_reason(identity))
+            self.clock.sleep(min(transport.DESTROY_POLL_SECONDS, limit - self.clock.now()))
+
+    @staticmethod
+    def wait_reason(identity):
+        return ("tgb_finalizer_stuck" if identity["kind"] == "TargetGroupBinding" else
+                "namespace_termination_timeout" if identity["kind"] == "Namespace" else
+                "delete_not_confirmed") + ":" + identity["name"]
 
     def confirm_destroyed(self, key, identity, obj):
         """A destroyed object must stay absent; one that reappears is quarantined, never deleted or adopted."""
@@ -339,10 +435,16 @@ class Engine:
             verdict = self.ownership(identity, metadata)
             if verdict != "OWNED":
                 halt("BLOCKED", verdict.lower() + ":" + identity["name"])
+            self.dependencies(step, key)  # fresh evidence right before a dependency-sensitive DELETE
         self.delete_owned(step, key, identity, owned, metadata)
 
-    def resolve_open_intent(self):
-        """An interrupted DELETE (crash before or after it): recheck, never resend unconditionally."""
+    def resolve_open_intent(self, step):
+        """An interrupted DELETE (crash before or after it): recheck, never resend unconditionally (B4B-F07).
+
+        Absent: ``absent_confirmed``. Another UID: quarantined. The same UID already terminating: ownership and the
+        dependency gates again, then the independent absence wait continues under the same INTENT, with no new
+        DELETE. The same UID not terminating (the DELETE never took effect): closed ``failed``; the object then gets a
+        new INTENT through the normal per-object checks."""
         intent = self.state["open_intent"]
         if intent is None:
             return
@@ -355,9 +457,18 @@ class Engine:
             halt("BLOCKED", "uid_changed_after_intent:" + identity["name"])
         else:
             verdict = self.ownership(identity, metadata)
-            self.store.destroy_result(intent["seq"], identity, "failed", metadata["uid"])
             if verdict != "OWNED":
+                self.store.destroy_result(intent["seq"], identity, "failed", metadata["uid"])
                 halt("BLOCKED", verdict.lower() + ":" + identity["name"])
+            if transport.object_state(metadata)["deletion_requested"]:
+                self.dependencies(step, intent["key"])
+                observed = self.wait_absent(identity, intent["uid"])
+                if observed is not None:
+                    self.store.quarantine(identity, observed, "recreated_after_delete")
+                    halt("BLOCKED", "recreated_after_delete:" + identity["name"])
+                self.store.destroy_result(intent["seq"], identity, "absent_confirmed")
+            else:
+                self.store.destroy_result(intent["seq"], identity, "failed", metadata["uid"])
         self.load()
 
     def next_step(self):
@@ -382,19 +493,30 @@ class Engine:
                 and o["uid"] != allowed_uid]
 
     def tgb_gone(self):
+        """No TargetGroupBinding anywhere (B4B-F04): the runtime one trusted absent, none listed in the ingress
+        namespace, and the TargetGroupBinding CRD's cluster-wide instance LIST empty (or the CRD strictly never
+        created)."""
         if self.read(self.tgb_identity()) is not None:
             halt("BLOCKED", "target_group_binding_remains")
         if self.foreign_tgbs(None):
             halt("BLOCKED", "target_group_binding_remains")
+        found = self.check_crds([TGB_CRD])[TGB_CRD]
+        if found["verdict"] not in SETTLED_CRD:
+            halt("BLOCKED" if found["verdict"] == "BLOCKED" else "UNKNOWN",
+                 "target_group_binding_remains" if found["reason"] == "crd_instances_remain"
+                 else "tgb_crd:" + str(found["reason"]))
 
     def no_load_balancer(self):
+        """Only the runtime Service, by exact resource, namespace, name and receipt UID, and not LoadBalancer."""
         ingress = self.project + "-ingress"
         service_key = receipt.key_of(self.gateway_service)
         runtime = (self.state["objects"].get(service_key) or {}).get("owned_uid")
         for item in self.inventory(ingress):
-            if ("", "services") not in {tuple(r) for r in item["resources"]}:
+            resources = {tuple(r) for r in item["resources"]}
+            if ("", "services") not in resources:
                 continue
-            if runtime is None or item["uid"] != runtime:
+            if not (runtime is not None and item["uid"] == runtime and resources == {("", "services")}
+                    and item["namespace"] == ingress and item["name"] == self.gateway_service["name"]):
                 halt("BLOCKED", "unknown_service:" + item["name"])
             try:
                 service = self.fake.read_service_type(self.gateway_service)
@@ -404,6 +526,11 @@ class Engine:
                 halt("UNKNOWN", "service_type_inconsistent")
             if service["load_balancer"]:
                 halt("BLOCKED", "load_balancer_service_remains")
+
+    def webhooks_gone(self, step):
+        for key in self.plan.destroy_members(step):
+            if key.split("|")[1] in WEBHOOK_KINDS and self.read(identity_of(key)) is not None:
+                halt("BLOCKED", "webhook_remains:" + key.split("|")[3])
 
     def gate(self, step):
         if step == "ingress":
@@ -420,8 +547,24 @@ class Engine:
         elif step == NAMESPACE_PHASE:
             self.g9_cleanup()
 
+    def dependencies(self, step, key):
+        """Fresh dependency evidence right before each dependency-sensitive DELETE (B4B-F04), not only at the start
+        of its step: admission objects need no TargetGroupBinding and no LoadBalancer Service; controller objects
+        need no TargetGroupBinding; Istio webhooks need no Istio custom resource; a Deployment needs its stage's
+        webhook configurations gone first."""
+        kind = key.split("|")[1]
+        if step == "admission":
+            self.tgb_gone()
+            self.no_load_balancer()
+        elif step == "controller":
+            self.tgb_gone()
+        if step in ("istiod", "base") and kind in WEBHOOK_KINDS:
+            self.require_crds(self.istio_crds)
+        if kind == "Deployment":
+            self.webhooks_gone(step)
+
     # -- CRDs (D5) ----------------------------------------------------------------------------------------------
-    def crd_verdict(self, name, advertised):
+    def crd_verdict(self, name, served, mapping):
         key = "|".join(CRD_KIND + ("", name))
         obj = self.state["objects"].get(key)
         if key in self.state["quarantined"]:
@@ -431,24 +574,32 @@ class Engine:
         except transport.TransportError as error:
             return {"verdict": transport_status(str(error)), "reason": str(error)}
         owned = self.policy.crd_receipt_uid(name)
+        spec = self.policy.crd_spec(name)
         if read["state"] == "absent":
             if obj is not None and owned is None:
                 return {"verdict": "UNKNOWN", "reason": "crd_creation_evidence"}
             open_intent = (self.state["open_intent"] or {}).get("key") == key
             found = transport.classify_crd(self.policy, name, ("absent", None), owned, open_intent,
-                                           self.policy.crd_spec(name)["group"] in advertised)
+                                           (spec["group"], spec["plural"]) in served)
             return {"verdict": found["verdict"], "reason": found["reason"]}
         verified = self.fake.verify_crd(read["evidence"])
         if verified["verdict"] != "VERIFIED":
             return {"verdict": verified["verdict"], "reason": verified["reason"]}
+        # The live discovery must serve exactly this CRD: group, storage version and plural, with its scope.
+        namespaced = mapping.get((spec["group"], spec["storage_version"], spec["plural"]))
+        if namespaced is None:
+            return {"verdict": "UNKNOWN", "reason": "crd_discovery_mapping_missing"}
+        if namespaced != (spec["scope"] == "Namespaced"):
+            return {"verdict": "BLOCKED", "reason": "crd_discovery_scope_mismatch"}
         counted = self.fake.crd_instances(verified["evidence"])
         return {"verdict": counted["verdict"], "reason": counted["reason"]}
 
     def check_crds(self, names):
-        evidence = self.discovery()
-        payload = transport.evidence_payload(evidence, self.policy, "discovery")
-        advertised = {group for group, _ in payload["advertised"]}
-        return {name: self.crd_verdict(name, advertised) for name in names}
+        payload = self.fake.discovery_payload(self.discovery())  # fresh and this transport's own (B4B-F05)
+        served = {(group, resource) for group, _, resource, _, _ in payload["resources"]}
+        mapping = {(group, version, resource): namespaced for group, version, resource, _, namespaced
+                   in payload["resources"]}
+        return {name: self.crd_verdict(name, served, mapping) for name in names}
 
     def require_crds(self, names):
         for name, found in self.check_crds(names).items():
@@ -461,11 +612,16 @@ class Engine:
     def g9_cleanup(self):
         if self.deadline.expired():
             halt("UNKNOWN", "deadline_exceeded")
+        self.check_fingerprint()
+        self.g9_eligible()
+        server = bounded_server(self.server, self.deadline, self.fp["kube_system_uid"])
         try:
             report = g9.cleanup(self.project, self.cluster_arn, root=Path(self.g9_root).expanduser(),
-                                transport_kind=self.transport_kind, server=bounded_server(self.server, self.deadline))
+                                transport_kind=self.transport_kind, server=server)
         except g9.CleanupError as error:
-            halt("BLOCKED", "g9:" + str(error))
+            halt("BLOCKED", "fingerprint_changed" if server.tripped else "g9:" + str(error))
+        if server.tripped:
+            halt("BLOCKED", "fingerprint_changed")
         self.g9_report = report
         if report["result"] != "COMPLETE" or report["kube_system_webhook_tls"] != "MET":
             reason = next((r["reason"] for r in report["secrets"] if r["state"] not in g9.CLEANED), None)
@@ -487,7 +643,7 @@ class Engine:
         if resources == {("", "configmaps")} and item["name"] in LEFTOVER_CONFIGMAPS:
             return "allowed_leftover"
         controllers = [o for o in item["owners"] if o["controller"] is True]
-        if len(controllers) == 1:
+        if len(controllers) == 1 and item["namespace"] == namespace:
             owner = controllers[0]
             if resources == {("apps", "replicasets")} and (owner["apiVersion"], owner["kind"]) == ("apps/v1",
                                                                                                   "Deployment"):
@@ -510,12 +666,17 @@ class Engine:
         return obj["owned_uid"] if obj is not None else None
 
     def namespace_contents(self, namespace, wait):
-        """A fresh COMPLETE inventory with only allowed leftovers; owned children are waited for (600 s)."""
+        """A fresh COMPLETE inventory with only allowed leftovers; owned children are waited for within 600 s.
+
+        The owner chain is proven from the current inventory alone (a ReplicaSet seen in an earlier poll is never
+        reused); an inventory that completes after the local wait deadline is never evidence. The result is the
+        safety-relevant metadata of every object, compared between inventories."""
         limit = self.clock.now() + transport.OWNED_CHILD_TIMEOUT_SECONDS
-        children = {}
         while True:
             items = self.inventory(namespace)
-            classes = {}
+            if wait and self.clock.now() > limit:
+                halt("BLOCKED", "owned_child_remains:" + namespace)
+            children, classes = {}, {}
             for item in sorted(items, key=lambda i: (("apps", "replicasets") not in
                                                      {tuple(r) for r in i["resources"]}, i["uid"])):
                 classes[item["uid"]] = self.classify(namespace, item, children)
@@ -524,65 +685,89 @@ class Engine:
                 if found in ("runtime_object", "k8s_certs_secret", "istiod_leftover", "unknown_object"):
                     halt("BLOCKED", found + ":" + namespace + ":" + item["name"])
             if not any(found == "owned_child" for found in classes.values()):
-                return sorted(classes)
+                return sorted((i["uid"], i["namespace"], i["name"], tuple(sorted(tuple(r) for r in i["resources"])),
+                               json.dumps(i["owners"], sort_keys=True), i["deletion_requested"],
+                               tuple(i["finalizers"]), classes[i["uid"]]) for i in items)
             if not wait or self.clock.now() >= limit:
                 halt("BLOCKED", "owned_child_remains:" + namespace)
-            self.clock.sleep(transport.DESTROY_POLL_SECONDS)
+            self.clock.sleep(min(transport.DESTROY_POLL_SECONDS, limit - self.clock.now()))
+
+    def namespace_owned(self, identity, owned):
+        """The namespace's exact identity, receipt UID and D13 ownership, read fresh."""
+        metadata = self.read(identity)
+        if metadata is None:
+            return None
+        if metadata["uid"] != owned:
+            self.store.quarantine(identity, metadata["uid"], "uid_changed_before_delete")
+            halt("BLOCKED", "uid_changed:" + identity["name"])
+        verdict = self.ownership(identity, metadata)
+        if verdict != "OWNED":
+            halt("BLOCKED", verdict.lower() + ":" + identity["name"])
+        return metadata
+
+    def namespace_gate(self, name):
+        """G9 and D18 for this namespace from fresh G9 evidence, and the absent TargetGroupBinding for ingress."""
+        report = self.g9_cleanup()
+        conditions = report.get("namespace_secret_condition") or {}
+        if name != self.project + "-app" and conditions.get(name) != "MET":
+            halt("BLOCKED", "g9_namespace_secret_condition:" + name)
+        if name == self.project + "-ingress":
+            self.tgb_gone()
 
     def destroy_namespace(self, key):
         identity = identity_of(key)
         name = identity["name"]
         obj = self.state["objects"].get(key)
         if obj is not None and obj.get("destroyed") in receipt.DESTROYED:
-            self.namespaces[name] = "DELETED_EARLIER"
+            self.namespaces[name] = "DELETED" if obj["destroyed"] == "deleted" else "ABSENT_CONFIRMED"
             return self.confirm_destroyed(key, identity, obj)
         owned = obj["owned_uid"] if obj is not None else None
-        metadata = self.read(identity)
         if owned is None:
-            if metadata is not None:
+            if self.read(identity) is not None:
                 halt("BLOCKED", "not_owned:" + name)
             self.namespaces[name] = "NEVER_CREATED"
             return self.record(key, "never_created")
-        if metadata is not None:
-            if metadata["uid"] != owned:
-                self.store.quarantine(identity, metadata["uid"], "uid_changed_before_delete")
-                halt("BLOCKED", "uid_changed:" + name)
-            verdict = self.ownership(identity, metadata)
-            if verdict != "OWNED":
-                halt("BLOCKED", verdict.lower() + ":" + name)
-            conditions = (self.g9_report or {}).get("namespace_secret_condition") or {}
-            if name != self.project + "-app" and conditions.get(name) != "MET":
-                halt("BLOCKED", "g9_namespace_secret_condition:" + name)
-            if name == self.project + "-ingress":
-                self.tgb_gone()
-            first = self.namespace_contents(name, wait=True)
-            seq = self.store.destroy_intent(identity, owned)
-            # Race protection (fake contract): the contents must be unchanged right before the DELETE.
+        metadata = self.namespace_owned(identity, owned)
+        if metadata is None:
+            self.namespaces[name] = "ABSENT_CONFIRMED"
+            return self.delete_owned(NAMESPACE_PHASE, key, identity, owned, None)
+        self.namespace_gate(name)
+        first = self.namespace_contents(name, wait=True)
+        seq = self.store.destroy_intent(identity, owned)
+        try:
+            # Final gate (B4B-F06), after the INTENT and right before the DELETE: ownership is never assumed from
+            # before the inventory wait; the last fresh inventory must equal the first in every safety field.
+            if self.namespace_owned(identity, owned) is None:
+                halt("BLOCKED", "namespace_absent_before_delete:" + name)
+            self.namespace_gate(name)
+            self.check_fingerprint()
             second = self.namespace_contents(name, wait=False)
             if second != first:
-                self.store.destroy_result(seq, identity, "failed", metadata["uid"])
                 halt("BLOCKED", "namespace_changed_after_inventory:" + name)
             if self.deadline.expired():
                 halt("UNKNOWN", "deadline_exceeded")
-            try:
-                self.fake.delete_runtime(identity, owned)
-            except transport.TransportError as error:
-                halt(transport_status(str(error)), "delete:" + str(error) + ":" + name)
-            self.deletes += 1
-            observed = self.wait_absent(identity, owned)
-            if observed is not None:
-                self.store.quarantine(identity, observed, "recreated_after_delete")
-                halt("BLOCKED", "recreated_after_delete:" + name)
-            self.store.destroy_result(seq, identity, "deleted")
-            self.namespaces[name] = "DELETED"
-            return self.record(key, "deleted")
-        self.namespaces[name] = "ABSENT_CONFIRMED"
-        return self.delete_owned(NAMESPACE_PHASE, key, identity, owned, None)
+        except DestroyStop:
+            self.load()
+            if self.state["open_intent"] is not None:
+                self.store.destroy_result(seq, identity, "failed", metadata["uid"])
+            raise
+        try:
+            self.fake.delete_runtime(identity, owned)
+        except transport.TransportError as error:
+            halt(transport_status(str(error)), "delete:" + str(error) + ":" + name)
+        self.deletes += 1
+        observed = self.wait_absent(identity, owned)
+        if observed is not None:
+            self.store.quarantine(identity, observed, "recreated_after_delete")
+            halt("BLOCKED", "recreated_after_delete:" + name)
+        self.store.destroy_result(seq, identity, "deleted")
+        self.namespaces[name] = "DELETED"
+        return self.record(key, "deleted")
 
     # -- the run ------------------------------------------------------------------------------------------------
     def run_step(self, step):
         self.gate(step)
-        self.resolve_open_intent()
+        self.resolve_open_intent(step)
         for key in self.ordered(step):
             self.order.append(key)
             if step == NAMESPACE_PHASE:
@@ -595,14 +780,20 @@ class Engine:
     def revalidate(self, step):
         for key in self.plan.destroy_members(step):
             obj = self.state["objects"].get(key)
+            name = key.split("|")[3]
+            namespace_key = step == NAMESPACE_PHASE
             if obj is not None and obj.get("destroyed") in receipt.DESTROYED:
                 self.confirm_destroyed(key, identity_of(key), obj)
+                if namespace_key:
+                    self.namespaces[name] = "DELETED" if obj["destroyed"] == "deleted" else "ABSENT_CONFIRMED"
             elif obj is not None and obj["owned_uid"] is not None:
                 halt("BLOCKED", "journal_step_incomplete:" + key)
             elif self.read(identity_of(key)) is not None:
-                halt("BLOCKED", "not_owned:" + identity_of(key)["name"])
+                halt("BLOCKED", "not_owned:" + name)
             else:
                 self.record(key, "never_created")
+                if namespace_key:
+                    self.namespaces[name] = "NEVER_CREATED"
 
     def complete(self):
         state = self.load()
@@ -625,16 +816,23 @@ class Engine:
 
     def run(self, expected_manifest, expected_input):
         self.preflight(expected_manifest, expected_input)
+        # Existing receipt only (B4B-F02): never a directory, journal or HEADER created by destroy.
         self.store = receipt.Store(self.receipt_root, self.fp, self.project, self.report["manifest_sha256"],
-                                   self.report["input_sha256"], self.plan)
+                                   self.report["input_sha256"], self.plan, existing_only=True)
         with self.store.lock():
-            self.store.begin()  # verifies the journal; refreshes only a stale snapshot; never creates a journal
+            self.store.begin()  # verifies the journal; refreshes only a verified stale snapshot
+            # Locked revalidation before the first journal write: fingerprint, project and pins (load), phase, open
+            # INTENT, quarantine and ownership from the locked journal, the cluster and the G9 receipt again.
             state = self.load()
+            self.check_state(state)
+            self.check_fingerprint()
+            self.g9_eligible()
             if state["phase"] == "apply":
                 self.store.begin_destroy()
                 state = self.load()
             self.open_transport(state)
             for step in self.plan.destroy_order:
+                self.check_fingerprint()
                 if step in self.state["destroy_stages_done"]:
                     self.revalidate(step)
                 else:
@@ -648,8 +846,12 @@ def summary(engine):
         counts[category] += 1
     crds = {"istio": {n: engine.crds.get(n, {}).get("verdict") for n in getattr(engine, "istio_crds", [])},
             "controller": {n: engine.crds.get(n, {}).get("verdict") for n in getattr(engine, "controller_crds", [])}}
+    verdicts = [v for group in crds.values() for v in group.values()]
     return {"objects": dict(sorted(engine.results.items())), "counts": counts, "crds": crds,
-            "retained_crds": sum(1 for g in crds.values() for v in g.values() if v in SETTLED_CRD),
+            "crd_zero_instances": verdicts.count("ZERO_INSTANCES"),
+            "crd_not_created": verdicts.count("CRD_NOT_CREATED"),
+            # retained CRDs are the created ones kept with zero instances; CRD_NOT_CREATED is never counted here
+            "retained_crds": verdicts.count("ZERO_INSTANCES"),
             "namespaces": dict(engine.namespaces), "secrets": engine.g9_report, "order": list(engine.order),
             "deletes": engine.deletes}
 
