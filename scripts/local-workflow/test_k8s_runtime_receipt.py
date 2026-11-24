@@ -12,6 +12,11 @@ synthetic cluster of ``test_k8s_runtime_status``, so the pinned Helm
 
 ``MutationTests`` removes one guard at a time from the three modules and requires
 the matching scenario to detect it.
+
+The G9/D19 tests of ``test_k8s_certs_receipt`` (registration UID receipt, Secret
+cleanup, the four-Secret transport extension and the retired name-based delete) run
+in this suite too: their test classes are imported below, and ``MUTATIONS`` counts
+the runtime mutations and ``SECRET_MUTATIONS`` together.
 """
 import ast
 import contextlib
@@ -35,6 +40,8 @@ import k8s_runtime  # noqa: E402
 import k8s_runtime_receipt  # noqa: E402
 import k8s_runtime_transport  # noqa: E402
 import preflight  # noqa: E402
+from test_k8s_certs_receipt import (SECRET_MUTATIONS, RegistrationReceiptTests, SecretCleanupTests,  # noqa: E402,F401
+                                    SecretMutationTests, SecretTransportTests)
 
 PROJECT = "acme"
 ARN = "arn:aws:eks:ca-central-1:444455556666:cluster/acme-dev-eks"
@@ -1192,7 +1199,7 @@ class GateAndVerifyTests(unittest.TestCase):
 # ---- mutations ----------------------------------------------------------------------------------------------------
 
 R, T, K = "k8s_runtime_receipt.py", "k8s_runtime_transport.py", "k8s_runtime.py"
-MUTATIONS = [
+RUNTIME_MUTATIONS = [
     ("dir_symlink", R, '    need(not stat.S_ISLNK(info.st_mode), "receipt_symlink")\n    need(stat.S_ISDIR',
      "    need(stat.S_ISDIR", scenario_symlink),
     ("dir_permission", R, 'need(stat.S_IMODE(info.st_mode) & 0o077 == 0, "receipt_permission")', "pass",
@@ -1284,7 +1291,8 @@ MUTATIONS = [
      scenario_transport_responses),
     ("real_transport", T, 'need(kind in APPROVED_TRANSPORTS, "real_transport_not_implemented")', "pass",
      scenario_transport_refused),
-    ("secret_path", T, 'need(kind != "Secret", "secret_path_not_approved")', "pass", scenario_transport_requests),
+    ("secret_path", T, 'need(identity_key(identity) in secrets, "secret_path_not_approved")', "pass",
+     scenario_transport_requests),
     ("operation_gate", K, "    if operation not in APPROVED_OPERATIONS:", "    if False:",
      scenario_apply_destroy_refused),
     ("apply_intercept", K, '    if argv[:1] in (["apply"], ["destroy"]):', "    if False:",
@@ -1306,6 +1314,8 @@ MUTATIONS = [
     ("verify_open_intent", K, 'attention = loaded["receipt"] != "CURRENT" or state["open_intent"] is not None or bool(state["quarantined"])',
      "attention = False", scenario_verify_open_intent),
 ]
+# Every guard mutation of this suite: the runtime ones above and the G9/D19 ones (SecretMutationTests).
+MUTATIONS = RUNTIME_MUTATIONS + SECRET_MUTATIONS
 
 
 def mutant(filename, old, new):
@@ -1322,9 +1332,9 @@ def mutant(filename, old, new):
 
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
-        self.assertEqual(len(MUTATIONS), 58)
+        self.assertEqual(len(RUNTIME_MUTATIONS), 58)
         undetected = []
-        for name, filename, old, new, scenario in MUTATIONS:
+        for name, filename, old, new, scenario in RUNTIME_MUTATIONS:
             mods = real_mods()
             setattr(mods, {R: "receipt", T: "transport", K: "runtime"}[filename], mutant(filename, old, new))
             try:

@@ -133,15 +133,15 @@
       "mutations": 32
     },
     "k8s_runtime_receipt_tests": {
-      "tests": 39,
-      "mutations": 58
+      "tests": 66,
+      "mutations": 125
     },
     "k8s_runtime_apply_tests": {
       "tests": 58,
       "mutations": 163
     },
     "k8s_certificates_tests": {
-      "tests": 28
+      "tests": 29
     },
     "image_mirror_tests": {
       "tests": 29,

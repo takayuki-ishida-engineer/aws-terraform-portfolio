@@ -249,7 +249,10 @@ Balancer Controller, its IAM role, the target group and the endpoints still exis
 
 That step is not implemented and needs Owner approval. Until it exists:
 - never strip a finalizer;
-- do not use `k8s_certs.py delete` as a substitute (finding F22);
+- `k8s_certs.py delete` is retired and refuses (G9, finding F22). The safe cleanup
+  (`k8s_certs_receipt.cleanup`) is Source/Offline only, with no real transport, so
+  there is no real Secret cleanup yet and no namespace may be deleted while a
+  Secret remains (D18);
 - target deregistration is NOT_VERIFIED.
 
 1. **API.** Set `deletion_protection = false` in `api/local.auto.tfvars`, then:

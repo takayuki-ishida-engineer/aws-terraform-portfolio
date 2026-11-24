@@ -25,8 +25,12 @@ Terraform (configuration, variables, State or plans) or a CI log
   with ``kubectl apply --server-side``. The Secret data goes through stdin, never
   through arguments or output. Afterwards it deletes the server private keys from
   the material directory unless ``--keep-material`` is given.
-- ``delete`` (workstation only) makes the same kubeconfig check and removes the
-  four Secrets from that context.
+- ``delete`` is retired (G9, Owner decision 2026-11-24): it deleted by name with
+  ``kubectl delete --ignore-not-found``, without a UID check, so it now refuses on
+  every path and never calls kubectl. Automation is still refused first. The safe
+  replacement is ``k8s_certs_receipt.cleanup`` (metadata-only reads, the
+  registration UID receipt and UID-precondition DELETE through the D19 transport),
+  which is Source/Offline only: no real transport exists.
 
 Secret names follow ``<project>-<purpose>`` where the project creates them
 (``<project>-gateway-tls``, ``<project>-gateway-client-cacert``) and keep the
@@ -508,8 +512,14 @@ def register(project, material, context=None, kubectl_binary="kubectl", openssl=
     return 0
 
 
+DELETE_RETIRED = ("Refused (name_based_delete_retired): k8s_certs.py no longer deletes Secrets by name. Cleanup "
+                  "needs the registration UID receipt, metadata-only checks and a UID-precondition DELETE "
+                  "(k8s_certs_receipt.cleanup, G9), whose real transport is not implemented.")
+
+
 def delete(project, context=None, kubectl_binary="kubectl", env=None, out_fn=print, terraform="terraform",
            services=preflight.SERVICES):
+    """Retired name-based delete (G9): refuses on every path; no kubeconfig read, no kubectl, no fallback."""
     check_project(project)
     environment = dict(os.environ if env is None else env)
     context = context or project + "-dev-eks"
@@ -517,14 +527,8 @@ def delete(project, context=None, kubectl_binary="kubectl", env=None, out_fn=pri
     if refusal:
         out_fn(refusal)
         return 1
-    verified_context(context, kubectl_binary, terraform, services, environment)
-    for secret in secret_layout(project, None):
-        meta = secret["metadata"]
-        process = kubectl(kubectl_binary, context, ["delete", "secret", meta["name"], "-n", meta["namespace"],
-                                                    "--ignore-not-found"], environment)
-        report(process, out_fn, "secret_delete_failed")
-    out_fn("Deleted the 4 Secrets from " + context + " (absent ones ignored).")
-    return 0
+    out_fn(DELETE_RETIRED)
+    return 1
 
 
 def main(argv=None):
@@ -545,7 +549,7 @@ def main(argv=None):
     reg.add_argument("--openssl", default="openssl")
     reg.add_argument("--keep-material", action="store_true", help="keep the server private keys afterwards")
     reg.add_argument("--terraform", default="terraform", help="reads the applied platform root's output")
-    rem = sub.add_parser("delete", help="remove the four Secrets (workstation only)")
+    rem = sub.add_parser("delete", help="retired: name-based Secret deletion is refused (G9)")
     rem.add_argument("--project", required=True)
     rem.add_argument("--context", help="kubectl context (must be <project>-dev-eks)")
     rem.add_argument("--kubectl", default="kubectl")
