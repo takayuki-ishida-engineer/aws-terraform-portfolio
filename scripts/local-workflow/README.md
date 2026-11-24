@@ -609,9 +609,9 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 100 tests and 262 source mutations, each
+**Tests.** `test_k8s_runtime_receipt.py` has 102 tests and 269 source mutations, each
 detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
-`test_k8s_certs_receipt.py` and the 34 tests and 137 mutations of
+`test_k8s_certs_receipt.py` and the 36 tests and 144 mutations of
 `test_k8s_runtime_destroy_foundation.py` (both below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -715,6 +715,17 @@ Hand-made, copied, re-bound, edited or re-sealed evidence is `evidence_invalid`.
   alias, namespace, name) across versions (`cross_version_identity_conflict`); different
   resources may share a name.
 
+**Final correction (R01-R).** The invalidation is enforced at the final send boundary.
+Every authorised request on the CRD path, either the specialised CRD GET or the metadata
+GET of the CRD identity, sent by `read_crd`, `get_metadata` or a raw `send`, withdraws
+that CRD's issued read and verification evidence and its verified mark before it reaches
+the server. Every authorised discovery GET withdraws the discovery evidence and the
+discovered targets the same way. No answer revives the old evidence: absence, another UID,
+not Established, another storage version, 403, 5xx, a timeout, an invalid or an identical
+answer. Other CRDs keep their evidence. A request refused at the deadline never reaches the
+server and invalidates nothing; there `read_crd` and `discover_all` still withdraw first,
+and every later LIST is refused at the deadline anyway.
+
 **Validation.** Discovery documents (kinds, group versions, duplicates), LIST pages
 (`PartialObjectMetadataList` only; payload keys or the last-applied annotation refused by
 their position; item identity, namespace, UID, owners, finalizers, duplicates and the page
@@ -763,7 +774,7 @@ released. `reconcile` reports `DELETE_PENDING_RECHECK`, `DELETE_ABSENT_UNCONFIRM
 an older reader refuses the new records; `k8s_runtime_apply` stops on a destroy-phase
 journal (`receipt_destroy_phase`) before any read or write.
 
-**Tests.** `test_k8s_runtime_destroy_foundation.py`: 34 tests and 137 source mutations,
+**Tests.** `test_k8s_runtime_destroy_foundation.py`: 36 tests and 144 source mutations,
 each detected by an assertion (a crash is undetected), run inside the
 `k8s_runtime_receipt_tests` suite.
 

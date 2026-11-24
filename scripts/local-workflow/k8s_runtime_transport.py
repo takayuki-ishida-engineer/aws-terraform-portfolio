@@ -1078,6 +1078,21 @@ class FakeDestroyTransport:
                  and payload.get("receipt_uid") == self.policy.crd_receipt_uid(payload.get("name")), "evidence_invalid")
         return payload
 
+    def _invalidate_observed(self, request):
+        """R01-R: an authorised read of a CRD (its specialised GET or its metadata GET, both on CRD_PATH) or of a
+        discovery path may observe new state, so before it reaches the server it withdraws the earlier evidence that
+        state backs, whatever the answer: absence, another UID, not Established, another storage version, 403, 5xx,
+        timeout, an invalid or an identical answer. Other CRDs keep theirs. Every authorised request on these paths is
+        a GET (a CRD DELETE is refused by the policy)."""
+        path = request["path"]
+        if path.startswith(CRD_PATH):
+            observed = path[len(CRD_PATH):]
+            self._withdraw(("crd", observed))
+            self._verified_crds.discard(observed)
+        if DISCOVERY_PATH.fullmatch(path) is not None:
+            self._withdraw(scope=("discovery",))
+            self._targets = frozenset()
+
     # -- the send boundary ------------------------------------------------------------------------------------------
     def _candidates(self, request):
         """(expected request, timeout) pairs this policy and this transport's evidence allow for this method and path."""
@@ -1126,6 +1141,7 @@ class FakeDestroyTransport:
     def send(self, request):
         need(not self.deadline.expired(), "deadline_exceeded")
         timeout = self.authorize(request)
+        self._invalidate_observed(request)  # R01-R: before the request can reach the server
         clock = self.deadline.clock
         start = clock.now()
         self.requests.append(request)

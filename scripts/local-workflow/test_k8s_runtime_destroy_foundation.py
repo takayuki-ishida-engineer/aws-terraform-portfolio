@@ -88,6 +88,13 @@ def code_of(call, mods):
     return None
 
 
+def outcome(call, mods):
+    """The result of a call, or the fixed code of its refusal (a refusal is compared, never a crash)."""
+    result = []
+    code = code_of(lambda: result.append(call()), mods)
+    return result[0] if code is None else code
+
+
 def crd_manifest(name, storage="v1", served=("v1",), scope="Namespaced"):
     plural, group = name.split(".", 1)
     versions = [{"name": v, "served": v in served, "storage": v == storage} for v in sorted(set(served) | {storage})]
@@ -973,11 +980,15 @@ def scenario_deadline_requests(case, mods):
              lambda: fake.read_service_type(GATEWAY_SERVICE), lambda: fake.send(t.discovery_request(p, "/api"))]
     for call in calls:
         case.assertEqual(code_of(call, mods), "deadline_exceeded")
-    case.assertEqual(fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps"),
-                     {"status": "UNKNOWN", "reason": "deadline_exceeded"})
+    case.assertEqual(outcome(lambda: fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps"),
+                             mods), {"status": "UNKNOWN", "reason": "deadline_exceeded"})
     case.assertEqual(fake.discover_all(), {"status": "UNKNOWN", "reason": "deadline_exceeded"})
     case.assertEqual(code_of(lambda: fake.crd_instances(verified["evidence"]), mods), "evidence_invalid",
                      "the refused late read withdrew the earlier verification")
+    case.assertEqual(code_of(lambda: fake.verify_crd(read["evidence"]), mods), "evidence_invalid",
+                     "the refused late read withdrew the earlier read evidence too")
+    case.assertEqual(code_of(lambda: fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps"),
+                             mods), "evidence_invalid", "the refused late discovery withdrew the earlier discovery")
     case.assertEqual(len(api.requests), sent, "nothing, and no DELETE, reaches the server after the deadline")
 
 
@@ -1281,6 +1292,82 @@ def scenario_cross_version_identity(case, mods):
                                                        (secrets, complete(("x", uid(2))))])
     case.assertEqual(same_name["status"], "COMPLETE", "two kinds may share a name")
     case.assertEqual(len(same_name["objects"]), 2)
+
+
+# ---- final review R01-R: evidence invalidation at the send boundary ---------------------------------------------
+
+SIDECARS_CRD = ident("CustomResourceDefinition", SIDECARS)
+SIDECARS_LIST_PATH = "/apis/networking.istio.io/v1/sidecars"
+
+
+def crd_pair_env(mods):
+    """Both gateways and sidecars read and verified, with their instance LISTs answered."""
+    p, api, fake, clock = transport_env(mods, crd_specs={CRD_NAME: spec_of(mods), SIDECARS: spec_of(mods, SIDECARS)},
+                                        crd_receipt_uids={key(CRD): uid(5), key(SIDECARS_CRD): uid(7)})
+    api.answers[("GET", CRD_READ_PATH, None)] = crd_body()
+    api.answers[("GET", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + SIDECARS, None)] = \
+        crd_body(SIDECARS, uid_value=uid(7))
+    api.answers[("GET", CRD_LIST_PATH, None)] = page([])
+    api.answers[("GET", SIDECARS_LIST_PATH, None)] = page([])
+    read = fake.read_crd(CRD_NAME)
+    verified = fake.verify_crd(read["evidence"])["evidence"]
+    other = fake.verify_crd(fake.read_crd(SIDECARS)["evidence"])["evidence"]
+    return p, api, fake, read, verified, other
+
+
+def instances_verdict(fake, evidence, mods):
+    """The CRD instance verdict, or the refusal code: compared by an assertion, never a crash."""
+    result = outcome(lambda: fake.crd_instances(evidence), mods)
+    return result.get("verdict") if isinstance(result, dict) else result
+
+
+def scenario_crd_raw_reread(case, mods):
+    t = mods.transport
+    answers = (("absent", not_found("apiextensions.k8s.io", "customresourcedefinitions", CRD_NAME)),
+               ("uid", crd_body(uid_value=uid(6))), ("established", crd_body(established=False)),
+               ("storage", crd_body(storage="v1beta1", served=("v1", "v1beta1"))), ("forbidden", (403, b"")),
+               ("5xx", (503, b"")), ("timeout", TimeoutError("api timeout")), ("invalid", (200, b"{bad")),
+               ("same", crd_body()))
+    for label, answer in answers:
+        for kind in ("specialised", "metadata"):
+            p, api, fake, read, verified, other = crd_pair_env(mods)
+            case.assertEqual(instances_verdict(fake, verified, mods), "ZERO_INSTANCES", "the normal path")
+            raw_get = t.crd_read_request(p, CRD_NAME) if kind == "specialised" else t.destroy_metadata_request(p, CRD)
+            api.answers[("GET", CRD_READ_PATH, None)] = answer
+            code_of(lambda: fake.send(raw_get), mods)  # an authorised raw re-read, whatever it answers
+            sent = len(api.requests)
+            case.assertEqual(code_of(lambda: fake.crd_instances(verified), mods), "evidence_invalid", (label, kind))
+            case.assertEqual(code_of(lambda: fake.verify_crd(read["evidence"]), mods), "evidence_invalid",
+                             (label, kind))
+            case.assertEqual(code_of(lambda: fake.send(t.crd_instance_request_for(spec_of(mods))), mods),
+                             "request_not_authorized", (label, kind))
+            case.assertEqual(len(api.requests), sent, "a refused LIST never reaches the server")
+            case.assertEqual(instances_verdict(fake, other, mods), "ZERO_INSTANCES", "another CRD is unaffected")
+            api.answers[("GET", CRD_READ_PATH, None)] = crd_body()
+            fresh = fake.verify_crd(fake.read_crd(CRD_NAME)["evidence"])["evidence"]
+            case.assertEqual(instances_verdict(fake, fresh, mods), "ZERO_INSTANCES", "a new read and verification")
+
+
+def scenario_discovery_raw_reread(case, mods):
+    t = mods.transport
+    p, api, fake, _ = transport_env(mods)
+    api.install_discovery()
+    first = fake.discover_all()
+    path = "/api/v1/namespaces/acme-app/configmaps"
+    api.answers[("GET", path, None)] = page([])
+    case.assertEqual(fake.list_namespace(first["evidence"], "acme-app", "", "v1", "configmaps")["status"], "COMPLETE")
+    for raw_path in ("/apis", "/api/v1", "/apis/apps/v1"):
+        api.install_discovery()
+        again = fake.discover_all()
+        fake.send(t.discovery_request(p, raw_path))  # an authorised raw discovery GET
+        sent = len(api.requests)
+        case.assertEqual(code_of(lambda: fake.list_namespace(again["evidence"], "acme-app", "", "v1", "configmaps"),
+                                 mods), "evidence_invalid", raw_path)
+        case.assertEqual(code_of(lambda: fake.send(raw("GET", path, accept=t.LIST_ACCEPT, query={"limit": "500"})),
+                                 mods), "request_not_authorized", raw_path)
+        case.assertEqual(len(api.requests), sent, raw_path)
+    latest = fake.discover_all()
+    case.assertEqual(fake.list_namespace(latest["evidence"], "acme-app", "", "v1", "configmaps")["status"], "COMPLETE")
 
 
 # ---- receipt / journal ----------------------------------------------------------------------------------------------
@@ -1738,6 +1825,12 @@ class CrdAndServiceReadTests(unittest.TestCase):
     def test_a_new_crd_read_invalidates_earlier_evidence(self):
         scenario_crd_reread_invalidation(self, real_mods())
 
+    def test_raw_crd_reads_invalidate_evidence_at_the_send_boundary(self):
+        scenario_crd_raw_reread(self, real_mods())
+
+    def test_raw_discovery_reads_invalidate_evidence_at_the_send_boundary(self):
+        scenario_discovery_raw_reread(self, real_mods())
+
 
 class DestroyJournalTests(unittest.TestCase):
     def test_apply_only_journals_unchanged(self):
@@ -1949,7 +2042,7 @@ DESTROY_MUTATIONS = [
      "    query", scenario_discovery_bound_lists),
     ("list_namespace_target", T, '        need((group, version, resource) in targets, "list_target_not_discovered")\n\n        def page',
      "\n        def page", scenario_discovery_bound_lists),
-    ("discovery_withdraws", T, '        self._withdraw(("discovery",))\n', "", scenario_discovery_bound_lists),
+    ("discovery_withdraws", T, '        self._withdraw(("discovery",))\n', "", scenario_deadline_requests),
     ("discovery_required_missing", T, '        if not required:\n            return {"status": "UNKNOWN", "reason": "discovery_required_resource_missing"}',
      '        if False:\n            return {"status": "UNKNOWN", "reason": "discovery_required_resource_missing"}',
      scenario_discovery_lists_exact),
@@ -2017,8 +2110,27 @@ DESTROY_MUTATIONS = [
      'if k.startswith(CRD_KEY_PREFIX) and v["owned_uid"] is not None}', scenario_crd_receipt_map),
     ("crd_receipt_map_only_crds", R, 'if k.startswith(CRD_KEY_PREFIX) and v["owned_uid"] is not None and k not in state["quarantined"]}',
      'if v["owned_uid"] is not None and k not in state["quarantined"]}', scenario_crd_receipt_map),
-    ("crd_reread_withdraws", T, '        self._withdraw(("crd", name))\n', "", scenario_crd_reread_invalidation),
-    ("crd_reread_unverifies", T, "        self._verified_crds.discard(name)\n", "", scenario_crd_reread_invalidation),
+    ("crd_reread_withdraws", T, '        self._withdraw(("crd", name))\n', "", scenario_deadline_requests),
+    ("crd_reread_unverifies", T, "            self._verified_crds.discard(observed)\n", "", scenario_crd_raw_reread),
+    # R01-R: invalidation at the final send boundary
+    ("send_invalidates_observed", T, "        self._invalidate_observed(request)  # R01-R: before the request can reach the server\n",
+     "", scenario_crd_raw_reread),
+    ("send_invalidates_before_answer", T,
+     "        self._invalidate_observed(request)  # R01-R: before the request can reach the server\n"
+     "        clock = self.deadline.clock\n        start = clock.now()\n        self.requests.append(request)\n"
+     "        try:\n            status, body = self.server(request)\n",
+     "        clock = self.deadline.clock\n        start = clock.now()\n        self.requests.append(request)\n"
+     "        try:\n            status, body = self.server(request)\n            self._invalidate_observed(request)\n",
+     scenario_crd_raw_reread),
+    ("invalidate_crd_withdraw", T, '            self._withdraw(("crd", observed))\n', "", scenario_crd_raw_reread),
+    ("invalidate_crd_only_target", T, "            self._verified_crds.discard(observed)\n",
+     "            self._verified_crds.clear()\n", scenario_crd_raw_reread),
+    ("invalidate_discovery_withdraw", T, '            self._withdraw(scope=("discovery",))\n', "",
+     scenario_discovery_raw_reread),
+    ("invalidate_discovery_targets", T, '            self._withdraw(scope=("discovery",))\n            self._targets = frozenset()\n',
+     '            self._withdraw(scope=("discovery",))\n', scenario_discovery_raw_reread),
+    ("invalidate_discovery_paths", T, "        if DISCOVERY_PATH.fullmatch(path) is not None:\n",
+     '        if path in ("/api", "/apis"):\n', scenario_discovery_raw_reread),
     ("required_namespaced", T, '        if not (required.get("namespaced") is True and "list" in required.get("verbs", ())',
      '        if not ("list" in required.get("verbs", ())', scenario_required_discovery),
     ("required_listable", T, 'required.get("namespaced") is True and "list" in required.get("verbs", ())\n',
@@ -2057,7 +2169,7 @@ def mutant(filename, old, new):
 
 class DestroyMutationTests(unittest.TestCase):
     def test_each_destroy_guard_mutation_is_detected_by_an_assertion(self):
-        self.assertEqual(len(DESTROY_MUTATIONS), 137)
+        self.assertEqual(len(DESTROY_MUTATIONS), 144)
         self.assertEqual(len(DESTROY_MUTATIONS), len({m[0] for m in DESTROY_MUTATIONS}))
         undetected = []
         for name, filename, old, new, scenario in DESTROY_MUTATIONS:
