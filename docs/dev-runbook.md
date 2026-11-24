@@ -9,7 +9,7 @@ scripts refuse to start there, and real AWS access is prohibited there
 (`AGENTS.md`).
 
 **Not a current execution approval.** This runbook keeps the technical design for a
-possible future real deployment. Under Master Policy v14.5 §1.3 and §15, real AWS/EKS
+possible future real deployment. Under the controlling MASTER_POLICY §1.3 and §15, real AWS/EKS
 Live verification and enabling real Apply/Destroy are outside the current scope: no
 one, the Owner and operators included, plans or runs these steps in the current
 portfolio, and their real executability is not guaranteed. A future real scope would

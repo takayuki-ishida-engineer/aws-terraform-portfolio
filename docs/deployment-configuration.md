@@ -72,11 +72,11 @@ It checks paths only, never file contents, and makes no AWS call.
   would run only from the operator's local workstation, outside Codex Cloud and never
   through CI/CD. This is a technical design, not a current execution approval. In the
   current portfolio no one, the Owner and operators included, plans or runs them, and
-  a real AWS plan is not an acceptance condition (Master Policy v14.5 §1.3, §15).
+  a real AWS plan is not an acceptance condition (MASTER_POLICY §1.3, §15).
 - GitHub Actions runs offline checks only: formatting, validation, mock plans,
   security checks and the repository guard. It holds no AWS credentials.
 - Real AWS/EKS Live verification and enabling real Apply/Destroy are outside the
-  current scope (Master Policy v14.5 §15). The local workflow and runbook are
+  current scope (MASTER_POLICY §15). The local workflow and runbook are
   Source/Offline designs whose real executability is not guaranteed. The earlier
   optional-deployment conditions (G01–G07, the JPY 10,000 limit, teardown within 72
   hours) are historical.
@@ -305,10 +305,15 @@ runtime is in scope at a minimal development level.
 
 | Step | Work | Executor |
 | --- | --- | --- |
-| 1 | Make the existing DEV roots and the minimal Kubernetes runtime deploy-ready, without new features except those needed to deploy | Claude Code |
-| 2 | Emulator rehearsals of the real modules, then an end-to-end apply and destroy. They run automatically on every `main` change to Terraform or the rehearsal code (Owner decision 2026-11-20). Recorded in [Step 2 emulator rehearsals](step2-emulator-rehearsals.md) | Claude Code |
-| 3 | Add the remaining target services | Codex, after a handover document |
-| 4 | Core acceptance audit | Independent reviewer and Owner |
+| 1 | Make the existing DEV roots and the minimal Kubernetes runtime deploy-ready, without new features except those needed to deploy. **Closed 2026-11-24: SOURCE / OFFLINE COMPLETE (OD-01)** | Claude Code |
+| 2 | Emulator rehearsals of the real modules; the plan also named an end-to-end apply and destroy, which was not demonstrated (NOT_TESTED, OD-07). The rehearsals run automatically on a `main` change to their trigger paths (Owner decision 2026-11-20). **Closed 2026-11-24: COMPLETE with accepted, explicitly limited Emulator evidence (OD-02 to OD-07)**. Recorded in [Step 2 emulator rehearsals](step2-emulator-rehearsals.md) | Claude Code |
+| 3 | Add the remaining target services. NOT STARTED; after CI-PERF-01 and the formal handover | Codex, after an Owner-approved handover |
+| 4 | Core acceptance audit. NOT STARTED | Independent reviewer and Owner |
+
+Step 1 and Step 2 closed on 2026-11-24 (Owner decisions OD-01 to OD-13, recorded in
+MASTER_POLICY v14.6 §19.3). CORE PORTFOLIO COMPLETE and PORTFOLIO COMPLETE are not
+declared; the closure marks no unverified item PASS. The item list below is the
+history of Step 1.
 
 Step 1 items, each as its own pull request that stops for review and Owner merge
 approval. The Owner may reorder them.
@@ -384,31 +389,28 @@ approval. The Owner may reorder them.
    `apply` and `destroy` still refuse; ingress and 6c-B4 each need their own Owner
    approval.
 
-V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
-complete.
+V7-B/C/D, NP-2B/NP-3 (PAUSED, OD-11) and other new features stay paused; the Step 1/2
+closure alone does not make them startable.
 
-Remaining order (Master Policy v14.5 §19.3), each started only on the Owner's
+Remaining order (MASTER_POLICY §19.3), each open item started only on the Owner's
 explicit instruction as its own reviewed pull request; listing is not approval:
-1. the D19 limited-transport Fake contract and G9 (Secret cleanup and the
-   registration UID receipt): implemented in one pull request (Owner decision
-   2026-11-24), merged as PR #99;
-2. 6c-B4 Fake-only Destroy, split (Owner, 2026-11-24): 6c-B4a, the destroy
-   transport, discovery, LIST and receipt/journal foundation (merged as PR #100,
-   Source/Offline complete); 6c-B4b, the Fake-only destroy engine
-   (`k8s_runtime_destroy.py`: preflight, reverse order with D12 gates, D13 ownership,
-   write-ahead recovery, the D11 deadline, G9, namespace inventory classes and the 17
-   retained CRDs; authorized 2026-11-24, merged as PR #101, Source/Offline, FULL CI
-   NOT RUN under a one-time Owner exception; the real `destroy` command still refuses). Owner decisions D3, D5, D6, D11, D12 and
-   the remaining D19 scope were made on 2026-11-24; D18 is decided;
-3. 6c-B5 Source/Offline final audit, with Full CI as Claude's designated final task
-   (authorized 2026-11-24; the audit is
-   [section 7 of the audit report](step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5),
-   pending independent review);
-4. the Step 1/2 closure decision and the Codex handover;
-5. Step 3 by Codex (Full CI at each Root completion);
-6. Step 4, final Core acceptance with Full CI and the representative Emulator evidence.
-The current list and the open decisions are kept in
-[AGENTS.md](../AGENTS.md#current-work-and-remaining-order-master-policy-v145-19).
+1. D19/G9 (PR #99), 6c-B4a (PR #100) and 6c-B4b (PR #101, FULL CI NOT RUN under the
+   ended one-time Owner exception): completed. Owner decisions D3, D5, D6, D11, D12,
+   D18 and the remaining D19 scope were made on 2026-11-24;
+2. the 6c-B5 Source/Offline final audit
+   ([section 7 of the audit report](step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5),
+   PR #102, Full CI 45453872145 as Claude's Owner-designated final task): completed;
+3. the Step 1/2 closure and residual risk acceptance (OD-01 to OD-13): completed;
+4. MASTER_POLICY v14.6: issued 2026-11-24;
+5. CI-PERF-01A and CI-PERF-01B (Full CI performance), benchmark, independent review,
+   required CI, Full CI, merge and post-merge verification;
+6. the final handover baseline and an explicit Owner-approved Codex handover;
+7. Step 3 by Codex, by individually approved functional unit (Full CI at each Root
+   completion; F6 and F10 stay assigned here);
+8. Step 4, final Core acceptance with Full CI and the representative Emulator evidence,
+   and the Owner's completion decision.
+The current list, the handover gate and the open decisions are kept in
+[AGENTS.md](../AGENTS.md#current-work-and-remaining-order-master_policy-19).
 
 ## 9. Step 1 operational decisions (Owner, 2026-11-16)
 

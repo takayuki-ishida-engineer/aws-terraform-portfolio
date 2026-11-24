@@ -1,9 +1,8 @@
 # Master Policy — owner-authorized alignment record (v14.4, built on v14.2)
 
-> **Historical record, superseded.** Master Policy **v14.5** (2026-11-23,
-> America/Toronto, 21 pages) is the only current controlling policy and is
-> self-contained; it is not read through this record. [AGENTS.md](../AGENTS.md) applies
-> v14.5 in the repository. This page keeps the v14.2 and v14.4 alignment as history:
+> **Historical record, superseded.** The latest Owner-approved MASTER_POLICY,
+> identified under the rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy
+> and is self-contained; it is not read through this record. This page keeps the v14.2 and v14.4 alignment as history:
 > its orders (for example §19.2 of v14.4), Live conditions (G01–G07, JPY 10,000) and
 > authority statements are not current rules. The file name stays for existing links.
 

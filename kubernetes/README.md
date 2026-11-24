@@ -4,8 +4,9 @@ Credential-free source and offline verification, not a deployed cluster. The
 accepted starting main is `a4f0a9b8b0a810976c7ab305001729463443b27b`, with
 [post-V4 CI42757339642](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/42757339642)
 (678 native / 153 toolkit tests; 13 initialized Terraform configurations).
-That is historical V5 provenance. Current work follows Master Policy v14
-(2026-11-12), using the user-authorized complete 24-page text; the original PDF
+That is historical V5 provenance. Work then followed Master Policy v14
+(2026-11-12) (historical; the controlling policy is the latest Owner-approved
+MASTER_POLICY, identified under the rule in [AGENTS.md](../AGENTS.md)), using the user-authorized complete 24-page text; the original PDF
 SHA-256 remains unverified. NP-1 starts from main
 `684fe8ad69eb3d04bf8e44c65210343df70b2ae5`, whose
 [push CI43175377665](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/43175377665)

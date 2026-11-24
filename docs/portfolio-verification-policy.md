@@ -1,9 +1,10 @@
 # Portfolio verification policy — evidence and operating boundaries
 
-> **Current authority.** Master Policy **v14.5** (2026-11-23) is the only current
-> controlling policy; [AGENTS.md](../AGENTS.md) applies it in the repository. Sections
-> below that cite v10 to v14.4, the v14.2 alignment record, optional DEV Live, G01–G07
-> or the JPY 10,000 limit are historical records, not current rules. Under v14.5 §15,
+> **Current authority.** The latest Owner-approved MASTER_POLICY, identified under the
+> rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy. Sections below
+> that cite a specific policy version (v10 to v14.5), the v14.2 alignment record,
+> optional DEV Live, G01–G07, the JPY 10,000 limit or 72-hour teardown are historical
+> records, not current rules. Under the controlling MASTER_POLICY §15,
 > real AWS/EKS Live verification and enabling real Apply/Destroy are outside the
 > current scope. The current CI rules are in the
 > [CI execution policy](#ci-execution-policy--owner-decision-2026-11-23) below.
@@ -24,7 +25,7 @@ NOT_TESTED; CORE PORTFOLIO COMPLETE and PORTFOLIO COMPLETE are not declared.
 Codex namespace remains known environment BLOCKED.
 
 
-Historical (superseded by v14.5): operating requirements were the Master Policy v14.2
+Historical (superseded by later releases): operating requirements were the Master Policy v14.2
 [alignment record](policy-v14-2-alignment.md). Core Implementation and mandatory
 portfolio-level representative Emulator demonstration have separate acceptance
 gates. Historical v10–v14.1 design and evidence stay scoped.
@@ -71,7 +72,7 @@ an unmet installation/network/isolation/runtime prerequisite; NOT_TESTED means
 unexecuted. Never count unsupported APIs, skipped behavior or failed setup as PASS.
 Stop for user permission on any new external download domain, without mirrors or
 policy bypass. Significant verification gaps require explicit residual risk and
-options; real AWS verification is outside the current scope (v14.5 §15) and is
+options; real AWS verification is outside the current scope (MASTER_POLICY §15) and is
 never proposed as a fix or fallback.
 
 ### Historical feasibility proof — limited to aws_vpc
@@ -234,7 +235,7 @@ exists as a GitHub review on the related pull requests.
 ### Default portfolio completion path
 
 Real AWS deployment is not a completion condition and is outside the current scope
-(v14.5 §15). Core Implementation uses correct source and
+(MASTER_POLICY §15). Core Implementation uses correct source and
 architecture, affected offline/security/mutation/evidence checks, credential-free
 PR Safety CI on every PR and complete Full CI at milestones and on high-risk changes,
 with independent review and user approval.
@@ -245,7 +246,7 @@ unverified scope explicit, without requiring Emulator demonstration.
 AWS EMULATOR DEMONSTRATED separately requires actual representative lifecycle and
 cleanup under all fourteen controls. PORTFOLIO COMPLETE requires both statuses;
 no individual PR or historical VPC result declares completion. Real AWS/EKS Live
-verification is outside the current scope (v14.5 §15) and is not a completion
+verification is outside the current scope (MASTER_POLICY §15) and is not a completion
 condition; the earlier optional Live conditions (G01–G07, cumulative JPY 10,000,
 teardown within 72 hours) are historical. Emulator success never becomes actual AWS
 deployment evidence.
@@ -492,11 +493,22 @@ alignment) demonstrates PR Safety CI alone. The Owner dispatch path has since be
 used: Full CI runs 45358186407 (PR #99, HEAD `3b081f8`) and 45398955069 (PR #100,
 HEAD `bcb196d`) succeeded on the exact pull request HEADs. PR #101 merged with FULL CI
 NOT RUN under a one-time Owner exception. The 6c-B5 audit is Claude's Owner-designated
-final task, with Full CI dispatched by the Owner (reason `claude-final-task`).
+final task, with Full CI dispatched by the Owner (reason `claude-final-task`): run
+45453872145 succeeded on PR #102's exact HEAD `b9edba4`.
+
+**CI-PERF-01 (Full CI performance, MASTER_POLICY §12.5.1).** Before the Codex handover,
+Full CI is shortened without removing anything: target within 40 minutes, ideally
+within 35, about 50–55 minutes at the final portfolio stage (targets, not guarantees),
+hard timeout unchanged at 60 minutes. Every test, mutation ID, expected count,
+assertion and safety contract is kept. Parallelization, persistent caches, paid
+runners and production safety changes need separate approval. Profiling and design
+precede implementation approval, and the implementation is a high-risk CI change with
+Full CI. The responsibilities for CI-PERF-01 are in
+[AGENTS.md](../AGENTS.md#ci-perf-01-full-ci-performance-master_policy-1251).
 
 ## Historical: DEV Live limits (not current)
 
-> Superseded by Master Policy v14.5 §15: real AWS/EKS Live verification is outside the
+> Superseded by MASTER_POLICY §15 (since v14.5): real AWS/EKS Live verification is outside the
 > current scope, the JPY 10,000 limit and G01–G07 authorize nothing, and the past Live
 > budget is not reused. The text below is kept as a historical record.
 

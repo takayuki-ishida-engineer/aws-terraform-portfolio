@@ -8,7 +8,7 @@ PR changes documentation only. The user independently accepted R0–R4 at main
 completed successfully (491 native / 153 Python, including 16 VPC cases).
 Those are existing baseline results, not tests of this proposal.
 
-Master Policy v11 (2026-11-09) is the user-approved external operating policy. Its
+At that time (historical), Master Policy v11 (2026-11-09) was the user-approved external operating policy. Its
 PDF is unavailable here; this proposal uses the decisions supplied with V1 and
 accessible source, without claiming complete PDF review or inventing contents.
 One coherent `infra/modules/vpc/` remains the owner; no NAT/core/routing/endpoint

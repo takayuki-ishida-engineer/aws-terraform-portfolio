@@ -1,14 +1,14 @@
 # Architecture v2 foundation design — Network / State / Identity
 
-> **Historical record.** Master Policy **v14.5** (2026-11-23) is the only current
-> controlling policy, applied by [AGENTS.md](../AGENTS.md). Statements here that name
-> an earlier policy (v10 to v14.4, the v14.2 alignment record) as current authority,
-> or that describe optional DEV Live verification, G01–G07 gates or the JPY 10,000
-> limit, are historical. Under v14.5 §15 real AWS/EKS Live verification is outside the
-> current scope.
+> **Historical record.** The latest Owner-approved MASTER_POLICY, identified under
+> the rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy. Statements here
+> that name a specific policy version (v10 to v14.5, the v14.2 alignment record) as
+> current authority, or that describe optional DEV Live verification, G01–G07 gates,
+> the JPY 10,000 limit or 72-hour teardown, are historical. Under the controlling
+> MASTER_POLICY §15 real AWS/EKS Live verification is outside the current scope.
 
 This is an implementation-readiness proposal, not implementation or execution
-approval. Current operating requirements are the owner-authorized Master Policy
+approval. At that time (historical), the operating requirements were the owner-authorized Master Policy
 v14.2 [alignment record](policy-v14-2-alignment.md), with separate Core offline and
 portfolio-level representative [Emulator/completion gates](portfolio-verification-policy.md);
 v11 (2026-11-09) remains historical implementation/design provenance;

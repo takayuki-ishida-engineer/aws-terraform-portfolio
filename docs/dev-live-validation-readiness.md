@@ -1,11 +1,11 @@
 # Development live-validation readiness
 
-> **Historical record.** Master Policy **v14.5** (2026-11-23) is the only current
-> controlling policy, applied by [AGENTS.md](../AGENTS.md). Statements here that name
-> an earlier policy (v10 to v14.4, the v14.2 alignment record) as current authority,
-> or that describe optional DEV Live verification, G01–G07 gates or the JPY 10,000
-> limit, are historical. Under v14.5 §15 real AWS/EKS Live verification is outside the
-> current scope.
+> **Historical record.** The latest Owner-approved MASTER_POLICY, identified under
+> the rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy. Statements here
+> that name a specific policy version (v10 to v14.5, the v14.2 alignment record) as
+> current authority, or that describe optional DEV Live verification, G01–G07 gates,
+> the JPY 10,000 limit or 72-hour teardown, are historical. Under the controlling
+> MASTER_POLICY §15 real AWS/EKS Live verification is outside the current scope.
 
 See the [bootstrap decision plan](dev-bootstrap-decision-plan.md) for conditional Gate 1–3 recommendations; all gates remain OPEN.
 
@@ -28,7 +28,7 @@ No account, principal, budget, artifact or operational success is assumed here.
 
 ## Architecture v2 alignment — approved policy, execution OPEN
 
-Current operating policy is user-approved Master Policy v13 (2026-11-12);
+At that time (historical), the operating policy was user-approved Master Policy v13 (2026-11-12);
 v11 (2026-11-09) remains historical implementation/design provenance.
 Historical v10 (2026-11-08) and its approved security/cost clarifications are the
 recorded provenance of the [design](architecture-v2.md) and
