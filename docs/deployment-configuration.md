@@ -350,7 +350,8 @@ approval. The Owner may reorder them.
    renderer input builder `k8s_runtime_input.py` and the offline `k8s_runtime.py plan`
    (9 stages, 62 objects, exact identities), as code only. 6c-B1 added the read-only
    `k8s_runtime.py status` with its preflight safety gate, as code only, never run
-   against a cluster. `apply` and `destroy` are not implemented, and the
+   against a cluster. At that point `apply` and `destroy` were not implemented (the real
+   commands still refuse; later items added Fake-only engines only), and the
    binding-writer method is not approved (impersonation NOT_TESTED). 6c-B2 recorded
    the apply and destroy design, the mandatory corrections C1 (Istio `caBundle`
    ownership, finding F23) and G9 (safe Secret cleanup, finding F22) and the Owner
@@ -390,16 +391,19 @@ Remaining order (Master Policy v14.5 §19.3), each started only on the Owner's
 explicit instruction as its own reviewed pull request; listing is not approval:
 1. the D19 limited-transport Fake contract and G9 (Secret cleanup and the
    registration UID receipt): implemented in one pull request (Owner decision
-   2026-11-24), pending review and merge;
+   2026-11-24), merged as PR #99;
 2. 6c-B4 Fake-only Destroy, split (Owner, 2026-11-24): 6c-B4a, the destroy
    transport, discovery, LIST and receipt/journal foundation (merged as PR #100,
    Source/Offline complete); 6c-B4b, the Fake-only destroy engine
    (`k8s_runtime_destroy.py`: preflight, reverse order with D12 gates, D13 ownership,
    write-ahead recovery, the D11 deadline, G9, namespace inventory classes and the 17
-   retained CRDs; authorized 2026-11-24, implemented Source/Offline, pending review;
-   the real `destroy` command still refuses). Owner decisions D3, D5, D6, D11, D12 and
+   retained CRDs; authorized 2026-11-24, merged as PR #101, Source/Offline, FULL CI
+   NOT RUN under a one-time Owner exception; the real `destroy` command still refuses). Owner decisions D3, D5, D6, D11, D12 and
    the remaining D19 scope were made on 2026-11-24; D18 is decided;
-3. 6c-B5 Source/Offline final audit, with Full CI as Claude's designated final task;
+3. 6c-B5 Source/Offline final audit, with Full CI as Claude's designated final task
+   (authorized 2026-11-24; the audit is
+   [section 7 of the audit report](step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5),
+   pending independent review);
 4. the Step 1/2 closure decision and the Codex handover;
 5. Step 3 by Codex (Full CI at each Root completion);
 6. Step 4, final Core acceptance with Full CI and the representative Emulator evidence.

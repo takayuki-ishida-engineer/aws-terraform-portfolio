@@ -8,10 +8,12 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation, the 6c-B3b-Apply-A and Apply-B1 to Apply-B5 fake engine, G9 with the D19 Fake-only Secret extension, and the 6c-B4a destroy safety foundation (merged, PR #100) implemented offline, and the 6c-B4b Fake-only destroy engine implemented offline (pending review). The real `destroy` command stays refused.**
+**Status: design record; 6c-B3a foundation, the 6c-B3b-Apply-A and Apply-B1 to Apply-B5 fake engine, G9 with the D19 Fake-only Secret extension, and the 6c-B4a destroy safety foundation (merged, PR #100) implemented offline, and the 6c-B4b Fake-only destroy engine (merged, PR #101, FULL CI NOT RUN under a one-time Owner exception) implemented offline. The 6c-B5 Source/Offline final audit is in [the audit report](step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5). The real `destroy` command stays refused.**
 
-- `apply` and `destroy` are not implemented. Nothing here was executed against a
-  cluster, AWS or the Emulator.
+- The real `apply` and `destroy` commands of `k8s_runtime.py` refuse (BLOCKED). The
+  Fake-only apply engine (6c-B3b) and destroy engine (6c-B4b) exist as Source/Offline
+  code, with no command line and no real transport. Nothing here was executed against
+  a cluster, AWS or the Emulator.
 - 6c-B3a (Owner Decision Gate, 2026-11-22) implemented these, as Source/Offline
   code only (see section 13):
   - the receipt, write-ahead journal and crash reconciliation of section 6;
@@ -138,7 +140,7 @@ of Step 1 item 6c. It has four parts:
 - Baseline: `main` at `c96ec9d` (after 6c-B1, PR #87).
 
 Related records:
-- [script description](../scripts/local-workflow/README.md#apply-and-destroy-preconditions-and-open-decisions-not-implemented)
+- [script description](../scripts/local-workflow/README.md#apply-and-destroy-preconditions-and-open-decisions-real-commands-not-implemented)
 - [runbook §7](dev-runbook.md#7-teardown)
 - [step plan](deployment-configuration.md#8-step-plan)
 - [audit report](step1-audit-report.md) (findings F22 and F23)
@@ -243,8 +245,9 @@ write would then fail.
   lists the two pinned empty values. The 9 stages and 62 objects are unchanged.
 - Evidence moves to `runtime_contract_version` 5. Contract-4 evidence is refused by
   `check_runtime.py` and by `k8s_runtime.py plan`.
-- There is still no `apply`. The phases above remain the contract for 6c-B3b; no
-  path forces or overwrites a `caBundle`.
+- The real `apply` stays BLOCKED (the command refuses). The Fake-only apply engine
+  added later (6c-B3b-Apply-A to Apply-B5) follows the phases above against fakes
+  only; no path forces or overwrites a `caBundle`.
 - The AWS Load Balancer Controller webhook keeps the `caBundle` the renderer sets
   from the public CA. The runtime owns it, and any other manager on it stops apply.
 - Live behaviour is NOT_VERIFIED and never inferred as PASS. This covers istiod's
@@ -254,7 +257,9 @@ write would then fail.
 
 **Problem.** The current `k8s_certs.py delete` must not be used by the runtime
 destroy, because it does not check UIDs (E4). Deleting a namespace deletes its
-Secrets, so namespace deletion stays BLOCKED until this is fixed.
+Secrets, so namespace deletion stays BLOCKED until this is fixed. (G9 fixed it in
+Source/Offline code; a real namespace deletion stays BLOCKED with the real `destroy`,
+and D18 stays in force.)
 
 A safe cleanup must, for each of the four Secrets:
 1. read metadata only (section 8);
@@ -305,7 +310,7 @@ recommended independent pull request: `scripts/local-workflow/k8s_certs_receipt.
   (`name_based_delete_retired`) after the unchanged automation refusal.
 - **Not changed.** The real `register` (no receipt, no read-back), the runtime
   receipt's Secret refusal, the real transport (not implemented) and namespace
-  deletion (not implemented, D18 below).
+  deletion (not part of G9, D18 below; the Fake-only 6c-B4b engine added it later).
 - **Still NOT_TESTED or NOT_VERIFIED.** Any real Secret read or delete; whether a
   real server-side apply can be made conditional (create only if absent, update only
   a given UID) without a race; the exact
@@ -530,7 +535,9 @@ Abbreviations in the table:
    BLOCKED. Unknown Secrets are never deleted or adopted automatically. `kube-system`
    is never deleted; its webhook TLS Secret is its own completion condition. The G9
    cleanup report records this condition per namespace
-   (`namespace_secret_condition`); namespace deletion itself is not implemented.
+   (`namespace_secret_condition`). G9 itself deletes no namespace. The Fake-only
+   6c-B4b engine deletes one only under D6, D18 and the Fake-only atomic namespace
+   gate; a real namespace deletion stays BLOCKED.
 6. **CRDs are kept** (D5).
    - Runtime destroy is complete when all of these hold:
      - the 45 non-CRD objects are absent;
@@ -941,7 +948,8 @@ Deleting the EKS cluster alone is not complete teardown.
     the four `k8s_certs.py` Secret identities (section 3);
   - **D18**: no namespace deletion while a Secret remains; incomplete cleanup of the
     four Secrets blocks it; unknown Secrets are never deleted or adopted;
-    `kube-system` is never deleted. Recorded as a contract, not implemented.
+    `kube-system` is never deleted. Recorded as a contract in G9; enforced by the
+    Fake-only 6c-B4b engine (PR #101); a real namespace deletion stays BLOCKED.
 - **Approved (Owner, 2026-11-24), for 6c-B4. 6c-B4a was implemented first (PR #100); the
   6c-B4b parts were then authorized for Fake-only implementation on 2026-11-24:**
   - **D3**: Fake-only discovery and metadata-only LIST. Namespaces `istio-system`,
@@ -1047,9 +1055,9 @@ independent review and Owner Squash Merge approval.
 | 6c-B3a | Gate, pinning, cluster fingerprint, journal and receipt store, reconciliation, QUARANTINED, read-only `receipt verify`, and the D19 transport boundary if the Owner decides it here. **`apply` stays refused** | Fake tests (negative and mutation) for:<br>• crash between INTENT and RESULT<br>• UID change<br>• missing receipt<br>• modes, symlinks and owners<br>• secret-like values<br>• atomic replace<br>Existing plan 29/39 and status 21/32 kept; Full CI and Offline Contracts pass | Any need for `infra/**`, renderer, RBAC or admission changes; enabling `apply` |
 | 6c-B3b | `apply` for stages 1–8, ingress refused, plus C1 (renderer contract 5), the section 4.1 lifecycle (pre-apply, minimal completion, deferred readiness, final acceptance), ownership table, digest classification, probe classification against fakes, and the read scope | Fake tests (negative and mutation) for:<br>• conflict<br>• foreign field<br>• C1 refusal<br>• digest mismatch or NOT_VERIFIED<br>• probe misclassification<br>• timeout<br>• `dry_run_unsupported`<br>• ingress refusal<br>• NOT_VERIFIED preconditions failing closed at their lifecycle point<br>• deferred items never reported as PASS (exit 6)<br>Plan tests pin contract 5. It is Source/Offline PASS only, never "Live deploy ready" | Enabling ingress; impersonation or TokenRequest code; reading full Secrets |
 | G9 (independent, recommended; **implemented Source/Offline 2026-11-24** in `k8s_certs_receipt.py`) | Safe Secret cleanup and the registration UID receipt, using the D19 transport | Fake-API tests for:<br>• UID mismatch<br>• foreign manager<br>• missing label<br>• absence after delete<br>• no full Secret read<br>• no fallback | Namespace deletion stays BLOCKED until merged |
-| 6c-B4a (**implemented Source/Offline 2026-11-24**, pending review; review of PR #100 addressed: policy authorisation at the send boundary, discovery-bound LISTs with complete target coverage, one global deadline and per-request timeouts on every request, strict metadata and cross-version consistency, sealed CRD verification evidence; second review: CRD verification bound to a separate receipt CRD map and invalidated by every new read, required core resources in discovery, the global deadline checked independently of the request timeout, one UID per logical identity across versions; final correction R01-R: CRD and discovery evidence invalidated at the final send boundary, raw requests included) | Destroy transport scopes, discovery, metadata LIST and bounded pagination, the specialised CRD and Service reads, runtime DELETE guards, the D11 constants and deadline, the receipt/journal destroy phase and the apply phase guard. No destroy engine | Contract tests (positive, negative, mutation, regression) | Any need for a full Secret read, a D13 relaxation, a G9 change, workflow or CI map changes |
-| 6c-B4b (**implemented Source/Offline 2026-11-24** in `k8s_runtime_destroy.py`, Fake-only, pending review; the real `destroy` command stays refused; review of PR #101 addressed: the reviewed stage table as the only stage layout, existing-receipt-only store and locked revalidation, G9 registration and fingerprint binding, cluster-wide TargetGroupBinding and fresh per-DELETE dependency evidence, exact CRD discovery mapping, the namespace final gate, terminating-resume without resend, local wait deadlines and separated CRD counts; F06-R adds an Owner-authorized fake-only atomic namespace acceptance/cascade guard (independent execution review pending)) | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, the section 5.1 inventory verification, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted<br>• inventory reads that are incomplete, forbidden, paged with a stale continue token, missing a discovery group, or answered with a full Secret, each UNKNOWN or BLOCKED and never empty<br>• unknown objects never adopted<br>• a non-zero or unknown CRD count | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
-| 6c-B5 | Source/offline closure audit of item 6c | Docs; lists every NOT_TESTED, BLOCKED and NOT_VERIFIED item | No COMPLETE declaration |
+| 6c-B4a (**implemented Source/Offline 2026-11-24**, merged as PR #100 with Owner-dispatched Full CI 45398955069; review of PR #100 addressed: policy authorisation at the send boundary, discovery-bound LISTs with complete target coverage, one global deadline and per-request timeouts on every request, strict metadata and cross-version consistency, sealed CRD verification evidence; second review: CRD verification bound to a separate receipt CRD map and invalidated by every new read, required core resources in discovery, the global deadline checked independently of the request timeout, one UID per logical identity across versions; final correction R01-R: CRD and discovery evidence invalidated at the final send boundary, raw requests included) | Destroy transport scopes, discovery, metadata LIST and bounded pagination, the specialised CRD and Service reads, runtime DELETE guards, the D11 constants and deadline, the receipt/journal destroy phase and the apply phase guard. No destroy engine | Contract tests (positive, negative, mutation, regression) | Any need for a full Secret read, a D13 relaxation, a G9 change, workflow or CI map changes |
+| 6c-B4b (**implemented Source/Offline 2026-11-24** in `k8s_runtime_destroy.py`, Fake-only, merged as PR #101 with FULL CI NOT RUN under a one-time Owner exception; the real `destroy` command stays refused; review of PR #101 addressed: the reviewed stage table as the only stage layout, existing-receipt-only store and locked revalidation, G9 registration and fingerprint binding, cluster-wide TargetGroupBinding and fresh per-DELETE dependency evidence, exact CRD discovery mapping, the namespace final gate, terminating-resume without resend, local wait deadlines and separated CRD counts; F06-R adds an Owner-authorized fake-only atomic namespace acceptance/cascade guard, verified under that exception) | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, the section 5.1 inventory verification, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted<br>• inventory reads that are incomplete, forbidden, paged with a stale continue token, missing a discovery group, or answered with a full Secret, each UNKNOWN or BLOCKED and never empty<br>• unknown objects never adopted<br>• a non-zero or unknown CRD count | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
+| 6c-B5 (authorized 2026-11-24; [audit](step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5), pending independent review) | Source/offline closure audit of item 6c | Docs; lists every NOT_TESTED, BLOCKED and NOT_VERIFIED item; Full CI as Claude's Owner-designated final task | No COMPLETE declaration |
 | Live verification (separate) | Sections 7, 8, 9 and 11, F18, F21, D15 | Outside the current scope (Master Policy v14.5 §15); not part of the remaining work | Never in Codex Cloud; no current authorization |
 
 6c-B3b may be split if it grows: namespaces, base, controller and istiod first;
@@ -1059,7 +1067,8 @@ gateway, mesh_security, admission and binding_writer second.
 
 - **BLOCKED:**
   - ingress (D1);
-  - `apply` and `destroy` (not implemented);
+  - the real `apply` and `destroy` commands (both refuse; only the Fake-only engines
+    exist, with no command line or real transport);
   - real DELETE: only the Fake UID-precondition DELETE of the four Secrets exists
     (D19, 2026-11-24); the real transport is not implemented;
   - real namespace deletion: the Fake-only engine (6c-B4b) deletes a namespace only after
@@ -1085,10 +1094,11 @@ gateway, mesh_security, admission and binding_writer second.
   - which digest `imageID` reports;
   - the access policy granting the destroy inventory reads, discovery completeness
     on EKS, and the exact istiod leader-election object names;
-  - 6c-B4b consolidated F06-R candidate: Fake-only atomic acceptance with one-use,
+  - 6c-B4b F06-R (merged, PR #101): Fake-only atomic acceptance with one-use,
     transport-bound namespace inventory and UID evidence, plus a delayed cascade
-    recheck. Rejection preserves foreign objects and Secrets. Independent execution
-    verification is pending; no equivalent real API atomic primitive is asserted;
+    recheck. Rejection preserves foreign objects and Secrets (verified under the
+    one-time Owner exception, RC-1 and RC-2 included); no equivalent real API atomic
+    primitive is asserted;
   - 6c-B4b on a real API server: namespace cascade atomicity against objects created
     between the last inventory and the DELETE, the garbage collection of owned children
     (a Pod whose ReplicaSet is already gone is unprovable and stops destroy), the
@@ -1110,8 +1120,8 @@ gateway, mesh_security, admission and binding_writer second.
   - Secret cleanup;
   - complete-teardown residual checks.
 
-### Consolidated F03-R–F07 review candidate (Owner exception, PR #101)
+### Consolidated F03-R–F07 corrections (Owner exception, PR #101, merged)
 
-Runtime DELETEs recheck the cluster fingerprint, and G9 pins the registration under its actual cleanup lock while preserving standalone behavior. TGB identity and admission binding absence are checked precisely. CRD discovery retains LIST capability and compares the reviewed Kind, scope and served mappings. D6/D18/D19 gain only the Fake-only atomic namespace capability above; no wire DELETE option is added. F01/F02 and the existing journal format are unchanged. The candidate requires independent local regression, mutation and CI verification before acceptance; real namespace cascade safety remains NOT_VERIFIED.
+Runtime DELETEs recheck the cluster fingerprint, and G9 pins the registration under its actual cleanup lock while preserving standalone behavior. TGB identity and admission binding absence are checked precisely. CRD discovery retains LIST capability and compares the reviewed Kind, scope and served mappings. D6/D18/D19 gain only the Fake-only atomic namespace capability above; no wire DELETE option is added. F01/F02 and the existing journal format are unchanged. Under the one-time Owner exception these corrections (`7d6c664`, with RC-1 and RC-2 in `2a127c2`) were verified by local regression and mutation runs and by PR Safety CI 45442264744 and Offline Contracts 45442264960 on `2a127c2`, then merged as `0ed2c16` with FULL CI NOT RUN; real namespace cascade safety remains NOT_VERIFIED.
 
-The generic metadata/G9 transport refuses Namespace DELETE; the destroy transport's final send boundary requires the current capability and exact request, and consumes the capability on attempt. Known atomic conflicts record a failed result; unknown outcomes retain the open intent. The stateful fake independently checks all internal object stores for undiscovered resources, and the delayed cascade is guarded again. The implementation and added test counts are review candidates, not execution evidence.
+The generic metadata/G9 transport refuses Namespace DELETE; the destroy transport's final send boundary requires the current capability and exact request, and consumes the capability on attempt. Known atomic conflicts record a failed result; unknown outcomes retain the open intent. The stateful fake independently checks all internal object stores for undiscovered resources, and the delayed cascade is guarded again. The counts (destroy engine 42 / 113, receipt suite 144 / 382) were executed in that verification; the evidence is Fake-only and never Live. The before-and-after race evidence is in [the audit report](step1-audit-report.md#75-f06-r-fake-only-atomic-namespace-safety-pr-101).
