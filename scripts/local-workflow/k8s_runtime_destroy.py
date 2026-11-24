@@ -79,9 +79,9 @@ Namespaces (D3, D6, D18)
   (stop). The owner chain is proven from the current inventory alone. After DESTROY_INTENT a final gate reads the
   namespace's identity, receipt UID and D13 ownership again, takes fresh G9 evidence and the TargetGroupBinding gate,
   checks the fingerprint, and then a last fresh inventory must equal the first in every safety field (identity,
-  resources, owners, deletion state, finalizers, class); a failed final gate closes the INTENT ``failed``. An object
-  added after that last inventory and before the DELETE is not detected (a residual race of this Fake contract,
-  reported for an Owner decision); real API cascade atomicity is NOT_VERIFIED. ``kube-system`` is never inventoried
+  resources, owners, deletion state, finalizers, class); a failed final gate closes the INTENT ``failed``. The final namespace DELETE also requires a single-use,
+  transport-issued inventory capability; the fake compares current namespace ownership and inventory at acceptance
+  and again before delayed cascade. Real API cascade atomicity is NOT_VERIFIED. ``kube-system`` is never inventoried
   or deleted.
 
 CRDs (D5)
@@ -150,7 +150,9 @@ def halt(status, reason):
 
 
 def transport_status(code):
-    return "BLOCKED" if code in ("forbidden", "inventory_forbidden") else "UNKNOWN"
+    return "BLOCKED" if code in ("forbidden", "inventory_forbidden", "namespace_atomic_conflict",
+                                 "namespace_atomic_capability_required", "namespace_atomic_evidence_required",
+                                 "namespace_inventory_unsafe", "namespace_evidence_mismatch") else "UNKNOWN"
 
 
 def identity_of(key):
@@ -177,14 +179,24 @@ class bounded_server:
         deadline = self.deadline
         if deadline.expired():
             raise TimeoutError("deadline_exceeded")
+        if self.tripped:
+            raise FingerprintChanged("fingerprint_changed")
+        if self.kube_system_uid is not None and request.get("method") == "DELETE":
+            # Same approved metadata GET used by G9 itself; no Secret payload or new API scope.
+            try:
+                self(transport.metadata_get_request(transport.Policy([KUBE_SYSTEM]), KUBE_SYSTEM))
+            except Exception:  # the next Secret DELETE is refused after any unreadable fingerprint
+                self.tripped = True
+                raise
         start = deadline.clock.now()
         answer = self.server(request)
         if deadline.expired() or deadline.clock.now() - start > transport.API_READ_TIMEOUT_SECONDS:
             raise TimeoutError("request_timeout")
         if self.kube_system_uid is not None and request.get("path") == KUBE_SYSTEM_PATH:
             try:
-                observed = json.loads(answer[1])["metadata"]["uid"]
-            except (ValueError, KeyError, TypeError, IndexError):
+                metadata = transport.validate_destroy_metadata(KUBE_SYSTEM, *answer)
+                observed = metadata["uid"] if metadata is not None else None
+            except (transport.TransportError, ValueError, KeyError, TypeError, IndexError):
                 observed = None
             if observed != self.kube_system_uid:
                 self.tripped = True
@@ -201,6 +213,8 @@ class Engine:
         self.deadline_seconds, self.transport_kind = deadline_seconds, transport_kind
         self.results, self.crds, self.namespaces, self.order = {}, {}, {}, []
         self.g9_report, self.deletes = None, 0
+        self.g9_registration_pin = None
+        self.namespace_evidence = None
         self.deadline = None
 
     # -- preflight ----------------------------------------------------------------------------------------------
@@ -294,11 +308,15 @@ class Engine:
         if (cluster["cluster_arn"], cluster["kube_system_uid"], cluster["fingerprint_id"]) != \
                 (self.fp["cluster_arn"], self.fp["kube_system_uid"], self.fp["id"]):
             halt("BLOCKED", "g9_fingerprint_mismatch")
+        pin = g9.registration_pin(document)
+        if self.g9_registration_pin is not None and self.g9_registration_pin != pin:
+            halt("BLOCKED", "g9_registration_changed")
+        self.g9_registration_pin = pin
 
     def check_fingerprint(self):
         """The cluster is still the runtime receipt's (D17); a change stops every later deletion."""
         try:
-            kube_system = self.probe.get_metadata(KUBE_SYSTEM)
+            kube_system = getattr(self, "fake", self.probe).get_metadata(KUBE_SYSTEM)
         except transport.TransportError as error:
             halt(transport_status(str(error)), "read:" + str(error))
         if kube_system is None or kube_system.get("uid") != self.fp["kube_system_uid"]:
@@ -349,6 +367,7 @@ class Engine:
         if listed["status"] != "COMPLETE":
             halt(listed["status"] if listed["status"] in STATUS else "UNKNOWN",
                  "inventory:" + namespace + ":" + str(listed["reason"]))
+        self.namespace_evidence = listed.get("evidence")
         return listed.get("objects", [])
 
     # -- per object ---------------------------------------------------------------------------------------------
@@ -401,6 +420,7 @@ class Engine:
             self.store.destroy_result(seq, identity, "absent_confirmed")
             self.record(key, "absent_confirmed")
             return
+        self.check_fingerprint()  # F03-R: never reuse a stage's fingerprint for a later DELETE.
         try:
             self.fake.delete_runtime(identity, uid)
         except transport.TransportError as error:
@@ -461,7 +481,11 @@ class Engine:
                 self.store.destroy_result(intent["seq"], identity, "failed", metadata["uid"])
                 halt("BLOCKED", verdict.lower() + ":" + identity["name"])
             if transport.object_state(metadata)["deletion_requested"]:
+                self.check_fingerprint()
                 self.dependencies(step, intent["key"])
+                if step == NAMESPACE_PHASE:
+                    self.namespace_gate(identity["name"])
+                    self.namespace_contents(identity["name"], wait=False)
                 observed = self.wait_absent(identity, intent["uid"])
                 if observed is not None:
                     self.store.quarantine(identity, observed, "recreated_after_delete")
@@ -489,8 +513,13 @@ class Engine:
 
     def foreign_tgbs(self, allowed_uid):
         ingress = self.project + "-ingress"
-        return [o for o in self.inventory(ingress) if TGB_RESOURCE in {tuple(r) for r in o["resources"]}
-                and o["uid"] != allowed_uid]
+        identity = self.tgb_identity()
+        return [o for o in self.inventory(ingress)
+                if (TGB_RESOURCE in {tuple(r) for r in o["resources"]}
+                    or (allowed_uid is not None and o["uid"] == allowed_uid))
+                and not (allowed_uid is not None and o["uid"] == allowed_uid
+                         and o["namespace"] == identity["namespace"] and o["name"] == identity["name"]
+                         and {tuple(r) for r in o["resources"]} == {TGB_RESOURCE})]
 
     def tgb_gone(self):
         """No TargetGroupBinding anywhere (B4B-F04): the runtime one trusted absent, none listed in the ingress
@@ -513,7 +542,7 @@ class Engine:
         runtime = (self.state["objects"].get(service_key) or {}).get("owned_uid")
         for item in self.inventory(ingress):
             resources = {tuple(r) for r in item["resources"]}
-            if ("", "services") not in resources:
+            if ("", "services") not in resources and item["uid"] != runtime:
                 continue
             if not (runtime is not None and item["uid"] == runtime and resources == {("", "services")}
                     and item["namespace"] == ingress and item["name"] == self.gateway_service["name"]):
@@ -531,6 +560,17 @@ class Engine:
         for key in self.plan.destroy_members(step):
             if key.split("|")[1] in WEBHOOK_KINDS and self.read(identity_of(key)) is not None:
                 halt("BLOCKED", "webhook_remains:" + key.split("|")[3])
+
+    def admission_bindings_gone(self, key):
+        name = identity_of(key)["name"]
+        bindings = [k for k in self.plan.members["admission"]
+                    if identity_of(k)["kind"] == "ValidatingAdmissionPolicyBinding"
+                    and self.manifests[k].get("spec", {}).get("policyName") == name]
+        if not bindings:
+            halt("BLOCKED", "admission_binding_mapping_missing:" + name)
+        for binding in bindings:
+            if self.read(identity_of(binding)) is not None:
+                halt("BLOCKED", "admission_binding_remains:" + identity_of(binding)["name"])
 
     def gate(self, step):
         if step == "ingress":
@@ -556,6 +596,8 @@ class Engine:
         if step == "admission":
             self.tgb_gone()
             self.no_load_balancer()
+            if kind == "ValidatingAdmissionPolicy":
+                self.admission_bindings_gone(key)
         elif step == "controller":
             self.tgb_gone()
         if step in ("istiod", "base") and kind in WEBHOOK_KINDS:
@@ -564,7 +606,7 @@ class Engine:
             self.webhooks_gone(step)
 
     # -- CRDs (D5) ----------------------------------------------------------------------------------------------
-    def crd_verdict(self, name, served, mapping):
+    def crd_verdict(self, name, served, mapping, kinds, listable):
         key = "|".join(CRD_KIND + ("", name))
         obj = self.state["objects"].get(key)
         if key in self.state["quarantined"]:
@@ -591,6 +633,17 @@ class Engine:
             return {"verdict": "UNKNOWN", "reason": "crd_discovery_mapping_missing"}
         if namespaced != (spec["scope"] == "Namespaced"):
             return {"verdict": "BLOCKED", "reason": "crd_discovery_scope_mismatch"}
+        reviewed_kind = self.manifests[key]["spec"]["names"]["kind"]
+        if read["info"]["served_versions"] != spec["served_versions"]:
+            return {"verdict": "BLOCKED", "reason": "crd_served_versions_mismatch"}
+        for version in spec["served_versions"]:
+            target = (spec["group"], version, spec["plural"])
+            if target not in mapping:
+                return {"verdict": "UNKNOWN", "reason": "crd_discovery_mapping_missing"}
+            if mapping[target] != (spec["scope"] == "Namespaced") or kinds.get(target) != reviewed_kind:
+                return {"verdict": "BLOCKED", "reason": "crd_discovery_kind_or_scope_mismatch"}
+            if target not in listable:
+                return {"verdict": "UNKNOWN", "reason": "crd_discovery_not_listable"}
         counted = self.fake.crd_instances(verified["evidence"])
         return {"verdict": counted["verdict"], "reason": counted["reason"]}
 
@@ -599,7 +652,9 @@ class Engine:
         served = {(group, resource) for group, _, resource, _, _ in payload["resources"]}
         mapping = {(group, version, resource): namespaced for group, version, resource, _, namespaced
                    in payload["resources"]}
-        return {name: self.crd_verdict(name, served, mapping) for name in names}
+        kinds = {(group, version, resource): kind for group, version, resource, kind, _ in payload["resources"]}
+        listable = {tuple(row) for row in payload["listable"]}
+        return {name: self.crd_verdict(name, served, mapping, kinds, listable) for name in names}
 
     def require_crds(self, names):
         for name, found in self.check_crds(names).items():
@@ -617,6 +672,7 @@ class Engine:
         server = bounded_server(self.server, self.deadline, self.fp["kube_system_uid"])
         try:
             report = g9.cleanup(self.project, self.cluster_arn, root=Path(self.g9_root).expanduser(),
+                                expected_registration=self.g9_registration_pin,
                                 transport_kind=self.transport_kind, server=server)
         except g9.CleanupError as error:
             halt("BLOCKED", "fingerprint_changed" if server.tripped else "g9:" + str(error))
@@ -752,8 +808,13 @@ class Engine:
                 self.store.destroy_result(seq, identity, "failed", metadata["uid"])
             raise
         try:
-            self.fake.delete_runtime(identity, owned)
+            self.fake.delete_runtime(identity, owned, namespace_evidence=self.namespace_evidence)
         except transport.TransportError as error:
+            # A known local refusal or an atomic conflict is not an unknown DELETE outcome.
+            if str(error) in ("namespace_atomic_conflict", "namespace_atomic_capability_required",
+                              "namespace_atomic_evidence_required", "namespace_evidence_mismatch",
+                              "namespace_inventory_unsafe", "evidence_invalid", "request_not_authorized"):
+                self.store.destroy_result(seq, identity, "failed")
             halt(transport_status(str(error)), "delete:" + str(error) + ":" + name)
         self.deletes += 1
         observed = self.wait_absent(identity, owned)

@@ -133,8 +133,8 @@
       "mutations": 32
     },
     "k8s_runtime_receipt_tests": {
-      "tests": 139,
-      "mutations": 369
+      "tests": 144,
+      "mutations": 382
     },
     "k8s_runtime_apply_tests": {
       "tests": 58,

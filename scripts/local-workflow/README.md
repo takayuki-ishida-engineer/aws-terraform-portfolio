@@ -609,10 +609,10 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 139 tests and 369 source mutations, each
-detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
+**Tests.** `test_k8s_runtime_receipt.py` expects 144 tests and 382 source mutations in the consolidated candidate, each
+required to be detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
 `test_k8s_certs_receipt.py`, the 36 tests and 144 mutations of
-`test_k8s_runtime_destroy_foundation.py` and the 37 tests and 100 mutations of
+`test_k8s_runtime_destroy_foundation.py` and the 42 tests and 113 mutations of
 `test_k8s_runtime_destroy.py` (all below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -883,10 +883,13 @@ gate reads the namespace's identity, receipt UID and D13 ownership again, takes 
 G9 evidence (D18) and, for `<project>-ingress`, the TargetGroupBinding gate, checks the
 fingerprint, and then a last fresh inventory must equal the first in every safety
 field (identity, resources, owners, deletion state, finalizers, class); a failed final
-gate closes the INTENT `failed`. An object added after that last inventory and before
-the DELETE is not detected: that residual race is outside what this Fake contract can
-express and waits for an Owner decision. `kube-system` is never inventoried or
-deleted.
+gate closes the INTENT `failed`. The consolidated F06-R candidate adds a Fake-only
+Atomic Namespace Safety Gate: the transport issues a single-use, namespace/UID-bound
+capability from its own complete inventory and validated Namespace metadata. The
+fake compares current ownership, discovery and all contents at DELETE acceptance;
+a delayed cascade rechecks the accepted snapshot and refuses unsafe changes.
+There is no fallback to a normal Namespace DELETE or real API option.
+`kube-system` is never inventoried or deleted. Independent execution review pending.
 
 **CRDs (D5).** No CRD DELETE exists. Each of the 17 is read with the specialised
 CRD read and verified against the CRD receipt map, then its instances are listed
@@ -908,7 +911,9 @@ never_created objects, `retained_crds` (created, zero instances), `crd_zero_inst
 and `crd_not_created` (never counted as retained), the 15 Istio and 2 controller CRDs,
 and every namespace (also on a rerun of a completed destroy, with fresh G9 evidence).
 
-**G9 under the deadline.** The G9 client is unchanged; the engine passes it a
+**G9 under the deadline.** Standalone G9 behavior remains unchanged; runtime destroy
+pins the validated registration under the G9 cleanup lock and rechecks the fingerprint
+before each runtime and Secret DELETE. The engine passes G9 a
 deadline-bounded fake server: no request starts after the deadline and an answer at
 or after it, or later than 20 s, is a timeout (G9: BLOCKED `transport_timeout`), and a
 `kube-system` answer with another UID than the runtime fingerprint is refused, so G9
@@ -916,8 +921,8 @@ stops at its fingerprint check before any Secret request (`fingerprint_changed`)
 G9's own `namespace_deletion: NOT_IMPLEMENTED` describes G9 alone; the engine reports
 its namespace results separately.
 
-**Tests.** `test_k8s_runtime_destroy.py`: 37 tests and 100 source mutations, each
-detected by an assertion (a crash is undetected), run inside the
+**Tests.** `test_k8s_runtime_destroy.py`: expected 42 tests and 113 source mutations (execution pending), each
+required to be detected by an assertion (a crash is undetected), run inside the
 `k8s_runtime_receipt_tests` suite with the pinned Helm render of the synthetic
 fixture. A stateful fake API server answers both clients. The positive fixtures use
 synthetic ownership evidence (journal and managedFields written by the test,
@@ -926,8 +931,7 @@ because the fake apply engine stops before the gateway): a full synthetic receip
 (`namespaces` and `base`: 3 deleted, 42 never created, the 2 controller CRDs
 CRD_NOT_CREATED). Neither is evidence of a real apply or destroy.
 
-**NOT_VERIFIED / NOT_TESTED.** Real transport and authentication, the residual race
-between the last namespace inventory and the namespace DELETE (Owner decision pending),
+**NOT_VERIFIED / NOT_TESTED.** Real transport and authentication,
 the real API server's cascade atomicity under races, garbage collection timing, the controller's
 finalizer removal and target deregistration, the istiod and controller manager
 names, discovery completeness on EKS and the istiod leader-election names.

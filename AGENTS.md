@@ -569,6 +569,12 @@ these decisions and the existing G9, D13, D18 and receipt contracts, with Full C
 Owner-designated safety milestone. The real CLI `destroy`, real transport and Live stay
 refused; 6c-B5 and the Codex handover are not authorized.
 
+PR #101 consolidated review candidate: Owner-authorized Fake-only D6/D18/D19
+atomic Namespace acceptance and delayed-cascade guard, with transport-issued
+single-use inventory evidence, no ordinary Namespace DELETE fallback, and G9
+registration pinning under the cleanup lock. This is not a real API contract;
+real cascade safety remains NOT_VERIFIED. Independent execution review pending.
+
 D1 (the binding-writer method), Live probes, manager and effective-permission checks
 and real transport authentication stay undecided and unverified and are not part of
 the remaining work. Approved contracts (D7, D8, D10, D16, D17, the D19 limited

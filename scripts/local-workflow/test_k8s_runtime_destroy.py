@@ -99,6 +99,10 @@ class FakeCluster:
         self.served = {}       # extra discovery entries: group version -> resources
         self.hidden_versions = {}   # (group, plural) -> versions a CRD's discovery leaves out
         self.scope_override = {}    # (group, plural) -> the namespaced flag discovery reports
+        self.discovery_overrides = {}
+        self._atomic_namespace = None
+        self._accepted_namespaces = {}
+        self.atomic_transport = T
         self.counter = 5000
         self.secret_ids = T.secret_identities(project)
         self.secret_keys = frozenset(T.identity_key(i) for i in self.secret_ids)
@@ -255,6 +259,10 @@ class FakeCluster:
                     rows.append({"name": spec["names"]["plural"], "kind": spec["names"]["kind"],
                                  "namespaced": self.scope_override.get(mapping, spec["scope"] == "Namespaced"),
                                  "verbs": ["get", "list"]})
+        for gv, rows in lists.items():
+            group = "" if gv == "v1" else gv.split("/")[0]
+            for row in rows:
+                row.update(self.discovery_overrides.get((group, row["name"]), {}))
         groups = {}
         for gv in sorted(lists):
             if gv != "v1":
@@ -303,7 +311,9 @@ class FakeCluster:
     def crd_instances(self, group, plural):
         found = [(e["identity"]["namespace"], e["identity"]["name"], e["meta"]["uid"]) for e in self.objects.values()
                  if group_resource(e["identity"]) == (group, plural)]
-        return found + list(self.instances.get((group, plural), []))
+        extras = [(ns, name, meta["uid"]) for (ns, g, resource), items in self.extras.items()
+                  if (g, resource) == (group, plural) for name, meta in items.items()]
+        return found + list(self.instances.get((group, plural), [])) + extras
 
     # -- the server -------------------------------------------------------------------------------------------
     def __call__(self, request):
@@ -323,6 +333,108 @@ class FakeCluster:
     def after(self, request):
         for hook in list(self.hooks):
             hook(request)
+
+    def atomic_namespace_delete(self, request, evidence, deadline):
+        """Out-of-band Fake-only capability. Faults still run before the atomic acceptance check in answer()."""
+        if self._atomic_namespace is not None or deadline.expired():
+            return 409, b""
+        self._atomic_namespace = (copy.deepcopy(request), copy.deepcopy(evidence), deadline)
+        try:
+            return self(request)
+        finally:
+            self._atomic_namespace = None
+
+    def current_namespace_inventory(self, namespace):
+        """Read the fake's actual store in one synchronous section; reject undiscovered objects as well."""
+        try:
+            lists, groups = self.discovery()
+
+            def checked(path, body):
+                return T.validate_discovery_response(path, 200, json.dumps(body).encode())
+            core = checked("/api", {"kind": "APIVersions", "versions": ["v1"]})
+            group_list = checked("/apis", {"kind": "APIGroupList", "apiVersion": "v1", "groups": [
+                {"name": g, "versions": [{"groupVersion": g + "/" + v, "version": v} for v in vs]}
+                for g, vs in groups.items()]})
+            validated = {gv: checked("/api/v1" if gv == "v1" else "/apis/" + gv,
+                                     {"kind": "APIResourceList", "groupVersion": gv, "resources": rows})
+                         for gv, rows in lists.items()}
+            found = T.discovery_targets(core, group_list, validated)
+        except (T.TransportError, TypeError, ValueError, KeyError, AttributeError):
+            return None, None
+        if found["status"] != "COMPLETE":
+            return None, None
+        targets = found["targets"]
+        mapped = {(g, r) for g, _, r in targets}
+
+        def logical(group, resource):
+            return ("", "events") if (group, resource) in (("", "events"), ("events.k8s.io", "events")) \
+                else (group, resource)
+        actual = set()
+        for entry in self.objects.values():
+            ident = entry["identity"]
+            if ident["namespace"] == namespace:
+                group, resource = group_resource(ident)
+                if (group, resource) not in mapped:
+                    return None, None
+                actual.add((logical(group, resource), ident["name"], entry["meta"]["uid"]))
+        for (ns, group, resource), items in self.extras.items():
+            if ns == namespace:
+                if items and (group, resource) not in mapped:
+                    return None, None
+                actual.update((logical(group, resource), name, meta["uid"]) for name, meta in items.items())
+        for (group, resource), items in self.instances.items():
+            if any(ns == namespace for ns, _, _ in items) and (group, resource) not in mapped:
+                return None, None
+            actual.update((logical(group, resource), name, uid_value) for ns, name, uid_value in items
+                          if ns == namespace)
+        pages = []
+        for target in targets:
+            group, _, resource = target
+            items = self.listed(namespace, group, resource)
+            if len(items) > T.LIST_PAGE_SIZE:
+                return None, None  # the fake refuses when it cannot prove the full snapshot
+            status, body = self.list_answer(items, T.LIST_PAGE_SIZE)
+            try:
+                page = T.validate_list_response(namespace, T.LIST_PAGE_SIZE, status, body)
+            except T.TransportError:
+                return None, None
+            pages.append((target, {"status": "COMPLETE", "items": page["items"]}))
+        merged = T.merge_listed(targets, pages)
+        if merged["status"] != "COMPLETE":
+            return None, None
+        observed = {(logical(group, resource), item["name"], item["uid"]) for item in merged["objects"]
+                    for group, resource in item["resources"]}
+        if actual != observed:
+            return None, None
+        snapshot = {"targets": targets, "advertised": found["advertised"], "resources": found["resources"],
+                    "listable": found["listable"]}
+        return json.loads(json.dumps(snapshot)), json.loads(json.dumps(merged["objects"]))
+
+    def namespace_gate_ok(self, entry, evidence, terminating=False):
+        ident, meta = entry["identity"], entry["meta"]
+        name = ident["name"]
+        if (name != evidence["namespace"] or meta["uid"] != evidence["uid"]
+                or name not in T.inventory_namespaces(self.project)
+                or self.kube_system["uid"] != evidence["kube_system_uid"]):
+            return False
+        current = T.namespace_safety_metadata(meta)
+        expected = dict(evidence["metadata"])
+        if terminating:
+            current.pop("deletionTimestamp", None)
+            expected.pop("deletionTimestamp", None)
+        if current != expected:
+            return False
+        manifest = self.manifests[k8s_runtime_receipt.key_of(ident)]
+        observed = k8s_runtime_apply.observed_of(dict(ident, metadata=meta), manifest)
+        if k8s_runtime_apply.d13_ownership(observed, self.project + "-k8s-runtime") != "OWNED":
+            return False
+        if not terminating:
+            for secret in self.secret_ids:
+                if self.meta_of(secret) is not None or secret["name"] in self.extras.get(
+                        (secret["namespace"], "", "secrets"), {}):
+                    return False
+        discovery, items = self.current_namespace_inventory(name)
+        return self.atomic_transport.namespace_snapshot_matches(evidence, discovery, items, name)
 
     def answer(self, request):
         method, path = request["method"], request["path"]
@@ -362,6 +474,12 @@ class FakeCluster:
             precondition = (json.loads(request["body"] or "{}").get("preconditions") or {}).get("uid")
             if precondition != entry["meta"]["uid"]:
                 return 409, b'{"kind":"Status","reason":"Conflict"}'
+            if identity["kind"] == "Namespace":
+                atomic = self._atomic_namespace
+                if atomic is None or atomic[0] != request or atomic[2].expired() \
+                        or not self.namespace_gate_ok(entry, atomic[1]):
+                    return 409, b'{"kind":"Status","reason":"Conflict"}'
+                self._accepted_namespaces[path] = atomic[1]
             self.delete(path, entry)
             return 200, b'{"kind":"Status","status":"Success"}'
         return 405, b""
@@ -385,10 +503,17 @@ class FakeCluster:
             meta["deletionTimestamp"] = "2026-11-24T00:00:00Z"
 
             def terminated():
-                if self.objects.get(path) is entry:
+                # A delayed cascade rechecks the accepted snapshot; a late foreign object is never erased.
+                evidence = self._accepted_namespaces.get(path)
+                if self.objects.get(path) is entry and evidence is not None and not meta.get("finalizers") \
+                        and self.namespace_gate_ok(entry, evidence, terminating=True):
                     del self.objects[path]
+                    # Only verified allowed leftovers remain at this point.
+                    for key in [k for k, v in self.objects.items() if v["identity"]["namespace"] == identity["name"]]:
+                        del self.objects[key]
                     for key in [k for k in self.extras if k[0] == identity["name"]]:
                         del self.extras[key]
+                    self._accepted_namespaces.pop(path, None)
             self.later(self.ns_termination, terminated)
         elif meta.get("finalizers"):
             meta["deletionTimestamp"] = "2026-11-24T00:00:00Z"
@@ -430,6 +555,7 @@ class World:
         self.root, self.g9_root = self.tmp / "runtime", self.tmp / "certs"
         self.clock = k8s_runtime_apply.FakeClock()
         self.cluster = FakeCluster(self.clock, self.project, self.manifests)
+        self.cluster.atomic_transport = mods.transport
         self.fp = k8s_runtime_receipt.fingerprint(self.arn, KUBE_SYSTEM_UID)
         self.store = k8s_runtime_receipt.Store(self.root, self.fp, self.project, self.report["manifest_sha256"],
                                                self.report["input_sha256"], self.plan)
@@ -1600,11 +1726,10 @@ def scenario_fingerprint_binding(case, mods):
     with world(mods) as w:
         # kube-system changes after the first runtime DELETE: the next step stops before any further deletion.
         tgb = w.ident("TargetGroupBinding", "test-gateway", "test-ingress")
-        gateway = w.ident("Gateway", "test-backend", "test-ingress")
         inject_after_delete(w, tgb, lambda w=w: w.cluster.kube_system.update(uid=uid(95)))
         result = run_safely(w)
         case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "fingerprint_changed"))
-        case.assertEqual(w.deleted_paths(), [w.path(tgb), w.path(gateway)], "nothing after the ingress step")
+        case.assertEqual(w.deleted_paths(), [w.path(tgb)], "no further DELETE in the same ingress step")
     with world(mods, stages=PARTIAL) as w:
         # Only G9's own kube-system read sees another cluster: G9 stops before any Secret request.
         other = json.dumps({"kind": "PartialObjectMetadata", "apiVersion": "meta.k8s.io/v1",
@@ -2009,6 +2134,307 @@ class DestroyRecoveryTests(unittest.TestCase):
         scenario_local_wait_unit(self, real_mods())
 
 
+# ---- consolidated independent review residuals: F03-R / F04-R / F05-R / F06-R ------------------------
+
+def scenario_stage_fingerprint(case, mods):
+    with world(mods, stages=PARTIAL) as w:
+        result = run_safely(w)
+        case.assertEqual(result["status"], "COMPLETE")
+        original = mods.destroy.Engine.revalidate
+        seen = []
+
+        def revalidate(engine, step):
+            seen.append(step)
+            original(engine, step)
+            if len(seen) == 1:
+                w.cluster.kube_system["uid"] = uid(192)
+        with mock.patch.object(mods.destroy.Engine, "revalidate", revalidate):
+            result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "fingerprint_changed"))
+        case.assertEqual(len(seen), 1, "a changed fingerprint blocks even a completed step before revalidation")
+
+
+def scenario_g9_locked_binding(case, mods):
+    for incomplete in (False, True):
+        with world(mods, stages=PARTIAL) as w:
+            case.assertEqual(k8s_certs_receipt.cleanup(w.project, w.arn, root=w.g9_root, server=w.cluster)["result"],
+                             "COMPLETE")
+            w.cluster.requests.clear()
+            original = k8s_certs_receipt.cleanup
+
+            def change_registration(*args, **kwargs):
+                def replacement(plan):
+                    results = w.cluster.apply_secrets(plan)
+                    if incomplete:
+                        results[0]["outcome"] = "conflict"
+                    return results
+                registered = k8s_certs_receipt.register_with_receipt(
+                    w.project, w.arn, replacement, root=w.g9_root, server=w.cluster)
+                case.assertEqual(registered["result"], "INCOMPLETE" if incomplete else "REGISTERED")
+                return original(*args, **kwargs)
+            with mock.patch.object(k8s_certs_receipt, "cleanup", change_registration):
+                result = run_safely(w)
+            case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "g9:g9_registration_changed"))
+            case.assertFalse([r for r in w.deletes() if "/secrets/" in r["path"]])
+
+    with world(mods, stages=PARTIAL) as w:
+        seen = []
+
+        def changed(request):
+            if request["method"] == "DELETE" and "/secrets/" in request["path"] and not seen:
+                seen.append(request["path"])
+                w.cluster.kube_system["uid"] = uid(190)
+        w.cluster.hooks.append(changed)
+        result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "fingerprint_changed"))
+        case.assertEqual([r["path"] for r in w.deletes() if "/secrets/" in r["path"]], seen)
+        case.assertEqual(len(seen), 1)
+
+
+def scenario_exact_tgb_binding(case, mods):
+    for group, resource, name in (("elbv2.k8s.aws", "targetgroupbindings", "imposter"),
+                                  ("", "pods", "test-gateway")):
+        with world(mods) as w:
+            ident = w.ident("TargetGroupBinding", "test-gateway", "test-ingress")
+            original_uid = w.cluster.meta_of(ident)["uid"]
+            del w.cluster.objects[w.path(ident)]
+            w.cluster.extra("test-ingress", group, resource, name, uid_value=original_uid)
+            result = run_safely(w)
+            case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "foreign_target_group_binding"))
+            case.assertEqual(w.deletes(), [])
+    with world(mods) as w:
+        w.cluster.extra("other-team", "elbv2.k8s.aws", "targetgroupbindings", "foreign-extra")
+        result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "target_group_binding_remains"))
+        case.assertFalse({w.path(i) for i in w.members("admission")} & set(w.deleted_paths()))
+    with world(mods) as w:
+        binding = w.ident("ValidatingAdmissionPolicyBinding", "test-target-registration")
+        policy = w.ident("ValidatingAdmissionPolicy", "test-target-registration")
+        # Let the independent confirmation see absence once; recreate after that response.
+        state = {"deleted": False, "reads": 0}
+
+        def recreate(request):
+            if request["path"] == w.path(binding):
+                if request["method"] == "DELETE":
+                    state["deleted"] = True
+                elif state["deleted"] and request["method"] == "GET":
+                    state["reads"] += 1
+                    if state["reads"] == 1:
+                        w.cluster.put(binding, uid(191))
+        w.cluster.hooks.append(recreate)
+        result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]),
+                         ("BLOCKED", "admission_binding_remains:test-target-registration"))
+        case.assertNotIn(w.path(policy), w.deleted_paths())
+    with world(mods) as w:
+        binding = w.ident("ValidatingAdmissionPolicyBinding", "test-target-registration")
+        policy = w.ident("ValidatingAdmissionPolicy", "test-target-registration")
+        state = {"deleted": False, "confirmed": False}
+
+        def after(request):
+            if request["path"] == w.path(binding):
+                if request["method"] == "DELETE":
+                    state["deleted"] = True
+                elif state["deleted"] and request["method"] == "GET":
+                    state["confirmed"] = True
+        def unreadable(request):
+            if state["confirmed"] and request["method"] == "GET" and request["path"] == w.path(binding):
+                return 403, b""
+            return None
+        w.cluster.hooks.append(after)
+        w.cluster.faults.append(unreadable)
+        result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "read:forbidden"))
+        case.assertNotIn(w.path(policy), w.deleted_paths())
+
+
+def scenario_crd_kind_listable(case, mods):
+    with world(mods, stages=PARTIAL) as w:
+        w.cluster.discovery_overrides[("networking.istio.io", "gateways")] = {"kind": "WrongKind"}
+        result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]),
+                         ("BLOCKED", "crd:gateways.networking.istio.io:crd_discovery_kind_or_scope_mismatch"))
+        case.assertEqual(w.deletes(), [])
+    with world(mods) as w:
+        w.cluster.discovery_overrides[("elbv2.k8s.aws", "ingressclassparams")] = {"verbs": ["get"]}
+        result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]),
+                         ("UNKNOWN", "crd:ingressclassparams.elbv2.k8s.aws:crd_discovery_not_listable"))
+
+
+def scenario_namespace_atomic_races(case, mods):
+    for mode in ("after_secret_list", "before_delete", "before_delete_object", "ownership",
+                 "allowed_leftover", "same_uid_metadata", "terminating", "terminating_object", "hidden"):
+        with world(mods, stages=PARTIAL) as w:
+            name = "istio-system"
+            ident = w.ident("Namespace", name)
+            path = w.path(ident)
+            secret_list = "/api/v1/namespaces/" + name + "/secrets"
+            state = {"lists": 0, "added": False}
+
+            def add():
+                state["added"] = True
+                w.cluster.extra(name, "", "secrets", "late-foreign-secret")
+
+            def after(request):
+                if request["method"] == "GET" and request["path"] == secret_list:
+                    state["lists"] += 1
+                    if mode == "after_secret_list" and state["lists"] == 2:
+                        add()
+                if mode in ("terminating", "terminating_object") and request["method"] == "DELETE" \
+                        and request["path"] == path:
+                    if mode == "terminating":
+                        add()
+                    else:
+                        state["added"] = True
+                        w.cluster.extra(name, "", "configmaps", "late-foreign-config")
+            def before(request):
+                if request["method"] == "DELETE" and request["path"] == path:
+                    if mode == "before_delete":
+                        add()
+                    elif mode == "before_delete_object":
+                        state["added"] = True
+                        w.cluster.extra(name, "", "configmaps", "late-foreign-config")
+                    elif mode == "ownership":
+                        state["added"] = True
+                        w.cluster.meta_of(ident)["managedFields"] = []
+                    elif mode == "allowed_leftover":
+                        state["added"] = True
+                        w.cluster.extra(name, "", "events", "late-event")
+                    elif mode == "same_uid_metadata":
+                        state["added"] = True
+                        w.cluster.extras[(name, "", "events")]["startup.17a3"]["ownerReferences"] = [
+                            {"apiVersion": "v1", "kind": "ConfigMap", "name": "foreign",
+                             "uid": uid(193), "controller": False}]
+                    elif mode == "hidden":
+                        state["added"] = True
+                        w.cluster.extra(name, "undiscovered.example.com", "objects", "foreign-object")
+                return None
+            w.cluster.hooks.append(after)
+            w.cluster.faults.append(before)
+            result = run_safely(w)
+            case.assertTrue(state["added"], mode)
+            case.assertEqual(result["status"], "BLOCKED", mode)
+            case.assertIsNotNone(w.cluster.meta_of(ident), mode)
+            if mode in ("after_secret_list", "before_delete", "terminating"):
+                case.assertIn("late-foreign-secret", w.cluster.extras[(name, "", "secrets")], mode)
+            elif mode in ("before_delete_object", "terminating_object"):
+                case.assertIn("late-foreign-config", w.cluster.extras[(name, "", "configmaps")], mode)
+            elif mode == "allowed_leftover":
+                case.assertIn("late-event", w.cluster.extras[(name, "", "events")])
+            elif mode == "hidden":
+                case.assertIn("foreign-object", w.cluster.extras[(name, "undiscovered.example.com", "objects")])
+            records = [r for r in w.destroy_records("DESTROY_RESULT") if r["identity"]["name"] == name]
+            case.assertFalse([r for r in records if r["outcome"] in ("deleted", "absent_confirmed")], mode)
+            if mode not in ("terminating", "terminating_object"):
+                case.assertEqual([r["outcome"] for r in records], ["failed"], mode)
+
+    # Lost response and crash before acceptance: new evidence only when a DELETE must actually be retried.
+    for after in (False, True):
+        with world(mods, stages=PARTIAL) as w:
+            ident = w.ident("Namespace", "test-ingress")
+            path = w.path(ident)
+            crash_on_delete(w, path, after)
+            with case.assertRaises(Crash):
+                run_safely(w)
+            result = run_safely(w)
+            case.assertEqual((result["status"], result["reason"]), ("COMPLETE", None), after)
+            case.assertEqual(w.deleted_paths().count(path), 1, after)
+
+    with world(mods, stages=PARTIAL) as w:
+        ident = w.ident("Namespace", "test-ingress")
+        path = w.path(ident)
+        crash_on_delete(w, path, after=True)
+        with case.assertRaises(Crash):
+            run_safely(w)
+        w.cluster.extra("test-ingress", "", "secrets", "late-resume-secret")
+        result = run_safely(w)
+        case.assertEqual(result["status"], "BLOCKED")
+        case.assertEqual(w.deleted_paths().count(path), 1)
+        case.assertIsNotNone(w.cluster.meta_of(ident))
+        case.assertIn("late-resume-secret", w.cluster.extras[("test-ingress", "", "secrets")])
+
+
+def scenario_namespace_atomic_boundary(case, mods):
+    t = mods.transport
+    with world(mods, stages=PARTIAL) as w:
+        k8s_certs_receipt.cleanup(w.project, w.arn, root=w.g9_root, server=w.cluster)
+        identity = w.ident("Namespace", "test-ingress")
+        uid_value = w.cluster.meta_of(identity)["uid"]
+        other_identity = w.ident("Namespace", "istio-system")
+        other_uid = w.cluster.meta_of(other_identity)["uid"]
+        with case.assertRaises(t.TransportError):
+            t.Policy([identity], [identity])
+        policy = t.DestroyPolicy(w.project, [identity, other_identity],
+                                 owned_uids={t.identity_key(identity): uid_value,
+                                             t.identity_key(other_identity): other_uid},
+                                 inventory=True, discovery=True)
+
+        def new_fake(server=w.cluster):
+            return t.open_destroy_transport("fake", policy, server, t.Deadline(w.clock, 3600))
+
+        def evidence(fake):
+            fake.get_metadata(identity)
+            fake.get_metadata({"apiVersion": "v1", "kind": "Namespace", "namespace": "", "name": "kube-system"})
+            found = fake.discover_all()
+            listed = fake.inventory_namespace(found["evidence"], identity["name"])
+            case.assertEqual(listed["status"], "COMPLETE")
+            return listed["evidence"]
+
+        fake = new_fake()
+        token = evidence(fake)
+        request = t.runtime_delete_request(policy, identity, uid_value)
+        before = len(w.deletes())
+        with case.assertRaises(t.TransportError):
+            fake.send(request)
+        case.assertEqual(len(w.deletes()), before)
+        forged = t.Evidence(policy, "namespace_inventory", token.payload_for(policy, "namespace_inventory"))
+        for other, candidate in ((fake, forged), (new_fake(), token)):
+            with case.assertRaises(t.TransportError):
+                other.delete_runtime(identity, uid_value, namespace_evidence=candidate)
+        with case.assertRaises(t.TransportError):
+            fake.delete_runtime(other_identity, other_uid, namespace_evidence=token)
+        tampered = evidence(fake)
+        object.__setattr__(tampered, "_data", tampered._data + " ")
+        with case.assertRaises(t.TransportError):
+            fake.delete_runtime(identity, uid_value, namespace_evidence=tampered)
+        token = evidence(fake)
+        fake.discover_all()
+        with case.assertRaises(t.TransportError):
+            fake.delete_runtime(identity, uid_value, namespace_evidence=token)
+        case.assertEqual(len(w.deletes()), before)
+        token = evidence(fake)
+        fake.send(t.destroy_metadata_request(policy, identity))
+        with case.assertRaises(t.TransportError):
+            fake.delete_runtime(identity, uid_value, namespace_evidence=token)
+        case.assertEqual(len(w.deletes()), before)
+        no_capability = new_fake(lambda req: w.cluster(req))
+        token = evidence(no_capability)
+        with case.assertRaises(t.TransportError):
+            no_capability.delete_runtime(identity, uid_value, namespace_evidence=token)
+        case.assertEqual(len(w.deletes()), before)
+        fake = new_fake()
+        token = evidence(fake)
+        case.assertEqual(fake.delete_runtime(identity, uid_value, namespace_evidence=token), "REQUESTED")
+        with case.assertRaises(t.TransportError):
+            fake.delete_runtime(identity, uid_value, namespace_evidence=token)
+        case.assertEqual(len(w.deletes()), before + 1)
+
+    with world(mods, stages=PARTIAL) as w:
+        k8s_certs_receipt.cleanup(w.project, w.arn, root=w.g9_root, server=w.cluster)
+        identity = w.ident("Namespace", "test-ingress")
+        uid_value = w.cluster.meta_of(identity)["uid"]
+        policy = t.DestroyPolicy(w.project, [identity], owned_uids={t.identity_key(identity): uid_value},
+                                 inventory=True, discovery=True)
+        fake = t.open_destroy_transport("fake", policy, w.cluster, t.Deadline(w.clock, 10))
+        token = evidence(fake)
+        w.clock.sleep(10)
+        before = len(w.deletes())
+        with case.assertRaises(t.TransportError):
+            fake.delete_runtime(identity, uid_value, namespace_evidence=token)
+        case.assertEqual(len(w.deletes()), before)
+
+
 class DestroyReviewTests(unittest.TestCase):
     """Corrections B4B-F01 to B4B-F06 of the independent review of PR #101."""
 
@@ -2039,6 +2465,22 @@ class DestroyReviewTests(unittest.TestCase):
     def test_f06_namespace_final_gate_and_current_owner_chain(self):
         scenario_namespace_final_gate(self, real_mods())
         scenario_owner_chain_current(self, real_mods())
+
+    def test_f03_residual_locked_registration_and_per_secret_fingerprint(self):
+        scenario_g9_locked_binding(self, real_mods())
+        scenario_stage_fingerprint(self, real_mods())
+
+    def test_f04_residual_exact_tgb_and_admission_binding(self):
+        scenario_exact_tgb_binding(self, real_mods())
+
+    def test_f05_residual_crd_kind_and_listable(self):
+        scenario_crd_kind_listable(self, real_mods())
+
+    def test_f06_atomic_namespace_races(self):
+        scenario_namespace_atomic_races(self, real_mods())
+
+    def test_f06_atomic_namespace_transport_boundary(self):
+        scenario_namespace_atomic_boundary(self, real_mods())
 
 
 ENGINE_MUTATIONS = [
@@ -2077,7 +2519,7 @@ ENGINE_MUTATIONS = [
      scenario_owned_absent),
     ("delete_error_stops", D, '            halt(transport_status(str(error)), "delete:" + str(error) + ":" + identity["name"])', "            pass",
      scenario_delete_responses),
-    ("read_forbidden_blocked", D, '    return "BLOCKED" if code in ("forbidden", "inventory_forbidden") else "UNKNOWN"', '    return "UNKNOWN"',
+    ("read_forbidden_blocked", D, '    return "BLOCKED" if code in ("forbidden", "inventory_forbidden", "namespace_atomic_conflict",\n                                 "namespace_atomic_capability_required", "namespace_atomic_evidence_required",\n                                 "namespace_inventory_unsafe", "namespace_evidence_mismatch") else "UNKNOWN"', '    return "UNKNOWN"',
      scenario_delete_responses),
     ("recreated_uid_seen", D, '            if metadata["uid"] != uid:\n                return metadata["uid"]', "            if False:\n                return None",
      scenario_recreated),
@@ -2098,9 +2540,9 @@ ENGINE_MUTATIONS = [
     ("gates_run", D, "    def run_step(self, step):\n        self.gate(step)", "    def run_step(self, step):\n        pass", scenario_foreign_tgb),
     ("ingress_gate", D, '            if self.foreign_tgbs(tgb):\n                halt("BLOCKED", "foreign_target_group_binding")',
      '            if False:\n                halt("BLOCKED", "foreign_target_group_binding")', scenario_foreign_tgb),
-    ("runtime_tgb_allowed", D, '                and o["uid"] != allowed_uid]', "                ]", scenario_ingress_services),
-    ("admission_needs_tgb_gone", D, '        if step == "admission":\n            self.tgb_gone()\n            self.no_load_balancer()\n        elif step == "controller":',
-     '        if step == "admission":\n            self.no_load_balancer()\n        elif step == "controller":',
+    ("runtime_tgb_allowed", D, '                and not (allowed_uid is not None and o["uid"] == allowed_uid\n                         and o["namespace"] == identity["namespace"] and o["name"] == identity["name"]\n                         and {tuple(r) for r in o["resources"]} == {TGB_RESOURCE})]', "                ]", scenario_ingress_services),
+    ("admission_needs_tgb_gone", D, '        if step == "admission":\n            self.tgb_gone()\n            self.no_load_balancer()\n            if kind == "ValidatingAdmissionPolicy":',
+     '        if step == "admission":\n            self.no_load_balancer()\n            if kind == "ValidatingAdmissionPolicy":',
      scenario_tgb_cluster_wide),
     ("controller_needs_tgb_gone", D, '        elif step == "controller":\n            self.tgb_gone()\n        if step in',
      '        elif step == "controller":\n            pass\n        if step in', scenario_tgb_cluster_wide),
@@ -2195,7 +2637,7 @@ ENGINE_MUTATIONS = [
     ("g9_registration_required", D, '        if document["result"] != "REGISTERED" or any(', "        if False and any(",
      scenario_g9_eligibility),
     ("fingerprint_every_step", D, "            for step in self.plan.destroy_order:\n                self.check_fingerprint()",
-     "            for step in self.plan.destroy_order:", scenario_fingerprint_binding),
+     "            for step in self.plan.destroy_order:", scenario_stage_fingerprint),
     ("g9_fingerprint_guard_passed", D, '        server = bounded_server(self.server, self.deadline, self.fp["kube_system_uid"])',
      "        server = bounded_server(self.server, self.deadline)", scenario_fingerprint_binding),
     ("g9_fingerprint_reason", D, '            halt("BLOCKED", "fingerprint_changed" if server.tripped else "g9:" + str(error))',
@@ -2245,12 +2687,38 @@ ENGINE_MUTATIONS = [
      scenario_partial_apply),
     ("rerun_namespace_report", D, '                if namespace_key:\n                    self.namespaces[name] = "DELETED" if obj["destroyed"] == "deleted" else "ABSENT_CONFIRMED"',
      "                if namespace_key:\n                    pass", scenario_partial_apply),
+    # Residual findings. Existing mutation cases remain in the suite.
+    ("fingerprint_each_delete", D, '        self.check_fingerprint()  # F03-R: never reuse a stage\'s fingerprint for a later DELETE.',
+     "        pass", scenario_fingerprint_binding),
+    ("g9_locked_registration_pin", D, "                                expected_registration=self.g9_registration_pin,",
+     "                                expected_registration=None,", scenario_g9_locked_binding),
+    ("g9_fingerprint_each_delete", D, '        if self.kube_system_uid is not None and request.get("method") == "DELETE":',
+     "        if False:", scenario_g9_locked_binding),
+    ("exact_tgb_name", D, '                         and o["namespace"] == identity["namespace"] and o["name"] == identity["name"]',
+     '                         and o["namespace"] == identity["namespace"]', scenario_exact_tgb_binding),
+    ("admission_binding_absence", D, "                self.admission_bindings_gone(key)",
+     "                pass", scenario_exact_tgb_binding),
+    ("crd_mapping_kind", D, '            if mapping[target] != (spec["scope"] == "Namespaced") or kinds.get(target) != reviewed_kind:',
+     '            if mapping[target] != (spec["scope"] == "Namespaced"):', scenario_crd_kind_listable),
+    ("crd_mapping_listable", D, "            if target not in listable:", "            if False:", scenario_crd_kind_listable),
+    ("namespace_atomic_evidence", TR, '        need(evidence is not None, "namespace_atomic_evidence_required")',
+     '        if evidence is None:\n            return self.server(request)', scenario_namespace_atomic_boundary),
+    ("namespace_atomic_consume", TR, '        self._invalidate_observed(request)\n        capability = getattr(self.server, "atomic_namespace_delete", None)',
+     '        capability = getattr(self.server, "atomic_namespace_delete", None)', scenario_namespace_atomic_boundary),
+    ("generic_namespace_delete_refused", TR, '        need(not any(k[1] == "Namespace" for k in self.delete), "namespace_atomic_capability_required")',
+     "        pass", scenario_namespace_atomic_boundary),
+    ("namespace_atomic_snapshot", TR, '            and namespace_leftovers_only(current_objects, namespace) and current_objects == evidence["objects"])',
+     '            and namespace_leftovers_only(current_objects, namespace))', scenario_namespace_atomic_races),
+    ("namespace_atomic_snapshot_and_class", TR, '    return (current_discovery == evidence["discovery"] and current_objects is not None\n            and namespace_leftovers_only(current_objects, namespace) and current_objects == evidence["objects"])',
+     "    return True", scenario_namespace_atomic_races),
+    ("namespace_atomic_no_fallback", TR, '        need(callable(capability), "namespace_atomic_capability_required")',
+     '        if not callable(capability):\n            return self.server(request)', scenario_namespace_atomic_boundary),
 ]
 
 
 class DestroyEngineMutationTests(unittest.TestCase):
     def test_each_engine_guard_mutation_is_detected_by_an_assertion(self):
-        self.assertEqual(len(ENGINE_MUTATIONS), 100)
+        self.assertEqual(len(ENGINE_MUTATIONS), 113)
         self.assertEqual(len(ENGINE_MUTATIONS), len({m[0] for m in ENGINE_MUTATIONS}))
         undetected = []
         for name, filename, old, new, scenario in ENGINE_MUTATIONS:
