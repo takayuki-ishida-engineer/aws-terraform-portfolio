@@ -51,7 +51,9 @@ uses only the image's filesystem mirror with readonly lock. No init -upgrade.
 ## Owner gate and exact run order
 
 1. Independent review and explicit Owner Squash Merge approval of this PR.
-2. Confirm merge on main and successful exact-main Full CI.
+2. Confirm the merge on main: the post-merge tree check (`scripts/ci/merge_check.py`)
+   passes and the main push runs succeeded. Full CI no longer runs on main (Owner
+   decision 2026-11-23); it must have passed on the reviewed pull request HEAD.
 3. Owner rechecks GitHub Free/Public visibility, standard ubuntu-24.04 eligibility,
    $0 Actions/Codespaces/Packages/Git LFS/AI Credits Budgets and usage blocking,
    current billing/free/storage conditions and sufficient free capacity.

@@ -150,7 +150,7 @@ statements. Neither implies the other.
 
 | Level | Meaning | Who establishes it |
 | --- | --- | --- |
-| Source/Offline PASS | The code and its fake-kubectl or fake-API tests, negative and mutation checks, Full CI and Offline Contracts pass on the exact pull request HEAD | Pull request CI and independent review |
+| Source/Offline PASS | The code and its fake-kubectl or fake-API tests, negative and mutation checks, PR Safety CI (and Full CI where the CI execution policy of 2026-11-23 requires it) and Offline Contracts pass on the exact pull request HEAD | Pull request CI and independent review |
 | Live verification approved | The Owner has approved a specific Live verification scope (method, budget, G01–G07, teardown) outside Codex Cloud | Owner decision |
 | Operational apply allowed | Every mandatory precondition of a stage is verified on the real cluster, not NOT_VERIFIED | Live evidence, then Owner acceptance |
 

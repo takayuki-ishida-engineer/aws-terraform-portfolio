@@ -163,6 +163,10 @@ At main **`be79be6a64a6ef2e78f76e920afb335c59bbd49d`**,
 was a **completed/success push run, attempt 1**, with every job step successful.
 The following dated snapshot was checked against its actual logs; every Full CI run
 reports the current totals in its job summary ("Summarize actual validation results").
+Since the Owner decision of 2026-11-23, every pull request runs **PR Safety CI**
+(always-on safety checks plus the Full CI steps its changed files select) and **Full
+CI** runs at Owner-designated milestones and on high-risk changes, never on a push to
+`main`; see the [CI execution policy](docs/portfolio-verification-policy.md#ci-execution-policy--owner-decision-2026-11-23).
 CI runs never cancel each other: one run per workflow at a time, and each push or
 merge waits until the previous run has finished successfully:
 
@@ -222,7 +226,8 @@ The owner-authorized **MASTER POLICY v14.4** (2026-11-20) is the current master.
 It builds on v14.2, adding the limited automatic Step 2 rehearsal and the evidence
 ledger for every formal Emulator run. Both are recorded in the
 [policy alignment record](docs/policy-v14-2-alignment.md). Mandatory offline quality,
-Full CI on every PR, independent review/user approval and separate representative
+PR Safety CI on every PR with Full CI at milestones and on high-risk changes
+(Owner decision 2026-11-23), independent review/user approval and separate representative
 Emulator demonstration are retained; Core Portfolio Complete is a separate scope
 assessment without an Emulator prerequisite; PORTFOLIO COMPLETE requires both
 Core completion and representative Emulator demonstration. Neither is claimed here.

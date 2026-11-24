@@ -118,7 +118,8 @@ whichever comes first. Anything late or unrecoverable is recorded as EVIDENCE_GA
    python3 scripts/emulator-evidence/harvest.py check docs/evidence/emulator-runs
    ```
 
-6. Open the pull request. It needs Full CI, independent review and Owner merge approval.
+6. Open the pull request. It needs its required CI (PR Safety CI, under the Owner
+   decision of 2026-11-23), independent review and Owner merge approval.
 
 The workflows never write the ledger: they keep `contents: read` and push nothing.
 
