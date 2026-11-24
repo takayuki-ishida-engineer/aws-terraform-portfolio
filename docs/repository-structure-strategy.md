@@ -1,11 +1,11 @@
 # Approved repository structure — R0 strategy, migration evidence and V1 design
 
-> **Historical record.** Master Policy **v14.5** (2026-11-23) is the only current
-> controlling policy, applied by [AGENTS.md](../AGENTS.md). Statements here that name
-> an earlier policy (v10 to v14.4, the v14.2 alignment record) as current authority,
-> or that describe optional DEV Live verification, G01–G07 gates or the JPY 10,000
-> limit, are historical. Under v14.5 §15 real AWS/EKS Live verification is outside the
-> current scope.
+> **Historical record.** The latest Owner-approved MASTER_POLICY, identified under
+> the rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy. Statements here
+> that name a specific policy version (v10 to v14.5, the v14.2 alignment record) as
+> current authority, or that describe optional DEV Live verification, G01–G07 gates,
+> the JPY 10,000 limit or 72-hour teardown, are historical. Under the controlling
+> MASTER_POLICY §15 real AWS/EKS Live verification is outside the current scope.
 
 ## V6 Cognito source foundation
 
@@ -30,7 +30,7 @@ Root → Child composition, and migration-first R0 → R1 → R2 → R3 → R4 b
 Architecture v2 features. R0 approved the strategy; R1/R2 subsequently implemented
 source refactors with offline verification, not actual state migration or Live
 approval. R3 only stabilizes documentation. Module count is not an acceptance goal.
-Current operating requirements are the owner-authorized v14.2
+At that time (historical), the operating requirements were the owner-authorized v14.2
 [alignment record](policy-v14-2-alignment.md), with separate Core offline and
 portfolio-level representative [Emulator/completion gates](portfolio-verification-policy.md).
 v11 (2026-11-09) remains historical implementation provenance; R0 recorded historical

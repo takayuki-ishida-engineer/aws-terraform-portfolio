@@ -2,10 +2,15 @@
 
 ## Step 2 emulator rehearsal — network and api roots PASS in GitHub Actions
 
+**Step 2 is closed** (Owner decision 2026-11-24, OD-01 to OD-13): it ended with the
+accepted, explicitly limited Emulator evidence below. The original end-to-end apply
+and destroy was not demonstrated and stays NOT_TESTED; roots outside `all` keep the
+statuses in the table. See the [Step 2 record](docs/step2-emulator-rehearsals.md#closure-owner-decision-2026-11-24).
+
 [![AWS Emulator Step 2 rehearsal](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml/badge.svg?branch=main&event=push)](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml?query=branch%3Amain+event%3Apush)
 
 The badge shows only the latest automatic run. Automatic runs cover only the
-reviewed scenarios of an Owner merge-approved pull request (Master Policy v14.5
+reviewed scenarios of an Owner merge-approved pull request (MASTER_POLICY
 §13.2); `all` is not every DEV root. GitHub keeps run logs and job summaries for
 at most 90 days. The badge, run URLs and job summaries are therefore not permanent
 evidence. The durable record is the sanitized
@@ -222,13 +227,31 @@ reachability, controller registration or TLS/mTLS communication.
 - Actual account, State custody, output authenticity, capacity, certificates,
   callback domains, pricing and teardown require separate review and approval.
 
-## Current controlling policy — Master Policy v14.5
+<a id="current-controlling-policy--master-policy-v145"></a>
 
-The Owner-adopted **MASTER POLICY v14.5** (2026-11-23, America/Toronto, 21 pages) is
-the only current controlling policy; the repository rules that apply it are in
-[AGENTS.md](AGENTS.md). It is self-contained. Earlier Master Policy versions (v14,
-v14.1, v14.2, v14.4), their [alignment record](docs/policy-v14-2-alignment.md) and
-earlier operating instructions are historical records, not current rules.
+## Current controlling policy
+
+The latest Owner-approved AWS Terraform Portfolio MASTER_POLICY, as designated by the
+Owner, is the sole controlling policy. [AGENTS.md](AGENTS.md#repository-guidance)
+holds the rule for identifying it and the repository rules that apply it. Earlier
+Master Policy versions (v10 to v14.5), their
+[alignment record](docs/policy-v14-2-alignment.md) and earlier operating instructions
+are historical records, not current rules. A new policy release authorizes no
+implementation, execution or scope change by itself.
+
+**Current status (Owner decision 2026-11-24).**
+
+| Item | Status |
+| --- | --- |
+| Step 1 | SOURCE / OFFLINE COMPLETE |
+| Step 2 | COMPLETE with accepted, explicitly limited Emulator evidence |
+| CORE PORTFOLIO COMPLETE | NOT DECLARED |
+| PORTFOLIO COMPLETE | NOT DECLARED |
+| Codex formal handover | NOT STARTED; CI-PERF-01 (Full CI performance) comes first |
+| Step 3 | NOT STARTED |
+
+The remaining order, the OPEN decisions and the handover gate are in
+[AGENTS.md](AGENTS.md#current-work-and-remaining-order-master_policy-19).
 
 - **CI (§12).** Every pull request runs **PR Safety CI**, the only required check
   (always-on safety checks plus the impacted Full CI steps). **Full CI** runs on
@@ -236,6 +259,8 @@ earlier operating instructions are historical records, not current rules.
   Owner milestones, never on a push to `main`; otherwise reports say FULL CI NOT RUN.
   Expected test counts live in `tests/expected-counts.json`. After a squash merge the
   merged tree is checked against the tree CI verified instead of re-running Full CI.
+  CI-PERF-01 targets Full CI within 40 minutes (ideally 35), keeping every check and
+  the 60-minute timeout ([AGENTS.md](AGENTS.md#ci-perf-01-full-ci-performance-master_policy-1251)).
   See the [CI execution policy](docs/portfolio-verification-policy.md#ci-execution-policy--owner-decision-2026-11-23).
 - **Completion (§01, §20).** CORE PORTFOLIO COMPLETE and AWS EMULATOR DEMONSTRATED
   are assessed separately; PORTFOLIO COMPLETE needs both and the Owner's acceptance.
@@ -247,8 +272,8 @@ earlier operating instructions are historical records, not current rules.
 - **Cost and Emulator (§13, §14).** Zero additional cost, the fourteen Emulator
   isolation controls and the evidence ledger stay in force.
 
-Older v14 to v14.4 references below, including Live gates and budgets, are historical
-snapshots, not current requirements. `infra/README.md` still describes the earlier
+Older policy version references below (v10 to v14.5), including Live gates and
+budgets, are historical snapshots, not current requirements. `infra/README.md` still describes the earlier
 Full CI triggers ("every pull request and push", a 20-minute timeout); that text is
 not a current rule and will be corrected with the next approved `infra/` change
 (editing `infra/**` would start the Emulator rehearsal).
@@ -263,15 +288,15 @@ snapshots; use the verified main baseline above for current counts and maturity.
 
 ### Historical v14 operating and completion policy
 
-Master Policy v14 (2026-11-12) is the sole current policy authority. Its complete
+At that time (historical), Master Policy v14 (2026-11-12) was the policy authority. Its complete
 24-page user-supplied text was reviewed with user approval; the original PDF was
-unavailable and its SHA-256 remains unverified. Apply v14 and the permanent
+unavailable and its SHA-256 remains unverified. v14 was then applied with the permanent
 [AGENTS](AGENTS.md) controls. Stale earlier-version labels in the
 [verification policy](docs/portfolio-verification-policy.md#official-aws-emulator--policy-v13)
 are tracked in the V7-0 contract and do not make earlier policies current.
 Real AWS access remains prohibited in Codex Cloud. Strictly isolated official AWS
 Emulator lifecycle validation is permitted for supported resources and supplements
-all existing credential-free CI/security tests. Under Master Policy v14.5 §15 real
+all existing credential-free CI/security tests. Under the controlling MASTER_POLICY §15 real
 AWS deployment and Live verification are outside the current scope and are not a
 completion condition (this paragraph is otherwise a historical v14 snapshot);
 unsupported/untested behavior must remain
@@ -408,14 +433,15 @@ existing-resource inventory are mandatory. Effective admission, CA custody,
 application sidecar CNI under restricted PSS, real AWS references/output publication,
 capacity/connectivity and future REST backend TLS/SNI compatibility remain OPEN.
 Offline schemas do not prove handshakes, IAM, controller effectiveness or Live.
-G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets Manager
-30-day recovery conflict remain unchanged. No State/AWS/Kubernetes Live authority.
+At that time G01–G07, cumulative JPY10,000, complete72-hour removal and the Secrets
+Manager 30-day recovery conflict remained unchanged (historical; under the controlling
+MASTER_POLICY §15 they authorize nothing). No State/AWS/Kubernetes Live authority.
 
 <a id="current-limitations"></a>
 
 ### Historical v14 limitations
 
-Current operating policy is Master Policy v14 (2026-11-12), per user instruction.
+At that time (historical), the operating policy was Master Policy v14 (2026-11-12), per user instruction.
 The complete user-supplied v14 text was reviewed; original PDF/hash verification
 was not possible. The [architecture authority record](docs/architecture-v2.md#authority-evidence-and-status)
 preserves historical provenance without treating earlier policies as current.
@@ -437,7 +463,9 @@ introduced here. Offline acceptance does not authorize live validation. Real
 production delivery would require operational, security, performance and recovery
 validation beyond this portfolio's completion scope.
 
-### Historical DEV Live restrictions (not current; Live is out of scope under v14.5 §15)
+<a id="historical-dev-live-restrictions-not-current-live-is-out-of-scope-under-v145-15"></a>
+
+### Historical DEV Live restrictions (not current; Live is out of scope under MASTER_POLICY §15)
 
 No Live operation is authorized here. Actual cumulative DEV Live spending must
 stay within **JPY 10,000**, and testing plus verified complete teardown must finish

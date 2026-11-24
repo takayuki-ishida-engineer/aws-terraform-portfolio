@@ -1,12 +1,26 @@
 # Repository guidance
 
-**Controlling policy.** AWS Terraform Portfolio Master Policy **v14.5** (2026-11-23,
-America/Toronto, 21 pages, Owner-adopted) is the only current controlling policy. It is
-self-contained: earlier Master Policy PDFs (v14.4 and before), the alignment records
-written for them and earlier operating instructions are historical records, not
-current rules, and never fill a gap in v14.5. Where this file or another repository
-document still describes an older rule, v14.5 applies and the difference goes to the
-Owner. Historical approvals, implementations and verification results stay as records.
+**Controlling policy.** The latest Owner-approved AWS Terraform Portfolio
+MASTER_POLICY is the sole controlling policy.
+
+- Use the current policy document explicitly designated by the Owner. Do not infer
+  current authority from an older version, a file name, repository history or a
+  historical alignment record.
+- If the controlling policy is unavailable, or repository documentation conflicts with
+  it, stop the affected work and request an Owner decision.
+- Historical policy version references are retained for evidence and provenance only.
+  A new policy release does not automatically authorize implementation, execution,
+  scope expansion or changes to safety contracts.
+
+This file is the repository's primary reference for that rule. Other repository
+documents refer to "the controlling MASTER_POLICY" (with its section numbers, such as
+§15) instead of a version number, so a new policy release needs no repository-wide
+edit for the version number alone. Documents are still updated when a release
+changes substance: rules, implementation status, technical contracts, stop conditions
+or responsibilities. A version named elsewhere (for example v10 to v14.5, the v14.2 alignment
+record, `infra/**` module READMEs naming v11, `infra/README.md`'s earlier CI text) is
+a dated record of that time, not current authority. Historical approvals,
+implementations and verification results stay as records.
 
 ## Permanent repository-wide rules
 
@@ -65,7 +79,7 @@ future implementation.
 - Review the Offline (mock) plan for every change that affects existing
   infrastructure, including address changes, `moved` blocks and replace/destroy
   risk. A real AWS plan is not a current acceptance condition and is not obtained
-  (v14.5 §1.3, §15). Emulator plans follow the isolated verification rules below and
+  (MASTER_POLICY §1.3, §15). Emulator plans follow the isolated verification rules below and
   do not establish real infrastructure migration safety or authorize real AWS access.
 
 ### Terraform state and scope
@@ -91,7 +105,7 @@ future implementation.
   credentials, AWS SSO, authenticated real AWS APIs or real AWS infrastructure.
   Real AWS Terraform Plan, Apply, Destroy and Import remain prohibited here.
   Never fall back to real AWS when emulator verification fails.
-- **Real AWS/EKS Live verification is outside the current scope (v14.5 §15)**: no
+- **Real AWS/EKS Live verification is outside the current scope (MASTER_POLICY §15)**: no
   operator or agent runs real AWS/EKS verification, and enabling real Apply/Destroy is
   not part of the remaining work. A future Live scope would need a new Owner cost and
   execution decision and independent review; it is not a current permission. The
@@ -117,7 +131,7 @@ future implementation.
   deployment (operator workstation only, never Codex Cloud or CI/CD), but they are
   Source/Offline designs, not a current execution approval: no one, the Owner and
   operators included, plans or runs real AWS/EKS operations in the current portfolio
-  (v14.5 §15). GitHub Actions runs offline checks only.
+  (MASTER_POLICY §15). GitHub Actions runs offline checks only.
 
 ### Mandatory official AWS Emulator safety controls
 
@@ -153,7 +167,7 @@ Do not commit or upload raw State, credentials, private keys or saved plans.
 ### Emulator verification workflow and evidence
 
 Preserve all Terraform Native, Mock Plan, Python, Security, Negative and Mutation
-tests. Master Policy v14.5 (§01, §13, §20) separates mandatory Core Implementation
+tests. The controlling MASTER_POLICY (§01, §13, §20) separates mandatory Core Implementation
 quality from portfolio-level representative AWS Emulator demonstration. The earlier
 [alignment record](docs/policy-v14-2-alignment.md) for v14.2 and v14.4 is historical.
 Every Terraform implementation requires affected offline/security verification.
@@ -194,7 +208,8 @@ isolation is a proposed method, not proof: all fourteen controls above still app
 Documentation-only changes do not require lifecycle replay, but still run PR Safety CI.
 
 Limited standing authorization (Owner decision 2026-11-20, PR #74, adopted by
-Master Policy v14.4 §13.2, carried into v14.5 §13.2): the Step 2 rehearsal workflow
+Master Policy v14.4 §13.2 and carried into later releases as MASTER_POLICY §13.2): the
+Step 2 rehearsal workflow
 `.github/workflows/aws-emulator-rehearsal.yml` may run automatically, with no
 further per-run approval, on a push to `main` that changes its exact trigger paths:
 `infra/**`, `scripts/emulator-rehearsal/**`, the named shared
@@ -232,7 +247,7 @@ non-required and read-only (`contents: read`), with no secrets, artifacts,
 persistent caches, registry pushes, or larger or self-hosted runners. Full CI and
 the required checks never gain an Emulator lifecycle.
 
-Evidence ledger (v14.5 §13.4): every formal Emulator workflow run is recorded per
+Evidence ledger (MASTER_POLICY §13.4): every formal Emulator workflow run is recorded per
 Run ID and Attempt in `docs/evidence/emulator-runs/` as
 `<run_id>-attempt-<n>.json`, listed in `index.md`. This covers Step 2 automatic and
 manual runs and the representative workflow, whether the run passes, fails or
@@ -307,13 +322,13 @@ Unsupported APIs and failed setup are never successful tests. If another externa
 download domain is required, stop and request user permission; no unapproved
 mirrors or network-policy bypass. If compatibility prevents a significant check,
 report residual risk and verification options. Real AWS testing is outside the
-current scope (v14.5 §15) and is never proposed as a fix or fallback; no agent or
+current scope (MASTER_POLICY §15) and is never proposed as a fix or fallback; no agent or
 operator initiates it.
 
 ### Portfolio completion and historical emulator evidence
 
 Real AWS deployment is not a completion condition and is outside the current scope
-(v14.5 §15). Core Implementation
+(MASTER_POLICY §15). Core Implementation
 requires approved architecture/ownership, fmt, locked init, validate, affected
 Native/Mock/Negative/Security/Mutation/Evidence checks, secret-free State, PR Safety
 CI on every PR and Full CI under the CI execution policy, independent review and user
@@ -337,7 +352,7 @@ It establishes only that tested VPC lifecycle, not Subnet, NAT, EKS, IAM, Cognit
 RDS, other services or the complete VPC module. See the
 [verification policy](docs/portfolio-verification-policy.md#official-aws-emulator--policy-v13).
 
-Real AWS/EKS Live verification is outside the current scope (v14.5 §15) and is not a
+Real AWS/EKS Live verification is outside the current scope (MASTER_POLICY §15) and is not a
 completion condition. Emulator evidence is never Live evidence. The earlier optional
 Live conditions (G01–G07, the cumulative JPY 10,000 DEV Live limit, teardown within 72
 hours) are historical records, not a current permission.
@@ -348,7 +363,7 @@ hours) are historical records, not a current permission.
   `main`. Never commit directly to `main`.
 - Follow branch -> commit -> push -> PR -> exact-HEAD PR Safety CI (and Full CI where
   the CI execution policy requires it) -> independent ChatGPT review -> explicit Owner
-  approval -> Squash merge (v14.5 §12.6). Commit
+  approval -> Squash merge (MASTER_POLICY §12.6). Commit
   and push changes before creating a PR. Continue review corrections on the
   existing open PR branch.
 - Require PR review and approval before merge. Do not merge automatically; merge
@@ -431,7 +446,7 @@ Rules:
   recorded: the only parent must be that base, the squash tree must equal the verified
   tree, and that tree must belong to the reviewed HEAD. On a mismatch, stop and
   investigate.
-- Branch Protection (v14.5 §03, §12.1, §12.7): `main` is protected and its only required
+- Branch Protection (MASTER_POLICY §03, §12.1, §12.7): `main` is protected and its only required
   check is `PR Safety CI` (GitHub Actions, enforcement everyone), as independently
   confirmed for the Owner by ChatGPT. The migration from `Credential-free Terraform
   validation` is complete; the add-then-remove procedure in `scripts/ci/README.md` is
@@ -442,6 +457,48 @@ Rules:
   required. The Emulator rehearsal trigger paths, the fourteen controls, the evidence
   ledger, Offline Contracts, credential-free CI, SHA-pinned least-privilege Actions,
   non-cancelling runs and $0 cost are unchanged.
+
+### CI-PERF-01: Full CI performance (MASTER_POLICY §12.5.1)
+
+Before the Codex handover, CI-PERF-01 shortens Full CI while keeping every check:
+- **Targets:** Full CI within 40 minutes, ideally within 35 minutes, and about 50–55
+  minutes at the final portfolio stage (targets, not guarantees). The hard timeout
+  stays at 60 minutes.
+- **Kept:** every test, mutation ID, expected count, assertion and safety contract, and
+  the isolation evidence. Nothing is skipped or weakened for speed, and no timeout is
+  extended.
+- **Not allowed without approval:** parallelization (an evaluation candidate only; it
+  needs CPU, I/O and cost evidence, isolation, full execution, rejection of missing,
+  duplicate, crashed or timed-out work, serial-equivalence evidence and Owner
+  approval), persistent caches, paid or larger runners, and any change to production
+  Receipt or Journal safety contracts.
+- **Order:** profiling and design (CI-PERF-01A) come before implementation approval.
+  The implementation (CI-PERF-01B) is a high-risk CI change under the CI execution
+  policy above, with Full CI.
+
+Responsibilities, for CI-PERF-01 only (Owner decision after the MASTER_POLICY v14.6
+release, 2026-11-24):
+
+| Stage | Responsibility |
+| --- | --- |
+| CI-PERF-01A analysis and design | ChatGPT |
+| Required profiling | Claude |
+| Implementation design and scope | ChatGPT |
+| Implementation approval | Owner |
+| CI-PERF-01B implementation | ChatGPT |
+| Independent review, local tests and benchmark | Claude |
+| Corrections | ChatGPT |
+| Required CI and Full CI | Joint verification |
+| Merge approval and squash merge | Owner / Claude |
+| Final handover baseline | ChatGPT |
+| Formal Codex handover | Owner / ChatGPT |
+
+A problem Claude finds in review is reported with its evidence, reproduction and
+impact, and ChatGPT corrects it; Claude then re-verifies independently. This role change
+is not an exemption from the MASTER_POLICY. The quality gates, local verification
+before commit, required CI, security contracts, Owner merge approval, Branch Protection
+and the cost policy stay in force. The one-time PR #101 exception is ended and is not
+reapplied. CI-PERF-01 starts only on the Owner's instruction.
 
 ### Codex execution efficiency and verification
 
@@ -499,7 +556,7 @@ Terraform lifecycle execution, manual dispatch and subsequent feature developmen
 are retired as current task instructions. Their expiration does not authorize a
 new Emulator run, infrastructure operation or development phase.
 
-Master Policy v14.5, all permanent rules above and all fourteen Emulator safety controls remain fully
+The controlling MASTER_POLICY, all permanent rules above and all fourteen Emulator safety controls remain fully
 effective and unchanged. This includes strict isolation, TLS/authentication,
 synthetic account guards, no real AWS credentials or authenticated real AWS access
 (including real AWS Plan/Apply/Destroy/Import) in Codex Cloud, no paid fallback or
@@ -523,74 +580,73 @@ and PORTFOLIO COMPLETE remain undeclared. Version changes or materially differen
 representative scenarios require their own applicable verification evidence before
 claiming compatibility; preserve the accepted record's limitations and residual risks.
 
-## Current work and remaining order (Master Policy v14.5 §19)
+<a id="current-work-and-remaining-order-master-policy-v145-19"></a>
 
-Step 1 (DEV deploy-ready brush-up, Owner-approved 2026-11-16) and Step 2 (Emulator
-rehearsals) are the current steps; DEV only, STG/PROD deferred. Their history (items
-1 to 6, including the completed item 6b, item 6c-A to 6c-B3b, the evidence ledger,
-PR #75 and the CI policy change of PR #97) is recorded in
+## Current work and remaining order (MASTER_POLICY §19)
+
+**Status (Owner decision 2026-11-24; MASTER_POLICY v14.6 issued that day, §19.3).**
+The Owner approved OD-01 to OD-13, which closes the planned Step 1 and Step 2
+implementation and audit work and accepts the residual risks:
+
+| Item | Status |
+| --- | --- |
+| Step 1 | SOURCE / OFFLINE COMPLETE (OD-01) |
+| Step 2 | COMPLETE with accepted, explicitly limited Emulator evidence (OD-02 to OD-07; see the [Step 2 record](docs/step2-emulator-rehearsals.md)) |
+| CORE PORTFOLIO COMPLETE | NOT DECLARED |
+| PORTFOLIO COMPLETE | NOT DECLARED |
+| Codex formal handover | NOT STARTED |
+| Step 3 | NOT STARTED |
+
+The closure does not mark any unverified item PASS and is not portfolio completion.
+OD-08 to OD-13 keep D1, D4, D14, D15, D20, D21 and D22 OPEN, real Apply and Destroy
+BLOCKED, Live AWS/EKS verification out of scope, NP-2B and NP-3 PAUSED, no further
+Emulator demonstration before the Codex handover, and CI-PERF-01 before the handover.
+V7-B/C/D, NP-2B/NP-3, DB, Delivery, CloudFront and other new features stay paused; the
+closure alone does not make any of them startable. The history of Steps 1 and 2 is in
 [deployment configuration](docs/deployment-configuration.md#8-step-plan) and the
-[audit report](docs/step1-audit-report.md). V7-B/C/D, NP-2B/NP-3, DB, Delivery,
-CloudFront and other new features stay paused until Steps 1 and 2 are closed.
+[audit report](docs/step1-audit-report.md) (6c-B5 final audit in section 7).
 
-The v14.5 §19.3 order. Each item starts only on the Owner's explicit instruction, on
-its own branch from latest `main`, and stops for independent review and Owner merge
-approval. Listing an item here is not an implementation approval:
-1. The D19 limited-transport Fake contract and G9 (Secret cleanup and the
-   registration UID receipt), as separate pull requests or one combined pull request
-   the Owner approves. The Owner approved one combined Source/Offline pull request on
-   2026-11-24 (Fake metadata GET, UID-precondition DELETE and the four `k8s_certs.py`
-   Secret identities only); merged as PR #99 with Owner-dispatched Full CI.
-2. 6c-B4 Fake-only Destroy, split by the Owner (2026-11-24) into two pull requests:
-   - 6c-B4a: the destroy transport, discovery, metadata LIST and the receipt/journal
-     destroy-state foundation (authorized 2026-11-24; merged as PR #100 with
-     Owner-dispatched Full CI);
-   - 6c-B4b: the Fake-only destroy engine, inventory classification, finalizer,
-     namespace, CRD and G9 integration and the runbook (authorized 2026-11-24 after
-     6c-B4a merged as PR #100; merged as PR #101, Source/Offline, with FULL CI NOT RUN
-     under a one-time Owner exception that ended with that merge).
-3. 6c-B5 Source/Offline final audit: every NOT_TESTED, BLOCKED and NOT_VERIFIED item
-   listed (authorized 2026-11-24; the audit is
-   [section 7 of the audit report](docs/step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5),
-   pending independent review). Full CI runs as Claude's Owner-designated final task
-   (reason `claude-final-task`), dispatched by the Owner. The Owner already dispatched
-   Full CI for PR #99 and PR #100. The 6c audit alone never declares Portfolio
-   Complete.
-4. The Step 1/2 closure decision and the Codex handover: accepted Emulator evidence,
-   out-of-scope roots, gaps and risks evaluated independently.
-5. Step 3: the remaining Core services by approved functional unit, by Codex. Full
-   CI at each Root completion; normal pull requests follow §12.
-6. Step 4: final Core acceptance (Full CI required), independent confirmation of the
-   representative Emulator evidence and the Owner's final approval.
+Remaining order (MASTER_POLICY §19.3 numbering in brackets). Each open item starts only
+on the Owner's explicit instruction, on its own branch from latest `main`, and stops
+for independent review and Owner merge approval. Listing is not approval:
+1. D19/G9 (PR #99), 6c-B4a (PR #100) and 6c-B4b (PR #101; FULL CI NOT RUN under the
+   ended one-time exception): completed [§19.3 items 1–3].
+2. 6c-B5 final audit (PR #102, Full CI 45453872145 as Claude's Owner-designated final
+   task): completed [§19.3 items 1–3].
+3. Step 1/2 closure and residual risk acceptance (OD-01 to OD-13): completed [§19.3
+   item 4].
+4. MASTER_POLICY v14.6: issued 2026-11-24 [§19.3 item 4].
+5. CI-PERF-01A and CI-PERF-01B, benchmark, independent review, required CI, Full CI,
+   merge and post-merge verification ([CI-PERF-01](#ci-perf-01-full-ci-performance-master_policy-1251))
+   [§19.3 item 5].
+6. The final handover baseline (latest `main` and tree, risk, CI contracts) and an
+   explicit Owner-approved Codex handover [§19.3 item 6].
+7. Step 3: the remaining Core services by individually approved functional unit, by
+   Codex; Full CI at each Root completion; normal pull requests follow §12. Findings F6
+   and F10 stay assigned to Step 3 [§19.3 item 7].
+8. Step 4: final Core acceptance (Full CI required), independent confirmation of the
+   representative Emulator evidence and the Owner's completion decision [§19.3 item 8].
 
-Owner decisions of 2026-11-24 for 6c-B4 (design record section 13): D3 (Fake-only
-discovery of every advertised group version, metadata-only LIST of the three runtime
-namespaces and the 17 CRD plurals, separate scopes), D5 (17 CRDs kept, no CRD DELETE,
-a specialised Fake CRD read), D6 (namespaces in a final namespace phase), D11 (the
-destroy timeouts, page limits and a 3600 s deadline), D12 (the section 12 order and a
-specialised Service type read) and the remaining D19 scope. 6c-B4a is merged (PR #100,
-Source/Offline complete); 6c-B4b was authorized on 2026-11-24 as a Fake-only engine within
-these decisions and the existing G9, D13, D18 and receipt contracts, with Full CI as an
-Owner-designated safety milestone; the Owner later waived that Full CI for PR #101 as
-a one-time exception (FULL CI NOT RUN). The real CLI `destroy`, real transport and Live
-stay refused. 6c-B5 was authorized on 2026-11-24; the Step 1/2 closure decision and the
-Codex handover are not authorized.
+**Handover gate (MASTER_POLICY §19.3).** Before the formal handover:
+- CI-PERF-01 is merged with its benchmark, exact-HEAD Full CI, independent review and
+  post-merge verification; a missed target goes to the Owner.
+- The handover instruction fixes the latest `main` and tree, the target roots and files,
+  architecture and scope, residual risk, OPEN decisions, expected counts, CI and
+  Emulator evidence and the stop conditions.
 
-PR #101 (merged as `0ed2c16`) adds the Owner-authorized Fake-only D6/D18/D19 atomic
-Namespace acceptance and delayed-cascade guard, with transport-issued single-use
-inventory evidence, no ordinary Namespace DELETE fallback, and G9 registration pinning
-under the cleanup lock. Its execution was verified under the one-time exception (RC-1
-and RC-2 included) and ChatGPT confirmed the merge. This is not a real API contract;
-real cascade safety remains NOT_VERIFIED.
+Codex implements nothing before the formal handover and an individual Owner scope
+approval. Fake-only engines are never Live procedures. D1 and the other OPEN decisions
+are never implemented on Codex's own judgment. Codex stops on any real operation,
+contract widening, unapproved cost or missing required CI.
 
-D1 (the binding-writer method), Live probes, manager and effective-permission checks
-and real transport authentication stay undecided and unverified and are not part of
-the remaining work. Approved contracts (D7, D8, D10, D16, D17, the D19 limited
-transport interface and fake, D3 fingerprint and apply-limited reads, D23 C1, D2, D9,
-D11 default read timeouts, D13 allowlist, and of 2026-11-24 the D19 Fake GET/UID
-DELETE scope for the four Secrets, D18: no namespace deletion while a Secret
-remains, and the 6c-B4 decisions D3, D5, D6, D11, D12 and the remaining D19 scope)
-are not widened. Step 2 rehearsals run
-automatically on merged `main` only within the limited standing authorization above.
-Step 3 onward is handed to Codex with a separate instruction. All permanent rules
-above remain in force.
+**Runtime decisions (MASTER_POLICY §19.2, Source/Offline only).**
+- **Approved:** D2, D3, D5, D6, D7, D8, D9, D10, D11, D12, D13, D16, D17, D18, D19 and
+  D23. The approved scope includes G9 registration pinning and the Fake-only atomic
+  namespace gate (PR #101; Fake-only, real cascade safety NOT_VERIFIED).
+- **OPEN:** D1, D4, D14, D15, D20, D21 and D22. Live probes, managers, effective
+  permissions, real transport authentication and real API atomicity are undecided and
+  unverified and are not part of the remaining work.
+
+Approved contracts are not widened. Step 2 rehearsals still run automatically on merged
+`main` only within the limited standing authorization above; the Step 2 closure does
+not disable it. All permanent rules above remain in force.

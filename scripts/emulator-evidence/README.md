@@ -1,7 +1,7 @@
 # Emulator run evidence ledger tooling
 
 `harvest.py` maintains the evidence ledger in
-[`docs/evidence/emulator-runs/`](../../docs/evidence/emulator-runs/index.md). Master Policy v14.4 §13.4
+[`docs/evidence/emulator-runs/`](../../docs/evidence/emulator-runs/index.md). The controlling MASTER_POLICY §13.4 (first set in v14.4)
 requires one sanitized entry per run and attempt for every formal run of
 [`aws-emulator-rehearsal.yml`](../../.github/workflows/aws-emulator-rehearsal.yml) and
 [`aws-emulator-verification.yml`](../../.github/workflows/aws-emulator-verification.yml), whether the run

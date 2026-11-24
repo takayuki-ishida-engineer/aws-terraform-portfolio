@@ -44,8 +44,10 @@ resolved, and what remains open with its owning item or the Owner decision it ne
   Owner exception); the real `destroy` command, real transport, target deregistration
   and namespace cascade on a real API server stay NOT_TESTED or NOT_VERIFIED. 6c-B5
   (Owner instruction 2026-11-24): the Source/Offline final audit of item 6c in
-  [section 7](#7-item-6c-sourceoffline-final-audit-6c-b5), pending independent review,
-  Full CI and Owner approval; it declares no completion).
+  [section 7](#7-item-6c-sourceoffline-final-audit-6c-b5), merged as PR #102 with
+  Full CI; it declares no completion. 2026-11-24: the Owner approved OD-01 to OD-13,
+  closing Step 1 (SOURCE / OFFLINE COMPLETE) and Step 2 (limited Emulator evidence);
+  see [section 7.14](#714-subsequent-owner-decisions-and-policy-release-post-audit)).
 
 ## 1. Delivered in item 2
 
@@ -136,6 +138,11 @@ pull request, F8 and F16 (network, VPC and EKS changes) in the next.
 Everything else is owned by Step 1 items 3–6 or Step 3 as listed above.
 
 ## 7. Item 6c Source/Offline final audit (6c-B5)
+
+> **Audit-time record.** Sections 7.1 to 7.13 are kept as written for the 6c-B5 audit
+> (PR #102). Their policy references (v14.5) and "decided later" items reflect that
+> time. The later Owner decisions, the PR #102 evidence and the MASTER_POLICY v14.6
+> release are in [section 7.14](#714-subsequent-owner-decisions-and-policy-release-post-audit).
 
 Owner instruction of 2026-11-24 (6c-B5). This section is the closure audit of the
 Kubernetes runtime item 6c in Source/Offline terms. It declares neither Portfolio
@@ -376,6 +383,9 @@ IDs and the resource, material, process and host cleanup PASS. Details are in th
 
 ### 7.11 Inputs for the Step 1/2 closure decision (not decided here)
 
+*Audit-time input. The Owner decided these on 2026-11-24 (OD-01 to OD-13); see
+[section 7.14](#714-subsequent-owner-decisions-and-policy-release-post-audit).*
+
 The Owner decides the following after independent review:
 1. Acceptance of this audit, with Full CI PASS on its exact HEAD (Claude's
    Owner-designated final task) and PR Safety CI and Offline Contracts success.
@@ -401,6 +411,9 @@ A handover instruction needs:
 
 ### 7.13 MASTER_POLICY revision assessment (§21)
 
+*Audit-time assessment against v14.5. MASTER_POLICY v14.6 was issued afterwards; see
+[section 7.14](#714-subsequent-owner-decisions-and-policy-release-post-audit).*
+
 This assessment is limited by one fact: the Master Policy v14.5 PDF is not in the
 repository, and this audit could not read it. The findings below compare the merged
 evidence with v14.5 as [AGENTS.md](../AGENTS.md) records it. They are inputs for
@@ -414,3 +427,55 @@ ChatGPT and the Owner, who decide any PDF revision. The PDF is not changed here.
 | Remaining steps after 6c-B4b | The §19.3 order (6c-B5, then the Step 1/2 closure decision and the handover, then Step 3 and Step 4) still matches the work. Completed items are status, not rules. **No revision needed** for completed items, SHAs, pull requests, run IDs or counts |
 | One-time operational exceptions | PR #101 ran under a one-time Owner exception: roles swapped and Full CI waived. **Revision candidate (conditional):** if v14.5 has no rule for recording such exceptions, §21 could state that an exception is named, scoped to one pull request, recorded in repository evidence, ends with that pull request and is never precedent |
 | Norms to align before the Codex handover | **Revision candidate (conditional), in §19.4 or in the handover instruction:** the stop conditions that apply to Codex. Real apply and destroy stay BLOCKED. The Fake-only engines and the atomic gate are not Live procedures. The approved contracts are not widened. The open decisions need the Owner |
+
+### 7.14 Subsequent Owner decisions and policy release (post-audit)
+
+**PR #102 final evidence** (checked on GitHub, 2026-11-24):
+
+| Item | Value |
+| --- | --- |
+| Reviewed HEAD | `b9edba4920a257a91c6bdd26c7f8eca66d532a4d` |
+| Reviewed base | `0ed2c1660463d9f88df9d63481059676ccadf357` |
+| Verified tree | `0d6bc58cc696ae8bffc017ce561e83e3e358c922` |
+| PR Safety CI | 45452026201, attempt 1, success |
+| Offline Contracts | 45452026074, attempt 1, success |
+| Full CI | 45453872145, attempt 1, success; job 138657958447; dispatch reason `claude-final-task`; evidence `dispatch`; pull request binding `VERIFIED_BY_PUBLIC_API`; tested tree equal to the PR Safety CI tested tree |
+| Squash commit on `main` | `c42c6cc0e0618f0cbffee78e29fc3fd297f59859` (single parent `0ed2c16`, tree `0d6bc58`, `merge_check.py` passed with `--evidence dispatch`) |
+| Post-merge Offline Contracts | 45464497212, attempt 1, success |
+
+PR #102's Full CI is a regression result for the integrated tree. It does not change
+PR #101's own record: PR #101 merged with FULL CI NOT RUN under a one-time Owner
+exception, which has ended and is not a precedent.
+
+**Step 1/2 closure (Owner decision 2026-11-24, OD-01 to OD-13).** Step 1 is closed as
+SOURCE / OFFLINE COMPLETE. Step 2 is closed with the accepted, explicitly limited
+Emulator evidence. The residual risks of sections 7.8 and 7.9 are accepted as such:
+- network-full and tfstate stay EMULATOR_COMPATIBILITY_BLOCKED;
+- the F21 harness gap (eight against nine services) is accepted;
+- serverless-api, platform, developer-access and registry stay NOT_TESTED;
+- the Kubernetes runtime E2E and the Step 2 end-to-end apply and destroy stay
+  NOT_TESTED;
+- D1, D4, D14, D15, D20, D21 and D22 stay OPEN;
+- real Apply and Destroy stay BLOCKED and Live stays out of scope;
+- NP-2B and NP-3 stay PAUSED;
+- no further Emulator demonstration runs before the Codex handover;
+- CI-PERF-01 runs before the handover.
+
+No unverified item becomes PASS. CORE PORTFOLIO COMPLETE and PORTFOLIO COMPLETE are
+not declared. The closure does not start any paused feature: section 7.8's "Paused
+until Steps 1 and 2 close" for NP-2B and NP-3 is superseded by OD-11.
+
+**MASTER_POLICY v14.6 (issued 2026-11-24).** It answers the section 7.13 candidates.
+It records:
+- the approved runtime decisions, with G9 registration pinning and the Fake-only
+  atomic namespace gate in the approved scope (§19.2);
+- the Step 1/2 closure, the residual risks and OD-01 to OD-13 (§13.3.1, §19.3);
+- the handover gate (§19.3);
+- CI-PERF-01 (§12.5.1);
+- PR #101 as a historical one-time exception that is not a precedent.
+
+After the release, the Owner assigned CI-PERF-01's design and implementation to
+ChatGPT, with Claude for profiling, independent review and benchmarks (see
+[AGENTS.md](../AGENTS.md#ci-perf-01-full-ci-performance-master_policy-1251)). The
+repository now refers to the controlling policy without a version number
+([AGENTS.md](../AGENTS.md#repository-guidance)).

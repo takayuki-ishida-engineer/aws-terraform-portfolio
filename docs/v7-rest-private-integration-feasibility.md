@@ -1,11 +1,11 @@
 # V7-0 REST / private integration technical contract
 
-> **Historical record.** Master Policy **v14.5** (2026-11-23) is the only current
-> controlling policy, applied by [AGENTS.md](../AGENTS.md). Statements here that name
-> an earlier policy (v10 to v14.4, the v14.2 alignment record) as current authority,
-> or that describe optional DEV Live verification, G01–G07 gates or the JPY 10,000
-> limit, are historical. Under v14.5 §15 real AWS/EKS Live verification is outside the
-> current scope.
+> **Historical record.** The latest Owner-approved MASTER_POLICY, identified under
+> the rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy. Statements here
+> that name a specific policy version (v10 to v14.5, the v14.2 alignment record) as
+> current authority, or that describe optional DEV Live verification, G01–G07 gates,
+> the JPY 10,000 limit or 72-hour teardown, are historical. Under the controlling
+> MASTER_POLICY §15 real AWS/EKS Live verification is outside the current scope.
 
 ## V7-A source update — runtime not demonstrated
 
@@ -20,10 +20,12 @@ P1-02 and Runtime NP-2B/NP-3 remain OPEN. Earlier implementation-status statemen
 below are historical snapshots; their evidence is not a new V7-A test result.
 
 
-## Current v14.2 acceptance overlay
+<a id="current-v142-acceptance-overlay"></a>
 
-The owner-authorized [v14.2 alignment record](policy-v14-2-alignment.md) governs
-current acceptance. Earlier authority/baseline statements below record V7-0's
+## Historical v14.2 acceptance overlay
+
+At that time (historical), the owner-authorized [v14.2 alignment record](policy-v14-2-alignment.md) governed
+acceptance; acceptance now follows the controlling MASTER_POLICY. Earlier authority/baseline statements below record V7-0's
 historical study, not today's main/PR state or governing edition. Technical P0
 questions remain OPEN; the acceptance change does not resolve ARN, PKI or manifest
 contracts. Current runtime source includes NP-1/NP-2P; historical absence statements
@@ -47,7 +49,7 @@ Documentation only. Starting main is `a8ae82e8265f577e2801f87ace6fa83da0a7bfaa`;
 latest main matched and there were no open PRs at initial entry. On resumption,
 GitHub main still matches; the only open PR is this existing V7-0 PR #36, with no
 separate conflicting PR. Continue its branch rather than create a duplicate.
-Master Policy v14 (2026-11-12) is the sole current normative authority. The user
+At that time (historical), Master Policy v14 (2026-11-12) was the normative authority. The user
 supplied and authorized the complete 24-page text, which was read and compared
 with repository rules and source. The PDF binary remains unavailable: original
 PDF SHA-256 **NOT_VERIFIED**, expected

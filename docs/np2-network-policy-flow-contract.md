@@ -55,7 +55,11 @@ pre-NP-2P comparisons; current linked runtime source incorporates this status.
 
 ## Authority, baseline and evidence boundary
 
-Master Policy v14 (2026-11-12) alone governs, using the user-authorized full
+> The controlling policy is now the latest Owner-approved MASTER_POLICY, identified under
+> the rule in [AGENTS.md](../AGENTS.md); the authority statement below is historical.
+> NP-2B and NP-3 stay PAUSED (Owner decision 2026-11-24, OD-11).
+
+At that time (historical), Master Policy v14 (2026-11-12) alone governed, using the user-authorized full
 24-page text. Original PDF SHA-256 remains unverified. Starting/latest main at
 entry: `5f007e8ee4f61cebc7b0aae835ab10e055f744a6`; working tree clean, no open PRs.
 NP-2A was documentation/design only; NP-2P's separate approval and implemented
