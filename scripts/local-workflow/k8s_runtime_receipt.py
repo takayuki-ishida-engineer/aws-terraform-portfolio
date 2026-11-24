@@ -478,6 +478,14 @@ def owned_uids(state):
             and not k.startswith(CRD_KEY_PREFIX)}
 
 
+def crd_receipt_uids(state):
+    """The destroy policy's separate CRD verification map: retained CRDs the journal owns, not quarantined.
+
+    It proves which CRD UID is the runtime's for the specialised CRD read; it never grants a DELETE."""
+    return {tuple(k.split("|")): v["owned_uid"] for k, v in sorted(state["objects"].items())
+            if k.startswith(CRD_KEY_PREFIX) and v["owned_uid"] is not None and k not in state["quarantined"]}
+
+
 def parse_journal(data, plan):
     """Records and line digests; every line canonical and chained to the one before it."""
     need(len(data) <= MAX_RECORDS * MAX_LINE_BYTES, "receipt_too_large")

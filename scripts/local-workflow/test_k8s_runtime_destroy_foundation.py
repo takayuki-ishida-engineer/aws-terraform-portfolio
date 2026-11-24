@@ -154,17 +154,23 @@ def discovery_docs():
         {"name": "authorization.k8s.io", "versions": [{"groupVersion": "authorization.k8s.io/v1", "version": "v1"}]},
     ]}
     lists = {
-        "v1": [{"name": "configmaps", "namespaced": True, "verbs": ["get", "list"]},
-               {"name": "secrets", "namespaced": True, "verbs": ["get", "list"]},
-               {"name": "events", "namespaced": True, "verbs": ["list"]},
-               {"name": "bindings", "namespaced": True, "verbs": ["create"]},
-               {"name": "pods/log", "namespaced": True, "verbs": ["get"]},
-               {"name": "namespaces", "namespaced": False, "verbs": ["list"]}],
-        "apps/v1": [{"name": "deployments", "namespaced": True, "verbs": ["list"]}],
-        "autoscaling/v2": [{"name": "horizontalpodautoscalers", "namespaced": True, "verbs": ["list"]}],
-        "autoscaling/v1": [{"name": "horizontalpodautoscalers", "namespaced": True, "verbs": ["list"]}],
-        "events.k8s.io/v1": [{"name": "events", "namespaced": True, "verbs": ["list"]}],
-        "authorization.k8s.io/v1": [{"name": "localsubjectaccessreviews", "namespaced": True, "verbs": ["create"]}],
+        "v1": [{"name": "configmaps", "kind": "ConfigMap", "namespaced": True, "verbs": ["get", "list"]},
+               {"name": "secrets", "kind": "Secret", "namespaced": True, "verbs": ["get", "list"]},
+               {"name": "services", "kind": "Service", "namespaced": True, "verbs": ["get", "list"]},
+               {"name": "pods", "kind": "Pod", "namespaced": True, "verbs": ["get", "list"]},
+               {"name": "serviceaccounts", "kind": "ServiceAccount", "namespaced": True, "verbs": ["get", "list"]},
+               {"name": "events", "kind": "Event", "namespaced": True, "verbs": ["list"]},
+               {"name": "bindings", "kind": "Binding", "namespaced": True, "verbs": ["create"]},
+               {"name": "pods/log", "kind": "Pod", "namespaced": True, "verbs": ["get"]},
+               {"name": "namespaces", "kind": "Namespace", "namespaced": False, "verbs": ["list"]}],
+        "apps/v1": [{"name": "deployments", "kind": "Deployment", "namespaced": True, "verbs": ["list"]}],
+        "autoscaling/v2": [{"name": "horizontalpodautoscalers", "kind": "HorizontalPodAutoscaler", "namespaced": True,
+                            "verbs": ["list"]}],
+        "autoscaling/v1": [{"name": "horizontalpodautoscalers", "kind": "HorizontalPodAutoscaler", "namespaced": True,
+                            "verbs": ["list"]}],
+        "events.k8s.io/v1": [{"name": "events", "kind": "Event", "namespaced": True, "verbs": ["list"]}],
+        "authorization.k8s.io/v1": [{"name": "localsubjectaccessreviews", "kind": "LocalSubjectAccessReview",
+                                     "namespaced": True, "verbs": ["create"]}],
     }
     return core, groups, lists
 
@@ -315,7 +321,8 @@ def scenario_discovery_targets(case, mods):
     result = t.discovery_targets(core, groups, lists)
     case.assertEqual(result["status"], "COMPLETE")
     case.assertEqual(result["targets"], [
-        ("", "v1", "configmaps"), ("", "v1", "events"), ("", "v1", "secrets"), ("apps", "v1", "deployments"),
+        ("", "v1", "configmaps"), ("", "v1", "events"), ("", "v1", "pods"), ("", "v1", "secrets"),
+        ("", "v1", "serviceaccounts"), ("", "v1", "services"), ("apps", "v1", "deployments"),
         ("autoscaling", "v1", "horizontalpodautoscalers"), ("autoscaling", "v2", "horizontalpodautoscalers"),
         ("events.k8s.io", "v1", "events")])
 
@@ -327,10 +334,11 @@ def scenario_discovery_incomplete(case, mods):
     del without["autoscaling/v1"]  # a non-preferred version: it still has to be read
     case.assertEqual(t.discovery_targets(core, groups, without), {"status": "UNKNOWN",
                                                                    "reason": "discovery_group_missing"})
-    unlistable = dict(lists, **{"apps/v1": {"resources": [{"name": "deployments", "namespaced": True,
-                                                            "verbs": ["get"]}]}})
+    unlistable = dict(lists, **{"apps/v1": {"resources": [{"name": "deployments", "kind": "Deployment",
+                                                            "namespaced": True, "verbs": ["get"]}]}})
     case.assertEqual(t.discovery_targets(core, groups, unlistable).get("reason"), "resource_not_listable")
-    odd = dict(lists, **{"apps/v1": {"resources": [{"name": "Deployments", "namespaced": True, "verbs": ["list"]}]}})
+    odd = dict(lists, **{"apps/v1": {"resources": [{"name": "Deployments", "kind": "Deployment", "namespaced": True,
+                                                     "verbs": ["list"]}]}})
     case.assertEqual(t.discovery_targets(core, groups, odd).get("reason"), "unknown_resource_mapping")
     case.assertEqual(t.discovery_targets({"versions": []}, groups, lists).get("reason"), "discovery_core_missing")
 
@@ -339,11 +347,12 @@ def scenario_discovery_lists_exact(case, mods):
     t = mods.transport
     core, groups, lists = validated_discovery(mods)
     extra = dict(lists, **{"widgets.example.com/v1": {"groupVersion": "widgets.example.com/v1", "resources": [
-        {"name": "widgets", "namespaced": True, "verbs": ["list"]}]}})
+        {"name": "widgets", "kind": "Widget", "namespaced": True, "verbs": ["list"]}]}})
     case.assertEqual(t.discovery_targets(core, groups, extra).get("reason"), "discovery_unexpected_group",
                      "a resource list that no group advertises is an unknown mapping")
     empty = {"v1": {"resources": []}}
-    case.assertEqual(t.discovery_targets(core, {"groups": []}, empty).get("reason"), "discovery_targets_empty")
+    case.assertEqual(t.discovery_targets(core, {"groups": []}, empty).get("reason"),
+                     "discovery_required_resource_missing", "an empty core list never yields an empty inventory")
 
 
 def scenario_discovery_validation(case, mods):
@@ -354,8 +363,14 @@ def scenario_discovery_validation(case, mods):
            ("/apis", dict(groups, groups=[{"name": "apps", "versions": [{"groupVersion": "other/v1",
                                                                          "version": "v1"}]}])),
            ("/apis/apps/v1", resource_list("apps/v2", [])),
-           ("/apis/apps/v1", resource_list("apps/v1", [{"name": "d", "namespaced": True, "verbs": ["list"]}] * 2)),
-           ("/apis/apps/v1", resource_list("apps/v1", [{"name": "d", "namespaced": "yes", "verbs": ["list"]}]))]
+           ("/apis/apps/v1", resource_list("apps/v1", [{"name": "d", "kind": "D", "namespaced": True,
+                                                        "verbs": ["list"]}] * 2)),
+           ("/apis/apps/v1", resource_list("apps/v1", [{"name": "d", "kind": "D", "namespaced": "yes",
+                                                        "verbs": ["list"]}])),
+           ("/apis/apps/v1", resource_list("apps/v1", [{"name": "d", "kind": "D", "namespaced": True,
+                                                        "verbs": ["list", "list"]}])),
+           ("/apis/apps/v1", resource_list("apps/v1", [{"name": "d", "kind": "D", "namespaced": True,
+                                                        "verbs": ["LIST"]}]))]
     for path, document in bad:
         case.assertEqual(code_of(lambda: t.validate_discovery_response(path, 200, json.dumps(document).encode()),
                                  mods), "discovery_invalid", (path, document))
@@ -752,7 +767,7 @@ TGB_PATH = "/apis/elbv2.k8s.aws/v1beta1/namespaces/acme-ingress/targetgroupbindi
 
 def transport_env(mods, owned=None, seconds=3600, **scopes):
     scopes = dict({"inventory": True, "discovery": True, "crd_specs": {CRD_NAME: spec_of(mods)},
-                   "services": [GATEWAY_SERVICE]}, **scopes)
+                   "services": [GATEWAY_SERVICE], "crd_receipt_uids": {key(CRD): uid(5)}}, **scopes)
     p = policy(mods, {key(TGB): uid(8)} if owned is None else owned, **scopes)
     clock = Clock()
     api = FakeApi(clock)
@@ -953,6 +968,7 @@ def scenario_deadline_requests(case, mods):
     verified = fake.verify_crd(read["evidence"], uid(5))
     clock.t += 100
     sent = len(api.requests)
+    case.assertEqual(fake.crd_instances(verified["evidence"]), {"verdict": "UNKNOWN", "reason": "deadline_exceeded"})
     calls = [lambda: fake.get_metadata(TGB), lambda: fake.delete_runtime(TGB, uid(8)), lambda: fake.read_crd(CRD_NAME),
              lambda: fake.read_service_type(GATEWAY_SERVICE), lambda: fake.send(t.discovery_request(p, "/api"))]
     for call in calls:
@@ -960,7 +976,8 @@ def scenario_deadline_requests(case, mods):
     case.assertEqual(fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps"),
                      {"status": "UNKNOWN", "reason": "deadline_exceeded"})
     case.assertEqual(fake.discover_all(), {"status": "UNKNOWN", "reason": "deadline_exceeded"})
-    case.assertEqual(fake.crd_instances(verified["evidence"]), {"verdict": "UNKNOWN", "reason": "deadline_exceeded"})
+    case.assertEqual(code_of(lambda: fake.crd_instances(verified["evidence"]), mods), "evidence_invalid",
+                     "the refused late read withdrew the earlier verification")
     case.assertEqual(len(api.requests), sent, "nothing, and no DELETE, reaches the server after the deadline")
 
 
@@ -1054,7 +1071,7 @@ def scenario_crd_evidence(case, mods):
     case.assertEqual(code_of(lambda: fake.crd_instances(read["evidence"]), mods), "evidence_invalid",
                      "a read is not a verification")
     blocked = fake.verify_crd(read["evidence"], uid(6))
-    case.assertEqual((blocked["verdict"], blocked["reason"]), ("BLOCKED", "crd_uid_mismatch"))
+    case.assertEqual((blocked["verdict"], blocked["reason"]), ("BLOCKED", "crd_receipt_uid_mismatch"))
     case.assertNotIn("evidence", blocked, "another UID gets no evidence")
     verified = fake.verify_crd(read["evidence"], uid(5))["evidence"]
     case.assertEqual(fake.crd_instances(verified)["verdict"], "ZERO_INSTANCES")
@@ -1106,6 +1123,164 @@ def scenario_crd_response_strict(case, mods):
              (body(versions=[{"name": "V1", "served": True, "storage": True}]), "crd_versions_invalid")]
     for data, code in cases:
         case.assertEqual(code_of(lambda: t.validate_crd_response(CRD_NAME, 200, data), mods), code, code)
+
+
+# ---- second review: R01 CRD receipt binding, R02 required discovery, R03 deadline boundary, R04 identity --------
+
+SIDECARS = "sidecars.networking.istio.io"
+CRD_LIST_PATH = "/apis/networking.istio.io/v1/gateways"
+CRD_READ_PATH = "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + CRD_NAME
+
+
+def scenario_crd_receipt_binding(case, mods):
+    t = mods.transport
+    _, api, unowned, _ = transport_env(mods, crd_receipt_uids={})
+    api.answers[("GET", CRD_READ_PATH, None)] = crd_body()
+    read = unowned.read_crd(CRD_NAME)
+    for receipt_uid in (None, uid(5)):  # the observed UID offered as the receipt UID proves nothing
+        result = unowned.verify_crd(read["evidence"], receipt_uid)
+        case.assertEqual((result["verdict"], result["reason"]), ("BLOCKED", "crd_not_owned_by_receipt"))
+        case.assertNotIn("evidence", result)
+    case.assertEqual(code_of(lambda: unowned.send(t.crd_instance_request_for(spec_of(mods))), mods),
+                     "request_not_authorized")
+    p, api, fake, _ = transport_env(mods, crd_specs={CRD_NAME: spec_of(mods), SIDECARS: spec_of(mods, SIDECARS)})
+    api.answers[("GET", CRD_READ_PATH, None)] = crd_body()
+    read = fake.read_crd(CRD_NAME)
+    mismatch = fake.verify_crd(read["evidence"], uid(6))
+    case.assertEqual((mismatch["verdict"], mismatch["reason"]), ("BLOCKED", "crd_receipt_uid_mismatch"))
+    api.answers[("GET", CRD_READ_PATH, None)] = crd_body(uid_value=uid(6))  # observed differs from the receipt
+    observed = fake.verify_crd(fake.read_crd(CRD_NAME)["evidence"])
+    case.assertEqual((observed["verdict"], observed["reason"]), ("BLOCKED", "crd_uid_mismatch"))
+    case.assertNotIn("evidence", observed, "a BLOCKED verdict never carries evidence")
+    api.answers[("GET", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + SIDECARS, None)] = \
+        crd_body(SIDECARS, uid_value=uid(5))  # another CRD with the gateways receipt UID
+    other = fake.verify_crd(fake.read_crd(SIDECARS)["evidence"], uid(5))
+    case.assertEqual((other["verdict"], other["reason"]), ("BLOCKED", "crd_not_owned_by_receipt"))
+    case.assertEqual(p.delete, (( key(TGB), uid(8)),), "the CRD map grants no DELETE")
+    case.assertEqual(code_of(lambda: t.runtime_delete_request(p, CRD, uid(5)), mods), "crd_delete_refused")
+    case.assertEqual(code_of(lambda: fake.send(raw("DELETE", CRD_READ_PATH, body=options(uid(5)))), mods),
+                     "request_not_authorized")
+    case.assertEqual(code_of(lambda: policy(mods, crd_receipt_uids={key(DEPLOYMENT): uid(5)}), mods),
+                     "crd_receipt_identity_invalid")
+
+
+def scenario_crd_receipt_map(case, mods):
+    r = mods.receipt
+    with env_for(mods, ("namespaces", "base")) as env:
+        write(env, lambda: env.store.quarantine(CRD, uid(66), "uid_changed"))
+        state = env.load()["state"]
+        crd_map = r.crd_receipt_uids(state)
+        case.assertNotIn(key(CRD), crd_map, "a quarantined CRD is never verified")
+        case.assertEqual(len(crd_map), 14, "the other 14 base CRDs the journal owns")
+        case.assertTrue(all(k[1] == "CustomResourceDefinition" for k in crd_map))
+        case.assertNotIn(key(VALIDATOR), crd_map)
+        case.assertTrue(all(k[1] != "CustomResourceDefinition" for k in r.owned_uids(state)), "and no CRD can be deleted")
+
+
+def scenario_crd_reread_invalidation(case, mods):
+    t = mods.transport
+    for label, answer in (("absent", not_found("apiextensions.k8s.io", "customresourcedefinitions", CRD_NAME)),
+                          ("uid", crd_body(uid_value=uid(6))), ("established", crd_body(established=False)),
+                          ("storage", crd_body(storage="v1beta1", served=("v1", "v1beta1"))),
+                          ("forbidden", (403, b"")), ("same", crd_body())):
+        p, api, fake, _ = transport_env(mods)
+        api.answers[("GET", CRD_READ_PATH, None)] = crd_body()
+        api.answers[("GET", CRD_LIST_PATH, None)] = page([])
+        first = fake.read_crd(CRD_NAME)
+        verified = fake.verify_crd(first["evidence"])["evidence"]
+        case.assertEqual(fake.crd_instances(verified)["verdict"], "ZERO_INSTANCES")
+        api.answers[("GET", CRD_READ_PATH, None)] = answer
+        code_of(lambda: fake.read_crd(CRD_NAME), mods)
+        sent = len(api.requests)
+        case.assertEqual(code_of(lambda: fake.crd_instances(verified), mods), "evidence_invalid", label)
+        case.assertEqual(code_of(lambda: fake.verify_crd(first["evidence"]), mods), "evidence_invalid", label)
+        case.assertEqual(code_of(lambda: fake.send(t.crd_instance_request_for(spec_of(mods))), mods),
+                         "request_not_authorized", label)
+        case.assertEqual(len(api.requests), sent, label)
+
+
+def scenario_required_discovery(case, mods):
+    t = mods.transport
+    core, groups, lists = validated_discovery(mods)
+    for name in ("secrets", "services", "configmaps", "pods", "serviceaccounts"):
+        without = dict(lists, v1={"resources": [r for r in lists["v1"]["resources"] if r["name"] != name]})
+        case.assertEqual(t.discovery_targets(core, groups, without).get("reason"),
+                         "discovery_required_resource_missing", name)
+
+    def changed(name, **fields):
+        return dict(lists, v1={"resources": [dict(r, **fields) if r["name"] == name else r
+                                             for r in lists["v1"]["resources"]]})
+    for label, broken in (("cluster-scoped secrets", changed("secrets", namespaced=False)),
+                          ("unlistable services", changed("services", verbs=["get"])),
+                          ("pods mapped to Secret", changed("pods", kind="Secret"))):
+        case.assertEqual(t.discovery_targets(core, groups, broken).get("reason"),
+                         "discovery_required_resource_invalid", label)
+    unmapped = resource_list("v1", [{k: v for k, v in r.items() if k != "kind"} if r["name"] == "secrets" else r
+                                    for r in discovery_docs()[2]["v1"]])
+    case.assertEqual(code_of(lambda: t.validate_discovery_response("/api/v1", 200, json.dumps(unmapped).encode()),
+                             mods), "discovery_mapping_invalid")
+    p, api, fake, _ = transport_env(mods)
+    d_lists = dict(discovery_docs()[2])
+    d_lists["v1"] = [r for r in d_lists["v1"] if r["name"] != "secrets"]
+    api.install_discovery(d_lists)
+    result = fake.discover_all()
+    case.assertEqual((result["status"], result.get("reason")), ("UNKNOWN", "discovery_required_resource_missing"))
+    case.assertNotIn("evidence", result, "no discovery evidence, so no namespace inventory")
+    case.assertEqual(code_of(lambda: fake.inventory_namespace(None, "acme-app"), mods), "evidence_invalid")
+    case.assertEqual(code_of(lambda: fake.send(raw("GET", "/api/v1/namespaces/acme-app/configmaps",
+                                                   accept=t.LIST_ACCEPT, query={"limit": "500"})), mods),
+                     "request_not_authorized")
+
+
+def scenario_deadline_boundary(case, mods):
+    def get_after(seconds_left, latency):
+        p, api, fake, clock = transport_env(mods, seconds=100)
+        clock.t += 100 - seconds_left
+        api.latency[("GET", TGB_PATH, None)] = latency
+        api.answers[("GET", TGB_PATH, None)] = not_found("elbv2.k8s.aws", "targetgroupbindings", "acme-gateway")
+        return code_of(lambda: fake.get_metadata(TGB), mods)
+    case.assertIsNone(get_after(100, 20), "20 s with time to spare")
+    case.assertIsNone(get_after(15, 14), "just before the global deadline")
+    case.assertEqual(get_after(15, 15), "deadline_exceeded", "exactly at the global deadline")
+    case.assertEqual(get_after(15, 16), "deadline_exceeded", "after the global deadline")
+    case.assertEqual(get_after(100, 21), "request_timeout", "the request's own bound")
+    p, api, fake, clock = transport_env(mods, seconds=100)
+    api.install_discovery()
+    discovery = fake.discover_all()
+    clock.t = 1000.0 + 90
+    path = "/api/v1/namespaces/acme-app/configmaps"
+    api.answers[("GET", path, None)] = page([item("a", "acme-app", uid(1))])
+    api.latency[("GET", path, None)] = 10
+    case.assertEqual(fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps"),
+                     {"status": "UNKNOWN", "reason": "deadline_exceeded"}, "the last page exactly at the deadline")
+    p, api, fake, clock = transport_env(mods, seconds=100)
+    clock.t += 90
+    api.answers[("DELETE", TGB_PATH, None)] = (200, b"")
+    api.latency[("DELETE", TGB_PATH, None)] = 10
+    case.assertEqual(code_of(lambda: fake.delete_runtime(TGB, uid(8)), mods), "deadline_exceeded",
+                     "a DELETE answer exactly at the deadline is not a deletion")
+    clock2 = Clock()
+    deadline = mods.transport.Deadline(clock2, 50)
+
+    def last_page(token):
+        clock2.t += 50
+        return k8s_runtime_transport.validate_list_response("acme-app", 500, *page([]))
+    case.assertEqual(mods.transport.collect_list(last_page, deadline),
+                     {"status": "UNKNOWN", "reason": "deadline_exceeded"}, "collect_list itself never completes late")
+
+
+def scenario_cross_version_identity(case, mods):
+    t = mods.transport
+    hpa = t.merge_listed([HPA1, HPA2], [(HPA1, complete(("h", uid(1)))), (HPA2, complete(("h", uid(2))))])
+    case.assertEqual((hpa["status"], hpa.get("reason")), ("UNKNOWN", "cross_version_identity_conflict"))
+    events = t.merge_listed([EV_CORE, EV_GROUP], [(EV_CORE, complete(("e", uid(1)))),
+                                                  (EV_GROUP, complete(("e", uid(2))))])
+    case.assertEqual((events["status"], events.get("reason")), ("UNKNOWN", "cross_version_identity_conflict"))
+    secrets = ("", "v1", "secrets")
+    same_name = t.merge_listed([CONFIGMAPS, secrets], [(CONFIGMAPS, complete(("x", uid(1)))),
+                                                       (secrets, complete(("x", uid(2))))])
+    case.assertEqual(same_name["status"], "COMPLETE", "two kinds may share a name")
+    case.assertEqual(len(same_name["objects"]), 2)
 
 
 # ---- receipt / journal ----------------------------------------------------------------------------------------------
@@ -1492,6 +1667,9 @@ class DestroyTransportTests(unittest.TestCase):
         scenario_request_timeouts(self, real_mods())
         scenario_restart_keeps_deadline(self, real_mods())
 
+    def test_global_deadline_boundary(self):
+        scenario_deadline_boundary(self, real_mods())
+
 
 class DiscoveryAndListTests(unittest.TestCase):
     def test_discovery_reads_every_advertised_version(self):
@@ -1530,6 +1708,12 @@ class DiscoveryAndListTests(unittest.TestCase):
         scenario_metadata_strict(self, real_mods())
         scenario_page_identity_conflict(self, real_mods())
 
+    def test_required_core_resources_in_discovery(self):
+        scenario_required_discovery(self, real_mods())
+
+    def test_cross_version_identity_has_one_uid(self):
+        scenario_cross_version_identity(self, real_mods())
+
 
 class CrdAndServiceReadTests(unittest.TestCase):
     def test_crd_read_contract(self):
@@ -1546,6 +1730,13 @@ class CrdAndServiceReadTests(unittest.TestCase):
     def test_crd_evidence_is_bound_and_sealed(self):
         scenario_crd_evidence(self, real_mods())
         scenario_crd_response_strict(self, real_mods())
+
+    def test_crd_verification_is_bound_to_the_receipt(self):
+        scenario_crd_receipt_binding(self, real_mods())
+        scenario_crd_receipt_map(self, real_mods())
+
+    def test_a_new_crd_read_invalidates_earlier_evidence(self):
+        scenario_crd_reread_invalidation(self, real_mods())
 
 
 class DestroyJournalTests(unittest.TestCase):
@@ -1758,9 +1949,10 @@ DESTROY_MUTATIONS = [
      "    query", scenario_discovery_bound_lists),
     ("list_namespace_target", T, '        need((group, version, resource) in targets, "list_target_not_discovered")\n\n        def page',
      "\n        def page", scenario_discovery_bound_lists),
-    ("discovery_withdraws", T, "                del self._issued[key]", "                pass", scenario_discovery_bound_lists),
-    ("discovery_targets_nonempty", T, '    if not targets:\n        return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}',
-     '    if False:\n        return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}', scenario_discovery_lists_exact),
+    ("discovery_withdraws", T, '        self._withdraw(("discovery",))\n', "", scenario_discovery_bound_lists),
+    ("discovery_required_missing", T, '        if not required:\n            return {"status": "UNKNOWN", "reason": "discovery_required_resource_missing"}',
+     '        if False:\n            return {"status": "UNKNOWN", "reason": "discovery_required_resource_missing"}',
+     scenario_discovery_lists_exact),
     ("discovery_unexpected_lists", T, '    if set(resource_lists) - expected_lists:', "    if False:", scenario_discovery_lists_exact),
     ("merge_missing", T, '    if expected - set(listed):', "    if False:", scenario_inventory_coverage),
     ("merge_unexpected", T, '    if set(listed) - expected:', "    if False:", scenario_inventory_coverage),
@@ -1770,10 +1962,10 @@ DESTROY_MUTATIONS = [
     ("merge_cross_version", T, '            if seen["evidence"] != evidence:', "            if False:", scenario_cross_version_conflict),
     ("send_deadline_before", T, '        need(not self.deadline.expired(), "deadline_exceeded")\n        timeout', "        timeout",
      scenario_deadline_requests),
-    ("send_response_late", T, '        need(clock.now() - start <= limit, "deadline_exceeded" if self.deadline.expired() else "request_timeout")',
-     "        pass", scenario_request_timeouts),
-    ("send_remaining_bound", T, "        limit = min(timeout, self.deadline.remaining())", "        limit = timeout",
+    ("send_response_late", T, '        need(clock.now() - start <= timeout, "request_timeout")', "        pass",
      scenario_request_timeouts),
+    ("send_remaining_bound", T, '        if self.deadline.expired():\n            raise TransportError("deadline_exceeded")  # an answer',
+     '        if False:\n            raise TransportError("deadline_exceeded")  # an answer', scenario_request_timeouts),
     ("send_api_timeout", T, '        except TimeoutError:\n            raise TransportError("transport_timeout") from None',
      '        except TimeoutError:\n            return 404, b""', scenario_request_timeouts),
     ("item_type", T, '''        need(typed == (False, False) or (item.get("kind") == "PartialObjectMetadata"
@@ -1804,13 +1996,47 @@ DESTROY_MUTATIONS = [
     ("evidence_immutable", T, '        raise TransportError("evidence_immutable")', "        object.__setattr__(self, name, value)",
      scenario_crd_evidence),
     ("crd_evidence_only_verified", T, '        if verdict["verdict"] != "VERIFIED":\n            return verdict\n        self._verified_crds',
-     "        self._verified_crds", scenario_crd_evidence),
+     "        self._verified_crds", scenario_crd_receipt_binding),
     ("crd_instances_accept", T, '        self._accept(verified, "crd_verified")\n        try:', "        try:", scenario_crd_evidence),
     ("crd_established_single", T, '    need(len(established) == 1 and established[0].get("status") in CONDITION_STATES, "crd_established_invalid")',
      "    established = established or [{}]", scenario_crd_response_strict),
     ("crd_versions_unique", T, '         and len({v["name"] for v in versions}) == len(versions), "crd_versions_invalid")',
      ', "crd_versions_invalid")', scenario_crd_response_strict),
     ("crd_single_storage", T, '    need(len(storage) == 1, "crd_versions_invalid")', "    pass", scenario_crd_response_strict),
+    # second review R01-R04
+    ("crd_receipt_required", T, '        if canonical is None:\n            return {"verdict": "BLOCKED", "name": info["name"], "reason": "crd_not_owned_by_receipt"}',
+     '        if False:\n            return {"verdict": "BLOCKED", "name": info["name"], "reason": "crd_not_owned_by_receipt"}',
+     scenario_crd_receipt_binding),
+    ("crd_receipt_argument", T, "        if receipt_uid is not None and receipt_uid != canonical:", "        if False:",
+     scenario_crd_receipt_binding),
+    ("crd_receipt_canonical_used", T, '        verdict = verify_crd(self.policy, info["name"], info, canonical)',
+     '        verdict = verify_crd(self.policy, info["name"], info, info["uid"])', scenario_crd_receipt_binding),
+    ("crd_receipt_map_identity", T, '''            need(isinstance(key, tuple) and len(key) == 4 and (key[0], key[1]) == CRD_TYPE and key in plan,
+                 "crd_receipt_identity_invalid")''', "            pass", scenario_crd_receipt_binding),
+    ("crd_receipt_map_quarantine", R, 'if k.startswith(CRD_KEY_PREFIX) and v["owned_uid"] is not None and k not in state["quarantined"]}',
+     'if k.startswith(CRD_KEY_PREFIX) and v["owned_uid"] is not None}', scenario_crd_receipt_map),
+    ("crd_receipt_map_only_crds", R, 'if k.startswith(CRD_KEY_PREFIX) and v["owned_uid"] is not None and k not in state["quarantined"]}',
+     'if v["owned_uid"] is not None and k not in state["quarantined"]}', scenario_crd_receipt_map),
+    ("crd_reread_withdraws", T, '        self._withdraw(("crd", name))\n', "", scenario_crd_reread_invalidation),
+    ("crd_reread_unverifies", T, "        self._verified_crds.discard(name)\n", "", scenario_crd_reread_invalidation),
+    ("required_namespaced", T, '        if not (required.get("namespaced") is True and "list" in required.get("verbs", ())',
+     '        if not ("list" in required.get("verbs", ())', scenario_required_discovery),
+    ("required_listable", T, 'required.get("namespaced") is True and "list" in required.get("verbs", ())\n',
+     'required.get("namespaced") is True\n', scenario_required_discovery),
+    ("required_kind", T, '                and required.get("kind") == kind):', "                ):", scenario_required_discovery),
+    ("discovery_kind_mapping", T, '''        need(isinstance(resource.get("kind"), str) and KIND_FORM.fullmatch(resource["kind"]) is not None,
+             "discovery_mapping_invalid")''', "        pass", scenario_required_discovery),
+    ("discovery_verbs", T, '             and len(set(resource["verbs"])) == len(resource["verbs"]) and resource["name"] not in seen,',
+     '             and resource["name"] not in seen,', scenario_discovery_validation),
+    ("collect_list_deadline_complete", T, '            if deadline is not None and deadline.remaining() <= 0:', "            if False:",
+     scenario_deadline_boundary),
+    ("send_global_deadline_after", T, '        if self.deadline.expired():\n            raise TransportError("deadline_exceeded")  # an answer',
+     '        if self.deadline.remaining() < 0:\n            raise TransportError("deadline_exceeded")  # an answer',
+     scenario_deadline_boundary),
+    ("identity_one_uid", T, '            if identities.setdefault((logical, item["namespace"], item["name"]), item["uid"]) != item["uid"]:',
+     "            if False:", scenario_cross_version_identity),
+    ("identity_alias", T, '        logical = next((pair for pair in RESOURCE_ALIASES if (group, resource) in pair), (group, resource))',
+     "        logical = (group, resource)", scenario_cross_version_identity),
     # apply phase guard
     ("apply_phase_guard", A, '        if receipt.load(self.store.dir, self.plan, self.store.expected)["state"]["phase"] != "apply":',
      "        if False:", scenario_apply_refuses_destroy_phase),
@@ -1831,7 +2057,7 @@ def mutant(filename, old, new):
 
 class DestroyMutationTests(unittest.TestCase):
     def test_each_destroy_guard_mutation_is_detected_by_an_assertion(self):
-        self.assertEqual(len(DESTROY_MUTATIONS), 120)
+        self.assertEqual(len(DESTROY_MUTATIONS), 137)
         self.assertEqual(len(DESTROY_MUTATIONS), len({m[0] for m in DESTROY_MUTATIONS}))
         undetected = []
         for name, filename, old, new, scenario in DESTROY_MUTATIONS:

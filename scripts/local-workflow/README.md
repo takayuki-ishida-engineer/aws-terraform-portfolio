@@ -609,9 +609,9 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 95 tests and 245 source mutations, each
+**Tests.** `test_k8s_runtime_receipt.py` has 100 tests and 262 source mutations, each
 detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
-`test_k8s_certs_receipt.py` and the 29 tests and 120 mutations of
+`test_k8s_certs_receipt.py` and the 34 tests and 137 mutations of
 `test_k8s_runtime_destroy_foundation.py` (both below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -693,6 +693,28 @@ accepts only evidence for its policy and kind with an intact seal; the transport
 only evidence it issued and has not withdrawn (a new discovery withdraws the old one).
 Hand-made, copied, re-bound, edited or re-sealed evidence is `evidence_invalid`.
 
+**Second review (R01–R04).**
+- CRD verification is bound to the receipt: the policy holds two separate maps from a
+  verified journal, the runtime DELETE map (`owned_uids`, never a CRD) and the CRD
+  verification map (`crd_receipt_uids`: owned, not quarantined CRDs; never a DELETE).
+  `verify_crd` uses the policy's CRD receipt UID as the only ownership evidence; no entry
+  (`crd_not_owned_by_receipt`), a different caller UID (`crd_receipt_uid_mismatch`) or a
+  different observed UID (`crd_uid_mismatch`) is BLOCKED with no evidence. Every new read
+  of a CRD withdraws its earlier read and verification evidence first, whatever the read
+  finds or if it fails; only a verification of the latest read allows the instance LIST
+  again, at the send boundary too.
+- Discovery requires the core v1 `secrets`, `services`, `configmaps`, `pods` and
+  `serviceaccounts`, each namespaced, listable and mapped to its kind; every resource entry
+  needs a kind and well-formed, unique verbs. Otherwise no discovery evidence is issued, so
+  no namespace inventory can complete. This never proves a real server's discovery
+  complete.
+- The global deadline is checked on its own after every answer: an answer at or after it is
+  `deadline_exceeded` (never a deletion or a COMPLETE list, also in `collect_list`), while
+  the request's own 20 s bound stays inclusive (`request_timeout` beyond it).
+- `merge_listed` also requires one UID per logical identity (resource or the approved event
+  alias, namespace, name) across versions (`cross_version_identity_conflict`); different
+  resources may share a name.
+
 **Validation.** Discovery documents (kinds, group versions, duplicates), LIST pages
 (`PartialObjectMetadataList` only; payload keys or the last-applied annotation refused by
 their position; item identity, namespace, UID, owners, finalizers, duplicates and the page
@@ -741,7 +763,7 @@ released. `reconcile` reports `DELETE_PENDING_RECHECK`, `DELETE_ABSENT_UNCONFIRM
 an older reader refuses the new records; `k8s_runtime_apply` stops on a destroy-phase
 journal (`receipt_destroy_phase`) before any read or write.
 
-**Tests.** `test_k8s_runtime_destroy_foundation.py`: 29 tests and 120 source mutations,
+**Tests.** `test_k8s_runtime_destroy_foundation.py`: 34 tests and 137 source mutations,
 each detected by an assertion (a crash is undetected), run inside the
 `k8s_runtime_receipt_tests` suite.
 

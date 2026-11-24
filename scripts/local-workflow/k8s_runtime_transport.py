@@ -284,6 +284,11 @@ API_VERSION_FORM = re.compile(r"([a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?/)?v[0-9]+(
 KIND_FORM = re.compile(r"[A-Z][A-Za-z0-9]{0,62}")
 RESOURCE_VERSION_FORM = re.compile(r"[0-9]{1,20}")
 OWNER_KEYS = {"apiVersion", "kind", "name", "uid", "controller", "blockOwnerDeletion"}
+VERB = re.compile(r"[a-z]{1,32}")
+# Core v1 resources a namespace inventory can never miss (review of PR #100, R02): each must be advertised,
+# namespaced, listable and mapped to its kind, or discovery is not COMPLETE. Secrets above all (D18).
+REQUIRED_CORE_RESOURCES = {"secrets": "Secret", "services": "Service", "configmaps": "ConfigMap", "pods": "Pod",
+                           "serviceaccounts": "ServiceAccount"}
 INVENTORY_NAMESPACES = ("istio-system", "{project}-ingress", "{project}-app")
 # Namespaced resources without the list verb that design section 5.1 allows: virtual, never persisted.
 VIRTUAL_RESOURCES = frozenset({("", "bindings"), ("authorization.k8s.io", "localsubjectaccessreviews")})
@@ -363,12 +368,14 @@ def identity_of(key):
 class DestroyPolicy:
     """What a destroy transport may read, list and delete. Immutable; nothing a read returns can widen it.
 
-    ``plan_identities`` are the reviewed plan's identities (k8s_runtime_receipt.plan_identities) and
-    ``owned_uids`` the identity -> UID map of a verified journal (k8s_runtime_receipt.owned_uids).
+    ``plan_identities`` are the reviewed plan's identities (k8s_runtime_receipt.plan_identities),
+    ``owned_uids`` the runtime DELETE map of a verified journal (k8s_runtime_receipt.owned_uids) and
+    ``crd_receipt_uids`` the separate CRD verification map (k8s_runtime_receipt.crd_receipt_uids): the UIDs the
+    journal owns for retained CRDs. The CRD map never grants a DELETE; the DELETE map never holds a CRD.
     """
 
     def __init__(self, project, plan_identities, owned_uids=None, inventory=False, discovery=False, crd_specs=None,
-                 services=()):
+                 services=(), crd_receipt_uids=None):
         namespaces = inventory_namespaces(project)
         plan = {}
         for identity in plan_identities:
@@ -392,6 +399,12 @@ class DestroyPolicy:
             need(name in crd_names, "crd_not_reviewed")
             check_crd_spec(name, spec)
             crds[name] = {k: (list(v) if isinstance(v, list) else v) for k, v in spec.items()}
+        crd_owned = {}
+        for key, uid in dict(crd_receipt_uids or {}).items():
+            need(isinstance(key, tuple) and len(key) == 4 and (key[0], key[1]) == CRD_TYPE and key in plan,
+                 "crd_receipt_identity_invalid")
+            need(isinstance(uid, str) and UID.fullmatch(uid) is not None, "uid_invalid")
+            crd_owned[key[3]] = uid
         approved_services = set()
         for identity in services:
             key = identity_key(identity)
@@ -405,9 +418,14 @@ class DestroyPolicy:
         object.__setattr__(self, "discovery", bool(discovery))
         object.__setattr__(self, "crds", tuple(sorted((n, json.dumps(s, sort_keys=True)) for n, s in crds.items())))
         object.__setattr__(self, "services", frozenset(approved_services))
+        object.__setattr__(self, "crd_owned", tuple(sorted(crd_owned.items())))
 
     def __setattr__(self, name, value):
         raise TransportError("policy_immutable")
+
+    def crd_receipt_uid(self, name):
+        """The UID the verified journal owns for a retained CRD, or None; never a DELETE permission."""
+        return dict(self.crd_owned).get(name)
 
     def delete_uid(self, key):
         return dict(self.delete).get(key)
@@ -676,11 +694,14 @@ def validate_discovery_response(path, status, body):
     for resource in document["resources"]:
         need(isinstance(resource, dict) and isinstance(resource.get("name"), str)
              and isinstance(resource.get("namespaced"), bool) and isinstance(resource.get("verbs"), list)
-             and all(isinstance(v, str) for v in resource["verbs"]) and resource["name"] not in seen,
+             and all(isinstance(v, str) and VERB.fullmatch(v) for v in resource["verbs"])
+             and len(set(resource["verbs"])) == len(resource["verbs"]) and resource["name"] not in seen,
              "discovery_invalid")
+        need(isinstance(resource.get("kind"), str) and KIND_FORM.fullmatch(resource["kind"]) is not None,
+             "discovery_mapping_invalid")
         seen.add(resource["name"])
-        resources.append({"name": resource["name"], "namespaced": resource["namespaced"],
-                          "verbs": sorted(set(resource["verbs"]))})
+        resources.append({"name": resource["name"], "kind": resource.get("kind"), "namespaced": resource["namespaced"],
+                          "verbs": sorted(resource["verbs"])})
     return {"groupVersion": expected, "resources": resources}
 
 
@@ -689,7 +710,9 @@ def discovery_targets(core, groups, resource_lists):
 
     Every advertised version is examined, not only the preferred one; the resource lists must be exactly the
     advertised group versions; a missing or unexpected list, a malformed resource name or a namespaced resource
-    without list (outside the virtual allowlist) is UNKNOWN.
+    without list (outside the virtual allowlist) is UNKNOWN. The REQUIRED_CORE_RESOURCES must be present,
+    namespaced, listable and mapped to their kind. This is a Fake-only contract: it never proves that a real API
+    server's discovery is complete.
     """
     if "v1" not in core["versions"]:
         return {"status": "UNKNOWN", "reason": "discovery_core_missing"}
@@ -697,6 +720,14 @@ def discovery_targets(core, groups, resource_lists):
     expected_lists = {group + "/" + version if group else "v1" for group, version in advertised}
     if set(resource_lists) - expected_lists:
         return {"status": "UNKNOWN", "reason": "discovery_unexpected_group"}
+    core_resources = {r["name"]: r for r in (resource_lists.get("v1") or {"resources": []})["resources"]}
+    for name, kind in sorted(REQUIRED_CORE_RESOURCES.items()):
+        required = core_resources.get(name) or {}
+        if not required:
+            return {"status": "UNKNOWN", "reason": "discovery_required_resource_missing"}
+        if not (required.get("namespaced") is True and "list" in required.get("verbs", ())
+                and required.get("kind") == kind):
+            return {"status": "UNKNOWN", "reason": "discovery_required_resource_invalid"}
     targets = []
     for group, version in advertised:
         listing = resource_lists.get(group + "/" + version if group else "v1")
@@ -837,6 +868,8 @@ def collect_list(fetch_page, deadline=None):
                 uids.add(item["uid"])
                 items.append(item)
             token = page["continue"]
+            if deadline is not None and deadline.remaining() <= 0:
+                return {"status": "UNKNOWN", "reason": "deadline_exceeded"}  # never COMPLETE at or after it
             if token is None:
                 return {"status": "COMPLETE", "items": items, "pages": pages, "restarts": restarts}
             if token in tokens:
@@ -867,9 +900,13 @@ def merge_listed(expected_targets, results):
         return {"status": "UNKNOWN", "reason": "list_target_missing"}
     if set(listed) - expected:
         return {"status": "UNKNOWN", "reason": "list_target_unexpected"}
-    merged = {}
+    merged, identities = {}, {}
     for (group, version, resource), result in sorted(((tuple(t), r) for t, r in results), key=lambda x: x[0]):
+        logical = next((pair for pair in RESOURCE_ALIASES if (group, resource) in pair), (group, resource))
         for item in result["items"]:
+            # One logical object (resource or approved alias, namespace, name) has one UID across versions.
+            if identities.setdefault((logical, item["namespace"], item["name"]), item["uid"]) != item["uid"]:
+                return {"status": "UNKNOWN", "reason": "cross_version_identity_conflict"}
             evidence = (item["name"], item["namespace"], json.dumps(item["owners"], sort_keys=True),
                         tuple(sorted(item["finalizers"])), item["deletion_requested"])
             seen = merged.get(item["uid"])
@@ -1004,9 +1041,9 @@ class FakeDestroyTransport:
     """Offline double for the destroy contracts.
 
     ``send`` is the only way to the server. It refuses after the global deadline, authorises the request against the
-    policy and this transport's evidence (it must equal, field for field, what a builder makes; see authorize), bounds
-    it by its own timeout or the remaining global time, and refuses a response that arrives too late. A refused
-    request never reaches the server.
+    policy and this transport's evidence (it must equal, field for field, what a builder makes; see authorize), and
+    refuses an answer that arrives at or after the global deadline (deadline_exceeded) or after the request's own
+    timeout (request_timeout). A refused request never reaches the server.
     """
 
     def __init__(self, policy, server, deadline):
@@ -1022,15 +1059,24 @@ class FakeDestroyTransport:
         self._paths = {object_path(identity_of(key)): identity_of(key) for key in policy.read}
 
     # -- evidence ---------------------------------------------------------------------------------------------------
-    def _issue(self, kind, payload):
+    def _issue(self, kind, payload, scope):
         evidence = Evidence(self.policy, kind, payload)
-        self._issued[id(evidence)] = (evidence, evidence._seal)
+        self._issued[id(evidence)] = (evidence, evidence._seal, scope)
         return evidence
+
+    def _withdraw(self, scope):
+        """Withdraw every evidence of a scope: ("discovery",) or ("crd", name)."""
+        for key in [k for k, entry in self._issued.items() if entry[2] == scope]:
+            self._issued.pop(key)
 
     def _accept(self, evidence, kind):
         stored = self._issued.get(id(evidence)) if isinstance(evidence, Evidence) else None
         need(stored is not None and stored[0] is evidence and stored[1] == evidence._seal, "evidence_invalid")
-        return evidence.payload_for(self.policy, kind)
+        payload = evidence.payload_for(self.policy, kind)
+        if kind == "crd_verified":
+            need(payload.get("name") in self._verified_crds
+                 and payload.get("receipt_uid") == self.policy.crd_receipt_uid(payload.get("name")), "evidence_invalid")
+        return payload
 
     # -- the send boundary ------------------------------------------------------------------------------------------
     def _candidates(self, request):
@@ -1080,7 +1126,6 @@ class FakeDestroyTransport:
     def send(self, request):
         need(not self.deadline.expired(), "deadline_exceeded")
         timeout = self.authorize(request)
-        limit = min(timeout, self.deadline.remaining())
         clock = self.deadline.clock
         start = clock.now()
         self.requests.append(request)
@@ -1088,7 +1133,9 @@ class FakeDestroyTransport:
             status, body = self.server(request)
         except TimeoutError:
             raise TransportError("transport_timeout") from None
-        need(clock.now() - start <= limit, "deadline_exceeded" if self.deadline.expired() else "request_timeout")
+        if self.deadline.expired():
+            raise TransportError("deadline_exceeded")  # an answer at or after the global deadline is never evidence
+        need(clock.now() - start <= timeout, "request_timeout")  # the request's own D11 bound, 20 s inclusive
         return status, body
 
     # -- operations -------------------------------------------------------------------------------------------------
@@ -1103,9 +1150,7 @@ class FakeDestroyTransport:
     def discover_all(self):
         """Complete discovery: /api, /apis, /api/v1 and every advertised group version. Only a COMPLETE result issues
         the discovery evidence that namespace LISTs need; a new discovery withdraws the previous evidence."""
-        for key, (evidence, _) in list(self._issued.items()):
-            if evidence._kind == "discovery":
-                del self._issued[key]
+        self._withdraw(("discovery",))
         self._targets = frozenset()
         try:
             core = self._discover("/api")
@@ -1122,7 +1167,7 @@ class FakeDestroyTransport:
             return result
         self._targets = frozenset(result["targets"])
         evidence = self._issue("discovery", {"targets": [list(t) for t in result["targets"]],
-                                             "advertised": [list(a) for a in result["advertised"]]})
+                                             "advertised": [list(a) for a in result["advertised"]]}, ("discovery",))
         return {"status": "COMPLETE", "targets": result["targets"], "evidence": evidence}
 
     def list_namespace(self, discovery, namespace, group, version, resource):
@@ -1147,21 +1192,36 @@ class FakeDestroyTransport:
         return merge_listed(targets, results)
 
     def read_crd(self, name):
+        """A new read of a CRD withdraws every earlier read and verification of it first, whatever this read finds
+        (absent, another UID, not Established, changed versions, an error): only a later verification of this read
+        allows its instance LIST again."""
+        self.policy.crd_spec(name)
+        self._withdraw(("crd", name))
+        self._verified_crds.discard(name)
         status, body = self.send(crd_read_request(self.policy, name))
         info = validate_crd_response(name, status, body)
         if info is None:
             return {"state": "absent"}
-        return {"state": "present", "info": info, "evidence": self._issue("crd_read", info)}
+        return {"state": "present", "info": info, "evidence": self._issue("crd_read", info, ("crd", name))}
 
-    def verify_crd(self, read_evidence, receipt_uid):
-        """The verdict for this transport's own CRD read; VERIFIED carries the evidence a CRD instance LIST needs."""
+    def verify_crd(self, read_evidence, receipt_uid=None):
+        """The verdict for this transport's latest CRD read against the UID the verified journal owns for it.
+
+        The policy's CRD receipt map is the only ownership evidence: no CRD UID there, or a ``receipt_uid`` other
+        than it, is BLOCKED and never VERIFIED. VERIFIED carries the evidence a CRD instance LIST needs."""
         info = self._accept(read_evidence, "crd_read")
-        verdict = verify_crd(self.policy, info["name"], info, receipt_uid)
+        canonical = self.policy.crd_receipt_uid(info["name"])
+        if canonical is None:
+            return {"verdict": "BLOCKED", "name": info["name"], "reason": "crd_not_owned_by_receipt"}
+        if receipt_uid is not None and receipt_uid != canonical:
+            return {"verdict": "BLOCKED", "name": info["name"], "reason": "crd_receipt_uid_mismatch"}
+        verdict = verify_crd(self.policy, info["name"], info, canonical)
         if verdict["verdict"] != "VERIFIED":
             return verdict
         self._verified_crds.add(info["name"])
-        evidence = self._issue("crd_verified", {"name": info["name"], "uid": info["uid"], "receipt_uid": receipt_uid,
-                                                "storage_version": self.policy.crd_spec(info["name"])["storage_version"]})
+        evidence = self._issue("crd_verified", {"name": info["name"], "uid": info["uid"], "receipt_uid": canonical,
+                                                "storage_version": self.policy.crd_spec(info["name"])["storage_version"]},
+                               ("crd", info["name"]))
         return dict(verdict, evidence=evidence)
 
     def crd_instances(self, verified):
