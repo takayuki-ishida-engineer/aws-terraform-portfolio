@@ -609,8 +609,8 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 61 tests and 113 source mutations, each
-detected: 39 tests and 58 mutations of its own, and the 22 tests and 55 mutations of
+**Tests.** `test_k8s_runtime_receipt.py` has 66 tests and 125 source mutations, each
+detected: 39 tests and 58 mutations of its own, and the 27 tests and 67 mutations of
 `test_k8s_certs_receipt.py` (below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -660,17 +660,32 @@ the old `delete`. Its transport policy names exactly the four Secrets of
 D17 fingerprint. The registration policy cannot delete.
 
 **Registration UID receipt (`register_with_receipt`).**
-- It runs the registration's apply step, then reads each Secret's metadata.
-- A UID is recorded only when the apply confirmed that Secret and the metadata shows
+- **Before any apply**, it reads the metadata of all four Secrets and compares them
+  with the existing receipt. A Secret without a live receipt claim (no receipt, a
+  NOT_VERIFIED entry or a cleaned-up entry) must be absent; a claimed Secret must be
+  present with the claimed UID and the k8s_certs.py ownership. Any failure refuses
+  the registration before the apply step is called, and nothing changes:
+  `existing_secret_without_receipt`, `unverified_secret_present`,
+  `recreated_after_cleanup`, `receipt_uid_absent`, `receipt_uid_mismatch`,
+  `precondition_<check>`, and `precondition_unreadable` for a 403, timeout or
+  invalid response, which is never read as absence. Labels, manager names and
+  fields alone never make an existing Secret registrable.
+- **The apply step** (`apply_fn(plan)`) receives a conditional plan per Secret: create
+  only if absent, or update only the claimed UID. It returns the identity, outcome
+  (`created` or `updated`) and UID it wrote. A conflict, another outcome, a missing,
+  malformed or other UID, an unknown or repeated identity confirms nothing. The fake
+  checks the condition atomically; on a real API server this is NOT_VERIFIED and no
+  real apply transport exists.
+- **After the apply**, a UID is recorded only when the metadata read shows the same
+  UID the apply returned (`uid_changed_after_apply` otherwise),
   `app.kubernetes.io/managed-by: k8s_certs.py`, `app.kubernetes.io/part-of:
   <project>` and a single `<project>-k8s-certs` Apply entry owning exactly the
   registered labels, `type` and data keys.
 - Otherwise the entry is NOT_VERIFIED with no UID and a fixed reason, and the
   result is INCOMPLETE. A failed apply, a foreign apply report, an unavailable UID
   and a failed save are never success.
-- It never rebuilds a receipt from names or current UIDs. An existing receipt is
-  replaced only when every UID it holds is unchanged or already cleaned up
-  (`receipt_conflict` otherwise; the old receipt stays).
+- It never rebuilds a receipt from names or current UIDs, and never drops a UID that
+  may still name a live Secret (`receipt_conflict`; the old receipt stays).
 
 **Receipt store.** `<root>/<fingerprint id>/registration.json`, default root
 `~/.local/state/<project>-k8s-certs`, separate from the runtime receipt (whose
@@ -718,13 +733,18 @@ inventory and D6 still apply). `kube-system` is `NEVER_DELETED`; its webhook TLS
 Secret is its own completion condition (`kube_system_webhook_tls`).
 `namespace_deletion` is `NOT_IMPLEMENTED` (6c-B4).
 
-**Tests.** `test_k8s_certs_receipt.py` has 22 tests and 55 source mutations, run
+**Tests.** `test_k8s_certs_receipt.py` has 27 tests and 67 source mutations, run
 inside the `k8s_runtime_receipt_tests` suite. A fake API server answers like the
 API server: a GET without the metadata-only Accept header returns a full Secret
 with a value marker, and a DELETE honours `preconditions.uid`. A mutation counts as
 detected only when an assertion fails; a crash is reported as undetected. The tests
 cover the allowlist, the request and response contract, real-transport and
-real-operation refusal, the receipt store (missing, corrupt, non-canonical,
+real-operation refusal, the registration preconditions (an existing Secret without
+a receipt, all four existing with matching labels and manager, a UID mismatch, a
+claimed Secret gone or changed, unreadable metadata, a Secret recreated after
+cleanup, a NOT_VERIFIED entry; none calls the apply step), the apply evidence (a
+Secret created just before the apply, a rewritten plan, a UID changed after the
+apply, a missing or wrong UID in the result), the receipt store (missing, corrupt, non-canonical,
 tampered, modes, symlinks, owner, repository location, lock, fingerprint, project
 and identity), partial registration, save failure, replacement rules, every
 cleanup step and refusal, and the absence of any fallback.

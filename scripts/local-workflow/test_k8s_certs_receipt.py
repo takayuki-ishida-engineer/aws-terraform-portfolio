@@ -115,12 +115,26 @@ class FakeCluster:
         self.objects[name] = secret_metadata(name, uid_value or self.new_uid())
         return self.objects[name]["uid"]
 
-    def apply(self, names=None):
-        """Server-side apply: an existing Secret keeps its UID, a missing one is created."""
-        names = [i["name"] for i in IDS] if names is None else names
-        for name in names:
-            self.put(name, self.objects[name]["uid"] if name in self.objects else None)
-        return {(NAMESPACE_OF[name], name): "applied" for name in names}
+    def seed(self, names=None):
+        """Secrets that exist before any registration (correct labels and manager, unknown to any receipt)."""
+        for name in ([i["name"] for i in IDS] if names is None else names):
+            self.put(name)
+
+    def apply(self, plan):
+        """The fake's conditional server-side apply, checked atomically: create only if absent, update only the
+        expected UID. A refused item is a conflict that reports the object it found and changes nothing."""
+        results = []
+        for item in plan:
+            name, stored = item["name"], self.objects.get(item["name"])
+            found = stored["uid"] if stored else None
+            if item["expect_uid"] is None and stored is None:
+                outcome, written = "created", self.put(name)
+            elif item["expect_uid"] is not None and found == item["expect_uid"]:
+                outcome, written = "updated", self.put(name, found)
+            else:
+                outcome, written = "conflict", found
+            results.append({"namespace": item["namespace"], "name": name, "outcome": outcome, "uid": written})
+        return results
 
     def server(self, request):
         self.requests.append(copy.deepcopy(request))
@@ -165,6 +179,7 @@ class Env:
         self.root = self.tmp / "state"
         self.cluster = FakeCluster()
         self.fp = k8s_runtime_receipt.fingerprint(ARN, KUBE_SYSTEM_UID)
+        self.apply_calls = []
 
     @property
     def dir(self):
@@ -175,9 +190,16 @@ class Env:
         return self.dir / "registration.json"
 
     def register(self, apply_fn=None, kind="fake", root=None):
-        return self.mods.cleanup.register_with_receipt(PROJECT, ARN, apply_fn or self.cluster.apply,
-                                                       root=root or self.root, transport_kind=kind,
-                                                       server=self.cluster.server)
+        apply_fn = apply_fn or self.cluster.apply
+
+        def recorded(plan):
+            self.apply_calls.append(copy.deepcopy(plan))
+            return apply_fn(plan)
+        return self.mods.cleanup.register_with_receipt(PROJECT, ARN, recorded, root=root or self.root,
+                                                       transport_kind=kind, server=self.cluster.server)
+
+    def uids(self):
+        return {name: self.cluster.objects[name]["uid"] for name in self.cluster.objects}
 
     def cleanup(self, kind="fake", root=None):
         return self.mods.cleanup.cleanup(PROJECT, ARN, root=root or self.root, transport_kind=kind,
@@ -230,7 +252,18 @@ def registered(env):
     result = env.register()
     assert result["result"] == "REGISTERED", result
     env.cluster.requests.clear()
+    env.apply_calls.clear()
     return result
+
+
+def refused_before_apply(case, env, mods, code, call=None):
+    """The registration is refused with the code before the apply step, and nothing changes."""
+    before_receipt = env.receipt.read_bytes() if env.receipt.exists() else None
+    before_objects = copy.deepcopy(env.cluster.objects)
+    case.assertEqual(code_of(call or env.register, mods), code)
+    case.assertEqual(env.apply_calls, [], "the apply step is never called")
+    case.assertEqual(env.receipt.read_bytes() if env.receipt.exists() else None, before_receipt)
+    case.assertEqual(env.cluster.objects, before_objects, "no Secret is written")
 
 
 # ---- transport (D19 Secret extension) -----------------------------------------------------------------------------
@@ -310,6 +343,8 @@ def scenario_register_roundtrip(case, mods):
         result = env.register()
         case.assertEqual(result["result"], "REGISTERED")
         case.assertEqual([s["registration"] for s in result["secrets"]], ["REGISTERED"] * 4)
+        case.assertEqual(env.apply_calls, [[{"namespace": i["namespace"], "name": i["name"], "expect_uid": None}
+                                            for i in IDS]])
         case.assertEqual(oct(env.dir.stat().st_mode & 0o777), "0o700")
         case.assertEqual(oct(env.receipt.stat().st_mode & 0o777), "0o600")
         document = env.document()
@@ -321,9 +356,9 @@ def scenario_register_roundtrip(case, mods):
         case.assertEqual([e["uid"] for e in document["secrets"]],
                          [env.cluster.objects[i["name"]]["uid"] for i in IDS])
         case.assertTrue(all(e["cleanup"] is None and e["reason"] is None for e in document["secrets"]))
+        paths = [("GET", "/api/v1/namespaces/%s/secrets/%s" % (i["namespace"], i["name"])) for i in IDS]
         case.assertEqual([(r["method"], r["path"]) for r in env.cluster.requests],
-                         [("GET", "/api/v1/namespaces/kube-system")]
-                         + [("GET", "/api/v1/namespaces/%s/secrets/%s" % (i["namespace"], i["name"])) for i in IDS])
+                         [("GET", "/api/v1/namespaces/kube-system")] + paths + paths)
         case.assertTrue(all(r["headers"]["Accept"] == k8s_runtime_transport.METADATA_ACCEPT
                             for r in env.cluster.requests))
         text = env.receipt.read_text()
@@ -333,13 +368,35 @@ def scenario_register_roundtrip(case, mods):
         case.assertEqual(sorted(os.listdir(env.dir)), ["lock", "registration.json"])
 
 
+def scenario_register_again_same_uids(case, mods):
+    with env_for(mods) as env:
+        registered(env)
+        uids = [e["uid"] for e in env.document()["secrets"]]
+        outcome = []
+        case.assertIsNone(code_of(lambda: outcome.append(env.register()), mods))
+        case.assertEqual(outcome[0]["result"], "REGISTERED")
+        case.assertEqual([item["expect_uid"] for item in env.apply_calls[0]], uids, "update only the receipt UIDs")
+        case.assertEqual([e["uid"] for e in env.document()["secrets"]], uids)
+
+
+def scenario_register_after_cleanup(case, mods):
+    with env_for(mods) as env:
+        registered(env)
+        case.assertEqual(env.cleanup()["result"], "COMPLETE")
+        outcome = []
+        case.assertIsNone(code_of(lambda: outcome.append(env.register()), mods), "cleaned-up UIDs may be replaced")
+        case.assertEqual(outcome[0]["result"], "REGISTERED")
+        case.assertEqual([item["expect_uid"] for item in env.apply_calls[0]], [None] * 4)
+        case.assertTrue(all(e["cleanup"] is None for e in env.document()["secrets"]))
+
+
 def scenario_register_partial(case, mods):
     with env_for(mods) as env:
-        env.cluster.apply()  # all four exist, but the apply step confirms only three
-        result = env.register(apply_fn=lambda: env.cluster.apply([CACERTS, WEBHOOK, GATEWAY]))
+        # The apply writes all four but its result confirms only three.
+        result = env.register(apply_fn=lambda plan: env.cluster.apply(plan)[:3])
         case.assertEqual(result["result"], "INCOMPLETE")
-        case.assertEqual(result["secrets"][3]["registration"], "NOT_VERIFIED")
-        case.assertEqual(result["secrets"][3]["reason"], "apply_not_confirmed")
+        case.assertEqual((result["secrets"][3]["registration"], result["secrets"][3]["reason"]),
+                         ("NOT_VERIFIED", "apply_not_confirmed"))
         document = env.document()
         case.assertEqual(document["result"], "INCOMPLETE")
         case.assertIsNone(document["secrets"][3]["uid"])
@@ -348,20 +405,22 @@ def scenario_register_partial(case, mods):
 
 def scenario_register_failures(case, mods):
     with env_for(mods) as env:
-        def failing_apply():
-            env.cluster.apply([CACERTS])
+        def failing_apply(plan):
+            env.cluster.apply(plan[:1])
             raise RuntimeError("apply failed: " + VALUE_MARKER)
         result = env.register(apply_fn=failing_apply)
         case.assertEqual(result["result"], "INCOMPLETE")
         case.assertEqual({s["reason"] for s in result["secrets"]}, {"apply_not_confirmed"})
-        case.assertEqual(env.secret_requests(), [])
+        case.assertEqual(len(env.secret_requests()), 4, "only the four reads before the apply")
         assert_no_value(case, env, result)
     with env_for(mods) as env:
-        env.cluster.hooks[("GET", WEBHOOK)] = lambda request: (404, b"")
-        env.cluster.hooks[("GET", GATEWAY)] = lambda request: (403, b"")
+        applied = []
+        env.cluster.hooks[("GET", WEBHOOK)] = lambda request: (404, b"") if applied else None
+        env.cluster.hooks[("GET", GATEWAY)] = lambda request: (403, b"") if applied else None
 
-        def apply_with_foreign():
-            outcome = env.cluster.apply()
+        def apply_with_foreign(plan):
+            outcome = env.cluster.apply(plan)
+            applied.append(1)
             env.cluster.objects[CLIENT_CA]["managedFields"].append(
                 {"manager": "kubectl-edit", "operation": "Update", "apiVersion": "v1", "fieldsType": "FieldsV1",
                  "fieldsV1": {"f:metadata": {"f:annotations": {}}}})
@@ -373,20 +432,10 @@ def scenario_register_failures(case, mods):
         case.assertEqual(env.document()["result"], "INCOMPLETE")
 
 
-def scenario_register_foreign_report(case, mods):
-    with env_for(mods) as env:
-        report = env.cluster.apply()
-        report[("default", "other")] = "applied"
-        result = env.register(apply_fn=lambda: report)
-        case.assertEqual(result["result"], "INCOMPLETE")
-        case.assertEqual({s["reason"] for s in result["secrets"]}, {"apply_not_confirmed"})
-        case.assertEqual(env.secret_requests(), [])
-
-
 def scenario_register_ownership(case, mods):
     with env_for(mods) as env:
-        def apply_then_edit():
-            outcome = env.cluster.apply()
+        def apply_then_edit(plan):
+            outcome = env.cluster.apply(plan)
             env.cluster.objects[GATEWAY]["managedFields"].append(
                 {"manager": "kubectl-edit", "operation": "Update", "apiVersion": "v1", "fieldsType": "FieldsV1",
                  "fieldsV1": {"f:metadata": {"f:annotations": {}}}})
@@ -395,6 +444,56 @@ def scenario_register_ownership(case, mods):
         result = env.register(apply_fn=apply_then_edit)
         case.assertEqual(result["result"], "INCOMPLETE")
         case.assertEqual([s["reason"] for s in result["secrets"]], ["label_managed_by", None, "foreign_manager", None])
+
+
+def scenario_register_foreign_report(case, mods):
+    with env_for(mods) as env:
+        def with_foreign(plan):
+            return env.cluster.apply(plan) + [{"namespace": "default", "name": "other", "outcome": "created",
+                                               "uid": uid(950)}]
+        result = env.register(apply_fn=with_foreign)
+        case.assertEqual(result["result"], "INCOMPLETE")
+        case.assertEqual({s["reason"] for s in result["secrets"]}, {"apply_not_confirmed"})
+        case.assertEqual(len(env.secret_requests()), 4, "nothing is read back for an untrusted result")
+
+
+def scenario_apply_evidence(case, mods):
+    evidence = mods.cleanup.apply_evidence
+    plan = [{"namespace": "istio-system", "name": "cacerts", "expect_uid": None},
+            {"namespace": "kube-system", "name": WEBHOOK, "expect_uid": uid(1)}]
+    good = [{"namespace": "istio-system", "name": "cacerts", "outcome": "created", "uid": uid(2)},
+            {"namespace": "kube-system", "name": WEBHOOK, "outcome": "updated", "uid": uid(1)}]
+    case.assertEqual(evidence(good, plan), {("istio-system", "cacerts"): uid(2), ("kube-system", WEBHOOK): uid(1)})
+    cases = [
+        ("updated with another UID", [good[0], dict(good[1], uid=uid(3))], {("istio-system", "cacerts"): uid(2)}),
+        ("created where a UID is claimed", [good[0], dict(good[1], outcome="created")],
+         {("istio-system", "cacerts"): uid(2)}),
+        ("updated where absent was planned", [dict(good[0], outcome="updated"), good[1]],
+         {("kube-system", WEBHOOK): uid(1)}),
+        ("conflict reporting the found UID", [dict(good[0], outcome="conflict"), good[1]],
+         {("kube-system", WEBHOOK): uid(1)}),
+        ("missing UID", [{k: v for k, v in good[0].items() if k != "uid"}, good[1]], {("kube-system", WEBHOOK): uid(1)}),
+        ("malformed UID", [dict(good[0], uid="not-a-uid"), good[1]], {("kube-system", WEBHOOK): uid(1)}),
+        ("unknown identity", good + [{"namespace": "default", "name": "x", "outcome": "created", "uid": uid(4)}], {}),
+        ("repeated identity", [dict(good[0], uid=uid(9))] + good, {}),
+        ("not a list", {"cacerts": "applied"}, {}),
+    ]
+    for label, result, expected in cases:
+        case.assertEqual(evidence(result, plan), expected, label)
+
+
+def scenario_register_existing_without_receipt(case, mods):
+    with env_for(mods) as env:
+        env.cluster.seed([GATEWAY])
+        refused_before_apply(case, env, mods, "existing_secret_without_receipt")
+        case.assertFalse(env.receipt.exists())
+
+
+def scenario_register_all_existing_matching(case, mods):
+    with env_for(mods) as env:
+        env.cluster.seed()  # correct labels, manager and fields: still unknown without a receipt
+        refused_before_apply(case, env, mods, "existing_secret_without_receipt")
+        case.assertFalse(env.receipt.exists())
 
 
 def scenario_register_save_failure(case, mods):
@@ -406,29 +505,122 @@ def scenario_register_save_failure(case, mods):
         case.assertEqual(len(env.cluster.objects), 4, "the Secrets stay; cleanup is then BLOCKED (no receipt)")
         case.assertEqual(code_of(env.cleanup, mods), "receipt_missing")
         case.assertEqual(env.deletes(), [])
+        env.apply_calls.clear()
+        refused_before_apply(case, env, mods, "existing_secret_without_receipt")
+
+
+def scenario_register_uid_mismatch_before_apply(case, mods):
+    with env_for(mods) as env:
+        registered(env)
+        env.cluster.objects.pop(GATEWAY)
+        env.cluster.put(GATEWAY)  # recreated by someone else: a different UID
+        refused_before_apply(case, env, mods, "receipt_uid_mismatch")
+
+
+def scenario_register_claimed_absent(case, mods):
+    with env_for(mods) as env:
+        registered(env)
+        env.cluster.objects.pop(WEBHOOK)  # gone without a recorded cleanup
+        refused_before_apply(case, env, mods, "receipt_uid_absent")
+
+
+def scenario_register_claimed_ownership(case, mods):
+    with env_for(mods) as env:
+        registered(env)
+        foreign(env.cluster.objects[GATEWAY], env)
+        refused_before_apply(case, env, mods, "precondition_foreign_manager")
+
+
+def scenario_register_precondition_unreadable(case, mods):
+    answers = [lambda request: (403, b""), lambda request: (500, b""), timeout, lambda request: (200, b"{not json"),
+               lambda request: (200, partial({"name": CLIENT_CA, "namespace": "acme-ingress", "uid": "bad"}))]
+    for answer in answers:
+        with env_for(mods) as env:
+            env.cluster.hooks[("GET", CLIENT_CA)] = answer  # the last of the four: the first three were fine
+            refused_before_apply(case, env, mods, "precondition_unreadable")
+            case.assertFalse(env.receipt.exists())
+    with env_for(mods) as env:
+        registered(env)
+        env.cluster.hooks[("GET", CACERTS)] = lambda request: (403, b"")
+        refused_before_apply(case, env, mods, "precondition_unreadable")
+
+
+def scenario_register_recreated_after_cleanup(case, mods):
+    with env_for(mods) as env:
+        registered(env)
+        case.assertEqual(env.cleanup()["result"], "COMPLETE")
+        env.cluster.put(CLIENT_CA)  # recreated outside the tool, with matching labels and manager
+        refused_before_apply(case, env, mods, "recreated_after_cleanup")
+
+
+def scenario_register_no_rebuild_from_unverified(case, mods):
+    with env_for(mods) as env:
+        env.register(apply_fn=lambda plan: env.cluster.apply(plan)[:3])  # CLIENT_CA exists but is NOT_VERIFIED
+        env.apply_calls.clear()
+        refused_before_apply(case, env, mods, "unverified_secret_present")
+
+
+def scenario_register_recreated_before_apply(case, mods):
+    with env_for(mods) as env:
+        def race(plan):
+            env.cluster.put(GATEWAY, uid(960))  # created by someone else after the precondition read
+            return env.cluster.apply(plan)
+        result = env.register(apply_fn=race)
+        case.assertEqual((result["secrets"][2]["registration"], result["secrets"][2]["reason"]),
+                         ("NOT_VERIFIED", "apply_not_confirmed"))
+        case.assertEqual(result["result"], "INCOMPLETE")
+        case.assertEqual(env.cluster.objects[GATEWAY]["uid"], uid(960), "the unknown Secret is not overwritten")
+        case.assertNotIn(uid(960), env.receipt.read_text(), "and never adopted")
+
+
+def scenario_register_plan_tamper(case, mods):
+    with env_for(mods) as env:
+        def tamper(plan):
+            env.cluster.put(GATEWAY, uid(961))
+            plan[2]["expect_uid"] = uid(961)  # a callback that rewrites the plan cannot widen what is accepted
+            return env.cluster.apply(plan)
+        result = env.register(apply_fn=tamper)
+        case.assertEqual(result["secrets"][2]["reason"], "apply_not_confirmed")
+        case.assertNotIn(uid(961), env.receipt.read_text())
+
+
+def scenario_register_uid_changed_after_apply(case, mods):
+    with env_for(mods) as env:
+        def apply_then_recreate(plan):
+            outcome = env.cluster.apply(plan)
+            env.cluster.objects.pop(GATEWAY)
+            env.cluster.put(GATEWAY, uid(962))
+            return outcome
+        result = env.register(apply_fn=apply_then_recreate)
+        case.assertEqual((result["secrets"][2]["registration"], result["secrets"][2]["reason"]),
+                         ("NOT_VERIFIED", "uid_changed_after_apply"))
+        case.assertNotIn(uid(962), env.receipt.read_text())
+        case.assertIsNone(env.document()["secrets"][2]["uid"])
+
+
+def scenario_register_apply_uid_missing_or_wrong(case, mods):
+    with env_for(mods) as env:
+        def bad_result(plan):
+            outcome = env.cluster.apply(plan)
+            del outcome[1]["uid"]
+            outcome[2]["uid"] = "not-a-uid"
+            outcome[3]["uid"] = uid(963)  # a well-formed UID that is not the object's
+            return outcome
+        result = env.register(apply_fn=bad_result)
+        case.assertEqual([s["reason"] for s in result["secrets"]],
+                         [None, "apply_not_confirmed", "apply_not_confirmed", "uid_changed_after_apply"])
+        case.assertNotIn(uid(963), env.receipt.read_text())
 
 
 def scenario_register_conflict(case, mods):
     with env_for(mods) as env:
         registered(env)
         before = env.receipt.read_bytes()
-        env.cluster.objects.pop(GATEWAY)
-        env.cluster.put(GATEWAY)  # recreated by someone else: a different UID
-        case.assertEqual(code_of(env.register, mods), "receipt_conflict")
-        case.assertEqual(env.receipt.read_bytes(), before, "the old receipt is evidence and stays")
-        env.cluster.objects.pop(GATEWAY)
-        env.cluster.put(GATEWAY, json.loads(before)["secrets"][2]["uid"])
-        case.assertEqual(env.register()["result"], "REGISTERED", "same UIDs: a re-registration may replace it")
 
-
-def scenario_register_after_cleanup(case, mods):
-    with env_for(mods) as env:
-        registered(env)
-        case.assertEqual(env.cleanup()["result"], "COMPLETE")
-        outcome = []
-        case.assertIsNone(code_of(lambda: outcome.append(env.register()), mods), "cleaned-up UIDs may be replaced")
-        case.assertEqual(outcome[0]["result"], "REGISTERED")
-        case.assertTrue(all(e["cleanup"] is None for e in env.document()["secrets"]))
+        def failing(plan):
+            raise RuntimeError("apply failed")
+        case.assertEqual(code_of(lambda: env.register(apply_fn=failing), mods), "receipt_conflict")
+        case.assertEqual(env.receipt.read_bytes(), before, "a live UID is never dropped from the receipt")
 
 
 def scenario_register_policy_read_only(case, mods):
@@ -907,8 +1099,7 @@ def scenario_cleanup_recreated_after_cleanup(case, mods):
 
 def scenario_cleanup_incomplete_receipt(case, mods):
     with env_for(mods) as env:
-        env.cluster.apply()
-        env.register(apply_fn=lambda: env.cluster.apply([CACERTS, WEBHOOK, GATEWAY]))
+        env.register(apply_fn=lambda plan: env.cluster.apply(plan)[:3])  # CLIENT_CA written but NOT_VERIFIED
         env.cluster.requests.clear()
         report = env.cleanup()
         case.assertEqual(env.state_of(report, CLIENT_CA), ("BLOCKED", "receipt_uid_unavailable"))
@@ -1028,6 +1219,10 @@ class RegistrationReceiptTests(unittest.TestCase):
         scenario_register_roundtrip(self, real_mods())
         scenario_register_policy_read_only(self, real_mods())
 
+    def test_normal_registrations(self):
+        scenario_register_again_same_uids(self, real_mods())
+        scenario_register_after_cleanup(self, real_mods())
+
     def test_partial_registration_is_never_success(self):
         scenario_register_partial(self, real_mods())
         scenario_register_failures(self, real_mods())
@@ -1038,9 +1233,29 @@ class RegistrationReceiptTests(unittest.TestCase):
         scenario_register_save_failure(self, real_mods())
         scenario_receipt_write_cleans_temporary(self, real_mods())
 
-    def test_receipt_never_rebuilt_or_replaced_over_live_uids(self):
+    def test_receipt_never_drops_a_live_uid(self):
         scenario_register_conflict(self, real_mods())
-        scenario_register_after_cleanup(self, real_mods())
+
+    def test_existing_secret_without_receipt_never_adopted(self):
+        scenario_register_existing_without_receipt(self, real_mods())
+        scenario_register_all_existing_matching(self, real_mods())
+
+    def test_preconditions_checked_for_all_four_before_apply(self):
+        scenario_register_uid_mismatch_before_apply(self, real_mods())
+        scenario_register_claimed_absent(self, real_mods())
+        scenario_register_claimed_ownership(self, real_mods())
+        scenario_register_precondition_unreadable(self, real_mods())
+
+    def test_cleaned_or_unverified_secret_never_rebuilt(self):
+        scenario_register_recreated_after_cleanup(self, real_mods())
+        scenario_register_no_rebuild_from_unverified(self, real_mods())
+
+    def test_apply_result_bound_to_metadata_uid(self):
+        scenario_apply_evidence(self, real_mods())
+        scenario_register_recreated_before_apply(self, real_mods())
+        scenario_register_plan_tamper(self, real_mods())
+        scenario_register_uid_changed_after_apply(self, real_mods())
+        scenario_register_apply_uid_missing_or_wrong(self, real_mods())
 
     def test_receipt_missing_corrupt_or_tampered(self):
         scenario_receipt_missing(self, real_mods())
@@ -1128,17 +1343,40 @@ SECRET_MUTATIONS = [
     ("open_real_refusal", C, "return transport.open_transport(transport_kind, policy, server)",
      "return transport.FakeTransport(policy, server)", scenario_real_refused),
     ("registration_read_only", C, "identities if delete else ()", "identities", scenario_register_policy_read_only),
-    ("apply_confirmation", C, 'if (identity["namespace"], identity["name"]) in confirmed:', "if True:",
-     scenario_register_partial),
-    ("apply_report_shape", C, "    if not isinstance(applied, dict) or set(applied) - allowed:\n        return set()",
-     "    if not isinstance(applied, dict):\n        return set()", scenario_register_foreign_report),
+    ("pre_read_failure", C, 'need(reason is None, "precondition_unreadable")', "pass",
+     scenario_register_precondition_unreadable),
+    ("unknown_existing", C, "            if current is not None:\n                raise", "            if False:\n                raise",
+     scenario_register_all_existing_matching),
+    ("claimed_absent", C, 'need(current is not None, "receipt_uid_absent")', "pass", scenario_register_claimed_absent),
+    ("claimed_uid", C, 'need(current == claim, "receipt_uid_mismatch")', "pass",
+     scenario_register_uid_mismatch_before_apply),
+    ("claimed_ownership", C, 'need(problem is None, "precondition_" + str(problem))', "pass",
+     scenario_register_claimed_ownership),
+    ("unverified_code", C, '    if entry["registration"] != "REGISTERED":\n        return "unverified_secret_present"',
+     '    if False:\n        return "unverified_secret_present"', scenario_register_no_rebuild_from_unverified),
+    ("live_claim_cleaned", C, 'if entry is None or (entry["cleanup"] or {}).get("state") in CLEANED:',
+     "if entry is None:", scenario_register_after_cleanup),
+    ("apply_unknown_identity", C, "if len(set(keys)) != len(keys) or not set(keys) <= set(expected):",
+     "if len(set(keys)) != len(keys):", scenario_register_foreign_report),
+    ("apply_repeated_identity", C, "if len(set(keys)) != len(keys) or not set(keys) <= set(expected):",
+     "if not set(keys) <= set(expected):", scenario_apply_evidence),
+    ("apply_uid_format", C, "        if not (isinstance(uid, str) and safety.UID.fullmatch(uid) is not None):\n            continue\n",
+     "", scenario_register_apply_uid_missing_or_wrong),
+    ("apply_created_outcome", C, 'if expect is None and item.get("outcome") == "created":', "if expect is None:",
+     scenario_register_recreated_before_apply),
+    ("apply_updated_uid", C, 'item.get("outcome") == "updated" and uid == expect:', 'item.get("outcome") == "updated":',
+     scenario_apply_evidence),
+    ("apply_updated_outcome", C, 'elif expect is not None and item.get("outcome") == "updated" and uid == expect:',
+     "elif expect is not None and uid == expect:", scenario_apply_evidence),
+    ("post_apply_uid", C, '                if reason is None and metadata["uid"] != applied_uid:\n',
+     "                if False:\n", scenario_register_uid_changed_after_apply),
+    ("plan_copied", C, "result = apply_fn(copy.deepcopy(plan))", "result = apply_fn(plan)",
+     scenario_register_plan_tamper),
     ("registration_ownership", C,
      'reason = "absent_after_apply" if metadata is None else ownership_problem(project, identity, metadata)',
      'reason = "absent_after_apply" if metadata is None else None', scenario_register_ownership),
-    ("registration_conflict", C, 'need(new["uid"] == old["uid"], "receipt_conflict")', "pass",
+    ("registration_conflict", C, 'need(new["uid"] == claim, "receipt_conflict")', "pass",
      scenario_register_conflict),
-    ("conflict_after_cleanup", C, 'if old["registration"] == "REGISTERED" and (old["cleanup"] or {}).get("state") not in CLEANED:',
-     'if old["registration"] == "REGISTERED":', scenario_register_after_cleanup),
     ("save_failure_cleanup", C, "            with contextlib.suppress(OSError):\n                os.unlink(temporary)",
      "            pass", scenario_receipt_write_cleans_temporary),
     ("write_validated", C, "    check_receipt(document, project, fp)\n    data = safety.canonical(document).encode()",
@@ -1235,7 +1473,7 @@ def mutant(filename, old, new):
 
 class SecretMutationTests(unittest.TestCase):
     def test_each_secret_guard_mutation_is_detected_by_an_assertion(self):
-        self.assertEqual(len(SECRET_MUTATIONS), 55)
+        self.assertEqual(len(SECRET_MUTATIONS), 67)
         self.assertEqual(len({m[0] for m in SECRET_MUTATIONS}), len(SECRET_MUTATIONS))
         undetected = []
         for name, filename, old, new, scenario in SECRET_MUTATIONS:

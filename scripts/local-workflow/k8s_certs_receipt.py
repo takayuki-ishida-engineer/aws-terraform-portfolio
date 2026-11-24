@@ -11,15 +11,26 @@ nothing else. The transport policy built here names exactly those four and the
 ``kube-system`` namespace read of the cluster fingerprint (D17).
 
 Registration UID receipt (``register_with_receipt``)
-  Called with the registration's apply step (``apply_fn``). After the apply it reads
-  each Secret's metadata (PartialObjectMetadata, never the full object) and records
-  the UID only when the apply confirmed that Secret and the metadata shows the
-  ``k8s_certs.py`` labels and a single ``<project>-k8s-certs`` Apply entry that owns
-  exactly the registered fields. Otherwise the entry is NOT_VERIFIED with no UID, and
-  the receipt result is INCOMPLETE, never success. A receipt is never rebuilt from
-  names or current UIDs alone: an existing receipt is replaced only when every UID it
-  holds is unchanged or was cleaned up. The real ``k8s_certs.py register`` is
-  unchanged and writes no receipt (no real transport exists).
+  1. Before any apply, a metadata read of all four Secrets (PartialObjectMetadata,
+     never the full object) against the existing receipt. A Secret with no live
+     receipt claim (no receipt, a NOT_VERIFIED entry, or a cleaned-up entry) must be
+     absent; a claimed Secret must be present with the claimed UID and the
+     k8s_certs.py ownership. A read failure (403, timeout, invalid response) is never
+     absence. Any failure refuses the registration before the apply step is called:
+     unknown Secrets are never adopted, and labels, manager names or fields alone
+     never make one registrable.
+  2. The apply step (``apply_fn(plan)``) gets the conditional plan: create only if
+     absent, or update only the claimed UID. It returns the identity, outcome and UID
+     it wrote. In the fake this condition is atomic; on a real API server it is
+     NOT_VERIFIED, and no real apply transport exists.
+  3. A UID is recorded only when the apply confirmed it as planned and the later
+     metadata read shows the same UID, the ``k8s_certs.py`` labels and a single
+     ``<project>-k8s-certs`` Apply entry that owns exactly the registered fields.
+     Otherwise the entry is NOT_VERIFIED with no UID and the result is INCOMPLETE,
+     never success. A UID that may still name a live Secret is never dropped or
+     replaced (``receipt_conflict``).
+  The real ``k8s_certs.py register`` is unchanged and writes no receipt (no real
+  transport exists).
 
 Receipt store
   ``<root>/<fingerprint id>/registration.json``, default root
@@ -57,6 +68,7 @@ deleted; its webhook TLS Secret is its own completion condition. Namespace delet
 is not implemented here (6c-B4) and also needs the section 5.1 inventory (D3).
 """
 import contextlib
+import copy
 import fcntl
 import json
 import os
@@ -93,7 +105,7 @@ REASONS = TRANSPORT_REASONS | {
     "transport_timeout", "transport_unknown", "apply_not_confirmed", "absent_after_apply", "label_managed_by",
     "label_project", "apply_entry_missing", "manager_operation", "foreign_manager", "managed_fields_malformed",
     "field_ownership", "uid_mismatch", "receipt_uid_unavailable", "recreated_after_cleanup", "deleted_concurrently",
-    "still_present_after_delete", "recreated_after_delete"}
+    "still_present_after_delete", "recreated_after_delete", "uid_changed_after_apply"}
 
 
 class CleanupError(Exception):
@@ -354,16 +366,78 @@ def write_receipt(directory, document, project, fp):
 
 # ---- registration -------------------------------------------------------------------------------------------------
 
-def confirmed_by_apply(applied, identities):
-    """The Secrets the apply step reported applied; a malformed or foreign report confirms none."""
-    allowed = {(i["namespace"], i["name"]) for i in identities}
-    if not isinstance(applied, dict) or set(applied) - allowed:
-        return set()
-    return {key for key, outcome in applied.items() if outcome == "applied"}
+def live_claim(entry):
+    """The UID a receipt entry still claims (registered and not cleaned up), or None."""
+    if entry is None or (entry["cleanup"] or {}).get("state") in CLEANED:
+        return None
+    return entry["uid"]
+
+
+def unknown_secret_code(entry):
+    if entry is None:
+        return "existing_secret_without_receipt"
+    if entry["registration"] != "REGISTERED":
+        return "unverified_secret_present"
+    return "recreated_after_cleanup"
+
+
+def registration_plan(client, project, identities, existing):
+    """Before any apply: every Secret is either absent with no live claim, or present with the claimed UID.
+
+    Any read failure, unknown present Secret, UID difference, missing claimed Secret or changed ownership
+    refuses the whole registration; nothing is applied. Labels, manager names and fields alone never make
+    an existing Secret registrable: only the receipt UID does.
+    """
+    plan = []
+    for index, identity in enumerate(identities):
+        metadata, reason = attempt(lambda: client.get_metadata(identity))
+        need(reason is None, "precondition_unreadable")
+        claim = live_claim(existing["secrets"][index] if existing else None)
+        current = metadata["uid"] if metadata is not None else None
+        if claim is None:
+            if current is not None:
+                raise CleanupError(unknown_secret_code(existing["secrets"][index] if existing else None))
+        else:
+            need(current is not None, "receipt_uid_absent")
+            need(current == claim, "receipt_uid_mismatch")
+            problem = ownership_problem(project, identity, metadata)
+            need(problem is None, "precondition_" + str(problem))
+        plan.append({"namespace": identity["namespace"], "name": identity["name"], "expect_uid": claim})
+    return plan
+
+
+def apply_evidence(result, plan):
+    """{(namespace, name): uid} the apply confirmed as planned: created where absent, updated on the claimed UID.
+
+    A malformed result, an unknown or repeated identity confirms nothing; a missing or invalid UID, another
+    outcome or a UID other than the claimed one confirms that Secret not.
+    """
+    expected = {(item["namespace"], item["name"]): item["expect_uid"] for item in plan}
+    if not isinstance(result, list) or not all(isinstance(item, dict) for item in result):
+        return {}
+    keys = [(item.get("namespace"), item.get("name")) for item in result]
+    if len(set(keys)) != len(keys) or not set(keys) <= set(expected):
+        return {}
+    confirmed = {}
+    for item, key in zip(result, keys):
+        uid, expect = item.get("uid"), expected.get(key, "")
+        if not (isinstance(uid, str) and safety.UID.fullmatch(uid) is not None):
+            continue
+        if expect is None and item.get("outcome") == "created":
+            confirmed[key] = uid
+        elif expect is not None and item.get("outcome") == "updated" and uid == expect:
+            confirmed[key] = uid
+    return confirmed
 
 
 def register_with_receipt(project, cluster_arn, apply_fn, root=None, transport_kind="fake", server=None):
-    """Fake-only: run the registration's apply step, then record the UID receipt from metadata reads."""
+    """Fake-only: check all four Secrets, run the conditional apply step, then record the UIDs it confirmed.
+
+    ``apply_fn(plan)`` receives one item per Secret, ``{"namespace", "name", "expect_uid"}``: create only if
+    absent (``expect_uid`` None) or update only the object with that UID. It returns one item per Secret it
+    wrote, ``{"namespace", "name", "outcome": "created" | "updated", "uid"}``. A UID is recorded only when the
+    later metadata read shows the same UID and the k8s_certs.py ownership.
+    """
     project = check_project(project)
     identities = secret_identities(project)
     client = open_client(project, transport_kind, server, delete=False)
@@ -371,26 +445,31 @@ def register_with_receipt(project, cluster_arn, apply_fn, root=None, transport_k
     directory = receipt_directory(root or default_root(project), fp, create=True)
     with locked(directory):
         existing = load_receipt(directory, project, fp) if os.path.lexists(directory / RECEIPT) else None
+        plan = registration_plan(client, project, identities, existing)
         try:
-            applied = apply_fn()
+            result = apply_fn(copy.deepcopy(plan))
         except Exception:  # noqa: BLE001 - a failed apply confirms nothing
-            applied = None
-        confirmed = confirmed_by_apply(applied, identities)
+            result = None
+        confirmed = apply_evidence(result, plan)
         entries = []
         for identity in identities:
             uid, reason = None, "apply_not_confirmed"
-            if (identity["namespace"], identity["name"]) in confirmed:
+            applied_uid = confirmed.get((identity["namespace"], identity["name"]))
+            if applied_uid is not None:
                 metadata, reason = attempt(lambda: client.get_metadata(identity))
                 if reason is None:
                     reason = "absent_after_apply" if metadata is None else ownership_problem(project, identity, metadata)
+                if reason is None and metadata["uid"] != applied_uid:
+                    reason = "uid_changed_after_apply"
                 if reason is None:
-                    uid = metadata["uid"]
+                    uid = applied_uid
             entries.append({"identity": identity, "uid": uid, "registration": "REGISTERED" if uid else "NOT_VERIFIED",
                             "reason": None if uid else reason, "cleanup": None})
         for old, new in zip(existing["secrets"] if existing else [], entries):
             # Never drop or replace a UID that may still name a live Secret.
-            if old["registration"] == "REGISTERED" and (old["cleanup"] or {}).get("state") not in CLEANED:
-                need(new["uid"] == old["uid"], "receipt_conflict")
+            claim = live_claim(old)
+            if claim is not None:
+                need(new["uid"] == claim, "receipt_conflict")
         complete = all(entry["uid"] for entry in entries)
         document = {"schema": SCHEMA, "project": project,
                     "cluster": {"cluster_arn": fp["cluster_arn"], "kube_system_uid": fp["kube_system_uid"],

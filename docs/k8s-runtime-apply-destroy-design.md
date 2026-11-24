@@ -279,12 +279,20 @@ recommended independent pull request: `scripts/local-workflow/k8s_certs_receipt.
   same file safety as the runtime receipt: outside the repository, 0700 and 0600,
   owner check, symlink refusal, exclusive lock, validated atomic replace. Schema
   `k8s-certs-registration-receipt-v1`: project, D17 fingerprint, the four
-  identities, the UID at registration and the result. After the registration's apply
-  step, a UID is recorded only from a metadata read that shows both labels and a
-  single `<project>-k8s-certs` Apply entry owning exactly the registered fields.
-  Anything less is NOT_VERIFIED with no UID and the result INCOMPLETE, never success;
-  a failed save is never success. A receipt is never rebuilt from names or current
-  UIDs and never replaces a UID that may still name a live Secret.
+  identities, the UID at registration and the result.
+  - Before any apply, all four Secrets are read (metadata only) and compared with
+    the receipt: a Secret without a live claim must be absent, a claimed one present
+    with the claimed UID and ownership. An unknown Secret, a UID difference, a
+    missing claimed Secret or an unreadable read refuses the registration before the
+    apply step runs (review of PR #99: no adoption of unknown Secrets).
+  - The apply step gets a conditional plan (create if absent, update only the
+    claimed UID) and returns the identity and UID it wrote; a UID is recorded only
+    when the later metadata read shows that same UID, both labels and a single
+    `<project>-k8s-certs` Apply entry owning exactly the registered fields. The
+    condition is atomic in the fake and NOT_VERIFIED on a real API server.
+  - Anything less is NOT_VERIFIED with no UID and the result INCOMPLETE, never
+    success; a failed save is never success. A receipt is never rebuilt from names
+    or current UIDs and never drops a UID that may still name a live Secret.
 - **Cleanup.** The ten steps of the Owner decision: receipt, project, fingerprint and
   identity; metadata GET; both labels; the Apply entry; no other manager, operation
   or field; the receipt UID; DELETE with `preconditions.uid` (DELETE_REQUESTED
@@ -298,7 +306,9 @@ recommended independent pull request: `scripts/local-workflow/k8s_certs_receipt.
 - **Not changed.** The real `register` (no receipt, no read-back), the runtime
   receipt's Secret refusal, the real transport (not implemented) and namespace
   deletion (not implemented, D18 below).
-- **Still NOT_TESTED or NOT_VERIFIED.** Any real Secret read or delete; the exact
+- **Still NOT_TESTED or NOT_VERIFIED.** Any real Secret read or delete; whether a
+  real server-side apply can be made conditional (create only if absent, update only
+  a given UID) without a race; the exact
   managedFields a server-side applied Secret carries (the Apply entry's field set
   is assumed to be the labels, `type` and the data keys, so a different real shape
   fails closed); whether a 202 leaves a Secret present for a while (BLOCKED now;
