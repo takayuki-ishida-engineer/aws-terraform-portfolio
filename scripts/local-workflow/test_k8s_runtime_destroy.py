@@ -1492,21 +1492,41 @@ def scenario_owned_absent(case, mods):
         case.assertNotIn(w.path(validator), w.deleted_paths(), "an absent object gets no DELETE")
 
 
-def scenario_namespace_classes(case, mods):
+def scenario_namespace_runtime_object(case, mods):
     with world(mods, stages=PARTIAL) as w:
         validator = w.ident("ValidatingWebhookConfiguration", "istiod-default-validator")
         w.cluster.extra("istio-system", "", "configmaps", "stray", uid_value=w.cluster.meta_of(validator)["uid"])
         result = run_safely(w)
         case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "runtime_object:istio-system:stray"))
         case.assertFalse(namespace_deleted(w, "istio-system"))
+        case.assertIn("stray", w.cluster.extras[("istio-system", "", "configmaps")])
+
+
+def scenario_namespace_certs_secret(case, mods):
     with world(mods, stages=PARTIAL) as w:
-        cacerts = next(i for i in T.secret_identities(w.project) if i["name"] == "cacerts")
-        path = T.object_path(cacerts, w.cluster.secret_keys)
-        w.cluster.hooks.append(lambda r, w=w: w.cluster.extra("istio-system", "", "secrets", "cacerts")
-                               if r["method"] == "DELETE" and r["path"] == path else None)
+        # Inject an inventory-only Secret at the target namespace's first metadata read,
+        # after the earlier ingress namespace has finished. The fake's exact Secret GET
+        # is intentionally absent (extras are LIST-only), so the namespace inventory
+        # guard, not the earlier cluster-wide atomic acceptance guard, must stop us.
+        ingress = w.ident("Namespace", "test-ingress")
+        istio = w.ident("Namespace", "istio-system")
+        injected = []
+
+        def add():
+            injected.append(w.cluster.meta_of(ingress) is None)
+            w.cluster.extra("istio-system", "", "secrets", "cacerts")
+        on_namespace_get(w, "istio-system", 1, add)
         result = run_safely(w)
+        case.assertEqual(injected, [True], "injection must follow ingress completion")
         case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "k8s_certs_secret:istio-system:cacerts"))
         case.assertFalse(namespace_deleted(w, "istio-system"))
+        case.assertIsNotNone(w.cluster.meta_of(istio))
+        case.assertIn("cacerts", w.cluster.extras[("istio-system", "", "secrets")])
+        case.assertFalse([r for r in w.destroy_records("DESTROY_INTENT") if r["identity"] == istio],
+                         "inventory rejection precedes the namespace INTENT")
+
+
+def scenario_namespace_d13(case, mods):
     with world(mods, stages=PARTIAL) as w:
         namespace = w.ident("Namespace", "test-ingress")
         w.cluster.meta_of(namespace)["managedFields"].append(
@@ -1515,6 +1535,39 @@ def scenario_namespace_classes(case, mods):
         result = run_safely(w)
         case.assertEqual((result["status"], result["reason"]), ("BLOCKED", "foreign_field:test-ingress"))
         case.assertFalse(namespace_deleted(w, "test-ingress"))
+        case.assertIsNotNone(w.cluster.meta_of(namespace))
+        case.assertFalse([r for r in w.destroy_records("DESTROY_INTENT") if r["identity"] == namespace],
+                         "D13 rejection precedes the namespace INTENT")
+
+
+def scenario_namespace_cross_g9_atomic(case, mods):
+    with world(mods, stages=PARTIAL) as w:
+        # Preserve the original injection timing as a separate regression: a G9 Secret
+        # in another namespace must also block atomic acceptance of ingress.
+        cacerts = next(i for i in T.secret_identities(w.project) if i["name"] == "cacerts")
+        path = T.object_path(cacerts, w.cluster.secret_keys)
+        w.cluster.hooks.append(lambda r, w=w: w.cluster.extra("istio-system", "", "secrets", "cacerts")
+                               if r["method"] == "DELETE" and r["path"] == path else None)
+        result = run_safely(w)
+        case.assertEqual((result["status"], result["reason"]),
+                         ("BLOCKED", "delete:namespace_atomic_conflict:test-ingress"))
+        ingress = w.ident("Namespace", "test-ingress")
+        istio = w.ident("Namespace", "istio-system")
+        case.assertIsNotNone(w.cluster.meta_of(ingress))
+        case.assertIsNotNone(w.cluster.meta_of(istio))
+        case.assertFalse(w.cluster.meta_of(ingress).get("deletionTimestamp"))
+        case.assertEqual(w.deleted_paths().count(w.path(ingress)), 1, "attempted, but not accepted")
+        case.assertFalse(namespace_deleted(w, "istio-system"))
+        case.assertIn("cacerts", w.cluster.extras[("istio-system", "", "secrets")])
+        records = [r for r in w.destroy_records("DESTROY_RESULT") if r["identity"] == ingress]
+        case.assertEqual([r["outcome"] for r in records], ["failed"])
+
+
+def scenario_namespace_classes(case, mods):
+    scenario_namespace_runtime_object(case, mods)
+    scenario_namespace_certs_secret(case, mods)
+    scenario_namespace_d13(case, mods)
+    scenario_namespace_cross_g9_atomic(case, mods)
 
 
 def scenario_crd_discovery(case, mods):
@@ -2585,9 +2638,9 @@ ENGINE_MUTATIONS = [
     ("istiod_leftover_blocks", D, '                if found in ("runtime_object", "k8s_certs_secret", "istiod_leftover", "unknown_object"):',
      '                if found in ("runtime_object", "k8s_certs_secret", "unknown_object"):', scenario_istiod_leftover),
     ("certs_secret_blocks", D, '                if found in ("runtime_object", "k8s_certs_secret", "istiod_leftover", "unknown_object"):',
-     '                if found in ("runtime_object", "istiod_leftover", "unknown_object"):', scenario_namespace_classes),
+     '                if found in ("runtime_object", "istiod_leftover", "unknown_object"):', scenario_namespace_certs_secret),
     ("runtime_object_class", D, '        if item["uid"] in self.receipt_uids():\n            return "runtime_object"',
-     '        if False:\n            return "runtime_object"', scenario_namespace_classes),
+     '        if False:\n            return "runtime_object"', scenario_namespace_runtime_object),
     ("unknown_secret_class", D, '            return "k8s_certs_secret" if (namespace, item["name"]) in secrets else "unknown_object"',
      '            return "k8s_certs_secret" if (namespace, item["name"]) in secrets else "allowed_leftover"', scenario_unknown_objects),
     ("events_exact", D, "        if resources and resources <= EVENTS:", "        if resources:", scenario_unknown_objects),
@@ -2606,7 +2659,7 @@ ENGINE_MUTATIONS = [
     ("namespace_uid_checked", D, '        if metadata["uid"] != owned:\n            self.store.quarantine(identity, metadata["uid"], "uid_changed_before_delete")\n            halt("BLOCKED", "uid_changed:" + identity["name"])\n        verdict',
      "        verdict", scenario_namespace_uid),
     ("namespace_d13", D, '        verdict = self.ownership(identity, metadata)\n        if verdict != "OWNED":\n            halt("BLOCKED", verdict.lower() + ":" + identity["name"])\n        return metadata',
-     "        return metadata", scenario_namespace_classes),
+     "        return metadata", scenario_namespace_d13),
     # completion
     ("final_revalidation", D, "        for step in self.plan.destroy_order:\n            self.revalidate(step)\n        if sorted",
      "        if sorted", scenario_final_checks),
@@ -2722,6 +2775,11 @@ class DestroyEngineMutationTests(unittest.TestCase):
         self.assertEqual(len(ENGINE_MUTATIONS), len({m[0] for m in ENGINE_MUTATIONS}))
         undetected = []
         for name, filename, old, new, scenario in ENGINE_MUTATIONS:
+            # A failing baseline is a test failure, never a detected mutation. These
+            # formerly shared scenarios are now isolated and checked before mutation.
+            if name in ("certs_secret_blocks", "namespace_d13", "runtime_object_class"):
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    scenario(self, real_mods())
             mods = real_mods()
             setattr(mods, {D: "destroy", R: "receipt", TR: "transport"}[filename], mutant(filename, old, new))
             try:
