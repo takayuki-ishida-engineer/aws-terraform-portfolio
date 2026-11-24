@@ -208,7 +208,8 @@ What is ready (Step 1 item 6b-A):
   missing or unknown, with its generation and readiness, and exits 3 when anything
   could not be determined.
   See the [script description](../scripts/local-workflow/README.md#kubernetes-runtime-input-and-plan-k8s_runtime_inputpy-k8s_runtimepy).
-  Applying the stages is not implemented yet (no `apply`), and the ingress stage is
+  There is no real `apply`: the command refuses, and the Fake-only apply engine has no
+  command line or real transport. The ingress stage is
   blocked until the binding-writer method is approved. The apply and destroy design
   and its open Owner decisions are in the
   [6c-B2 design record](k8s-runtime-apply-destroy-design.md). Passing the offline

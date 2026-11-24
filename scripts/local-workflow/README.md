@@ -433,7 +433,7 @@ Each stage reports what was observed and, separately, whether it may be executed
 - `execution_gate`, independent of the observation:
   - `BLOCKED` for ingress, whether or not the TargetGroupBinding exists, until the
     Owner approves the binding-writer method;
-  - `NOT_AVAILABLE` for every other stage, because `apply` is not implemented.
+  - `NOT_AVAILABLE` for every other stage, because there is no real `apply`.
 
 The report-level `execution_gate` records:
 - ingress `BLOCKED`;
@@ -1014,12 +1014,14 @@ cleanup, a missing UID in the receipt and any failed check is BLOCKED: the Secre
 stays, nothing is retried and no response body is kept. There is no full Secret
 GET, no name-only delete and no namespace fallback.
 
-**D18 (recorded, not implemented).** The report's `namespace_secret_condition` is
+**D18 (recorded by G9, not enforced by G9 itself).** The report's `namespace_secret_condition` is
 BLOCKED for `istio-system` or `<project>-ingress` while any of its Secrets is not
 DELETED or ALREADY_ABSENT; MET is necessary, never sufficient (the section 5.1
 inventory and D6 still apply). `kube-system` is `NEVER_DELETED`; its webhook TLS
 Secret is its own completion condition (`kube_system_webhook_tls`).
-`namespace_deletion` is `NOT_IMPLEMENTED` (6c-B4).
+`namespace_deletion` is `NOT_IMPLEMENTED` in G9's own report. The Fake-only destroy
+engine (6c-B4b) enforces D18 in its namespace phase; a real namespace deletion stays
+BLOCKED.
 
 **Tests.** `test_k8s_certs_receipt.py` has 27 tests and 67 source mutations, run
 inside the `k8s_runtime_receipt_tests` suite. A fake API server answers like the
@@ -1493,7 +1495,7 @@ so the stage is never PASS.
 **Tests.** `test_k8s_runtime_apply.py` has 58 tests and 163 source mutations
 (3 tests and 11 mutations for Apply-B5).
 
-### Apply and destroy: preconditions and open decisions (not implemented)
+### Apply and destroy: preconditions and open decisions (real commands not implemented)
 
 `apply` and `destroy` are not implemented as commands (both subcommands refuse; the
 Fake-only apply and destroy engines above have no command line and no real transport). This records what they must respect,
@@ -1549,8 +1551,9 @@ there is **open**; nothing here decides an execution method.
   refuses. The safe cleanup (`k8s_certs_receipt.cleanup`: receipt UID, ownership
   checks, UID-precondition DELETE, confirmed absence) exists as Source/Offline code
   against the fake transport only. Deleting a namespace also deletes its Secrets,
-  so namespace deletion stays BLOCKED (6c-B4, D3, D6), and never happens while a
-  Secret remains (D18). The `kube-system` webhook TLS Secret is its own cleanup
+  so a real namespace deletion stays BLOCKED. The Fake-only 6c-B4b engine deletes a
+  namespace only under D3, D6, D18 and the Fake-only atomic namespace gate, and never
+  while a Secret remains (D18). The `kube-system` webhook TLS Secret is its own cleanup
   condition.
 - **Ingress stop condition.** The ingress stage stays BLOCKED until all of these
   are approved and in place:

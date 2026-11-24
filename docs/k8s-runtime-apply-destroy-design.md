@@ -10,8 +10,10 @@ of Step 1 item 6c. It has four parts:
 
 **Status: design record; 6c-B3a foundation, the 6c-B3b-Apply-A and Apply-B1 to Apply-B5 fake engine, G9 with the D19 Fake-only Secret extension, and the 6c-B4a destroy safety foundation (merged, PR #100) implemented offline, and the 6c-B4b Fake-only destroy engine (merged, PR #101, FULL CI NOT RUN under a one-time Owner exception) implemented offline. The 6c-B5 Source/Offline final audit is in [the audit report](step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5). The real `destroy` command stays refused.**
 
-- `apply` and `destroy` are not implemented. Nothing here was executed against a
-  cluster, AWS or the Emulator.
+- The real `apply` and `destroy` commands of `k8s_runtime.py` refuse (BLOCKED). The
+  Fake-only apply engine (6c-B3b) and destroy engine (6c-B4b) exist as Source/Offline
+  code, with no command line and no real transport. Nothing here was executed against
+  a cluster, AWS or the Emulator.
 - 6c-B3a (Owner Decision Gate, 2026-11-22) implemented these, as Source/Offline
   code only (see section 13):
   - the receipt, write-ahead journal and crash reconciliation of section 6;
@@ -138,7 +140,7 @@ of Step 1 item 6c. It has four parts:
 - Baseline: `main` at `c96ec9d` (after 6c-B1, PR #87).
 
 Related records:
-- [script description](../scripts/local-workflow/README.md#apply-and-destroy-preconditions-and-open-decisions-not-implemented)
+- [script description](../scripts/local-workflow/README.md#apply-and-destroy-preconditions-and-open-decisions-real-commands-not-implemented)
 - [runbook §7](dev-runbook.md#7-teardown)
 - [step plan](deployment-configuration.md#8-step-plan)
 - [audit report](step1-audit-report.md) (findings F22 and F23)
@@ -243,8 +245,9 @@ write would then fail.
   lists the two pinned empty values. The 9 stages and 62 objects are unchanged.
 - Evidence moves to `runtime_contract_version` 5. Contract-4 evidence is refused by
   `check_runtime.py` and by `k8s_runtime.py plan`.
-- There is still no `apply`. The phases above remain the contract for 6c-B3b; no
-  path forces or overwrites a `caBundle`.
+- The real `apply` stays BLOCKED (the command refuses). The Fake-only apply engine
+  added later (6c-B3b-Apply-A to Apply-B5) follows the phases above against fakes
+  only; no path forces or overwrites a `caBundle`.
 - The AWS Load Balancer Controller webhook keeps the `caBundle` the renderer sets
   from the public CA. The runtime owns it, and any other manager on it stops apply.
 - Live behaviour is NOT_VERIFIED and never inferred as PASS. This covers istiod's
@@ -254,7 +257,9 @@ write would then fail.
 
 **Problem.** The current `k8s_certs.py delete` must not be used by the runtime
 destroy, because it does not check UIDs (E4). Deleting a namespace deletes its
-Secrets, so namespace deletion stays BLOCKED until this is fixed.
+Secrets, so namespace deletion stays BLOCKED until this is fixed. (G9 fixed it in
+Source/Offline code; a real namespace deletion stays BLOCKED with the real `destroy`,
+and D18 stays in force.)
 
 A safe cleanup must, for each of the four Secrets:
 1. read metadata only (section 8);
@@ -305,7 +310,7 @@ recommended independent pull request: `scripts/local-workflow/k8s_certs_receipt.
   (`name_based_delete_retired`) after the unchanged automation refusal.
 - **Not changed.** The real `register` (no receipt, no read-back), the runtime
   receipt's Secret refusal, the real transport (not implemented) and namespace
-  deletion (not implemented, D18 below).
+  deletion (not part of G9, D18 below; the Fake-only 6c-B4b engine added it later).
 - **Still NOT_TESTED or NOT_VERIFIED.** Any real Secret read or delete; whether a
   real server-side apply can be made conditional (create only if absent, update only
   a given UID) without a race; the exact
@@ -530,7 +535,9 @@ Abbreviations in the table:
    BLOCKED. Unknown Secrets are never deleted or adopted automatically. `kube-system`
    is never deleted; its webhook TLS Secret is its own completion condition. The G9
    cleanup report records this condition per namespace
-   (`namespace_secret_condition`); namespace deletion itself is not implemented.
+   (`namespace_secret_condition`). G9 itself deletes no namespace. The Fake-only
+   6c-B4b engine deletes one only under D6, D18 and the Fake-only atomic namespace
+   gate; a real namespace deletion stays BLOCKED.
 6. **CRDs are kept** (D5).
    - Runtime destroy is complete when all of these hold:
      - the 45 non-CRD objects are absent;
@@ -941,7 +948,8 @@ Deleting the EKS cluster alone is not complete teardown.
     the four `k8s_certs.py` Secret identities (section 3);
   - **D18**: no namespace deletion while a Secret remains; incomplete cleanup of the
     four Secrets blocks it; unknown Secrets are never deleted or adopted;
-    `kube-system` is never deleted. Recorded as a contract, not implemented.
+    `kube-system` is never deleted. Recorded as a contract in G9; enforced by the
+    Fake-only 6c-B4b engine (PR #101); a real namespace deletion stays BLOCKED.
 - **Approved (Owner, 2026-11-24), for 6c-B4. 6c-B4a was implemented first (PR #100); the
   6c-B4b parts were then authorized for Fake-only implementation on 2026-11-24:**
   - **D3**: Fake-only discovery and metadata-only LIST. Namespaces `istio-system`,
@@ -1059,7 +1067,8 @@ gateway, mesh_security, admission and binding_writer second.
 
 - **BLOCKED:**
   - ingress (D1);
-  - `apply` and `destroy` (not implemented);
+  - the real `apply` and `destroy` commands (both refuse; only the Fake-only engines
+    exist, with no command line or real transport);
   - real DELETE: only the Fake UID-precondition DELETE of the four Secrets exists
     (D19, 2026-11-24); the real transport is not implemented;
   - real namespace deletion: the Fake-only engine (6c-B4b) deletes a namespace only after
