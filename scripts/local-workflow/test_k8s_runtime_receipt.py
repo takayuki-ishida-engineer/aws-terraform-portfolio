@@ -22,6 +22,12 @@ The 6c-B4a destroy foundation tests of ``test_k8s_runtime_destroy_foundation`` (
 transport scopes, discovery, metadata LIST and pagination, the specialised CRD and Service
 reads, the destroy phase of the journal and the apply phase guard) run here as well, and
 ``DESTROY_MUTATIONS`` is part of ``MUTATIONS``.
+
+The 6c-B4b Fake-only destroy engine tests of ``test_k8s_runtime_destroy`` (preflight, the
+reverse stage order and D12 gates, D13 ownership, the write-ahead journal and crash
+recovery, the D11 deadline, G9, the namespace inventory classes and the retained CRDs)
+run here too, with the pinned Helm render of the synthetic fixture (``K8S_RUNTIME_HELM``),
+and ``ENGINE_MUTATIONS`` is part of ``MUTATIONS``.
 """
 import ast
 import contextlib
@@ -50,6 +56,9 @@ from test_k8s_certs_receipt import (SECRET_MUTATIONS, RegistrationReceiptTests, 
 from test_k8s_runtime_destroy_foundation import (DESTROY_MUTATIONS, CrdAndServiceReadTests,  # noqa: E402,F401
                                                  DestroyJournalTests, DestroyMutationTests, DestroyTransportTests,
                                                  DiscoveryAndListTests)
+from test_k8s_runtime_destroy import (ENGINE_MUTATIONS, DestroyCrdTests, DestroyEngineMutationTests,  # noqa: E402,F401
+                                      DestroyEngineTests, DestroyInventoryTests, DestroyOrderingTests,
+                                      DestroyReceiptTests, DestroyRecoveryTests, DestroyReviewTests)
 
 PROJECT = "acme"
 ARN = "arn:aws:eks:ca-central-1:444455556666:cluster/acme-dev-eks"
@@ -1322,9 +1331,9 @@ RUNTIME_MUTATIONS = [
     ("verify_open_intent", K, 'attention = loaded["receipt"] != "CURRENT" or state["open_intent"] is not None or bool(state["quarantined"])',
      "attention = False", scenario_verify_open_intent),
 ]
-# Every guard mutation of this suite: the runtime ones above, the G9/D19 ones (SecretMutationTests) and the
-# 6c-B4a destroy foundation ones (DestroyMutationTests).
-MUTATIONS = RUNTIME_MUTATIONS + SECRET_MUTATIONS + DESTROY_MUTATIONS
+# Every guard mutation of this suite: the runtime ones above, the G9/D19 ones (SecretMutationTests), the
+# 6c-B4a destroy foundation ones (DestroyMutationTests) and the 6c-B4b engine ones (DestroyEngineMutationTests).
+MUTATIONS = RUNTIME_MUTATIONS + SECRET_MUTATIONS + DESTROY_MUTATIONS + ENGINE_MUTATIONS
 
 
 def mutant(filename, old, new):

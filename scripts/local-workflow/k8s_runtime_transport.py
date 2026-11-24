@@ -124,6 +124,7 @@ class Policy:
         # kube-system namespace can be deleted through it.
         need(not any((k[0], k[1]) == ("apiextensions.k8s.io/v1", "CustomResourceDefinition")
                      or k == ("v1", "Namespace", "", "kube-system") for k in self.delete), "delete_identity_refused")
+        need(not any(k[1] == "Namespace" for k in self.delete), "namespace_atomic_capability_required")
 
 
 def object_path(identity, secrets=frozenset()):
@@ -728,7 +729,7 @@ def discovery_targets(core, groups, resource_lists):
         if not (required.get("namespaced") is True and "list" in required.get("verbs", ())
                 and required.get("kind") == kind):
             return {"status": "UNKNOWN", "reason": "discovery_required_resource_invalid"}
-    targets = []
+    targets, mapped, listable = [], [], []
     for group, version in advertised:
         listing = resource_lists.get(group + "/" + version if group else "v1")
         if listing is None:
@@ -739,6 +740,11 @@ def discovery_targets(core, groups, resource_lists):
                 continue
             if RESOURCE.fullmatch(name) is None:
                 return {"status": "UNKNOWN", "reason": "unknown_resource_mapping"}
+            # 6c-B4b: every resource's verified mapping (namespaced or cluster-scoped) stays with the evidence, so a
+            # CRD is judged by its exact group, version and plural, never by its group alone.
+            mapped.append((group, version, name, resource["kind"], resource["namespaced"]))
+            if "list" in resource["verbs"]:
+                listable.append((group, version, name))
             if not resource["namespaced"]:
                 continue
             if "list" in resource["verbs"]:
@@ -747,7 +753,8 @@ def discovery_targets(core, groups, resource_lists):
                 return {"status": "UNKNOWN", "reason": "resource_not_listable"}
     if not targets:
         return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}
-    return {"status": "COMPLETE", "targets": sorted(targets), "advertised": sorted(advertised)}
+    return {"status": "COMPLETE", "targets": sorted(targets), "advertised": sorted(advertised),
+            "resources": sorted(mapped), "listable": sorted(listable)}
 
 
 # ---- metadata LIST and pagination ---------------------------------------------------------------------------------
@@ -1037,6 +1044,35 @@ def validate_service_type_response(identity, status, body):
     return {"uid": metadata["uid"], "type": spec["type"], "load_balancer": spec["type"] == "LoadBalancer"}
 
 
+def namespace_safety_metadata(metadata):
+    """Only the fields needed for identity, D13 and deletion-state comparison; not arbitrary annotations."""
+    fields = ("name", "namespace", "uid", "resourceVersion", "labels", "managedFields",
+              "ownerReferences", "deletionTimestamp", "finalizers")
+    return json.loads(json.dumps({key: metadata[key] for key in fields if key in metadata}))
+
+
+def namespace_leftovers_only(items, namespace):
+    """Independently constrain the cascade to the reviewed namespace leftover allowlist."""
+    for item in items:
+        resources = {tuple(resource) for resource in item["resources"]}
+        if item["namespace"] != namespace or item["deletion_requested"] or item["finalizers"]:
+            return False
+        if resources and resources <= {("", "events"), ("events.k8s.io", "events")}:
+            continue
+        if resources == {("", "serviceaccounts")} and item["name"] == "default":
+            continue
+        if resources == {("", "configmaps")} and item["name"] in ("kube-root-ca.crt", "istio-ca-root-cert"):
+            continue
+        return False
+    return True
+
+
+def namespace_snapshot_matches(evidence, current_discovery, current_objects, namespace):
+    """Fake server-side snapshot condition; no successful result for unclassified or changed contents."""
+    return (current_discovery == evidence["discovery"] and current_objects is not None
+            and namespace_leftovers_only(current_objects, namespace) and current_objects == evidence["objects"])
+
+
 class FakeDestroyTransport:
     """Offline double for the destroy contracts.
 
@@ -1054,6 +1090,7 @@ class FakeDestroyTransport:
         self.deadline = deadline
         self.requests = []
         self._issued = {}
+        self._namespace_metadata = {}
         self._targets = frozenset()
         self._verified_crds = set()
         self._paths = {object_path(identity_of(key)): identity_of(key) for key in policy.read}
@@ -1085,6 +1122,10 @@ class FakeDestroyTransport:
         timeout, an invalid or an identical answer. Other CRDs keep theirs. Every authorised request on these paths is
         a GET (a CRD DELETE is refused by the policy)."""
         path = request["path"]
+        self._withdraw(("namespace_inventory",))
+        identity = self._paths.get(path)
+        if identity is not None and identity["kind"] == "Namespace":
+            self._namespace_metadata.pop(identity["name"], None)
         if path.startswith(CRD_PATH):
             observed = path[len(CRD_PATH):]
             self._withdraw(("crd", observed))
@@ -1138,9 +1179,13 @@ class FakeDestroyTransport:
                 return timeout
         raise TransportError("request_not_authorized")
 
-    def send(self, request):
+    def send(self, request, namespace_evidence=None):
         need(not self.deadline.expired(), "deadline_exceeded")
         timeout = self.authorize(request)
+        identity = self._paths.get(request["path"])
+        if request["method"] == "DELETE" and identity is not None and identity["kind"] == "Namespace":
+            return self._send_namespace(request, identity, namespace_evidence, timeout)
+        need(namespace_evidence is None, "namespace_evidence_wrong_request")
         self._invalidate_observed(request)  # R01-R: before the request can reach the server
         clock = self.deadline.clock
         start = clock.now()
@@ -1154,10 +1199,39 @@ class FakeDestroyTransport:
         need(clock.now() - start <= timeout, "request_timeout")  # the request's own D11 bound, 20 s inclusive
         return status, body
 
+    def _send_namespace(self, request, identity, evidence, timeout):
+        # A raw send and delete_runtime use this same mandatory boundary; no ordinary DELETE fallback.
+        need(evidence is not None, "namespace_atomic_evidence_required")
+        payload = self._accept(evidence, "namespace_inventory")
+        name = identity["name"]
+        uid = self.policy.delete_uid(identity_key(identity))
+        need(name in self.policy.namespaces and name != "kube-system"
+             and payload["namespace"] == name and payload["uid"] == uid, "namespace_evidence_mismatch")
+        need(request == runtime_delete_request(self.policy, identity, uid), "request_not_authorized")
+        need(namespace_leftovers_only(payload["objects"], name), "namespace_inventory_unsafe")
+        # Consume on attempt, including conflicts, exceptions and lost replies.
+        self._invalidate_observed(request)
+        capability = getattr(self.server, "atomic_namespace_delete", None)
+        need(callable(capability), "namespace_atomic_capability_required")
+        need(not self.deadline.expired(), "deadline_exceeded")
+        start = self.deadline.clock.now()
+        self.requests.append(request)
+        try:
+            status, body = capability(request, payload, self.deadline)
+        except TimeoutError:  # separate fake capability boundary
+            raise TransportError("transport_timeout") from None
+        need(not self.deadline.expired(), "deadline_exceeded")
+        need(self.deadline.clock.now() - start <= timeout, "request_timeout")
+        need(status != 409, "namespace_atomic_conflict")
+        return status, body
+
     # -- operations -------------------------------------------------------------------------------------------------
     def get_metadata(self, identity):
         status, body = self.send(destroy_metadata_request(self.policy, identity))
-        return validate_destroy_metadata(identity, status, body)
+        metadata = validate_destroy_metadata(identity, status, body)
+        if identity["kind"] == "Namespace" and metadata is not None:
+            self._namespace_metadata[identity["name"]] = namespace_safety_metadata(metadata)
+        return metadata
 
     def _discover(self, path):
         status, body = self.send(discovery_request(self.policy, path))
@@ -1167,6 +1241,7 @@ class FakeDestroyTransport:
         """Complete discovery: /api, /apis, /api/v1 and every advertised group version. Only a COMPLETE result issues
         the discovery evidence that namespace LISTs need; a new discovery withdraws the previous evidence."""
         self._withdraw(("discovery",))
+        self._withdraw(("namespace_inventory",))
         self._targets = frozenset()
         try:
             core = self._discover("/api")
@@ -1183,7 +1258,9 @@ class FakeDestroyTransport:
             return result
         self._targets = frozenset(result["targets"])
         evidence = self._issue("discovery", {"targets": [list(t) for t in result["targets"]],
-                                             "advertised": [list(a) for a in result["advertised"]]}, ("discovery",))
+                                             "advertised": [list(a) for a in result["advertised"]],
+                                             "resources": [list(r) for r in result["resources"]],
+                                             "listable": [list(r) for r in result["listable"]]}, ("discovery",))
         return {"status": "COMPLETE", "targets": result["targets"], "evidence": evidence}
 
     def list_namespace(self, discovery, namespace, group, version, resource):
@@ -1198,6 +1275,7 @@ class FakeDestroyTransport:
 
     def inventory_namespace(self, discovery, namespace):
         """Every discovered target of one namespace, listed and merged; no classification (6c-B4b)."""
+        self._withdraw(("namespace_inventory",))
         targets = [tuple(t) for t in self._accept(discovery, "discovery")["targets"]]
         results = []
         for target in targets:
@@ -1205,7 +1283,23 @@ class FakeDestroyTransport:
             results.append((target, result))
             if result["status"] != "COMPLETE":
                 break
-        return merge_listed(targets, results)
+        merged = merge_listed(targets, results)
+        # This capability can only be minted from our own complete LIST results and current Namespace GET.
+        identity = {"apiVersion": "v1", "kind": "Namespace", "namespace": "", "name": namespace}
+        meta = self._namespace_metadata.get(namespace)
+        kube = self._namespace_metadata.get("kube-system")
+        uid = self.policy.delete_uid(identity_key(identity))
+        if (merged["status"] == "COMPLETE" and meta is not None and kube is not None and uid is not None
+                and meta["uid"] == uid and namespace in self.policy.namespaces
+                and namespace_leftovers_only(merged["objects"], namespace)):
+            payload = {"namespace": namespace, "uid": uid, "metadata": meta, "kube_system_uid": kube["uid"],
+                       "discovery": self._accept(discovery, "discovery"), "objects": merged["objects"]}
+            merged["evidence"] = self._issue("namespace_inventory", payload, ("namespace_inventory",))
+        return merged
+
+    def discovery_payload(self, discovery):
+        """The payload of this transport's own, current discovery evidence (stale or foreign evidence is refused)."""
+        return self._accept(discovery, "discovery")
 
     def read_crd(self, name):
         """A new read of a CRD withdraws every earlier read and verification of it first, whatever this read finds
@@ -1252,8 +1346,9 @@ class FakeDestroyTransport:
         status, body = self.send(service_type_request(self.policy, identity))
         return validate_service_type_response(identity, status, body)
 
-    def delete_runtime(self, identity, uid):
-        status, _ = self.send(runtime_delete_request(self.policy, identity, uid))
+    def delete_runtime(self, identity, uid, namespace_evidence=None):
+        request = runtime_delete_request(self.policy, identity, uid)
+        status, _ = self.send(request, namespace_evidence=namespace_evidence)
         return validate_runtime_delete_response(status)
 
 

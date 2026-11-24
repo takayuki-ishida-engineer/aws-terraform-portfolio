@@ -529,7 +529,15 @@ def report(project, results):
             "namespace_deletion": "NOT_IMPLEMENTED"}
 
 
-def cleanup(project, cluster_arn, root=None, transport_kind="fake", server=None):
+def registration_pin(document):
+    """Digest only the validated registration, not its independently updated cleanup status."""
+    payload = {key: document[key] for key in ("schema", "project", "cluster", "registered_at", "result")}
+    payload["secrets"] = [{key: entry[key] for key in ("identity", "uid", "registration", "reason")}
+                          for entry in document["secrets"]]
+    return safety.digest(safety.canonical(payload).encode())
+
+
+def cleanup(project, cluster_arn, root=None, transport_kind="fake", server=None, expected_registration=None):
     """Fake-only: delete the four registered Secrets by receipt UID, one at a time, recording each result."""
     project = check_project(project)
     client = open_client(project, transport_kind, server, delete=True)
@@ -538,6 +546,11 @@ def cleanup(project, cluster_arn, root=None, transport_kind="fake", server=None)
     results = []
     with locked(directory):
         document = load_receipt(directory, project, fp)
+        # Runtime destroy supplies the registration pin; standalone G9 behavior is unchanged.
+        if expected_registration is not None:
+            need(document["result"] == "REGISTERED"
+                 and all(entry["registration"] == "REGISTERED" for entry in document["secrets"])
+                 and registration_pin(document) == expected_registration, "g9_registration_changed")
         for entry in document["secrets"]:
             def record(state, reason=None, entry=entry):
                 entry["cleanup"] = {"state": state, "reason": reason, "at": safety.now()}

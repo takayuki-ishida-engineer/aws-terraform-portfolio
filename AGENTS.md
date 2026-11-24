@@ -545,7 +545,8 @@ approval. Listing an item here is not an implementation approval:
    - 6c-B4a: the destroy transport, discovery, metadata LIST and the receipt/journal
      destroy-state foundation (authorized 2026-11-24);
    - 6c-B4b: the Fake-only destroy engine, inventory classification, finalizer,
-     namespace, CRD and G9 integration and the runbook (needs its own authorization).
+     namespace, CRD and G9 integration and the runbook (authorized 2026-11-24 after
+     6c-B4a merged as PR #100; implemented Source/Offline, pending review).
 3. 6c-B5 Source/Offline final audit: every NOT_TESTED, BLOCKED and NOT_VERIFIED item
    listed. Full CI runs as Claude's Owner-designated final task (the first real
    Owner dispatch is planned here). The 6c audit alone never declares Portfolio
@@ -562,8 +563,17 @@ discovery of every advertised group version, metadata-only LIST of the three run
 namespaces and the 17 CRD plurals, separate scopes), D5 (17 CRDs kept, no CRD DELETE,
 a specialised Fake CRD read), D6 (namespaces in a final namespace phase), D11 (the
 destroy timeouts, page limits and a 3600 s deadline), D12 (the section 12 order and a
-specialised Service type read) and the remaining D19 scope. Contracts that belong to
-6c-B4b are approved as design only; only 6c-B4a is authorized for implementation.
+specialised Service type read) and the remaining D19 scope. 6c-B4a is merged (PR #100,
+Source/Offline complete); 6c-B4b was authorized on 2026-11-24 as a Fake-only engine within
+these decisions and the existing G9, D13, D18 and receipt contracts, with Full CI as an
+Owner-designated safety milestone. The real CLI `destroy`, real transport and Live stay
+refused; 6c-B5 and the Codex handover are not authorized.
+
+PR #101 consolidated review candidate: Owner-authorized Fake-only D6/D18/D19
+atomic Namespace acceptance and delayed-cascade guard, with transport-issued
+single-use inventory evidence, no ordinary Namespace DELETE fallback, and G9
+registration pinning under the cleanup lock. This is not a real API contract;
+real cascade safety remains NOT_VERIFIED. Independent execution review pending.
 
 D1 (the binding-writer method), Live probes, manager and effective-permission checks
 and real transport authentication stay undecided and unverified and are not part of

@@ -609,10 +609,11 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 102 tests and 269 source mutations, each
-detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
-`test_k8s_certs_receipt.py` and the 36 tests and 144 mutations of
-`test_k8s_runtime_destroy_foundation.py` (both below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
+**Tests.** `test_k8s_runtime_receipt.py` expects 144 tests and 382 source mutations in the consolidated candidate, each
+required to be detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
+`test_k8s_certs_receipt.py`, the 36 tests and 144 mutations of
+`test_k8s_runtime_destroy_foundation.py` and the 42 tests and 113 mutations of
+`test_k8s_runtime_destroy.py` (all below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
 - the repository location and the lock;
@@ -649,11 +650,12 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - Secret cleanup against a real cluster (G9 is Fake-only, below);
 - the Istio `caBundle` renderer change (C1).
 
-### Destroy safety foundation (item 6c-B4a, Fake-only, no destroy engine)
+### Destroy safety foundation (item 6c-B4a, Fake-only, merged as PR #100)
 
-Owner decisions D3, D5, D6, D11, D12 and the remaining D19 scope (2026-11-24). Only
-the contracts below exist; nothing orchestrates a deletion (that is 6c-B4b), and the
-real `destroy` command still refuses (`operation_not_approved`).
+Owner decisions D3, D5, D6, D11, D12 and the remaining D19 scope (2026-11-24). The
+contracts below are the transport and journal foundation; the Fake-only engine that
+orchestrates them is 6c-B4b (next section), and the real `destroy` command still
+refuses (`operation_not_approved`).
 
 **Transport scopes (`k8s_runtime_transport.DestroyPolicy`).** Built only from the
 reviewed plan and the receipt, immutable, and never widened by what a read returns:
@@ -777,6 +779,162 @@ journal (`receipt_destroy_phase`) before any read or write.
 **Tests.** `test_k8s_runtime_destroy_foundation.py`: 36 tests and 144 source mutations,
 each detected by an assertion (a crash is undetected), run inside the
 `k8s_runtime_receipt_tests` suite.
+
+### Fake-only destroy engine (item 6c-B4b, Source/Offline only)
+
+`k8s_runtime_destroy.destroy(report, objects, receipt_root, g9_root, server, clock,
+expected_manifest, expected_input, cluster_arn)` (Owner authorization 2026-11-24,
+decisions D3, D5, D6, D11, D12, D18, D19 and the existing G9, D13 and receipt
+contracts). It has no command line: `k8s_runtime.py destroy` still refuses. Every
+request goes through the 6c-B4a destroy transport or the G9 client, and only their
+fakes can be opened; every wait runs on `FakeClock`. A COMPLETE is a Fake-only
+Source/Offline result, never Live evidence.
+
+**Preflight, before any write.**
+- The fake clock and the fake transport only.
+- The manifest and input SHA-256 pins, the rendered objects against the plan, and the
+  runtime contract version.
+- The repository's reviewed stage table is the only stage layout: the report and the
+  bundle must equal it in stage names and order and in each stage's identities and
+  their order (9 stages, 62 objects, 17 CRDs: 15 Istio, 2 controller), and the destroy
+  order comes from it.
+- One global 3600 s deadline for the whole run, never extended or reset.
+- The D17 fingerprint read through the transport, then the runtime receipt of that
+  fingerprint must exist and verify. A missing, corrupt or other-fingerprint receipt
+  stops. The store is opened `existing_only` (`k8s_runtime_receipt.Store`, a new
+  keyword; apply keeps its default): no directory, journal or HEADER is ever created,
+  and a missing journal or snapshot is never repaired; only a verified stale snapshot
+  is refreshed.
+- An unresolved apply INTENT or any QUARANTINE stops.
+- The G9 registration receipt of exactly this project and runtime fingerprint must hold
+  all four Secrets REGISTERED with valid UIDs (a schema-valid INCOMPLETE receipt stops).
+- After the lock, before the first journal write, everything is checked again
+  (fingerprint, project, pins, journal and snapshot, phase, open INTENT, quarantine,
+  G9); the DELETE map and the CRD verification map come only from that locked journal.
+- The fingerprint is read again before every step and every G9 cleanup; G9's own
+  `kube-system` read must show the runtime's UID or G9 stops before any Secret request.
+
+**Order (D12).** The apply stages reversed, then `namespace_phase` with every
+Namespace (`<project>-app`, `<project>-ingress`, `istio-system`). Inside a stage: the
+TargetGroupBinding first, policy bindings before policies, webhook configurations
+before their Deployments, then workloads, Services, RBAC, ServiceAccounts and
+ConfigMaps. Gates:
+
+| Before | Required |
+| --- | --- |
+| ingress | No TargetGroupBinding outside the receipt in `<project>-ingress` |
+| admission | No TargetGroupBinding anywhere (the runtime one trusted absent, none listed in `<project>-ingress`, the TargetGroupBinding CRD's cluster-wide instance LIST empty or the CRD strictly never created); no LoadBalancer Service and no unknown Service in `<project>-ingress` (the runtime Service by exact resource, namespace, name and receipt UID; its `spec.type` from the specialised read) |
+| controller | No TargetGroupBinding anywhere, as above |
+| istiod, base | Every Istio CRD ZERO_INSTANCES or CRD_NOT_CREATED |
+| namespace_phase | The G9 cleanup COMPLETE, including the `kube-system` webhook TLS Secret |
+
+The same evidence is read fresh again right before every dependency-sensitive DELETE
+(each admission and controller object, each Istio webhook, a Deployment once its
+stage's webhook configurations are confirmed gone), not only at the start of a step.
+The Terraform roots the TargetGroupBinding depends on (the controller's IAM role,
+the target group, the ELBv2 and STS endpoints, the tunnel) are outside the engine
+and must still exist (runbook section 7).
+
+**Per object.** The plan identity, the journal's owned UID, no quarantine, a fresh
+metadata read, the live UID equal to the journal UID, D13 field ownership OWNED
+(`k8s_runtime_apply.d13_ownership` with the manifest's required paths), the gates,
+the deadline and the journal's current step. Then DESTROY_INTENT (fsynced), the
+UID-precondition DELETE, an independent read until a trusted NotFound, and
+DESTROY_RESULT.
+- 200 or 202 is only REQUESTED; a bare 404, 403, 5xx, timeout, invalid response or
+  409 is never absence or success, and a DELETE error leaves the INTENT open.
+- The TargetGroupBinding finalizer is waited for up to 600 s and a Namespace's
+  termination up to 600 s, polling every 5 s; finalizers are never stripped.
+- A recreated object is quarantined and never deleted or adopted; an object without
+  a journal record is NOT_OWNED and stops.
+- An object never created is judged on its own (no journal record, a trusted
+  NotFound) and never counted as deleted; an owned object already absent gets an
+  INTENT and `absent_confirmed`, never a DELETE.
+- With the real controller or istiod managedFields entries D13 stays unverified, so
+  destroy stops: there is no allowlist widening. Metadata carries no webhook values,
+  so istiod's caBundle entry is never matched to a live webhook.
+
+**Crash recovery.** An open DESTROY_INTENT is resolved first in its step, after the
+step's gates: a trusted NotFound closes it `absent_confirmed`; another UID is
+quarantined (`delete_unproven`); the same UID already terminating needs D13 and the
+dependency gates again and then waits for absence under the same INTENT with no new
+DELETE; the same UID not terminating is closed `failed` and gets a new INTENT through
+the per-object checks (never an unconditional resend). Every wait keeps its own D11
+bound on the fake clock: a read that completes after that local deadline is never
+evidence, and a poll never sleeps past it. A stale snapshot is refreshed
+from the journal. Completed steps are re-verified on resume and at the end; a
+reappearing object is quarantined and stops.
+
+**Namespaces (D3, D6, D18).** Right before each namespace DELETE: a fresh discovery
+and a COMPLETE metadata inventory of every advertised group version, classified:
+
+| Class | Rule | Effect |
+| --- | --- | --- |
+| runtime_object | A receipt UID | Stop |
+| owned_child | ReplicaSet -> Deployment, Pod -> ReplicaSet -> Deployment, EndpointSlice -> Service; `controller: true` and the owner's identity, namespace and receipt UID | Never deleted directly; waited for up to 600 s, terminating ones included |
+| allowed_leftover | Exactly the ServiceAccount `default`, the ConfigMaps `kube-root-ca.crt` and `istio-ca-root-cert`, Events | Allowed |
+| istiod_leftover | `istio-system` Leases (names not confirmed Live) | Stop |
+| k8s_certs_secret | One of the four Secrets | Stop |
+| unknown_object | Anything else, any other Secret | Stop |
+
+The owner chain is proven from the current inventory alone; a Pod whose ReplicaSet is
+already gone cannot be chained to a receipt UID and stops. After DESTROY_INTENT a final
+gate reads the namespace's identity, receipt UID and D13 ownership again, takes fresh
+G9 evidence (D18) and, for `<project>-ingress`, the TargetGroupBinding gate, checks the
+fingerprint, and then a last fresh inventory must equal the first in every safety
+field (identity, resources, owners, deletion state, finalizers, class); a failed final
+gate closes the INTENT `failed`. The consolidated F06-R candidate adds a Fake-only
+Atomic Namespace Safety Gate: the transport issues a single-use, namespace/UID-bound
+capability from its own complete inventory and validated Namespace metadata. The
+fake compares current ownership, discovery and all contents at DELETE acceptance;
+a delayed cascade rechecks the accepted snapshot and refuses unsafe changes.
+There is no fallback to a normal Namespace DELETE or real API option.
+`kube-system` is never inventoried or deleted. Independent execution review pending.
+
+**CRDs (D5).** No CRD DELETE exists. Each of the 17 is read with the specialised
+CRD read and verified against the CRD receipt map, then its instances are listed
+(`limit=1`) only when a fresh discovery maps exactly its group, storage version and
+plural with its scope (the discovery evidence now keeps every resource's mapping):
+ZERO_INSTANCES, or CRD_NOT_CREATED only with no creation evidence, no receipt UID, no
+open INTENT, no quarantine, a trusted NotFound and a COMPLETE discovery that does not
+serve its exact group and plural (another CRD of the same group being served is no
+reason to refuse it). A claimed CRD that is missing or changed, a foreign CRD, a
+missing or mismatched discovery mapping and creation evidence without a UID are
+BLOCKED or UNKNOWN.
+
+**Completion.** COMPLETE needs every destroy step in the journal, no open INTENT,
+no quarantine, all 45 non-CRD objects confirmed absent again, the G9 cleanup
+COMPLETE again (the four Secrets absent through G9's own reads), every CRD
+ZERO_INSTANCES or CRD_NOT_CREATED, `kube-system` present with its fingerprint UID,
+and the deadline not reached. The report separates deleted, absent_confirmed and
+never_created objects, `retained_crds` (created, zero instances), `crd_zero_instances`
+and `crd_not_created` (never counted as retained), the 15 Istio and 2 controller CRDs,
+and every namespace (also on a rerun of a completed destroy, with fresh G9 evidence).
+
+**G9 under the deadline.** Standalone G9 behavior remains unchanged; runtime destroy
+pins the validated registration under the G9 cleanup lock and rechecks the fingerprint
+before each runtime and Secret DELETE. The engine passes G9 a
+deadline-bounded fake server: no request starts after the deadline and an answer at
+or after it, or later than 20 s, is a timeout (G9: BLOCKED `transport_timeout`), and a
+`kube-system` answer with another UID than the runtime fingerprint is refused, so G9
+stops at its fingerprint check before any Secret request (`fingerprint_changed`).
+G9's own `namespace_deletion: NOT_IMPLEMENTED` describes G9 alone; the engine reports
+its namespace results separately.
+
+**Tests.** `test_k8s_runtime_destroy.py`: expected 42 tests and 113 source mutations (execution pending), each
+required to be detected by an assertion (a crash is undetected), run inside the
+`k8s_runtime_receipt_tests` suite with the pinned Helm render of the synthetic
+fixture. A stateful fake API server answers both clients. The positive fixtures use
+synthetic ownership evidence (journal and managedFields written by the test,
+because the fake apply engine stops before the gateway): a full synthetic receipt
+(45 objects deleted, 4 Secrets, 17 CRDs ZERO_INSTANCES) and a partial apply
+(`namespaces` and `base`: 3 deleted, 42 never created, the 2 controller CRDs
+CRD_NOT_CREATED). Neither is evidence of a real apply or destroy.
+
+**NOT_VERIFIED / NOT_TESTED.** Real transport and authentication,
+the real API server's cascade atomicity under races, garbage collection timing, the controller's
+finalizer removal and target deregistration, the istiod and controller manager
+names, discovery completeness on EKS and the istiod leader-election names.
 
 ### Registration UID receipt and safe Secret cleanup (G9, D19 Fake-only)
 
@@ -1337,8 +1495,8 @@ so the stage is never PASS.
 
 ### Apply and destroy: preconditions and open decisions (not implemented)
 
-`apply` and `destroy` are not implemented (6c-B3a added only the receipt foundation
-above, and both subcommands refuse). This records what they must respect,
+`apply` and `destroy` are not implemented as commands (both subcommands refuse; the
+Fake-only apply and destroy engines above have no command line and no real transport). This records what they must respect,
 taken from the reviewed plan and the
 [6c-B2 design record](../../docs/k8s-runtime-apply-destroy-design.md). That record
 holds the full contracts and the Owner Decision Matrix D1–D23. Every decision

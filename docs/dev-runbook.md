@@ -247,7 +247,17 @@ Balancer Controller, its IAM role, the target group and the endpoints still exis
 - then the remaining stages;
 - then the Secret cleanup.
 
-That step is not implemented and needs Owner approval. Until it exists:
+That step is not implemented as an operation and needs Owner approval. A Fake-only
+destroy engine exists as Source/Offline code (`k8s_runtime_destroy.py`, item 6c-B4b):
+it implements this order against a fake API server only (the TargetGroupBinding first,
+then the remaining stages in reverse with the D12 gates, the G9 Secret cleanup, then
+the namespaces; the 17 CRDs and `kube-system` are kept). It is not a procedure:
+`k8s_runtime.py destroy` still refuses, there is no real transport, and its Fake
+COMPLETE is never evidence that a real teardown works. The Terraform roots the
+TargetGroupBinding depends on (platform with the controller's IAM role and the target
+group, network with the ELBv2 and STS endpoints, developer-access with the tunnel) are
+outside it and must still exist when a future runtime destroy runs. Until a real one
+is approved:
 - never strip a finalizer;
 - `k8s_certs.py delete` is retired and refuses (G9, finding F22). The safe cleanup
   (`k8s_certs_receipt.cleanup`) is Source/Offline only, with no real transport, so
