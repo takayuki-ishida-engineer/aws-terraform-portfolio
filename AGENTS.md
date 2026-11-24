@@ -62,10 +62,11 @@ future implementation.
   overrides and inherited defaults or fixed values. Never document secret values.
 - Use feature flags only for genuine optional functionality. Do not use flags to
   conceal breaking changes or replace required configuration.
-- Require Terraform plan review for changes affecting existing infrastructure.
-  Obtain real AWS plans through a separately authorized workflow outside Codex
-  Cloud. Emulator plans follow the isolated verification rules below and do not
-  establish real infrastructure migration safety or authorize real AWS access.
+- Review the Offline (mock) plan for every change that affects existing
+  infrastructure, including address changes, `moved` blocks and replace/destroy
+  risk. A real AWS plan is not a current acceptance condition and is not obtained
+  (v14.5 §1.3, §15). Emulator plans follow the isolated verification rules below and
+  do not establish real infrastructure migration safety or authorize real AWS access.
 
 ### Terraform state and scope
 
@@ -112,8 +113,11 @@ future implementation.
   only, with no value or dummy; operators register values manually from a local CLI
   or the console before consumers use them. See
   [deployment configuration](docs/deployment-configuration.md#1-where-values-live).
-- Real AWS deployment runs only from the operator's local workstation, outside
-  Codex Cloud and never through CI/CD. GitHub Actions runs offline checks only.
+- The local workflow and runbook keep the technical design for a future real
+  deployment (operator workstation only, never Codex Cloud or CI/CD), but they are
+  Source/Offline designs, not a current execution approval: no one, the Owner and
+  operators included, plans or runs real AWS/EKS operations in the current portfolio
+  (v14.5 §15). GitHub Actions runs offline checks only.
 
 ### Mandatory official AWS Emulator safety controls
 
@@ -302,12 +306,14 @@ Classify results precisely:
 Unsupported APIs and failed setup are never successful tests. If another external
 download domain is required, stop and request user permission; no unapproved
 mirrors or network-policy bypass. If compatibility prevents a significant check,
-report residual risk and verification options. Real AWS testing remains optional
-and requires a separate user decision; Codex must not initiate it.
+report residual risk and verification options. Real AWS testing is outside the
+current scope (v14.5 §15) and is never proposed as a fix or fallback; no agent or
+operator initiates it.
 
 ### Portfolio completion and historical emulator evidence
 
-Real AWS deployment is not mandatory for portfolio completion. Core Implementation
+Real AWS deployment is not a completion condition and is outside the current scope
+(v14.5 §15). Core Implementation
 requires approved architecture/ownership, fmt, locked init, validate, affected
 Native/Mock/Negative/Security/Mutation/Evidence checks, secret-free State, PR Safety
 CI on every PR and Full CI under the CI execution policy, independent review and user

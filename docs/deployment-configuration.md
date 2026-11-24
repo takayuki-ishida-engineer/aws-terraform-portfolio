@@ -68,8 +68,11 @@ It checks paths only, never file contents, and makes no AWS call.
 
 ## 2. Local-only real deployment
 
-- Real AWS plan, apply and destroy run only from the operator's local workstation,
-  by the Owner or an operator, outside Codex Cloud and never through CI/CD.
+- Design boundary for a future real deployment: real AWS plan, apply and destroy
+  would run only from the operator's local workstation, outside Codex Cloud and never
+  through CI/CD. This is a technical design, not a current execution approval. In the
+  current portfolio no one, the Owner and operators included, plans or runs them, and
+  a real AWS plan is not an acceptance condition (Master Policy v14.5 §1.3, §15).
 - GitHub Actions runs offline checks only: formatting, validation, mock plans,
   security checks and the repository guard. It holds no AWS credentials.
 - Real AWS/EKS Live verification and enabling real Apply/Destroy are outside the

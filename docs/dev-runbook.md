@@ -8,9 +8,14 @@ workstation, using the [local workflow](../scripts/local-workflow/README.md).
 scripts refuse to start there, and real AWS access is prohibited there
 (`AGENTS.md`).
 
-A real deployment is optional and needs a separate Owner decision. Before it
-starts, the G01–G07 gates, the cumulative JPY 10,000 DEV limit and complete,
-verified teardown within 72 hours all apply.
+**Not a current execution approval.** This runbook keeps the technical design for a
+possible future real deployment. Under Master Policy v14.5 §1.3 and §15, real AWS/EKS
+Live verification and enabling real Apply/Destroy are outside the current scope: no
+one, the Owner and operators included, plans or runs these steps in the current
+portfolio, and their real executability is not guaranteed. A future real scope would
+need a new Owner cost and execution decision and independent review. The earlier
+conditions (the G01–G07 gates, the cumulative JPY 10,000 DEV limit, teardown within
+72 hours) are historical records and authorize nothing.
 
 ## 0. Prerequisites
 

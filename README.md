@@ -271,8 +271,10 @@ unavailable and its SHA-256 remains unverified. Apply v14 and the permanent
 are tracked in the V7-0 contract and do not make earlier policies current.
 Real AWS access remains prohibited in Codex Cloud. Strictly isolated official AWS
 Emulator lifecycle validation is permitted for supported resources and supplements
-all existing credential-free CI/security tests. Real AWS deployment is optional,
-not mandatory for portfolio completion; unsupported/untested behavior must remain
+all existing credential-free CI/security tests. Under Master Policy v14.5 §15 real
+AWS deployment and Live verification are outside the current scope and are not a
+completion condition (this paragraph is otherwise a historical v14 snapshot);
+unsupported/untested behavior must remain
 explicit and independent review is required. No emulator CI requirement is added.
 V6 has merged at main `e1cdbce78ba11959093a99ffd9300b8c0f9e52e0`.
 Historical phase snapshots below retain their original evidence scope.

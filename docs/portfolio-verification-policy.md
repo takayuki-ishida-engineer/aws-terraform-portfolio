@@ -71,7 +71,8 @@ an unmet installation/network/isolation/runtime prerequisite; NOT_TESTED means
 unexecuted. Never count unsupported APIs, skipped behavior or failed setup as PASS.
 Stop for user permission on any new external download domain, without mirrors or
 policy bypass. Significant verification gaps require explicit residual risk and
-options; real AWS remains a separate optional user decision outside Codex Cloud.
+options; real AWS verification is outside the current scope (v14.5 §15) and is
+never proposed as a fix or fallback.
 
 ### Historical feasibility proof — limited to aws_vpc
 
@@ -232,7 +233,8 @@ exists as a GitHub review on the related pull requests.
 
 ### Default portfolio completion path
 
-Real AWS deployment is not mandatory. Core Implementation uses correct source and
+Real AWS deployment is not a completion condition and is outside the current scope
+(v14.5 §15). Core Implementation uses correct source and
 architecture, affected offline/security/mutation/evidence checks, credential-free
 PR Safety CI on every PR and complete Full CI at milestones and on high-risk changes,
 with independent review and user approval.
