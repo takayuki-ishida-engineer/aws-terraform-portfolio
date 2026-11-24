@@ -1,4 +1,12 @@
 # Development live-validation readiness
+
+> **Historical record.** Master Policy **v14.5** (2026-11-23) is the only current
+> controlling policy, applied by [AGENTS.md](../AGENTS.md). Statements here that name
+> an earlier policy (v10 to v14.4, the v14.2 alignment record) as current authority,
+> or that describe optional DEV Live verification, G01–G07 gates or the JPY 10,000
+> limit, are historical. Under v14.5 §15 real AWS/EKS Live verification is outside the
+> current scope.
+
 See the [bootstrap decision plan](dev-bootstrap-decision-plan.md) for conditional Gate 1–3 recommendations; all gates remain OPEN.
 
 This is a planning and approval artifact, not an executable deployment procedure.

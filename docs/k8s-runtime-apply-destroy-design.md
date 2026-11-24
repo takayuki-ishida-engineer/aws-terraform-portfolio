@@ -151,7 +151,7 @@ statements. Neither implies the other.
 | Level | Meaning | Who establishes it |
 | --- | --- | --- |
 | Source/Offline PASS | The code and its fake-kubectl or fake-API tests, negative and mutation checks, PR Safety CI (and Full CI where the CI execution policy of 2026-11-23 requires it) and Offline Contracts pass on the exact pull request HEAD | Pull request CI and independent review |
-| Live verification approved | The Owner has approved a specific Live verification scope (method, budget, G01–G07, teardown) outside Codex Cloud | Owner decision |
+| Live verification approved | Not available under Master Policy v14.5 §15: real AWS/EKS Live verification and enabling real Apply/Destroy are outside the current scope. A future scope would need a new Owner cost and execution decision and independent review (the earlier G01–G07 and budget conditions are historical) | Owner decision (none current) |
 | Operational apply allowed | Every mandatory precondition of a stage is verified on the real cluster, not NOT_VERIFIED | Live evidence, then Owner acceptance |
 
 Rules:
@@ -939,7 +939,7 @@ independent review and Owner Squash Merge approval.
 | G9 (independent, recommended) | Safe Secret cleanup and the registration UID receipt in `k8s_certs.py`, using the D19 transport | Fake-API tests for:<br>• UID mismatch<br>• foreign manager<br>• missing label<br>• absence after delete<br>• no full Secret read<br>• no fallback | Namespace deletion stays BLOCKED until merged |
 | 6c-B4 | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, the section 5.1 inventory verification, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted<br>• inventory reads that are incomplete, forbidden, paged with a stale continue token, missing a discovery group, or answered with a full Secret, each UNKNOWN or BLOCKED and never empty<br>• unknown objects never adopted<br>• a non-zero or unknown CRD count | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
 | 6c-B5 | Source/offline closure audit of item 6c | Docs; lists every NOT_TESTED, BLOCKED and NOT_VERIFIED item | No COMPLETE declaration |
-| Live verification (separate) | Sections 7, 8, 9 and 11, F18, F21, D15 | Owner-approved procedure, budget and G01–G07, outside Codex Cloud | Never in Codex Cloud |
+| Live verification (separate) | Sections 7, 8, 9 and 11, F18, F21, D15 | Outside the current scope (Master Policy v14.5 §15); not part of the remaining work | Never in Codex Cloud; no current authorization |
 
 6c-B3b may be split if it grows: namespaces, base, controller and istiod first;
 gateway, mesh_security, admission and binding_writer second.
