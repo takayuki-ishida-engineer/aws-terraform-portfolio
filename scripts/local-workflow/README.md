@@ -609,7 +609,7 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` expects 144 tests and 382 source mutations in the consolidated candidate, each
+**Tests.** `test_k8s_runtime_receipt.py` expects 144 tests and 382 source mutations, each
 required to be detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
 `test_k8s_certs_receipt.py`, the 36 tests and 144 mutations of
 `test_k8s_runtime_destroy_foundation.py` and the 42 tests and 113 mutations of
@@ -883,13 +883,13 @@ gate reads the namespace's identity, receipt UID and D13 ownership again, takes 
 G9 evidence (D18) and, for `<project>-ingress`, the TargetGroupBinding gate, checks the
 fingerprint, and then a last fresh inventory must equal the first in every safety
 field (identity, resources, owners, deletion state, finalizers, class); a failed final
-gate closes the INTENT `failed`. The consolidated F06-R candidate adds a Fake-only
+gate closes the INTENT `failed`. F06-R (PR #101) adds a Fake-only
 Atomic Namespace Safety Gate: the transport issues a single-use, namespace/UID-bound
 capability from its own complete inventory and validated Namespace metadata. The
 fake compares current ownership, discovery and all contents at DELETE acceptance;
 a delayed cascade rechecks the accepted snapshot and refuses unsafe changes.
 There is no fallback to a normal Namespace DELETE or real API option.
-`kube-system` is never inventoried or deleted. Independent execution review pending.
+`kube-system` is never inventoried or deleted. Real cascade atomicity stays NOT_VERIFIED.
 
 **CRDs (D5).** No CRD DELETE exists. Each of the 17 is read with the specialised
 CRD read and verified against the CRD receipt map, then its instances are listed
@@ -921,7 +921,7 @@ stops at its fingerprint check before any Secret request (`fingerprint_changed`)
 G9's own `namespace_deletion: NOT_IMPLEMENTED` describes G9 alone; the engine reports
 its namespace results separately.
 
-**Tests.** `test_k8s_runtime_destroy.py`: expected 42 tests and 113 source mutations (execution pending), each
+**Tests.** `test_k8s_runtime_destroy.py`: expected 42 tests and 113 source mutations, each
 required to be detected by an assertion (a crash is undetected), run inside the
 `k8s_runtime_receipt_tests` suite with the pinned Helm render of the synthetic
 fixture. A stateful fake API server answers both clients. The positive fixtures use

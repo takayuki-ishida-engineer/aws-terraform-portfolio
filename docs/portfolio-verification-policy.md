@@ -488,8 +488,11 @@ the Emulator rehearsal.
 
 **v14.5 alignment (2026-11-23).** v14.5 §12 adopts this CI execution policy as the
 controlling CI rule. The first normal pull request under it (the v14.5 documentation
-alignment) demonstrates PR Safety CI alone; the first real Owner dispatch of Full CI
-is planned for the 6c-B5 milestone. Until then those paths are untested in practice.
+alignment) demonstrates PR Safety CI alone. The Owner dispatch path has since been
+used: Full CI runs 45358186407 (PR #99, HEAD `3b081f8`) and 45398955069 (PR #100,
+HEAD `bcb196d`) succeeded on the exact pull request HEADs. PR #101 merged with FULL CI
+NOT RUN under a one-time Owner exception. The 6c-B5 audit is Claude's Owner-designated
+final task, with Full CI dispatched by the Owner (reason `claude-final-task`).
 
 ## Historical: DEV Live limits (not current)
 

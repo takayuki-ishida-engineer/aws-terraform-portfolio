@@ -35,9 +35,14 @@ representative) were backfilled, and the ledger matched that snapshot. Run
 44765057461 (the first consolidated run) was then registered with a snapshot
 retrieved at 2026-11-20T15:46:48Z. Run 44859280239 (the automatic run after the
 B1 merge, PR #81) was registered with a snapshot retrieved at
-2026-11-21T03:34:26Z, so the ledger now holds 17 entries. Runs started after a
+2026-11-21T03:34:26Z. Run 44988721098 (the automatic run after the F21 merge,
+PR #84) was registered by PR #85 with a snapshot retrieved at
+2026-11-22T07:38:44Z, so the ledger now holds 18 entries. Runs started after a
 snapshot are not covered until a later pull request registers them with an
-updated snapshot.
+updated snapshot. The 6c-B5 audit (2026-11-24) read the live run list through the
+GitHub connector: still 6 rehearsal and 12 representative runs, none after
+44988721098, so no registration was due
+([audit report](step1-audit-report.md#79-emulator-evidence-reconciliation)).
 
 **Multi-root format (PR #75).** The consolidated harness emits one
 `summary-record` for several roots: `roots` with per-root operations (including
@@ -55,10 +60,10 @@ still needs its own registration pull request within the §13.4 deadline.
 
 ## Formal runs (GitHub Actions)
 
-Compared on 2026-11-21 with the Actions run list of
-`aws-emulator-rehearsal.yml` as retrieved at 03:34:26 UTC (static snapshot): 5
-runs, each on attempt 1, all on `main`, all started by the Owner (actor and
-triggering actor).
+Compared with the Actions run list of `aws-emulator-rehearsal.yml` as retrieved
+at 2026-11-22T07:38:44Z (static snapshot, rechecked live on 2026-11-24): 6 runs,
+each on attempt 1, all on `main`, all started by the Owner (actor and triggering
+actor).
 
 | Run | Trigger | Head SHA | Scenario | Result |
 | --- | --- | --- | --- | --- |
@@ -67,6 +72,7 @@ triggering actor).
 | [44664010985](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44664010985) (attempt 1, 2026-11-20 02:54 UTC) | Automatic, on the push of PR #74 to `main` | `70a5868272c19d0d0803e2eabd3fa92ce781d32b` | The same network root scenario (16 resources), with the harness on that commit | **PASS** (network only): the job concluded `success`. `summarize.py` exits non-zero unless every control, lifecycle operation and cleanup receipt is PASS. Its field-level entry is part of the ledger backfill |
 | [44765057461](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44765057461) (attempt 1, 2026-11-20 15:37 UTC) | Automatic, on the push of PR #75 to `main` | `ddf7f9fff972e43bdc1eba09e33ab8d64f8e0246` | `all`: network (16 resources), then api (7 resources), in one emulator; consolidated harness `6c3b18ca…` | **PASS** (network and api only): all 14 controls; every required operation of each root, including the api teardown pair; plan and API counts equal to each pinned inventory; IDs `vpc-0000000000000009b`, `ca-central-1_178323a8f` and `if6ws3i2f2`; per-root controls 9 to 13; resource, material, process and host cleanup ([ledger entry](evidence/emulator-runs/44765057461-attempt-1.json)) |
 | [44859280239](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44859280239) (attempt 1, 2026-11-21 03:05 UTC) | Automatic, on the push of PR #81 (B1, `registry` root) to `main` | `bb317d7543a71c7e8e31692a54bd68261b211c4c` | `all`: network (16 resources), then api (7 resources), in one emulator; the same consolidated harness `6c3b18ca…` | **PASS** (network and api only): all 14 controls; every required operation of each root, including the api teardown pair; plan and API counts equal to each pinned inventory; IDs `vpc-0000000000000009c`, `ca-central-1_6b73e52ca` and `vgh2exlacv`; per-root controls 9 to 13; resource, material, process and host cleanup ([ledger entry](evidence/emulator-runs/44859280239-attempt-1.json)). The `registry` root was not rehearsed: its lifecycle is NOT_TESTED |
+| [44988721098](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/runs/44988721098) (attempt 1, 2026-11-22 05:16 UTC) | Automatic, on the push of PR #84 (F21, ELBv2 interface endpoint) to `main` | `a3cf9bcf4de277656c9664bb1a8bf91b57ee6b24` | `all`: network (16 resources), then api (7 resources), in one emulator; the same consolidated harness `6c3b18ca…` | **PASS** (network and api only): all 14 controls; every required operation of each root, including the api teardown pair; plan and API counts equal to each pinned inventory; IDs `vpc-0000000000000009c`, `ca-central-1_721bdc838` and `27h7scd3qx`; per-root controls 9 to 13; resource, material, process and host cleanup ([ledger entry](evidence/emulator-runs/44988721098-attempt-1.json)). The `network` scenario has no interface endpoints, so the new `elasticloadbalancing` endpoint was not exercised (NOT_TESTED) |
 
 The representative workflow's accepted run
 [43791639228](portfolio-verification-policy.md#representative-emulator-run-43791639228)
@@ -81,9 +87,9 @@ verified its absence (resource cleanup PASS).
 
 | Root | Status |
 | --- | --- |
-| network (without interface endpoints) | Formal PASS in runs 44279751946, 44664010985, 44765057461 and 44859280239 |
+| network (without interface endpoints) | Formal PASS in runs 44279751946, 44664010985, 44765057461, 44859280239 and 44988721098 |
 | network with interface endpoints (`network-full`) | EMULATOR_COMPATIBILITY_BLOCKED: [default egress revoke gap](#emulator-fidelity-gap-default-egress-rule-revoke). Since finding F21 the committed values hold nine interface endpoints, while the harness keeps its fixed list of the eight earlier services (unchanged). A dispatch of this scenario would stop at plan inspection (`plan-resource-inventory`) before any resource operation. The `elasticloadbalancing` endpoint is NOT_TESTED in the Emulator |
-| api | Formal PASS in runs 44765057461 (first formal run) and 44859280239. The user pool, domain, resource server, client, managed login branding, REST API and authorizer went through create, independent API checks, refresh, tag-only update, no-op, the teardown switch, destroy, absence and baseline checks. Cognito sign-in and REST API invocation are untested |
+| api | Formal PASS in runs 44765057461 (first formal run), 44859280239 and 44988721098. The user pool, domain, resource server, client, managed login branding, REST API and authorizer went through create, independent API checks, refresh, tag-only update, no-op, the teardown switch, destroy, absence and baseline checks. Cognito sign-in and REST API invocation are untested |
 | tfstate | EMULATOR_COMPATIBILITY_BLOCKED: the provider reads bucket tags through S3 Control, whose account-ID host prefix the emulator certificate cannot serve under strict TLS. In the local preliminary trial (PR #75), Terraform resource cleanup was FAIL. Discarding emulator memory at shutdown is not a successful Terraform destroy |
 | serverless-api | NOT_TESTED. The same S3 Control gap is expected but has not been run |
 | platform, developer-access | NOT_TESTED in Actions. The security group gap is expected; EKS and AMI paths are untested |

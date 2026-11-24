@@ -540,16 +540,21 @@ approval. Listing an item here is not an implementation approval:
    registration UID receipt), as separate pull requests or one combined pull request
    the Owner approves. The Owner approved one combined Source/Offline pull request on
    2026-11-24 (Fake metadata GET, UID-precondition DELETE and the four `k8s_certs.py`
-   Secret identities only).
+   Secret identities only); merged as PR #99 with Owner-dispatched Full CI.
 2. 6c-B4 Fake-only Destroy, split by the Owner (2026-11-24) into two pull requests:
    - 6c-B4a: the destroy transport, discovery, metadata LIST and the receipt/journal
-     destroy-state foundation (authorized 2026-11-24);
+     destroy-state foundation (authorized 2026-11-24; merged as PR #100 with
+     Owner-dispatched Full CI);
    - 6c-B4b: the Fake-only destroy engine, inventory classification, finalizer,
      namespace, CRD and G9 integration and the runbook (authorized 2026-11-24 after
-     6c-B4a merged as PR #100; implemented Source/Offline, pending review).
+     6c-B4a merged as PR #100; merged as PR #101, Source/Offline, with FULL CI NOT RUN
+     under a one-time Owner exception that ended with that merge).
 3. 6c-B5 Source/Offline final audit: every NOT_TESTED, BLOCKED and NOT_VERIFIED item
-   listed. Full CI runs as Claude's Owner-designated final task (the first real
-   Owner dispatch is planned here). The 6c audit alone never declares Portfolio
+   listed (authorized 2026-11-24; the audit is
+   [section 7 of the audit report](docs/step1-audit-report.md#7-item-6c-sourceoffline-final-audit-6c-b5),
+   pending independent review). Full CI runs as Claude's Owner-designated final task
+   (reason `claude-final-task`), dispatched by the Owner. The Owner already dispatched
+   Full CI for PR #99 and PR #100. The 6c audit alone never declares Portfolio
    Complete.
 4. The Step 1/2 closure decision and the Codex handover: accepted Emulator evidence,
    out-of-scope roots, gaps and risks evaluated independently.
@@ -566,14 +571,17 @@ destroy timeouts, page limits and a 3600 s deadline), D12 (the section 12 order 
 specialised Service type read) and the remaining D19 scope. 6c-B4a is merged (PR #100,
 Source/Offline complete); 6c-B4b was authorized on 2026-11-24 as a Fake-only engine within
 these decisions and the existing G9, D13, D18 and receipt contracts, with Full CI as an
-Owner-designated safety milestone. The real CLI `destroy`, real transport and Live stay
-refused; 6c-B5 and the Codex handover are not authorized.
+Owner-designated safety milestone; the Owner later waived that Full CI for PR #101 as
+a one-time exception (FULL CI NOT RUN). The real CLI `destroy`, real transport and Live
+stay refused. 6c-B5 was authorized on 2026-11-24; the Step 1/2 closure decision and the
+Codex handover are not authorized.
 
-PR #101 consolidated review candidate: Owner-authorized Fake-only D6/D18/D19
-atomic Namespace acceptance and delayed-cascade guard, with transport-issued
-single-use inventory evidence, no ordinary Namespace DELETE fallback, and G9
-registration pinning under the cleanup lock. This is not a real API contract;
-real cascade safety remains NOT_VERIFIED. Independent execution review pending.
+PR #101 (merged as `0ed2c16`) adds the Owner-authorized Fake-only D6/D18/D19 atomic
+Namespace acceptance and delayed-cascade guard, with transport-issued single-use
+inventory evidence, no ordinary Namespace DELETE fallback, and G9 registration pinning
+under the cleanup lock. Its execution was verified under the one-time exception (RC-1
+and RC-2 included) and ChatGPT confirmed the merge. This is not a real API contract;
+real cascade safety remains NOT_VERIFIED.
 
 D1 (the binding-writer method), Live probes, manager and effective-permission checks
 and real transport authentication stay undecided and unverified and are not part of
