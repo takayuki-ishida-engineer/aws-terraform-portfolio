@@ -376,8 +376,12 @@ approval. The Owner may reorder them.
    6c-B3b-Apply-B4 adds `admission` (type checking, `Deny` bindings, probes A/A'/B
    against the fake) behind the same stop. 6c-B3b-Apply-B5 adds `binding_writer`
    (ownership, no drift, automount `false`; D1 items NOT_TESTED) behind the same
-   stop. `apply` and `destroy` still refuse; ingress, G9 and 6c-B4 each need their
-   own Owner approval.
+   stop. G9 and the D19 Fake-only extension (Owner decision, 2026-11-24) add the
+   registration UID receipt and the metadata-only Secret cleanup with a
+   UID-precondition DELETE (`k8s_certs_receipt.py`) and retire the name-based
+   `k8s_certs.py delete`, as code only; real Secret cleanup stays NOT_TESTED.
+   `apply` and `destroy` still refuse; ingress and 6c-B4 each need their own Owner
+   approval.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
@@ -385,9 +389,12 @@ complete.
 Remaining order (Master Policy v14.5 §19.3), each started only on the Owner's
 explicit instruction as its own reviewed pull request; listing is not approval:
 1. the D19 limited-transport Fake contract and G9 (Secret cleanup and the
-   registration UID receipt);
+   registration UID receipt): implemented in one pull request (Owner decision
+   2026-11-24), pending review and merge;
 2. 6c-B4 Fake-only Destroy (needs D19 and G9 merged and Owner decisions D3, D5, D6,
-   D11, D12, D18 and the D19 scope, all still open);
+   D11, D12 and the remaining D19 scope (metadata LIST, discovery, destroy
+   inventory), all still open; D18 is decided: no namespace deletion while a Secret
+   remains);
 3. 6c-B5 Source/Offline final audit, with Full CI as Claude's designated final task;
 4. the Step 1/2 closure decision and the Codex handover;
 5. Step 3 by Codex (Full CI at each Root completion);

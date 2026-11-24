@@ -206,11 +206,20 @@ when you no longer need the client identity.
 
 Renewal or a new cluster means new material: run `generate` again into a new
 directory, update the runtime input from its `public.json`, render, then `register`.
-The old CA is no longer trusted. `delete` removes the four Secrets
-(`kubectl delete secret --ignore-not-found`); destroying the cluster removes them too.
+The old CA is no longer trusted. Destroying the cluster removes the Secrets.
+
+`delete` is retired (G9, finding F22, Owner decision 2026-11-24). It used to delete
+by name (`kubectl delete secret --ignore-not-found`) without a UID check. It now
+refuses on every path (`name_based_delete_retired`) and never reads the kubeconfig
+or runs kubectl; automation is still refused first (`live_refused_*`). The safe
+replacement, `k8s_certs_receipt.cleanup`, is Source/Offline only (see
+[below](#registration-uid-receipt-and-safe-secret-cleanup-g9-d19-fake-only)), so no
+real Secret cleanup exists yet. The real `register` is unchanged and writes no UID
+receipt.
 
 `test_k8s_certs.py` runs `generate` with real OpenSSL in temporary directories and
-`register`/`delete` against a fake `kubectl`. It checks, among other things, that no
+`register` against a fake `kubectl`, and checks that `delete` and the CLI `delete`
+refuse without running kubectl. It checks, among other things, that no
 key or certificate line reaches arguments or output, that the generated values pass
 the renderer's live-input checks, and that the commands are refused in automation.
 
@@ -579,7 +588,14 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - A metadata response must be a `PartialObjectMetadata` for the requested object,
     within 1 MiB, and without `data`, `stringData`, `spec` or `status`.
   - A DELETE answered 409 is `uid_precondition_failed`, never success.
-- **Secrets** are refused entirely here; their metadata reads belong to G9.
+- **Secrets** (G9, Owner decision D19/G9 2026-11-24, Fake-only): only the four
+  `k8s_certs.py` Secret identities of the policy's `secret_project`
+  (`secret_identities`), for a metadata GET and a UID-precondition DELETE. Any other
+  Secret, namespace or project is `secret_path_not_approved`; a policy without
+  `secret_project` refuses every Secret. A Secret metadata response with the
+  `last-applied-configuration` annotation is refused, and only name, namespace,
+  UID, labels, managedFields and resourceVersion are returned. Metadata LIST,
+  discovery and inventory reads do not exist (D3, D19, before 6c-B4).
 - **No network code.** The module has no socket, TLS, HTTP or token code; a test
   checks the imports. Opening or constructing a real transport is refused
   (`real_transport_not_implemented`); only `FakeTransport` exists, for tests.
@@ -591,10 +607,11 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - the exact request bodies;
   - response validation;
   - bounded timeouts;
-  - no Secrets without G9.
+  - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 39 tests and 58 source mutations, each
-detected. It uses temporary stores outside the repository, the fake transport, and
+**Tests.** `test_k8s_runtime_receipt.py` has 61 tests and 113 source mutations, each
+detected: 39 tests and 58 mutations of its own, and the 22 tests and 55 mutations of
+`test_k8s_certs_receipt.py` (below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
 - the repository location and the lock;
@@ -628,8 +645,89 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - `apply` (6c-B3b) and `destroy` (6c-B4);
 - the allowed-manager table (D13);
 - the remaining read scope (D3);
-- Secret cleanup (G9);
+- Secret cleanup against a real cluster (G9 is Fake-only, below);
 - the Istio `caBundle` renderer change (C1).
+
+### Registration UID receipt and safe Secret cleanup (G9, D19 Fake-only)
+
+`k8s_certs_receipt.py` (Owner decision D19/G9, 2026-11-24) is Source/Offline code
+with no command line. Every request goes through `k8s_runtime_transport`, where only
+the fake can be opened (`real_transport_not_implemented` otherwise). It starts no
+process, opens no socket, reads no token or kubeconfig and never calls kubectl or
+the old `delete`. Its transport policy names exactly the four Secrets of
+`k8s_certs.secret_layout` (the allowlist must equal that layout,
+`secret_allowlist_mismatch` otherwise) and the `kube-system` namespace read of the
+D17 fingerprint. The registration policy cannot delete.
+
+**Registration UID receipt (`register_with_receipt`).**
+- It runs the registration's apply step, then reads each Secret's metadata.
+- A UID is recorded only when the apply confirmed that Secret and the metadata shows
+  `app.kubernetes.io/managed-by: k8s_certs.py`, `app.kubernetes.io/part-of:
+  <project>` and a single `<project>-k8s-certs` Apply entry owning exactly the
+  registered labels, `type` and data keys.
+- Otherwise the entry is NOT_VERIFIED with no UID and a fixed reason, and the
+  result is INCOMPLETE. A failed apply, a foreign apply report, an unavailable UID
+  and a failed save are never success.
+- It never rebuilds a receipt from names or current UIDs. An existing receipt is
+  replaced only when every UID it holds is unchanged or already cleaned up
+  (`receipt_conflict` otherwise; the old receipt stays).
+
+**Receipt store.** `<root>/<fingerprint id>/registration.json`, default root
+`~/.local/state/<project>-k8s-certs`, separate from the runtime receipt (whose
+Secret refusal is unchanged).
+- Outside the repository; directory 0700, file 0600, current owner; symlinks are
+  refused (the `k8s_runtime_receipt` file checks); an exclusive lock.
+- Each write is validated first, then replaced atomically (temporary file, fsync,
+  rename, directory fsync); a failed write leaves the previous receipt and no
+  temporary file.
+- Refused: missing, corrupt, non-canonical, over 64 KiB, unknown or missing fields,
+  another schema, project, fingerprint or identity list, secret-like values.
+- Schema `k8s-certs-registration-receipt-v1`: `project`, `cluster` (cluster ARN,
+  `kube-system` UID, fingerprint id), `registered_at`, `result` (REGISTERED or
+  INCOMPLETE) and, for each of the four Secrets in order, `identity` (apiVersion,
+  kind, namespace, name), `uid`, `registration` (REGISTERED or NOT_VERIFIED),
+  `reason` and `cleanup` (`state`, `reason`, `at`). No Secret value, key, token,
+  kubeconfig, object body, label or annotation is stored.
+
+**Cleanup (`cleanup`), per Secret, in this order.**
+1. Receipt integrity, project, fingerprint and identity, before any Secret request
+   (the fingerprint comes from the `kube-system` read through the same transport).
+2. Metadata-only GET.
+3. Label `app.kubernetes.io/managed-by: k8s_certs.py`.
+4. Label `app.kubernetes.io/part-of: <project>`.
+5. The `<project>-k8s-certs` Apply entry.
+6. No other manager, operation or field ownership.
+7. Live UID equal to the receipt UID.
+8. DELETE with `preconditions.uid`; DELETE_REQUESTED is recorded first.
+9. Metadata GET confirming NotFound.
+10. The result recorded in the receipt.
+
+States: DELETED (deleted and confirmed absent), ALREADY_ABSENT (NotFound before the
+delete, after the receipt and fingerprint checks), BLOCKED with a fixed reason, and
+DELETE_REQUESTED while a delete is in flight. A 200 or 202 alone is never success.
+A 409 (`uid_precondition_failed`), 403, 5xx, timeout, invalid or full-Secret
+response, a Secret still present or recreated after the delete or after an earlier
+cleanup, a missing UID in the receipt and any failed check is BLOCKED: the Secret
+stays, nothing is retried and no response body is kept. There is no full Secret
+GET, no name-only delete and no namespace fallback.
+
+**D18 (recorded, not implemented).** The report's `namespace_secret_condition` is
+BLOCKED for `istio-system` or `<project>-ingress` while any of its Secrets is not
+DELETED or ALREADY_ABSENT; MET is necessary, never sufficient (the section 5.1
+inventory and D6 still apply). `kube-system` is `NEVER_DELETED`; its webhook TLS
+Secret is its own completion condition (`kube_system_webhook_tls`).
+`namespace_deletion` is `NOT_IMPLEMENTED` (6c-B4).
+
+**Tests.** `test_k8s_certs_receipt.py` has 22 tests and 55 source mutations, run
+inside the `k8s_runtime_receipt_tests` suite. A fake API server answers like the
+API server: a GET without the metadata-only Accept header returns a full Secret
+with a value marker, and a DELETE honours `preconditions.uid`. A mutation counts as
+detected only when an assertion fails; a crash is reported as undetected. The tests
+cover the allowlist, the request and response contract, real-transport and
+real-operation refusal, the receipt store (missing, corrupt, non-canonical,
+tampered, modes, symlinks, owner, repository location, lock, fingerprint, project
+and identity), partial registration, save failure, replacement rules, every
+cleanup step and refusal, and the absence of any fallback.
 
 ### Fake apply engine for the first two stages (item 6c-B3b-Apply-A, offline only)
 
@@ -1139,12 +1237,13 @@ there is **open**; nothing here decides an execution method.
   - The runtime never reads Secret contents, and never falls back to reading a
     full Secret.
   - `public.json` dates are not proof of validity.
-- **Secret cleanup (G9, finding F22).** The current `k8s_certs.py delete` deletes
-  by name without a UID check, so the runtime destroy must not use it. Deleting a
-  namespace also deletes its Secrets, so namespace deletion stays BLOCKED until a
-  safe cleanup exists. That cleanup needs a UID precondition, an ownership check and
-  an absence check afterwards. The `kube-system` webhook TLS Secret needs its own
-  cleanup.
+- **Secret cleanup (G9, finding F22).** `k8s_certs.py delete` is retired and
+  refuses. The safe cleanup (`k8s_certs_receipt.cleanup`: receipt UID, ownership
+  checks, UID-precondition DELETE, confirmed absence) exists as Source/Offline code
+  against the fake transport only. Deleting a namespace also deletes its Secrets,
+  so namespace deletion stays BLOCKED (6c-B4, D3, D6), and never happens while a
+  Secret remains (D18). The `kube-system` webhook TLS Secret is its own cleanup
+  condition.
 - **Ingress stop condition.** The ingress stage stays BLOCKED until all of these
   are approved and in place:
   - a way for the operator to act as `<project>-binding-writer`. Impersonation is

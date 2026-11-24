@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation and the 6c-B3b-Apply-A and Apply-B1 to Apply-B5 fake engine implemented offline.**
+**Status: design record; 6c-B3a foundation, the 6c-B3b-Apply-A and Apply-B1 to Apply-B5 fake engine, and G9 with the D19 Fake-only Secret extension implemented offline.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -271,6 +271,39 @@ A Secret that fails any check is reported and left in place. A Secret in
 `kube-system` cannot be removed by deleting a namespace, so its cleanup is its own
 completion condition.
 
+**Implemented (Owner decision D19/G9, 2026-11-24), Source/Offline only**, as the
+recommended independent pull request: `scripts/local-workflow/k8s_certs_receipt.py`
+(see the [script description](../scripts/local-workflow/README.md#registration-uid-receipt-and-safe-secret-cleanup-g9-d19-fake-only)).
+- **Registration UID receipt.** A dedicated store
+  (`~/.local/state/<project>-k8s-certs/<fingerprint id>/registration.json`), with the
+  same file safety as the runtime receipt: outside the repository, 0700 and 0600,
+  owner check, symlink refusal, exclusive lock, validated atomic replace. Schema
+  `k8s-certs-registration-receipt-v1`: project, D17 fingerprint, the four
+  identities, the UID at registration and the result. After the registration's apply
+  step, a UID is recorded only from a metadata read that shows both labels and a
+  single `<project>-k8s-certs` Apply entry owning exactly the registered fields.
+  Anything less is NOT_VERIFIED with no UID and the result INCOMPLETE, never success;
+  a failed save is never success. A receipt is never rebuilt from names or current
+  UIDs and never replaces a UID that may still name a live Secret.
+- **Cleanup.** The ten steps of the Owner decision: receipt, project, fingerprint and
+  identity; metadata GET; both labels; the Apply entry; no other manager, operation
+  or field; the receipt UID; DELETE with `preconditions.uid` (DELETE_REQUESTED
+  recorded first); NotFound confirmed; the result recorded (DELETED, ALREADY_ABSENT
+  or BLOCKED with a fixed reason). A 200 or 202 alone, a 409, 403, 5xx, timeout, a
+  full or annotated Secret response, a Secret still present or recreated, and every
+  failed check are BLOCKED. There is no full Secret read, no retry, no name-only
+  delete and no namespace fallback.
+- **The old delete.** `k8s_certs.py delete` refuses on every path
+  (`name_based_delete_retired`) after the unchanged automation refusal.
+- **Not changed.** The real `register` (no receipt, no read-back), the runtime
+  receipt's Secret refusal, the real transport (not implemented) and namespace
+  deletion (not implemented, D18 below).
+- **Still NOT_TESTED or NOT_VERIFIED.** Any real Secret read or delete; the exact
+  managedFields a server-side applied Secret carries (the Apply entry's field set
+  is assumed to be the labels, `type` and the data keys, so a different real shape
+  fails closed); whether a 202 leaves a Secret present for a while (BLOCKED now;
+  waiting would need a new timeout, D11).
+
 | Option | Advantages | Disadvantages |
 | --- | --- | --- |
 | Inside 6c-B4 | One pull request for all destroy behaviour | Mixes Secret handling with the stage destroy engine; a larger security review |
@@ -281,6 +314,15 @@ completion condition.
 `DeleteOptions.preconditions.uid` closes the window between the ownership check
 and the deletion. `kubectl delete` is not known to accept preconditions (NOT_VERIFIED,
 believed unsupported). **No DELETE is enabled until the Owner decides the method.**
+
+**Decided (Owner, 2026-11-24), for the G9 Source/Offline implementation only:** the
+limited direct API's Fake contract gains the metadata-only GET and the
+UID-precondition DELETE of the four `k8s_certs.py` Secret identities (`v1` `Secret`
+in `istio-system`, `kube-system` and `<project>-ingress`, by name). No arbitrary
+path, resource, namespace or verb is added. The real HTTPS client, TLS, token
+retrieval and any real request stay unimplemented (`real_transport_not_implemented`).
+Metadata LIST, discovery and the section 5.1 inventory stay OPEN (D3 and D19,
+before 6c-B4).
 
 | Option | Description | Advantages | Risks |
 | --- | --- | --- | --- |
@@ -457,8 +499,9 @@ Abbreviations in the table:
    - Delete the admission policies only when no TargetGroupBinding remains and the
      ingress namespace has no LoadBalancer Service.
    - Delete the istiod webhooks only when no Istio custom resource remains.
-5. **Secret cleanup before namespace deletion** (G9; BLOCKED until G9 and D19 are
-   implemented).
+5. **Secret cleanup before namespace deletion** (G9 and the D19 Secret extension
+   implemented Source/Offline on 2026-11-24; namespace deletion stays BLOCKED until
+   6c-B4, the section 5.1 inventory and D6).
 
    | Namespace | Required before deletion |
    | --- | --- |
@@ -471,8 +514,12 @@ Abbreviations in the table:
    section 5.1, never assumed. Its result must be COMPLETE. UNKNOWN or BLOCKED
    stops destroy before the namespace is deleted.
 
-   Deleting a namespace that still holds a Secret needs a separate explicit Owner
-   approval (D18).
+   D18 (Owner, 2026-11-24): a namespace that still holds a Secret is not deleted,
+   and while the cleanup of its k8s_certs Secrets is incomplete its deletion is
+   BLOCKED. Unknown Secrets are never deleted or adopted automatically. `kube-system`
+   is never deleted; its webhook TLS Secret is its own completion condition. The G9
+   cleanup report records this condition per namespace
+   (`namespace_secret_condition`); namespace deletion itself is not implemented.
 6. **CRDs are kept** (D5).
    - Runtime destroy is complete when all of these hold:
      - the 45 non-CRD objects are absent;
@@ -877,9 +924,16 @@ Deleting the EKS cluster alone is not complete teardown.
     - Unconfirmed manager names and field paths are not treated as confirmed.
     - An unknown manager, a foreign field or unclear ownership fails closed.
     - There is no `--force-conflicts`.
+- **Approved (Owner, 2026-11-24), for the G9 Source/Offline implementation only:**
+  - **D19**, Secret part: the Fake metadata-only GET and UID-precondition DELETE of
+    the four `k8s_certs.py` Secret identities (section 3);
+  - **D18**: no namespace deletion while a Secret remains; incomplete cleanup of the
+    four Secrets blocks it; unknown Secrets are never deleted or adopted;
+    `kube-system` is never deleted. Recorded as a contract, not implemented.
 - **Every other row is OPEN (not decided).** That includes:
   - the rest of D3 (destroy discovery and inventory reads);
-  - D5, D6, D12 and D18;
+  - the rest of D19 (metadata LIST, discovery and the destroy inventory transport);
+  - D5, D6 and D12;
   - every Category 2 and 3 decision.
 
 ### Category 1: before Source/Offline implementation
@@ -900,7 +954,7 @@ Deleting the EKS cluster alone is not complete teardown.
 | D11 | Timeouts | Per-stage limits (for example CRD 2 min, Deployment 10 min, finalizer 10 min) | Too short gives false stops | 6c-B3b, 6c-B4 | Before 6c-B3b starts |
 | D5 | CRD deletion | Keep; deletion only with separate approval | CRDs remain until platform destroy | 6c-B4 | Before 6c-B4 starts |
 | D6 | Namespace deletion conditions | Section 5 | Wrongly deleting future application data if loosened | 6c-B4 | Before 6c-B4 starts |
-| D18 | Deleting a namespace that still holds a Secret | Not allowed without a separate explicit Owner approval | Cascade deletion of unmanaged Secrets | G9, 6c-B4 | Before 6c-B4 starts |
+| D18 | Deleting a namespace that still holds a Secret | **APPROVED 2026-11-24 as a contract**: not allowed; blocked while the k8s_certs Secret cleanup is incomplete; `kube-system` never deleted | Cascade deletion of unmanaged Secrets | G9, 6c-B4 | Decided |
 | D12 | Runbook teardown order | Section 12 | Unobserved deregistration if skipped | 6c-B4 (runbook) | Before 6c-B4 starts |
 
 ### Category 2: before Live verification
@@ -936,7 +990,7 @@ independent review and Owner Squash Merge approval.
 | 6c-B2 (this) | Design record, runbook, step plan and audit report | Docs only; Full CI and Offline Contracts pass on the exact HEAD | Code, renderer, CI or workflow changes |
 | 6c-B3a | Gate, pinning, cluster fingerprint, journal and receipt store, reconciliation, QUARANTINED, read-only `receipt verify`, and the D19 transport boundary if the Owner decides it here. **`apply` stays refused** | Fake tests (negative and mutation) for:<br>• crash between INTENT and RESULT<br>• UID change<br>• missing receipt<br>• modes, symlinks and owners<br>• secret-like values<br>• atomic replace<br>Existing plan 29/39 and status 21/32 kept; Full CI and Offline Contracts pass | Any need for `infra/**`, renderer, RBAC or admission changes; enabling `apply` |
 | 6c-B3b | `apply` for stages 1–8, ingress refused, plus C1 (renderer contract 5), the section 4.1 lifecycle (pre-apply, minimal completion, deferred readiness, final acceptance), ownership table, digest classification, probe classification against fakes, and the read scope | Fake tests (negative and mutation) for:<br>• conflict<br>• foreign field<br>• C1 refusal<br>• digest mismatch or NOT_VERIFIED<br>• probe misclassification<br>• timeout<br>• `dry_run_unsupported`<br>• ingress refusal<br>• NOT_VERIFIED preconditions failing closed at their lifecycle point<br>• deferred items never reported as PASS (exit 6)<br>Plan tests pin contract 5. It is Source/Offline PASS only, never "Live deploy ready" | Enabling ingress; impersonation or TokenRequest code; reading full Secrets |
-| G9 (independent, recommended) | Safe Secret cleanup and the registration UID receipt in `k8s_certs.py`, using the D19 transport | Fake-API tests for:<br>• UID mismatch<br>• foreign manager<br>• missing label<br>• absence after delete<br>• no full Secret read<br>• no fallback | Namespace deletion stays BLOCKED until merged |
+| G9 (independent, recommended; **implemented Source/Offline 2026-11-24** in `k8s_certs_receipt.py`) | Safe Secret cleanup and the registration UID receipt, using the D19 transport | Fake-API tests for:<br>• UID mismatch<br>• foreign manager<br>• missing label<br>• absence after delete<br>• no full Secret read<br>• no fallback | Namespace deletion stays BLOCKED until merged |
 | 6c-B4 | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, the section 5.1 inventory verification, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted<br>• inventory reads that are incomplete, forbidden, paged with a stale continue token, missing a discovery group, or answered with a full Secret, each UNKNOWN or BLOCKED and never empty<br>• unknown objects never adopted<br>• a non-zero or unknown CRD count | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
 | 6c-B5 | Source/offline closure audit of item 6c | Docs; lists every NOT_TESTED, BLOCKED and NOT_VERIFIED item | No COMPLETE declaration |
 | Live verification (separate) | Sections 7, 8, 9 and 11, F18, F21, D15 | Outside the current scope (Master Policy v14.5 §15); not part of the remaining work | Never in Codex Cloud; no current authorization |
@@ -949,8 +1003,10 @@ gateway, mesh_security, admission and binding_writer second.
 - **BLOCKED:**
   - ingress (D1);
   - `apply` and `destroy` (not implemented);
-  - DELETE until D19;
-  - namespace deletion until G9;
+  - real DELETE: only the Fake UID-precondition DELETE of the four Secrets exists
+    (D19, 2026-11-24); the real transport is not implemented;
+  - namespace deletion: G9 is implemented offline, but deletion needs 6c-B4, the
+    section 5.1 inventory and D6, and never happens while a Secret remains (D18);
   - operational apply while any mandatory precondition is NOT_VERIFIED;
   - namespace and CRD deletion until the section 5.1 inventory returns COMPLETE;
   - final acceptance of the runtime as a whole while ingress is BLOCKED.
@@ -960,6 +1016,10 @@ gateway, mesh_security, admission and binding_writer second.
   - whether the access policy grants `impersonate`;
   - the service account's effective permissions;
   - a metadata-only Secret read and whether kubectl can do it;
+  - the managedFields a server-side applied Secret really carries (the G9 checks
+    assume one `<project>-k8s-certs` Apply entry owning the labels, `type` and data
+    keys);
+  - whether a Secret DELETE answered 202 leaves the Secret present for a while;
   - UID-precondition DELETE through kubectl;
   - `metadata.uid` as an apply precondition;
   - istiod and controller manager names and paths;

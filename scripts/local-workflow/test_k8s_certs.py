@@ -541,7 +541,8 @@ class RegisterTests(unittest.TestCase):
                 k8s_certs.check_kubeconfig(kubectl_view(), "demo-dev-eks", platform)
 
     def test_other_cluster_receives_no_secret(self):
-        # Register and delete stop after reading the kubeconfig: no namespace read, apply or delete follows.
+        # Register stops after reading the kubeconfig: no namespace read or apply follows. The retired delete
+        # never reads the kubeconfig at all (test_delete_is_retired).
         bad_view = kubectl_view()
         bad_view["clusters"][0]["cluster"]["server"] = "https://10.40.1.20:443"
         for label, setup in [
@@ -549,16 +550,18 @@ class RegisterTests(unittest.TestCase):
                 ("kubeconfig_mismatch:platform_cluster", lambda: self.platform_file.write_text(json.dumps(
                     dict(PLATFORM, cluster_name="other-dev-eks")))),
                 ("kubeconfig_mismatch:context_unavailable", lambda: self.env.update(FAKE_KUBECTL_MODE="view_fails"))]:
-            for command in ("register", "delete"):
-                with self.subTest(label=label, command=command):
-                    self.view_file.write_text(json.dumps(kubectl_view()))
-                    self.platform_file.write_text(json.dumps(PLATFORM))
-                    self.env.pop("FAKE_KUBECTL_MODE", None)
-                    self.log.unlink(missing_ok=True)
-                    setup()
-                    with self.assertRaisesRegex(k8s_certs.CertError, label):
-                        self.register() if command == "register" else delete_with(self, {})
-                    self.assertTrue(all(c["argv"][2] == "config" for c in self.calls()), self.calls())
+            with self.subTest(label=label):
+                self.view_file.write_text(json.dumps(kubectl_view()))
+                self.platform_file.write_text(json.dumps(PLATFORM))
+                self.env.pop("FAKE_KUBECTL_MODE", None)
+                self.log.unlink(missing_ok=True)
+                setup()
+                with self.assertRaisesRegex(k8s_certs.CertError, label):
+                    self.register()
+                self.assertTrue(all(c["argv"][2] == "config" for c in self.calls()), self.calls())
+                self.log.unlink(missing_ok=True)
+                self.assertEqual(delete_with(self, {}), 1)
+                self.assertEqual(self.calls(), [])
         self.assertTrue((self.material / "istio/ca-key.pem").exists())
         self.log.unlink(missing_ok=True)
         self.terraform.write_text("#!/bin/sh\nexit 1\n")
@@ -597,19 +600,21 @@ class RegisterTests(unittest.TestCase):
                 self.assert_no_material(text)
                 self.assertIn("[redacted", text)
 
-    def test_delete_removes_each_secret(self):
-        self.assertEqual(delete_with(self, {}), 0)
-        argv = [c["argv"] for c in self.calls()]
-        self.assertEqual(argv, [
-            ["--context", "demo-dev-eks", "config", "view", "--minify", "--raw", "-o", "json"],
-            ["--context", "demo-dev-eks", "delete", "secret", "cacerts", "-n", "istio-system", "--ignore-not-found"],
-            ["--context", "demo-dev-eks", "delete", "secret", "aws-load-balancer-controller-tls", "-n", "kube-system",
-             "--ignore-not-found"],
-            ["--context", "demo-dev-eks", "delete", "secret", "demo-gateway-tls", "-n", "demo-ingress", "--ignore-not-found"],
-            ["--context", "demo-dev-eks", "delete", "secret", "demo-gateway-client-cacert", "-n", "demo-ingress",
-             "--ignore-not-found"],
-        ])
-        self.assertNotIn("[redacted kubectl output]", self.output)
+    def test_delete_is_retired(self):
+        # G9: the name-based delete refuses on the workstation too: no kubeconfig read, no kubectl, no fallback.
+        for context in (None, "demo-dev-eks"):
+            with self.subTest(context=context):
+                self.output.clear()
+                self.assertEqual(k8s_certs.delete(PROJECT, context=context, kubectl_binary=str(self.kubectl),
+                                                  env=self.env, out_fn=self.output.append,
+                                                  terraform=str(self.terraform), services=self.tmp), 1)
+                self.assertEqual(self.output, [k8s_certs.DELETE_RETIRED])
+                self.assertTrue(self.output[0].startswith("Refused (name_based_delete_retired)"))
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(delete_with(self, {}), 1)
+        self.assertEqual(delete_with(self, {"CI": "true"}), 1)
+        self.assertTrue(self.output[-1].startswith("Refused (live_refused_in_ci)"), self.output[-1])
+        self.assertEqual(self.calls(), [])
 
 
 def delete_with(test, extra):
@@ -640,6 +645,23 @@ class CommandLineTests(unittest.TestCase):
                                    env=env)
             self.assertEqual(again.returncode, 2)
             self.assertIn("material_directory_not_empty", again.stderr)
+
+    def test_cli_delete_refused(self):
+        script = str(HERE / "k8s_certs.py")
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "kubectl.log"
+            kubectl = Path(tmp) / "kubectl"
+            kubectl.write_text(FAKE_KUBECTL)
+            kubectl.chmod(0o755)
+            env = dict(WORKSTATION, PYTHONDONTWRITEBYTECODE="1", FAKE_KUBECTL_LOG=str(log))
+            for extra, reason in (({}, "name_based_delete_retired"), ({"CI": "true"}, "live_refused_in_ci")):
+                with self.subTest(reason=reason):
+                    process = subprocess.run([sys.executable, script, "delete", "--project", PROJECT, "--kubectl",
+                                              str(kubectl), "--terraform", "/nonexistent/terraform"],
+                                             capture_output=True, text=True, env=dict(env, **extra))
+                    self.assertEqual(process.returncode, 1, process.stderr)
+                    self.assertIn("Refused (" + reason + ")", process.stdout)
+            self.assertFalse(log.exists(), "kubectl must never run")
 
     def test_no_material_in_repository(self):
         tracked = subprocess.run(["git", "-C", str(HERE.parents[1]), "ls-files"], capture_output=True, text=True,

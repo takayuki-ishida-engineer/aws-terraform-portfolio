@@ -538,7 +538,9 @@ its own branch from latest `main`, and stops for independent review and Owner me
 approval. Listing an item here is not an implementation approval:
 1. The D19 limited-transport Fake contract and G9 (Secret cleanup and the
    registration UID receipt), as separate pull requests or one combined pull request
-   the Owner approves.
+   the Owner approves. The Owner approved one combined Source/Offline pull request on
+   2026-11-24 (Fake metadata GET, UID-precondition DELETE and the four `k8s_certs.py`
+   Secret identities only).
 2. 6c-B4 Fake-only Destroy: reverse order, inventory, UID, timeouts, Secret,
    Namespace and CRD safety, runbook. It needs D19 and G9 merged and the decisions
    below.
@@ -555,12 +557,13 @@ approval. Listing an item here is not an implementation approval:
 
 Open Owner decisions before the next steps (v14.5 §19.2). They are **not approved**
 and must not be treated as approved:
-- D19: the scope of the Fake DELETE and Metadata Read/List implementation;
+- D19, remaining scope: metadata LIST, discovery and the destroy inventory (the Fake
+  metadata GET, UID-precondition DELETE and four Secret identities were approved on
+  2026-11-24 for G9);
 - D3: Destroy discovery and inventory (the 3 runtime namespaces and 17 CRD plurals,
   metadata-only);
 - D5: keeping the CRDs;
 - D6: the namespace deletion conditions;
-- D18: refusal while Secrets remain;
 - D12: the teardown order;
 - D11: new timeouts.
 
@@ -568,7 +571,9 @@ D1 (the binding-writer method), Live probes, manager and effective-permission ch
 and real transport authentication stay undecided and unverified and are not part of
 the remaining work. Approved contracts (D7, D8, D10, D16, D17, the D19 limited
 transport interface and fake, D3 fingerprint and apply-limited reads, D23 C1, D2, D9,
-D11 default read timeouts, D13 allowlist) are not widened. Step 2 rehearsals run
+D11 default read timeouts, D13 allowlist, and of 2026-11-24 the D19 Fake GET/UID
+DELETE scope for the four Secrets and D18: no namespace deletion while a Secret
+remains) are not widened. Step 2 rehearsals run
 automatically on merged `main` only within the limited standing authorization above.
 Step 3 onward is handed to Codex with a separate instruction. All permanent rules
 above remain in force.
