@@ -1,5 +1,12 @@
 # V7-0 REST / private integration technical contract
 
+> **Historical record.** Master Policy **v14.5** (2026-11-23) is the only current
+> controlling policy, applied by [AGENTS.md](../AGENTS.md). Statements here that name
+> an earlier policy (v10 to v14.4, the v14.2 alignment record) as current authority,
+> or that describe optional DEV Live verification, G01–G07 gates or the JPY 10,000
+> limit, are historical. Under v14.5 §15 real AWS/EKS Live verification is outside the
+> current scope.
+
 ## V7-A source update — runtime not demonstrated
 
 V7-A adds [api_gateway_rest](../infra/modules/api_gateway_rest/README.md) and composes Regional REST core plus Cognito

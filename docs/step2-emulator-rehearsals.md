@@ -4,7 +4,8 @@ Step 2 of the [step plan](deployment-configuration.md#8-step-plan): rehearse the
 real DEV roots in the official AWS Emulator under all fourteen
 [mandatory controls](../AGENTS.md#mandatory-official-aws-emulator-safety-controls),
 then an end-to-end apply and destroy. Automatic runs on `main` stay within the
-limited standing authorization of Master Policy v14.4 §13.2: only the reviewed
+limited standing authorization of Master Policy v14.5 §13.2 (first set in v14.4
+§13.2): only the reviewed
 scenarios in `all` of an Owner merge-approved pull request. Every other run (manual
 dispatch, local or cloud run, unapproved scenario) needs the Owner's approval each
 time ([AGENTS.md](../AGENTS.md#emulator-verification-workflow-and-evidence)).
@@ -22,7 +23,7 @@ COMPLETE and PORTFOLIO COMPLETE remain undeclared.
 | --- | --- |
 | [`aws-emulator-rehearsal.yml`](../.github/workflows/aws-emulator-rehearsal.yml) | The exact steps every formal run executes: the run gate (main, the Owner, a public repository), verified downloads, an isolated `--network none` container, strict host cleanup and the job summary |
 | [Workflow runs](https://github.com/takayuki-ishida-engineer/aws-terraform-portfolio/actions/workflows/aws-emulator-rehearsal.yml) and the README badge | Every formal run's log, with every gate row, and its job summary. GitHub deletes logs, job summaries and run records after its retention period: at most 90 days on a public repository, with the actual setting confirmed by the Owner. The badge shows only the latest automatic run. Neither the badge, a run URL nor a job summary is permanent evidence |
-| [Evidence ledger](evidence/emulator-runs/index.md) (v14.4 §13.4) | Every formal run of this workflow and of the representative workflow has a sanitized entry per Run ID and Attempt, whether it passed, failed or stopped early. Each entry records the SHA, versions, roots and resource addresses, the 14 controls, per-operation results, independent API checks, cleanup, failure cause, untested scope and residual risk. The index compares the ledger with `actions-runs.json`, a static snapshot of the Actions run list committed with the entries. That comparison is only as current as the snapshot and is not a live GitHub API query. The ledger is a third-party-traceable audit record, not a copy of the full logs. It is maintained with [`harvest.py`](../scripts/emulator-evidence/README.md) through reviewed pull requests |
+| [Evidence ledger](evidence/emulator-runs/index.md) (v14.5 §13.4) | Every formal run of this workflow and of the representative workflow has a sanitized entry per Run ID and Attempt, whether it passed, failed or stopped early. Each entry records the SHA, versions, roots and resource addresses, the 14 controls, per-operation results, independent API checks, cleanup, failure cause, untested scope and residual risk. The index compares the ledger with `actions-runs.json`, a static snapshot of the Actions run list committed with the entries. That comparison is only as current as the snapshot and is not a live GitHub API query. The ledger is a third-party-traceable audit record, not a copy of the full logs. It is maintained with [`harvest.py`](../scripts/emulator-evidence/README.md) through reviewed pull requests |
 | This page | The human-readable narrative: the formal run list, per-root status, emulator gaps, untested items and residual risk. Local container runs are recorded here as LOCAL PRELIMINARY, separately from formal runs |
 
 The ledger is authoritative for which runs exist and what each one recorded. A

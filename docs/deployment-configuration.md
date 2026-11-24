@@ -72,8 +72,11 @@ It checks paths only, never file contents, and makes no AWS call.
   by the Owner or an operator, outside Codex Cloud and never through CI/CD.
 - GitHub Actions runs offline checks only: formatting, validation, mock plans,
   security checks and the repository guard. It holds no AWS credentials.
-- An optional real deployment remains subject to G01–G07, the cumulative JPY 10,000
-  DEV limit and complete verified teardown within 72 hours.
+- Real AWS/EKS Live verification and enabling real Apply/Destroy are outside the
+  current scope (Master Policy v14.5 §15). The local workflow and runbook are
+  Source/Offline designs whose real executability is not guaranteed. The earlier
+  optional-deployment conditions (G01–G07, the JPY 10,000 limit, teardown within 72
+  hours) are historical.
 - The [local workflow](../scripts/local-workflow/README.md) runs `init`, the offline
   and live preflight, a saved plan, a typed confirmation and the apply of exactly
   that plan, for one root at a time. Apply `tfstate` (only for the optional S3
@@ -375,6 +378,19 @@ approval. The Owner may reorder them.
 
 V7-B/C/D, NP-2B/NP-3 and other new features stay paused until Steps 1 and 2 are
 complete.
+
+Remaining order (Master Policy v14.5 §19.3), each started only on the Owner's
+explicit instruction as its own reviewed pull request; listing is not approval:
+1. the D19 limited-transport Fake contract and G9 (Secret cleanup and the
+   registration UID receipt);
+2. 6c-B4 Fake-only Destroy (needs D19 and G9 merged and Owner decisions D3, D5, D6,
+   D11, D12, D18 and the D19 scope, all still open);
+3. 6c-B5 Source/Offline final audit, with Full CI as Claude's designated final task;
+4. the Step 1/2 closure decision and the Codex handover;
+5. Step 3 by Codex (Full CI at each Root completion);
+6. Step 4, final Core acceptance with Full CI and the representative Emulator evidence.
+The current list and the open decisions are kept in
+[AGENTS.md](../AGENTS.md#current-work-and-remaining-order-master-policy-v145-19).
 
 ## 9. Step 1 operational decisions (Owner, 2026-11-16)
 

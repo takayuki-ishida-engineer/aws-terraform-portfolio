@@ -1,5 +1,12 @@
 # Approved repository structure — R0 strategy, migration evidence and V1 design
 
+> **Historical record.** Master Policy **v14.5** (2026-11-23) is the only current
+> controlling policy, applied by [AGENTS.md](../AGENTS.md). Statements here that name
+> an earlier policy (v10 to v14.4, the v14.2 alignment record) as current authority,
+> or that describe optional DEV Live verification, G01–G07 gates or the JPY 10,000
+> limit, are historical. Under v14.5 §15 real AWS/EKS Live verification is outside the
+> current scope.
+
 ## V6 Cognito source foundation
 
 Accepted post-V5 main `97f870753926398368733c39da722d5d7b792fa5` passed

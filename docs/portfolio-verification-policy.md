@@ -1,5 +1,13 @@
 # Portfolio verification policy — evidence and operating boundaries
 
+> **Current authority.** Master Policy **v14.5** (2026-11-23) is the only current
+> controlling policy; [AGENTS.md](../AGENTS.md) applies it in the repository. Sections
+> below that cite v10 to v14.4, the v14.2 alignment record, optional DEV Live, G01–G07
+> or the JPY 10,000 limit are historical records, not current rules. Under v14.5 §15,
+> real AWS/EKS Live verification and enabling real Apply/Destroy are outside the
+> current scope. The current CI rules are in the
+> [CI execution policy](#ci-execution-policy--owner-decision-2026-11-23) below.
+
 ## Representative Emulator workflow — AWS EMULATOR DEMONSTRATED for the VPC scenario
 
 [Phase 3 implementation](../scripts/emulator-verification/README.md) supplies an owner-confirmed, merged-main-only manual
@@ -16,7 +24,7 @@ NOT_TESTED; CORE PORTFOLIO COMPLETE and PORTFOLIO COMPLETE are not declared.
 Codex namespace remains known environment BLOCKED.
 
 
-Current operating requirements are the owner-authorized Master Policy v14.2
+Historical (superseded by v14.5): operating requirements were the Master Policy v14.2
 [alignment record](policy-v14-2-alignment.md). Core Implementation and mandatory
 portfolio-level representative Emulator demonstration have separate acceptance
 gates. Historical v10–v14.1 design and evidence stay scoped.
@@ -234,10 +242,11 @@ reviewed, owner-approved and merged with offline/security quality, Full CI and
 unverified scope explicit, without requiring Emulator demonstration.
 AWS EMULATOR DEMONSTRATED separately requires actual representative lifecycle and
 cleanup under all fourteen controls. PORTFOLIO COMPLETE requires both statuses;
-no individual PR or historical VPC result declares completion. Optional real AWS verification
-requires a separate user decision and G01–G07, cumulative actual JPY 10,000 and
-complete verified teardown within 72 hours. Secrets Manager's 30-day recovery
-conflict remains OPEN. Emulator success never becomes actual AWS deployment evidence.
+no individual PR or historical VPC result declares completion. Real AWS/EKS Live
+verification is outside the current scope (v14.5 §15) and is not a completion
+condition; the earlier optional Live conditions (G01–G07, cumulative JPY 10,000,
+teardown within 72 hours) are historical. Emulator success never becomes actual AWS
+deployment evidence.
 
 ## V6 Cognito source foundation
 
@@ -461,13 +470,30 @@ tree equals the tree CI recorded as verified (`tested_tree`), and that this tree
 belongs to the reviewed HEAD; a mismatch stops further merges for investigation. Offline Contracts and, on its trigger paths, the Emulator rehearsal
 still run on the push to `main`.
 
-**Branch Protection.** Changed only by the Owner, after independent review of the
-change that introduced this policy: add `PR Safety CI` as required, then remove
-`Credential-free Terraform validation`. See
-[scripts/ci/README.md](../scripts/ci/README.md#branch-protection-migration) for the
-steps and the rollback.
+**Branch Protection.** `main` is protected; its only required check is `PR Safety CI`
+(GitHub Actions, enforcement everyone), as independently confirmed for the Owner by
+ChatGPT. The migration from `Credential-free Terraform validation` is complete; the
+add-then-remove steps in
+[scripts/ci/README.md](../scripts/ci/README.md#branch-protection-migration) are a
+historical record (that file sits on a high-risk CI path and is corrected with the
+next approved CI change). Full CI is not a required check but stays mandatory by rule
+where this policy requires it. Only the Owner changes Branch Protection.
 
-## DEV Live — approved limits, scenario details OPEN
+**`infra/README.md`.** Its "Independent offline Terraform CI" section (every pull
+request and push, a 20-minute timeout, cancelled runs) is not a current rule. It will
+be corrected with the next approved `infra/` change, because editing `infra/**` starts
+the Emulator rehearsal.
+
+**v14.5 alignment (2026-11-23).** v14.5 §12 adopts this CI execution policy as the
+controlling CI rule. The first normal pull request under it (the v14.5 documentation
+alignment) demonstrates PR Safety CI alone; the first real Owner dispatch of Full CI
+is planned for the 6c-B5 milestone. Until then those paths are untested in practice.
+
+## Historical: DEV Live limits (not current)
+
+> Superseded by Master Policy v14.5 §15: real AWS/EKS Live verification is outside the
+> current scope, the JPY 10,000 limit and G01–G07 authorize nothing, and the past Live
+> budget is not reused. The text below is kept as a historical record.
 
 No real AWS Live operation is authorized by this PR. Actual external execution
 requires all applicable gate evidence, independent approval and explicit scope outside Codex
