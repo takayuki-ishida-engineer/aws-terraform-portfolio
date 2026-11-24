@@ -8,7 +8,7 @@ of Step 1 item 6c. It has four parts:
 - the Owner Decision Matrix D1–D23;
 - the gates between the implementation pull requests.
 
-**Status: design record; 6c-B3a foundation, the 6c-B3b-Apply-A and Apply-B1 to Apply-B5 fake engine, and G9 with the D19 Fake-only Secret extension implemented offline.**
+**Status: design record; 6c-B3a foundation, the 6c-B3b-Apply-A and Apply-B1 to Apply-B5 fake engine, G9 with the D19 Fake-only Secret extension, and the 6c-B4a destroy safety foundation implemented offline. The 6c-B4b destroy engine is not implemented.**
 
 - `apply` and `destroy` are not implemented. Nothing here was executed against a
   cluster, AWS or the Emulator.
@@ -940,11 +940,55 @@ Deleting the EKS cluster alone is not complete teardown.
   - **D18**: no namespace deletion while a Secret remains; incomplete cleanup of the
     four Secrets blocks it; unknown Secrets are never deleted or adopted;
     `kube-system` is never deleted. Recorded as a contract, not implemented.
-- **Every other row is OPEN (not decided).** That includes:
-  - the rest of D3 (destroy discovery and inventory reads);
-  - the rest of D19 (metadata LIST, discovery and the destroy inventory transport);
-  - D5, D6 and D12;
-  - every Category 2 and 3 decision.
+- **Approved (Owner, 2026-11-24), for 6c-B4. Only 6c-B4a is authorized for
+  implementation; the 6c-B4b parts are approved as design:**
+  - **D3**: Fake-only discovery and metadata-only LIST. Namespaces `istio-system`,
+    `<project>-ingress` and `<project>-app` only; cluster-wide LIST only for the 17
+    reviewed CRD plurals; no `kube-system` inventory for deletion; discovery grants no
+    deletion. Every advertised group version is read, not only the preferred one; a
+    missing group version, an unknown mapping or a namespaced resource without `list`
+    (outside the virtual allowlist) is UNKNOWN; the same resource under several versions
+    is merged by verified identity (UID with the same name and namespace).
+  - **D5**: the 17 CRDs are kept; no CRD DELETE, `--delete-crds`, forced deletion or
+    adoption of a foreign CRD. Option (b) of 6c-B4-PRE is **rejected**: a 200 on a LIST
+    is never evidence of Established or the storage version. A specialised Fake CRD read
+    of the 17 reviewed identities returns only the identity, UID, group, plural, scope,
+    versions and Established, compared with the reviewed manifest. Instance count: a
+    cluster-wide metadata LIST (`limit=1`) at the verified storage version: 200, no items,
+    no continue is ZERO_INSTANCES; instances are BLOCKED; anything incomplete is UNKNOWN or
+    BLOCKED. CRD_NOT_CREATED is a separate class, only with no creation evidence, no open
+    INTENT, a trusted NotFound and a discovery that does not serve the plural; a claimed
+    CRD that is missing or has another UID, and a foreign CRD, are BLOCKED.
+  - **D6**: every namespace (including `<project>-app` from `mesh_security`) is deleted in
+    a final namespace phase, only when its receipt identity, UID and ownership match, G9
+    and D18 hold, the inventory is COMPLETE and only allowed leftovers remain (no unknown
+    object, no terminating owned child). `kube-system` is never deleted. The renderer, the
+    stage table and the 62 objects are unchanged. A namespace UID precondition does not
+    make its contents immutable: an object or Secret added after the inventory is a
+    6c-B4b failure path, and real-API cascade safety under races is NOT_VERIFIED.
+  - **D11** (destroy): DELETE request 20 s, confirmation GET 20 s, TargetGroupBinding
+    finalizer 600 s, owned children 600 s, namespace termination 600 s, polling every 5 s,
+    LIST pages of 500, at most 100 pages per logical LIST (restarts included), at most two
+    410 restarts, and a global 3600 s FakeClock deadline that no operation extends or
+    resets; after it no new DELETE starts. A missing or empty continue on the last page
+    ends the list; a repeated non-empty or malformed token, the page limit or a snapshot
+    change is UNKNOWN; a 410 discards the partial list.
+  - **D12**: the section 12 teardown order; dependency safety wins over plain reverse
+    order (nothing the TargetGroupBinding needs goes before it is confirmed gone; policy
+    bindings before policies; Istio webhooks only after no Istio custom resource remains;
+    webhook configurations before their Deployments; namespaces last). An unknown Service
+    in `<project>-ingress` is BLOCKED; for a runtime Service a specialised Fake read checks
+    `spec.type` directly (never inferred from metadata). Ordering and the runbook are
+    6c-B4b.
+  - **D19** (remaining): Fake discovery, PartialObjectMetadataList, namespace and CRD
+    instance LIST, runtime UID-precondition DELETE, finalizer and deletionTimestamp reads,
+    the D5 and D12 specialised reads, strict validation, bounded pagination and fake error
+    injection, with separate scopes (see section 15 note and the script description).
+  - Receipt and journal: additive destroy records under FORMAT 1 (DESTROY_BEGIN,
+    DESTROY_INTENT, DESTROY_RESULT, DESTROY_STAGE_DONE), with the phase, write-ahead,
+    crash-recovery and backward-compatibility conditions of the Owner decision.
+- **Every other row is OPEN (not decided).** That includes every Category 2 and 3
+  decision.
 
 ### Category 1: before Source/Offline implementation
 
@@ -1001,7 +1045,8 @@ independent review and Owner Squash Merge approval.
 | 6c-B3a | Gate, pinning, cluster fingerprint, journal and receipt store, reconciliation, QUARANTINED, read-only `receipt verify`, and the D19 transport boundary if the Owner decides it here. **`apply` stays refused** | Fake tests (negative and mutation) for:<br>• crash between INTENT and RESULT<br>• UID change<br>• missing receipt<br>• modes, symlinks and owners<br>• secret-like values<br>• atomic replace<br>Existing plan 29/39 and status 21/32 kept; Full CI and Offline Contracts pass | Any need for `infra/**`, renderer, RBAC or admission changes; enabling `apply` |
 | 6c-B3b | `apply` for stages 1–8, ingress refused, plus C1 (renderer contract 5), the section 4.1 lifecycle (pre-apply, minimal completion, deferred readiness, final acceptance), ownership table, digest classification, probe classification against fakes, and the read scope | Fake tests (negative and mutation) for:<br>• conflict<br>• foreign field<br>• C1 refusal<br>• digest mismatch or NOT_VERIFIED<br>• probe misclassification<br>• timeout<br>• `dry_run_unsupported`<br>• ingress refusal<br>• NOT_VERIFIED preconditions failing closed at their lifecycle point<br>• deferred items never reported as PASS (exit 6)<br>Plan tests pin contract 5. It is Source/Offline PASS only, never "Live deploy ready" | Enabling ingress; impersonation or TokenRequest code; reading full Secrets |
 | G9 (independent, recommended; **implemented Source/Offline 2026-11-24** in `k8s_certs_receipt.py`) | Safe Secret cleanup and the registration UID receipt, using the D19 transport | Fake-API tests for:<br>• UID mismatch<br>• foreign manager<br>• missing label<br>• absence after delete<br>• no full Secret read<br>• no fallback | Namespace deletion stays BLOCKED until merged |
-| 6c-B4 | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, the section 5.1 inventory verification, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted<br>• inventory reads that are incomplete, forbidden, paged with a stale continue token, missing a discovery group, or answered with a full Secret, each UNKNOWN or BLOCKED and never empty<br>• unknown objects never adopted<br>• a non-zero or unknown CRD count | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
+| 6c-B4a (**implemented Source/Offline 2026-11-24**, pending review) | Destroy transport scopes, discovery, metadata LIST and bounded pagination, the specialised CRD and Service reads, runtime DELETE guards, the D11 constants and deadline, the receipt/journal destroy phase and the apply phase guard. No destroy engine | Contract tests (positive, negative, mutation, regression) | Any need for a full Secret read, a D13 relaxation, a G9 change, workflow or CI map changes |
+| 6c-B4b | `destroy`: reverse order, UID preconditions, finalizer wait, namespace and Secret conditions, the section 5.1 inventory verification, kept CRDs, runbook §7 | Fake tests (negative and mutation) for:<br>• UID mismatch<br>• missing receipt<br>• leftover Secret or object<br>• finalizer timeout<br>• forbidden force options<br>• `kube-system` never deleted<br>• inventory reads that are incomplete, forbidden, paged with a stale continue token, missing a discovery group, or answered with a full Secret, each UNKNOWN or BLOCKED and never empty<br>• unknown objects never adopted<br>• a non-zero or unknown CRD count | Without a merged D19 transport and G9 cleanup, deletion is not enabled; namespaces with Secrets only with D18 approval |
 | 6c-B5 | Source/offline closure audit of item 6c | Docs; lists every NOT_TESTED, BLOCKED and NOT_VERIFIED item | No COMPLETE declaration |
 | Live verification (separate) | Sections 7, 8, 9 and 11, F18, F21, D15 | Outside the current scope (Master Policy v14.5 §15); not part of the remaining work | Never in Codex Cloud; no current authorization |
 

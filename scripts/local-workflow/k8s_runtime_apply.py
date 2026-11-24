@@ -963,6 +963,9 @@ class Engine:
         return tuple(order[:order.index(through) + 1]) if through in order else ()
 
     def reconcile(self, approved):
+        # 6c-B4a: a journal in the destroy phase never resumes apply; stop before any read or write.
+        if receipt.load(self.store.dir, self.plan, self.store.expected)["state"]["phase"] != "apply":
+            stop(2, "receipt_destroy_phase")
         scope = {k for stage in approved for k in self.plan.members[stage]}
 
         def observe(identity):

@@ -33,6 +33,21 @@ Receipt (``receipt.json``)
   result, and the permission is consumed before the first write, so the same Store
   can never initialise twice, even after a failed write or after both files vanish.
 
+Destroy phase (6c-B4a, Owner 2026-11-24; additive, FORMAT stays 1)
+  DESTROY_BEGIN moves the journal from the apply phase to the destroy phase, only with no open INTENT; no apply
+  record (INTENT, RESULT, STAGE_DONE) is accepted after it. DESTROY_INTENT is written (and fsynced) before a
+  DELETE: the identity, its destroy step and exactly the UID the journal owns. One INTENT is open at a time,
+  apply or destroy, with one sequence. DESTROY_RESULT closes only the open DESTROY_INTENT with the same sequence
+  and identity: ``deleted`` (a trusted NotFound after the request), ``absent_confirmed`` (NotFound after an
+  interrupted request, kept apart) or ``failed`` (the object is still owned; a retry needs a new INTENT after the
+  identity, UID and ownership are checked again). Ownership evidence (``owned_uid``) is never erased.
+  DESTROY_STAGE_DONE follows the destroy order (the apply stages reversed, then ``namespace_phase``), and only when
+  every owned, deletable member of that step is DELETED or ABSENT_CONFIRMED: Namespaces are deferred to
+  ``namespace_phase``, CRDs are retained and never get a DESTROY_INTENT. A quarantined member blocks its step; a
+  recreated or changed object is quarantined with a destroy reason and never released. A journal without
+  destroy records has exactly the snapshot it always had; the destroy state appears only after DESTROY_BEGIN, and
+  an older reader refuses the new record types (fail closed).
+
 Ownership (D7)
   An object is the runtime's only when its identity is in the plan, its live UID
   equals the UID recorded in the journal and the runtime field manager has an Apply
@@ -89,13 +104,23 @@ RECORD_FIELDS = {
     "RESULT": {"type", "seq", "identity", "uid", "resource_version", "generation", "outcome", "at", "prev"},
     "STAGE_DONE": {"type", "stage", "at", "prev"},
     "QUARANTINE": {"type", "identity", "observed_uid", "reason", "at", "prev"},
+    "DESTROY_BEGIN": {"type", "at", "prev"},
+    "DESTROY_INTENT": {"type", "seq", "stage", "identity", "uid", "at", "prev"},
+    "DESTROY_RESULT": {"type", "seq", "identity", "outcome", "observed_uid", "at", "prev"},
+    "DESTROY_STAGE_DONE": {"type", "stage", "at", "prev"},
 }
+APPLY_RECORDS = {"INTENT", "RESULT", "STAGE_DONE"}
+DESTROY_OUTCOMES = {"deleted", "absent_confirmed", "failed"}
+DESTROYED = {"deleted", "absent_confirmed"}
+DESTROY_QUARANTINE_REASONS = {"recreated_after_delete", "uid_changed_before_delete", "delete_unproven"}
+NAMESPACE_PHASE = "namespace_phase"
+CRD_KEY_PREFIX = "apiextensions.k8s.io/v1|CustomResourceDefinition|"
 IDENTITY_FIELDS = {"apiVersion", "kind", "namespace", "name"}
 ACTIONS = {"create", "update", "noop"}
 OUTCOMES = {"applied", "unchanged", "failed"}
 # ownership_unproven (6c-B3b-Apply-A): an apply that landed but whose field ownership could not be proven.
 QUARANTINE_REASONS = {"creation_unproven", "uid_changed", "ownership_unproven"}
-SETTLED_VERDICTS = {"CONSISTENT", "ABSENT"}
+SETTLED_VERDICTS = {"CONSISTENT", "ABSENT", "DESTROYED"}
 
 
 class ReceiptError(Exception):
@@ -250,6 +275,27 @@ def check_record(record, plan):
         need(isinstance(record["created_at"], str) and TIMESTAMP.fullmatch(record["created_at"]), "record_invalid:time")
         return
     need(isinstance(record["at"], str) and TIMESTAMP.fullmatch(record["at"]) is not None, "record_invalid:time")
+    if kind == "DESTROY_BEGIN":
+        return
+    if kind == "DESTROY_STAGE_DONE":
+        need(record["stage"] in plan.destroy_order, "record_invalid:stage")
+        return
+    if kind in ("DESTROY_INTENT", "DESTROY_RESULT"):
+        check_identity(record["identity"], plan)
+        key = key_of(record["identity"])
+        need(isinstance(record["seq"], int) and not isinstance(record["seq"], bool) and record["seq"] >= 1,
+             "record_invalid:seq")
+        if kind == "DESTROY_INTENT":
+            need(not key.startswith(CRD_KEY_PREFIX), "record_invalid:crd_retained")
+            need(record["stage"] == plan.destroy_step(key), "record_invalid:stage")
+            need(isinstance(record["uid"], str) and UID.fullmatch(record["uid"]) is not None, "record_invalid:uid")
+        else:
+            need(record["outcome"] in DESTROY_OUTCOMES, "record_invalid:outcome")
+            observed = record["observed_uid"]
+            need(observed is None if record["outcome"] in DESTROYED
+                 else observed is None or (isinstance(observed, str) and UID.fullmatch(observed) is not None),
+                 "record_invalid:uid")
+        return
     if kind == "STAGE_DONE":
         need(record["stage"] in plan.stage_order, "record_invalid:stage")
         return
@@ -277,7 +323,7 @@ def check_record(record, plan):
             need(isinstance(record["generation"], int) and not isinstance(record["generation"], bool)
                  and 0 <= record["generation"] < 2 ** 53, "record_invalid:generation")
     elif kind == "QUARANTINE":
-        need(record["reason"] in QUARANTINE_REASONS, "record_invalid:reason")
+        need(record["reason"] in QUARANTINE_REASONS | DESTROY_QUARANTINE_REASONS, "record_invalid:reason")
         need(record["observed_uid"] is None or (isinstance(record["observed_uid"], str)
                                                 and UID.fullmatch(record["observed_uid"])), "record_invalid:uid")
 
@@ -294,6 +340,18 @@ class Plan:
             for identity in identities:
                 self.stage_of[key_of(identity)] = name
         need(len(self.stage_order) == len(set(self.stage_order)), "plan_invalid")
+        need(NAMESPACE_PHASE not in self.stage_order, "plan_invalid")
+        # Destroy (6c-B4a): the apply stages reversed, then every Namespace together; CRDs are retained.
+        self.destroy_order = list(reversed(self.stage_order)) + [NAMESPACE_PHASE]
+
+    def destroy_step(self, key):
+        return NAMESPACE_PHASE if key.split("|")[1] == "Namespace" else self.stage_of.get(key)
+
+    def destroy_members(self, step):
+        """The deletable members of a destroy step: never a CRD; Namespaces only in namespace_phase."""
+        keys = [k for stage in self.stage_order for k in self.members[stage]] if step == NAMESPACE_PHASE \
+            else self.members[step]
+        return [k for k in keys if not k.startswith(CRD_KEY_PREFIX) and self.destroy_step(k) == step]
 
     @classmethod
     def from_report(cls, report):
@@ -303,13 +361,59 @@ class Plan:
 
 def derive(records, plan):
     """Replay the journal; every inconsistency stops (journal_inconsistent:*)."""
-    state = {"header": None, "objects": {}, "stages_done": [], "quarantined": {}, "open_intent": None, "last_seq": 0}
+    state = {"header": None, "objects": {}, "stages_done": [], "quarantined": {}, "open_intent": None, "last_seq": 0,
+             "phase": "apply", "destroy_stages_done": []}
     for index, record in enumerate(records):
         check_record(record, plan)
         kind = record["type"]
         need((index == 0) == (kind == "HEADER"), "journal_inconsistent:header")
         if kind == "HEADER":
             state["header"] = {k: v for k, v in record.items() if k not in ("type", "prev")}
+            continue
+        if kind in APPLY_RECORDS:
+            need(state["phase"] == "apply", "journal_inconsistent:destroy_phase")
+        if kind == "DESTROY_BEGIN":
+            need(state["phase"] == "apply", "journal_inconsistent:destroy_begin")
+            need(state["open_intent"] is None, "journal_inconsistent:open_intent")
+            state["phase"] = "destroy"
+            continue
+        if kind == "DESTROY_STAGE_DONE":
+            need(state["phase"] == "destroy", "journal_inconsistent:not_destroy_phase")
+            need(state["open_intent"] is None, "journal_inconsistent:open_intent")
+            done = state["destroy_stages_done"]
+            need(len(done) < len(plan.destroy_order) and record["stage"] == plan.destroy_order[len(done)],
+                 "journal_inconsistent:destroy_stage_order")
+            for member in plan.destroy_members(record["stage"]):
+                obj = state["objects"].get(member)
+                need(member not in state["quarantined"], "journal_inconsistent:destroy_stage_incomplete")
+                need(obj is None or obj["owned_uid"] is None or obj.get("destroyed") in DESTROYED,
+                     "journal_inconsistent:destroy_stage_incomplete")
+            done.append(record["stage"])
+            continue
+        if kind in ("DESTROY_INTENT", "DESTROY_RESULT"):
+            need(state["phase"] == "destroy", "journal_inconsistent:not_destroy_phase")
+            key = key_of(record["identity"])
+            obj = state["objects"].get(key)
+            if kind == "DESTROY_INTENT":
+                need(state["open_intent"] is None, "journal_inconsistent:open_intent")
+                need(record["seq"] == state["last_seq"] + 1, "journal_inconsistent:seq")
+                need(not state["quarantined"].get(key), "quarantined")
+                owned = obj["owned_uid"] if obj is not None else None
+                need(owned is not None, "destroy_not_owned")
+                need(owned == record["uid"], "destroy_uid_mismatch")
+                need((obj or {}).get("destroyed") is None, "journal_inconsistent:already_destroyed")
+                done = state["destroy_stages_done"]
+                position = plan.destroy_order.index(record["stage"])
+                need(done == plan.destroy_order[:position], "journal_inconsistent:destroy_stage_order")
+                state["last_seq"] = record["seq"]
+                state["open_intent"] = {"seq": record["seq"], "key": key, "uid": record["uid"], "phase": "destroy"}
+            else:
+                intent = state["open_intent"]
+                need(intent is not None and intent.get("phase") == "destroy" and intent["seq"] == record["seq"]
+                     and intent["key"] == key, "journal_inconsistent:result")
+                if record["outcome"] in DESTROYED:
+                    obj["destroyed"] = record["outcome"]
+                state["open_intent"] = None
             continue
         if kind == "STAGE_DONE":
             need(state["open_intent"] is None, "journal_inconsistent:open_intent")
@@ -351,6 +455,7 @@ def derive(records, plan):
             obj["last_outcome"] = record["outcome"]
             state["open_intent"] = None
         elif kind == "QUARANTINE":
+            need(state["phase"] == "destroy" or record["reason"] in QUARANTINE_REASONS, "record_invalid:reason")
             intent = state["open_intent"]
             need(intent is None or intent["key"] == key, "journal_inconsistent:open_intent")
             need(key not in state["quarantined"], "journal_inconsistent:quarantine")
@@ -382,6 +487,16 @@ def parse_journal(data, plan):
 
 
 def summary(state):
+    result = apply_summary(state)
+    if state.get("phase") == "destroy":
+        # Only after DESTROY_BEGIN: an apply-only journal keeps exactly its earlier snapshot.
+        result["destroy"] = {"stages_done": list(state["destroy_stages_done"]),
+                             "destroyed": {k: v["destroyed"] for k, v in sorted(state["objects"].items())
+                                           if v.get("destroyed")}}
+    return result
+
+
+def apply_summary(state):
     return {"header": state["header"], "stages_done": list(state["stages_done"]),
             "objects": {k: {"identity": v["identity"], "stage": v["stage"], "owned_uid": v["owned_uid"],
                             "last_outcome": v["last_outcome"]} for k, v in sorted(state["objects"].items())},
@@ -564,6 +679,24 @@ class Store:
         self._append({"type": "QUARANTINE", "identity": identity, "observed_uid": observed_uid, "reason": reason,
                       "at": now()})
 
+    def begin_destroy(self):
+        self._append({"type": "DESTROY_BEGIN", "at": now()})
+
+    def destroy_intent(self, identity, uid):
+        """Written and fsynced before a DELETE; refused (nothing written) unless the journal owns exactly that UID."""
+        records, _ = self._records()
+        seq = derive(records, self.plan)["last_seq"] + 1
+        self._append({"type": "DESTROY_INTENT", "seq": seq, "stage": self.plan.destroy_step(key_of(identity)),
+                      "identity": identity, "uid": uid, "at": now()})
+        return seq
+
+    def destroy_result(self, seq, identity, outcome, observed_uid=None):
+        self._append({"type": "DESTROY_RESULT", "seq": seq, "identity": identity, "outcome": outcome,
+                      "observed_uid": observed_uid, "at": now()})
+
+    def destroy_stage_done(self, stage):
+        self._append({"type": "DESTROY_STAGE_DONE", "stage": stage, "at": now()})
+
     def release_quarantine(self, *args, **kwargs):
         raise ReceiptError("quarantine_release_not_approved")
 
@@ -603,6 +736,17 @@ def reconcile(state, plan, observe, runtime_manager, ownership_fn=None):
                 verdict = "UNKNOWN"
             elif obj is None:
                 verdict = "ABSENT" if presence == "absent" else "NOT_OWNED"
+            elif obj.get("destroyed") in DESTROYED:
+                verdict = "DESTROYED" if presence == "absent" else "RECREATED_AFTER_DESTROY"
+            elif open_intent is not None and open_intent["key"] == key and open_intent.get("phase") == "destroy":
+                # An interrupted DELETE: absence still needs a trusted NotFound and its RESULT; the same UID needs
+                # identity, UID and ownership checked again before any new DELETE. Never an automatic resend.
+                if presence == "absent":
+                    verdict = "DELETE_ABSENT_UNCONFIRMED"
+                elif observed["uid"] != open_intent["uid"]:
+                    verdict = "UID_CHANGED"
+                else:
+                    verdict = "DELETE_PENDING_RECHECK"
             elif open_intent is not None and open_intent["key"] == key:
                 prior = open_intent["prior"]
                 if prior["state"] == "absent":
