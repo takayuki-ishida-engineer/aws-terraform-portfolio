@@ -391,10 +391,11 @@ explicit instruction as its own reviewed pull request; listing is not approval:
 1. the D19 limited-transport Fake contract and G9 (Secret cleanup and the
    registration UID receipt): implemented in one pull request (Owner decision
    2026-11-24), pending review and merge;
-2. 6c-B4 Fake-only Destroy (needs D19 and G9 merged and Owner decisions D3, D5, D6,
-   D11, D12 and the remaining D19 scope (metadata LIST, discovery, destroy
-   inventory), all still open; D18 is decided: no namespace deletion while a Secret
-   remains);
+2. 6c-B4 Fake-only Destroy, split (Owner, 2026-11-24): 6c-B4a, the destroy
+   transport, discovery, LIST and receipt/journal foundation (implemented, pending
+   review); 6c-B4b, the destroy engine, inventory classification, finalizer, namespace,
+   CRD, G9 integration and runbook (not yet authorized). Owner decisions D3, D5, D6,
+   D11, D12 and the remaining D19 scope were made on 2026-11-24; D18 is decided;
 3. 6c-B5 Source/Offline final audit, with Full CI as Claude's designated final task;
 4. the Step 1/2 closure decision and the Codex handover;
 5. Step 3 by Codex (Full CI at each Root completion);

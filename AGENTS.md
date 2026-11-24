@@ -541,9 +541,11 @@ approval. Listing an item here is not an implementation approval:
    the Owner approves. The Owner approved one combined Source/Offline pull request on
    2026-11-24 (Fake metadata GET, UID-precondition DELETE and the four `k8s_certs.py`
    Secret identities only).
-2. 6c-B4 Fake-only Destroy: reverse order, inventory, UID, timeouts, Secret,
-   Namespace and CRD safety, runbook. It needs D19 and G9 merged and the decisions
-   below.
+2. 6c-B4 Fake-only Destroy, split by the Owner (2026-11-24) into two pull requests:
+   - 6c-B4a: the destroy transport, discovery, metadata LIST and the receipt/journal
+     destroy-state foundation (authorized 2026-11-24);
+   - 6c-B4b: the Fake-only destroy engine, inventory classification, finalizer,
+     namespace, CRD and G9 integration and the runbook (needs its own authorization).
 3. 6c-B5 Source/Offline final audit: every NOT_TESTED, BLOCKED and NOT_VERIFIED item
    listed. Full CI runs as Claude's Owner-designated final task (the first real
    Owner dispatch is planned here). The 6c audit alone never declares Portfolio
@@ -555,25 +557,22 @@ approval. Listing an item here is not an implementation approval:
 6. Step 4: final Core acceptance (Full CI required), independent confirmation of the
    representative Emulator evidence and the Owner's final approval.
 
-Open Owner decisions before the next steps (v14.5 §19.2). They are **not approved**
-and must not be treated as approved:
-- D19, remaining scope: metadata LIST, discovery and the destroy inventory (the Fake
-  metadata GET, UID-precondition DELETE and four Secret identities were approved on
-  2026-11-24 for G9);
-- D3: Destroy discovery and inventory (the 3 runtime namespaces and 17 CRD plurals,
-  metadata-only);
-- D5: keeping the CRDs;
-- D6: the namespace deletion conditions;
-- D12: the teardown order;
-- D11: new timeouts.
+Owner decisions of 2026-11-24 for 6c-B4 (design record section 13): D3 (Fake-only
+discovery of every advertised group version, metadata-only LIST of the three runtime
+namespaces and the 17 CRD plurals, separate scopes), D5 (17 CRDs kept, no CRD DELETE,
+a specialised Fake CRD read), D6 (namespaces in a final namespace phase), D11 (the
+destroy timeouts, page limits and a 3600 s deadline), D12 (the section 12 order and a
+specialised Service type read) and the remaining D19 scope. Contracts that belong to
+6c-B4b are approved as design only; only 6c-B4a is authorized for implementation.
 
 D1 (the binding-writer method), Live probes, manager and effective-permission checks
 and real transport authentication stay undecided and unverified and are not part of
 the remaining work. Approved contracts (D7, D8, D10, D16, D17, the D19 limited
 transport interface and fake, D3 fingerprint and apply-limited reads, D23 C1, D2, D9,
 D11 default read timeouts, D13 allowlist, and of 2026-11-24 the D19 Fake GET/UID
-DELETE scope for the four Secrets and D18: no namespace deletion while a Secret
-remains) are not widened. Step 2 rehearsals run
+DELETE scope for the four Secrets, D18: no namespace deletion while a Secret
+remains, and the 6c-B4 decisions D3, D5, D6, D11, D12 and the remaining D19 scope)
+are not widened. Step 2 rehearsals run
 automatically on merged `main` only within the limited standing authorization above.
 Step 3 onward is handed to Codex with a separate instruction. All permanent rules
 above remain in force.

@@ -17,6 +17,11 @@ The G9/D19 tests of ``test_k8s_certs_receipt`` (registration UID receipt, Secret
 cleanup, the four-Secret transport extension and the retired name-based delete) run
 in this suite too: their test classes are imported below, and ``MUTATIONS`` counts
 the runtime mutations and ``SECRET_MUTATIONS`` together.
+
+The 6c-B4a destroy foundation tests of ``test_k8s_runtime_destroy_foundation`` (destroy
+transport scopes, discovery, metadata LIST and pagination, the specialised CRD and Service
+reads, the destroy phase of the journal and the apply phase guard) run here as well, and
+``DESTROY_MUTATIONS`` is part of ``MUTATIONS``.
 """
 import ast
 import contextlib
@@ -42,6 +47,9 @@ import k8s_runtime_transport  # noqa: E402
 import preflight  # noqa: E402
 from test_k8s_certs_receipt import (SECRET_MUTATIONS, RegistrationReceiptTests, SecretCleanupTests,  # noqa: E402,F401
                                     SecretMutationTests, SecretTransportTests)
+from test_k8s_runtime_destroy_foundation import (DESTROY_MUTATIONS, CrdAndServiceReadTests,  # noqa: E402,F401
+                                                 DestroyJournalTests, DestroyMutationTests, DestroyTransportTests,
+                                                 DiscoveryAndListTests)
 
 PROJECT = "acme"
 ARN = "arn:aws:eks:ca-central-1:444455556666:cluster/acme-dev-eks"
@@ -1314,8 +1322,9 @@ RUNTIME_MUTATIONS = [
     ("verify_open_intent", K, 'attention = loaded["receipt"] != "CURRENT" or state["open_intent"] is not None or bool(state["quarantined"])',
      "attention = False", scenario_verify_open_intent),
 ]
-# Every guard mutation of this suite: the runtime ones above and the G9/D19 ones (SecretMutationTests).
-MUTATIONS = RUNTIME_MUTATIONS + SECRET_MUTATIONS
+# Every guard mutation of this suite: the runtime ones above, the G9/D19 ones (SecretMutationTests) and the
+# 6c-B4a destroy foundation ones (DestroyMutationTests).
+MUTATIONS = RUNTIME_MUTATIONS + SECRET_MUTATIONS + DESTROY_MUTATIONS
 
 
 def mutant(filename, old, new):

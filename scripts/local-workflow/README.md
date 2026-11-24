@@ -609,9 +609,10 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 66 tests and 125 source mutations, each
-detected: 39 tests and 58 mutations of its own, and the 27 tests and 67 mutations of
-`test_k8s_certs_receipt.py` (below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
+**Tests.** `test_k8s_runtime_receipt.py` has 102 tests and 269 source mutations, each
+detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
+`test_k8s_certs_receipt.py` and the 36 tests and 144 mutations of
+`test_k8s_runtime_destroy_foundation.py` (both below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
 - the repository location and the lock;
@@ -647,6 +648,135 @@ for `--cluster` the fake kubectl of the status tests. It covers:
 - the remaining read scope (D3);
 - Secret cleanup against a real cluster (G9 is Fake-only, below);
 - the Istio `caBundle` renderer change (C1).
+
+### Destroy safety foundation (item 6c-B4a, Fake-only, no destroy engine)
+
+Owner decisions D3, D5, D6, D11, D12 and the remaining D19 scope (2026-11-24). Only
+the contracts below exist; nothing orchestrates a deletion (that is 6c-B4b), and the
+real `destroy` command still refuses (`operation_not_approved`).
+
+**Transport scopes (`k8s_runtime_transport.DestroyPolicy`).** Built only from the
+reviewed plan and the receipt, immutable, and never widened by what a read returns:
+- single-object metadata read: the plan's identities and `kube-system`
+  (`destroy_metadata_request`, finalizers and `deletionTimestamp` through
+  `object_state`);
+- discovery: `GET /api`, `/apis` and each advertised group version, only with
+  `discovery=True`;
+- namespace LIST: `istio-system`, `<project>-ingress`, `<project>-app` only, with
+  `inventory=True`; `kube-system` and any other namespace are refused;
+- CRD instance LIST and the specialised CRD read: the reviewed CRDs given with their
+  manifest fields (`crd_spec_from_manifest`);
+- specialised Service read: `spec.type` of the runtime's `<project>-ingress` Services;
+- runtime DELETE: identity → UID proven by the receipt; never a CRD, a Secret or the
+  `kube-system` namespace, never another UID (`delete_uid_not_proven`);
+- the G9 Secret GET and DELETE stay in `Policy(secret_project=...)`, unchanged.
+
+**The send boundary (review of PR #100).** `FakeDestroyTransport.send` is the only
+way to the server. It refuses after the global `Deadline`, then `authorize` requires the
+request to equal, field for field (method, path, query, headers, body), the request a
+builder makes for this policy and this transport's own evidence; anything else, including
+a raw request for a CRD, `kube-system`, a Secret, an unowned object or another UID, a full
+object, an undiscovered LIST or a changed header or query, is `request_not_authorized` and
+never reaches the server. Each request is bounded by its own D11 timeout or the remaining
+global time, whichever is less; a later answer is `request_timeout` or `deadline_exceeded`,
+never evidence, and the fake API's own timeout is `transport_timeout`. `check_request`
+still refuses any method other than GET and DELETE, a collection DELETE, a query other
+than `limit` and `continue`, and DeleteOptions other than exactly the UID precondition with
+`propagationPolicy: Background`. The generic `Policy` can no longer name a CRD or the
+`kube-system` namespace for deletion. `open_destroy_transport` opens only the fake and
+needs the policy, the server and the deadline; the policy's inputs come from
+`k8s_runtime_receipt.plan_identities` and `owned_uids`.
+
+**Evidence.** Discovery, CRD read and CRD verification results that later requests depend
+on are `Evidence`: issued by one transport for one policy, sealed and immutable. A builder
+accepts only evidence for its policy and kind with an intact seal; the transport accepts
+only evidence it issued and has not withdrawn (a new discovery withdraws the old one).
+Hand-made, copied, re-bound, edited or re-sealed evidence is `evidence_invalid`.
+
+**Second review (R01–R04).**
+- CRD verification is bound to the receipt: the policy holds two separate maps from a
+  verified journal, the runtime DELETE map (`owned_uids`, never a CRD) and the CRD
+  verification map (`crd_receipt_uids`: owned, not quarantined CRDs; never a DELETE).
+  `verify_crd` uses the policy's CRD receipt UID as the only ownership evidence; no entry
+  (`crd_not_owned_by_receipt`), a different caller UID (`crd_receipt_uid_mismatch`) or a
+  different observed UID (`crd_uid_mismatch`) is BLOCKED with no evidence. Every new read
+  of a CRD withdraws its earlier read and verification evidence first, whatever the read
+  finds or if it fails; only a verification of the latest read allows the instance LIST
+  again, at the send boundary too.
+- Discovery requires the core v1 `secrets`, `services`, `configmaps`, `pods` and
+  `serviceaccounts`, each namespaced, listable and mapped to its kind; every resource entry
+  needs a kind and well-formed, unique verbs. Otherwise no discovery evidence is issued, so
+  no namespace inventory can complete. This never proves a real server's discovery
+  complete.
+- The global deadline is checked on its own after every answer: an answer at or after it is
+  `deadline_exceeded` (never a deletion or a COMPLETE list, also in `collect_list`), while
+  the request's own 20 s bound stays inclusive (`request_timeout` beyond it).
+- `merge_listed` also requires one UID per logical identity (resource or the approved event
+  alias, namespace, name) across versions (`cross_version_identity_conflict`); different
+  resources may share a name.
+
+**Final correction (R01-R).** The invalidation is enforced at the final send boundary.
+Every authorised request on the CRD path, either the specialised CRD GET or the metadata
+GET of the CRD identity, sent by `read_crd`, `get_metadata` or a raw `send`, withdraws
+that CRD's issued read and verification evidence and its verified mark before it reaches
+the server. Every authorised discovery GET withdraws the discovery evidence and the
+discovered targets the same way. No answer revives the old evidence: absence, another UID,
+not Established, another storage version, 403, 5xx, a timeout, an invalid or an identical
+answer. Other CRDs keep their evidence. A request refused at the deadline never reaches the
+server and invalidates nothing; there `read_crd` and `discover_all` still withdraw first,
+and every later LIST is refused at the deadline anyway.
+
+**Validation.** Discovery documents (kinds, group versions, duplicates), LIST pages
+(`PartialObjectMetadataList` only; payload keys or the last-applied annotation refused by
+their position; item identity, namespace, UID, owners, finalizers, duplicates and the page
+limit checked; only the name, namespace, UID, minimal owner references, deletion flag and
+finalizers returned), the CRD read (only identity, UID, group, plural, scope, versions and
+Established) and the Service read (only UID and type). A DELETE answered 200 or 202 is
+`REQUESTED`, never done; a NotFound counts only as the API server's `Status` for that
+object (`trusted_not_found`), never a bare 404 or a missing endpoint.
+
+**Discovery and pagination.** `discover_all` reads `/api`, `/apis`, `/api/v1` and every
+advertised group version; `discovery_targets` keeps namespaced listable resources and
+returns UNKNOWN for a missing or unexpected resource list, an unknown mapping, an
+unlistable resource outside `bindings` and `localsubjectaccessreviews`, or no target at
+all. Only a COMPLETE discovery issues the evidence that namespace LISTs need, and only its
+targets can be listed (`list_target_not_discovered`). `inventory_namespace` lists every
+target of one namespace and `merge_listed` requires exactly the discovered targets, each
+listed once and COMPLETE (missing, unexpected, repeated or empty is UNKNOWN). `collect_list` returns COMPLETE only when the last page has
+no continue token; a 410 restarts the list from the start (at most twice) and discards the
+partial result; 100 pages per logical list, restarts included; a repeated token, a snapshot
+change, a duplicate, a timeout or an invalid page is UNKNOWN and a 403 is BLOCKED; nothing
+is sent after the global `Deadline` (3600 s, immutable). `merge_listed` merges versions of a
+resource (and the two event resources) by UID only with the same name, namespace, owners,
+finalizers and deletion state (`cross_version_conflict` otherwise). Pages also refuse an
+item type other than `PartialObjectMetadata`, an empty resourceVersion, an invalid
+`remainingItemCount`, malformed or conflicting owner references (two controllers, a
+repeated owner), repeated finalizers, a malformed `deletionTimestamp`, and one name with two
+UIDs across pages (`list_identity_conflict`).
+
+**CRDs.** `verify_crd` is VERIFIED only for the receipt UID, the reviewed group, plural and
+scope, the storage version served and Established; the CRD read refuses a missing,
+repeated or invalid Established condition and repeated, malformed or not exactly one
+storage version. Only the transport's own `verify_crd` issues the evidence that a CRD
+instance LIST needs; a VERIFIED dictionary is not evidence. `classify_crd` adds CRD_NOT_CREATED (no
+creation evidence, no open INTENT, trusted NotFound, discovery not serving the plural) and
+BLOCKED for a claimed CRD that is missing or a foreign CRD. `classify_crd_instances` is
+ZERO_INSTANCES only for 200, no items and no continue token.
+
+**Journal destroy phase (`k8s_runtime_receipt`, FORMAT 1, additive).** DESTROY_BEGIN (no
+open INTENT; no apply record after it), DESTROY_INTENT (fsynced before a DELETE; exactly the
+owned UID; the destroy order is the apply stages reversed then `namespace_phase`; never a
+CRD), DESTROY_RESULT (`deleted`, `absent_confirmed` or `failed`, matching the open INTENT)
+and DESTROY_STAGE_DONE (only when every owned deletable member is deleted or confirmed
+absent, and no member is quarantined). Ownership evidence is kept; quarantine is never
+released. `reconcile` reports `DELETE_PENDING_RECHECK`, `DELETE_ABSENT_UNCONFIRMED`,
+`DESTROYED` and `RECREATED_AFTER_DESTROY`. An apply-only journal keeps exactly its snapshot;
+an older reader refuses the new records; `k8s_runtime_apply` stops on a destroy-phase
+journal (`receipt_destroy_phase`) before any read or write.
+
+**Tests.** `test_k8s_runtime_destroy_foundation.py`: 36 tests and 144 source mutations,
+each detected by an assertion (a crash is undetected), run inside the
+`k8s_runtime_receipt_tests` suite.
 
 ### Registration UID receipt and safe Secret cleanup (G9, D19 Fake-only)
 

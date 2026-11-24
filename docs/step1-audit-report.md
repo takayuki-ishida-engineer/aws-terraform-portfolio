@@ -36,8 +36,10 @@ resolved, and what remains open with its owning item or the Owner decision it ne
   D19 (Owner decision, 2026-11-24): F22 resolved in Source/Offline code (the
   registration UID receipt, the metadata-only cleanup with UID-precondition DELETE
   through the Fake-only D19 transport, and the retired name-based `delete`); real
-  Secret cleanup stays NOT_TESTED and namespace deletion stays BLOCKED; item 6c
-  stays open).
+  Secret cleanup stays NOT_TESTED and namespace deletion stays BLOCKED. 6c-B4a
+  (Owner decisions D3, D5, D6, D11, D12 and D19, 2026-11-24): the Fake-only destroy
+  transport, discovery, LIST and receipt/journal destroy-state foundation, code only;
+  no destroy engine (6c-B4b); item 6c stays open).
 
 ## 1. Delivered in item 2
 
