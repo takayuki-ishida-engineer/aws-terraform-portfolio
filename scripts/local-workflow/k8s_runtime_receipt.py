@@ -465,6 +465,19 @@ def derive(records, plan):
     return state
 
 
+def plan_identities(plan):
+    """The reviewed plan's identities, the only input a destroy policy (k8s_runtime_transport.DestroyPolicy) reads."""
+    return [dict(zip(("apiVersion", "kind", "namespace", "name"), k.split("|")))
+            for stage in plan.stage_order for k in plan.members[stage]]
+
+
+def owned_uids(state):
+    """The destroy policy's DELETE map from a verified journal: owned, not destroyed, not quarantined, never a CRD."""
+    return {tuple(k.split("|")): v["owned_uid"] for k, v in sorted(state["objects"].items())
+            if v["owned_uid"] is not None and v.get("destroyed") is None and k not in state["quarantined"]
+            and not k.startswith(CRD_KEY_PREFIX)}
+
+
 def parse_journal(data, plan):
     """Records and line digests; every line canonical and chained to the one before it."""
     need(len(data) <= MAX_RECORDS * MAX_LINE_BYTES, "receipt_too_large")

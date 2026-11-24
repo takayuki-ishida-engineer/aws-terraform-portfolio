@@ -142,14 +142,6 @@ class Pages:
                                                             status, body)
 
 
-class Clock:
-    def __init__(self):
-        self.t = 1000.0
-
-    def now(self):
-        return self.t
-
-
 def discovery_docs():
     core = {"kind": "APIVersions", "versions": ["v1"]}
     groups = {"kind": "APIGroupList", "apiVersion": "v1", "groups": [
@@ -279,27 +271,34 @@ def scenario_check_request(case, mods):
         case.assertEqual(code_of(lambda: t.check_request(request), mods), code, request)
 
 
+TARGETS = frozenset({("", "v1", "configmaps"), ("", "v1", "pods"), ("", "v1", "secrets"), ("apps", "v1", "deployments")})
+
+
 def scenario_namespace_list_scope(case, mods):
     t = mods.transport
     p = policy(mods, inventory=True)
-    request = t.namespace_list_request(p, "acme-app", "", "v1", "configmaps")
+    request = t.namespace_list_request(p, TARGETS, "acme-app", "", "v1", "configmaps")
     case.assertEqual((request["path"], request["query"], request["headers"]["Accept"]),
                      ("/api/v1/namespaces/acme-app/configmaps", {"limit": "500"}, t.LIST_ACCEPT))
-    case.assertEqual(t.namespace_list_request(p, "acme-ingress", "apps", "v1", "deployments", "abc")["query"],
+    case.assertEqual(t.namespace_list_request(p, TARGETS, "acme-ingress", "apps", "v1", "deployments", "abc")["query"],
                      {"limit": "500", "continue": "abc"})
     for namespace in ("kube-system", "default", "acme-other"):
-        case.assertEqual(code_of(lambda: t.namespace_list_request(p, namespace, "", "v1", "secrets"), mods),
+        case.assertEqual(code_of(lambda: t.namespace_list_request(p, TARGETS, namespace, "", "v1", "secrets"), mods),
                          "namespace_not_approved", namespace)
-    case.assertEqual(code_of(lambda: t.namespace_list_request(policy(mods), "acme-app", "", "v1", "pods"), mods),
-                     "namespace_not_approved")
-    case.assertEqual(code_of(lambda: t.namespace_list_request(p, "acme-app", "", "v1", "pods/log"), mods),
+    case.assertEqual(code_of(lambda: t.namespace_list_request(policy(mods), TARGETS, "acme-app", "", "v1", "pods"),
+                             mods), "namespace_not_approved")
+    case.assertEqual(code_of(lambda: t.namespace_list_request(p, TARGETS, "acme-app", "", "v1", "pods/log"), mods),
                      "list_resource_invalid")
-    case.assertEqual(code_of(lambda: t.namespace_list_request(p, "acme-app", "Apps", "v1", "x"), mods),
+    case.assertEqual(code_of(lambda: t.namespace_list_request(p, TARGETS, "acme-app", "Apps", "v1", "x"), mods),
                      "list_group_invalid")
-    case.assertEqual(code_of(lambda: t.namespace_list_request(p, "acme-app", "", "v2", "x"), mods),
+    case.assertEqual(code_of(lambda: t.namespace_list_request(p, TARGETS, "acme-app", "", "v2", "x"), mods),
                      "list_version_invalid")
-    case.assertEqual(code_of(lambda: t.namespace_list_request(p, "acme-app", "", "v1", "pods", "a b"), mods),
+    case.assertEqual(code_of(lambda: t.namespace_list_request(p, TARGETS, "acme-app", "", "v1", "pods", "a b"), mods),
                      "continue_token_invalid")
+    case.assertEqual(code_of(lambda: t.namespace_list_request(p, TARGETS, "acme-app", "", "v1", "widgets"), mods),
+                     "list_target_not_discovered")
+    case.assertEqual(code_of(lambda: t.namespace_list_request(p, frozenset(), "acme-app", "", "v1", "pods"), mods),
+                     "list_target_not_discovered")
     case.assertEqual(code_of(lambda: t.discovery_request(p, "/api"), mods), "discovery_not_allowed")
     d = policy(mods, discovery=True)
     for path in ("/api", "/apis", "/api/v1", "/apis/apps/v1"):
@@ -336,6 +335,17 @@ def scenario_discovery_incomplete(case, mods):
     case.assertEqual(t.discovery_targets({"versions": []}, groups, lists).get("reason"), "discovery_core_missing")
 
 
+def scenario_discovery_lists_exact(case, mods):
+    t = mods.transport
+    core, groups, lists = validated_discovery(mods)
+    extra = dict(lists, **{"widgets.example.com/v1": {"groupVersion": "widgets.example.com/v1", "resources": [
+        {"name": "widgets", "namespaced": True, "verbs": ["list"]}]}})
+    case.assertEqual(t.discovery_targets(core, groups, extra).get("reason"), "discovery_unexpected_group",
+                     "a resource list that no group advertises is an unknown mapping")
+    empty = {"v1": {"resources": []}}
+    case.assertEqual(t.discovery_targets(core, {"groups": []}, empty).get("reason"), "discovery_targets_empty")
+
+
 def scenario_discovery_validation(case, mods):
     t = mods.transport
     core, groups, _ = discovery_docs()
@@ -367,8 +377,8 @@ def scenario_list_page(case, mods):
     result = t.validate_list_response("acme-app", 500, status, body)
     case.assertEqual(result["continue"], "t1")
     case.assertEqual(result["items"], [{"name": "p", "namespace": "acme-app", "uid": uid(1),
-                                        "owners": [{"kind": "ReplicaSet", "name": "rs", "uid": uid(9),
-                                                    "controller": True}],
+                                        "owners": [{"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "rs",
+                                                    "uid": uid(9), "controller": True}],
                                         "deletion_requested": True, "finalizers": ["x.io/y"]}])
     case.assertNotIn(MARKER, json.dumps(result), "labels and annotations are never returned")
     case.assertIsNone(t.validate_list_response("acme-app", 500, *page([], token=""))["continue"])
@@ -492,26 +502,63 @@ def scenario_deadline(case, mods):
     case.assertEqual(values, (20, 20, 20, 600, 600, 600, 5, 500, 100, 2, 3600))
 
 
+def complete(*items, owners=(), finalizers=(), deleting=False):
+    return {"status": "COMPLETE", "items": [{"name": n, "namespace": "acme-app", "uid": u, "owners": list(owners),
+                                             "deletion_requested": deleting, "finalizers": list(finalizers)}
+                                            for n, u in items]}
+
+
+HPA1, HPA2 = ("autoscaling", "v1", "horizontalpodautoscalers"), ("autoscaling", "v2", "horizontalpodautoscalers")
+EV_CORE, EV_GROUP, CONFIGMAPS = ("", "v1", "events"), ("events.k8s.io", "v1", "events"), ("", "v1", "configmaps")
+
+
 def scenario_merge_listed(case, mods):
     t = mods.transport
-
-    def complete(*items):
-        return {"status": "COMPLETE", "items": [{"name": n, "namespace": "acme-app", "uid": u, "owners": [],
-                                                 "deletion_requested": False, "finalizers": []} for n, u in items]}
-    listed = {("autoscaling", "v1", "horizontalpodautoscalers"): complete(("h", uid(1))),
-              ("autoscaling", "v2", "horizontalpodautoscalers"): complete(("h", uid(1))),
-              ("", "v1", "events"): complete(("e", uid(2))), ("events.k8s.io", "v1", "events"): complete(("e", uid(2)))}
-    merged = t.merge_listed(listed)
-    case.assertEqual(merged["status"], "COMPLETE")
+    expected = [HPA1, HPA2, EV_CORE, EV_GROUP]
+    results = [(HPA1, complete(("h", uid(1)))), (HPA2, complete(("h", uid(1)))), (EV_CORE, complete(("e", uid(2)))),
+               (EV_GROUP, complete(("e", uid(2))))]
+    merged = t.merge_listed(expected, results)
+    case.assertEqual((merged["status"], merged.get("targets")), ("COMPLETE", 4))
     case.assertEqual([(o["name"], o["resources"]) for o in merged["objects"]],
                      [("h", [("autoscaling", "horizontalpodautoscalers")]),
                       ("e", [("", "events"), ("events.k8s.io", "events")])])
-    renamed = {**listed, ("autoscaling", "v2", "horizontalpodautoscalers"): complete(("other", uid(1)))}
-    case.assertEqual(t.merge_listed(renamed).get("reason"), "unknown_resource_mapping")
-    crossed = {**listed, ("", "v1", "configmaps"): complete(("h", uid(1)))}
-    case.assertEqual(t.merge_listed(crossed).get("reason"), "unknown_resource_mapping")
-    partial = {**listed, ("", "v1", "secrets"): {"status": "UNKNOWN", "reason": "transport_timeout"}}
-    case.assertEqual(t.merge_listed(partial), {"status": "UNKNOWN", "reason": "transport_timeout"})
+    renamed = results[:1] + [(HPA2, complete(("other", uid(1))))] + results[2:]
+    case.assertEqual(t.merge_listed(expected, renamed).get("reason"), "cross_version_conflict")
+    crossed = results + [(CONFIGMAPS, complete(("h", uid(1))))]
+    case.assertEqual(t.merge_listed(expected + [CONFIGMAPS], crossed).get("reason"), "unknown_resource_mapping")
+    partial = results + [(CONFIGMAPS, {"status": "UNKNOWN", "reason": "transport_timeout"})]
+    case.assertEqual(t.merge_listed(expected + [CONFIGMAPS], partial),
+                     {"status": "UNKNOWN", "reason": "transport_timeout"})
+
+
+def scenario_inventory_coverage(case, mods):
+    t = mods.transport
+    expected = [HPA1, CONFIGMAPS]
+    ok = [(HPA1, complete()), (CONFIGMAPS, complete())]
+    case.assertEqual(t.merge_listed(expected, ok)["status"], "COMPLETE")
+    cases = [([], [], "discovery_targets_empty"), (expected, [], "list_target_missing"),
+             (expected, ok[:1], "list_target_missing"), (expected, ok + [(EV_CORE, complete())], "list_target_unexpected"),
+             (expected, ok + ok[:1], "list_target_duplicate")]
+    for exp, results, reason in cases:
+        result = t.merge_listed(exp, results)
+        case.assertEqual((result["status"], result.get("reason")), ("UNKNOWN", reason), reason)
+        case.assertNotIn("objects", result, "never an empty inventory")
+
+
+def scenario_cross_version_conflict(case, mods):
+    t = mods.transport
+    owner = {"apiVersion": "apps/v1", "kind": "Deployment", "name": "d", "uid": uid(9), "controller": True}
+    base = [(HPA1, complete(("h", uid(1)), owners=[owner], finalizers=["x.io/y"]))]
+    case.assertEqual(t.merge_listed([HPA1, HPA2], base + [(HPA2, complete(("h", uid(1)), owners=[owner],
+                                                                           finalizers=["x.io/y"]))])["status"],
+                     "COMPLETE")
+    for label, other in (("owners", complete(("h", uid(1)), finalizers=["x.io/y"])),
+                         ("controller", complete(("h", uid(1)), owners=[dict(owner, controller=False)],
+                                                 finalizers=["x.io/y"])),
+                         ("finalizers", complete(("h", uid(1)), owners=[owner])),
+                         ("deletion", complete(("h", uid(1)), owners=[owner], finalizers=["x.io/y"], deleting=True))):
+        result = t.merge_listed([HPA1, HPA2], base + [(HPA2, other)])
+        case.assertEqual((result["status"], result.get("reason")), ("UNKNOWN", "cross_version_conflict"), label)
 
 
 # ---- specialised CRD and Service reads ------------------------------------------------------------------------------
@@ -543,13 +590,9 @@ def scenario_crd_read(case, mods):
     case.assertEqual(code_of(lambda: t.crd_read_request(p, "sidecars.networking.istio.io"), mods),
                      "crd_not_reviewed")
     case.assertEqual(code_of(lambda: t.crd_read_request(policy(mods), CRD_NAME), mods), "crd_not_reviewed")
-    list_request = t.crd_instance_list_request(p, CRD_NAME, verdict)
-    case.assertEqual((list_request["path"], list_request["query"], list_request["headers"]["Accept"]),
-                     ("/apis/networking.istio.io/v1/gateways", {"limit": "1"}, t.LIST_ACCEPT))
-    for verified in (None, {"verdict": "BLOCKED", "name": CRD_NAME, "storage_version": "v1"},
-                     dict(verdict, storage_version="v1beta1"), dict(verdict, name="other")):
-        case.assertEqual(code_of(lambda: t.crd_instance_list_request(p, CRD_NAME, verified), mods),
-                         "crd_not_verified")
+    for verified in (None, verdict, {"verdict": "VERIFIED", "name": CRD_NAME, "storage_version": "v1"}):
+        case.assertEqual(code_of(lambda: t.crd_instance_list_request(p, verified), mods), "evidence_invalid",
+                         "a VERIFIED record is not evidence")
 
 
 def scenario_crd_mismatches(case, mods):
@@ -663,49 +706,82 @@ def scenario_metadata_and_absence(case, mods):
     case.assertEqual(state, {"uid": uid(8), "deletion_requested": True, "finalizers": ["elbv2.k8s.aws/resources"]})
 
 
-class FakeApi:
-    """A fake API server for the destroy transport: object metadata, CRDs, Services, discovery and LIST pages."""
-
+class Clock:
     def __init__(self):
+        self.t = 1000.0
+
+    def now(self):
+        return self.t
+
+
+class FakeApi:
+    """A fake API server for the destroy transport: scripted answers and per-request time on the fake clock."""
+
+    def __init__(self, clock=None):
+        self.clock = clock
         self.objects = {}
         self.answers = {}
+        self.latency = {}
         self.requests = []
 
     def __call__(self, request):
         self.requests.append(request)
         key_ = (request["method"], request["path"], request["query"].get("continue"))
-        if key_ in self.answers:
-            return self.answers[key_]
+        if self.clock is not None:
+            self.clock.t += self.latency.get(key_, 0)
+        answer = self.answers.get(key_)
+        if isinstance(answer, BaseException):
+            raise answer
+        if answer is not None:
+            return answer
         if request["path"] in self.objects:
             return 200, self.objects[request["path"]]
         return 404, b"404 page not found"
 
+    def install_discovery(self, lists=None):
+        core, groups, d_lists = discovery_docs()
+        self.answers[("GET", "/api", None)] = (200, json.dumps(core).encode())
+        self.answers[("GET", "/apis", None)] = (200, json.dumps(groups).encode())
+        for gv, resources in (d_lists if lists is None else lists).items():
+            path = "/api/v1" if gv == "v1" else "/apis/" + gv
+            self.answers[("GET", path, None)] = (200, json.dumps(resource_list(gv, resources)).encode())
+
+
+TGB_PATH = "/apis/elbv2.k8s.aws/v1beta1/namespaces/acme-ingress/targetgroupbindings/acme-gateway"
+
+
+def transport_env(mods, owned=None, seconds=3600, **scopes):
+    scopes = dict({"inventory": True, "discovery": True, "crd_specs": {CRD_NAME: spec_of(mods)},
+                   "services": [GATEWAY_SERVICE]}, **scopes)
+    p = policy(mods, {key(TGB): uid(8)} if owned is None else owned, **scopes)
+    clock = Clock()
+    api = FakeApi(clock)
+    fake = mods.transport.open_destroy_transport("fake", p, api, mods.transport.Deadline(clock, seconds))
+    return p, api, fake, clock
+
 
 def scenario_fake_transport(case, mods):
     t = mods.transport
-    p = policy(mods, {key(TGB): uid(8)}, inventory=True, discovery=True, crd_specs={CRD_NAME: spec_of(mods)},
-               services=[GATEWAY_SERVICE])
-    api = FakeApi()
-    fake = t.open_destroy_transport("fake", p, api)
-    api.answers[("DELETE", "/apis/elbv2.k8s.aws/v1beta1/namespaces/acme-ingress/targetgroupbindings/acme-gateway",
-                 None)] = (202, b"")
+    p, api, fake, clock = transport_env(mods)
+    api.answers[("DELETE", TGB_PATH, None)] = (202, b"")
     case.assertEqual(fake.delete_runtime(TGB, uid(8)), "REQUESTED")
-    api.answers[("GET", "/apis/elbv2.k8s.aws/v1beta1/namespaces/acme-ingress/targetgroupbindings/acme-gateway",
-                 None)] = not_found("elbv2.k8s.aws", "targetgroupbindings", "acme-gateway")
+    api.answers[("GET", TGB_PATH, None)] = not_found("elbv2.k8s.aws", "targetgroupbindings", "acme-gateway")
     case.assertIsNone(fake.get_metadata(TGB))
+    api.install_discovery()
+    discovery = fake.discover_all()
+    case.assertEqual(discovery["status"], "COMPLETE")
     api.answers[("GET", "/api/v1/namespaces/acme-app/configmaps", None)] = page([item("x", "acme-app", uid(1))],
                                                                                 token="c1")
     api.answers[("GET", "/api/v1/namespaces/acme-app/configmaps", "c1")] = page([item("y", "acme-app", uid(2))])
-    listed = fake.list_namespace("acme-app", "", "v1", "configmaps")
+    listed = fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps")
     case.assertEqual((listed["status"], [i["name"] for i in listed["items"]]), ("COMPLETE", ["x", "y"]))
     api.answers[("GET", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + CRD_NAME, None)] = crd_body()
-    verdict = t.verify_crd(p, CRD_NAME, fake.read_crd(CRD_NAME), uid(5))
+    read = fake.read_crd(CRD_NAME)
+    verdict = fake.verify_crd(read["evidence"], uid(5))
     api.answers[("GET", "/apis/networking.istio.io/v1/gateways", None)] = page([])
-    case.assertEqual(fake.crd_instances(CRD_NAME, verdict), {"verdict": "ZERO_INSTANCES", "reason": None})
+    case.assertEqual(fake.crd_instances(verdict["evidence"]), {"verdict": "ZERO_INSTANCES", "reason": None})
     api.answers[("GET", "/api/v1/namespaces/acme-ingress/services/acme-gateway", None)] = service_body()
     case.assertEqual(fake.read_service_type(GATEWAY_SERVICE)["type"], "ClusterIP")
-    api.answers[("GET", "/apis", None)] = (200, json.dumps(discovery_docs()[1]).encode())
-    case.assertEqual(len(fake.discover("/apis")["groups"]), 4)
     sent = len(api.requests)
     case.assertEqual(code_of(lambda: fake.send({"method": "PATCH", "path": "/api/v1/namespaces/acme-app",
                                                 "query": {}, "headers": {}, "body": "{}"}), mods),
@@ -717,11 +793,15 @@ def scenario_fake_transport(case, mods):
 def scenario_real_refused(case, mods):
     t = mods.transport
     p = policy(mods)
+    clock = Clock()
     for kind in ("https", "kubectl", "real"):
-        case.assertEqual(code_of(lambda: t.open_destroy_transport(kind, p, lambda r: (404, b"")), mods),
-                         "real_transport_not_implemented")
-    case.assertEqual(code_of(lambda: t.open_destroy_transport("fake", t.Policy([DEPLOYMENT]), lambda r: (404, b"")),
-                             mods), "fake_transport_needs_policy_and_server")
+        case.assertEqual(code_of(lambda: t.open_destroy_transport(kind, p, lambda r: (404, b""), t.Deadline(clock)),
+                                 mods), "real_transport_not_implemented")
+    case.assertEqual(code_of(lambda: t.open_destroy_transport("fake", t.Policy([DEPLOYMENT]), lambda r: (404, b""),
+                                                              t.Deadline(clock)), mods),
+                     "fake_transport_needs_policy_server_and_deadline")
+    case.assertEqual(code_of(lambda: t.open_destroy_transport("fake", p, lambda r: (404, b"")), mods),
+                     "fake_transport_needs_policy_server_and_deadline")
     case.assertEqual(code_of(lambda: t.HttpsTransport(p), mods), "real_transport_not_implemented")
     case.assertEqual(k8s_runtime.APPROVED_OPERATIONS, ("plan", "status", "receipt-verify"))
     case.assertEqual(_gate_code(lambda: k8s_runtime.check_operation("destroy")), "operation_not_approved:destroy")
@@ -733,6 +813,299 @@ def _gate_code(call):
     except k8s_runtime.GateError as error:
         return str(error)
     return None
+
+
+# ---- review fixes: the send boundary (F01), discovery-bound lists (F02), deadline (F03), strict metadata (F04),
+# ---- CRD evidence (F05) -------------------------------------------------------------------------------------------
+
+def raw(method, path, accept=None, query=None, body=None):
+    return {"method": method, "path": path, "query": query or {},
+            "headers": {"Accept": accept} if accept else {"Accept": "application/json", "Content-Type":
+                                                          "application/json"},
+            "body": body}
+
+
+def options(uid_value):
+    return json.dumps({"apiVersion": "v1", "kind": "DeleteOptions", "preconditions": {"uid": uid_value},
+                       "propagationPolicy": "Background"}, sort_keys=True, separators=(",", ":"))
+
+
+def scenario_boundary_bypass(case, mods):
+    t = mods.transport
+    p, api, fake, clock = transport_env(mods)
+    meta = t.METADATA_ACCEPT
+    good_delete = t.runtime_delete_request(p, TGB, uid(8))
+    api.answers[("DELETE", TGB_PATH, None)] = (200, b"")
+    case.assertEqual(fake.send(good_delete), (200, b""), "the builder's request is authorised")
+    refused = [
+        dict(raw("DELETE", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + CRD_NAME, body=options(uid(5)))),
+        raw("DELETE", "/api/v1/namespaces/kube-system", body=options(KUBE_SYSTEM_UID)),
+        raw("DELETE", "/apis/apps/v1/namespaces/istio-system/deployments/istiod-acme-v1", body=options(uid(1))),
+        dict(good_delete, body=options(uid(99))),
+        raw("DELETE", "/api/v1/namespaces/acme-ingress/secrets/acme-gateway-tls", body=options(uid(3))),
+        raw("GET", "/api/v1/namespaces/acme-ingress/secrets/acme-gateway-tls", accept="application/json"),
+        raw("GET", "/api/v1/namespaces/acme-ingress/secrets/acme-gateway-tls", accept=meta),
+        raw("GET", "/apis/apps/v1/namespaces/istio-system/deployments/istiod-acme-v1", accept="application/json"),
+        raw("GET", "/api/v1/namespaces/kube-system/configmaps", accept=t.LIST_ACCEPT, query={"limit": "500"}),
+        raw("GET", "/api/v1/namespaces/acme-app/configmaps", accept=t.LIST_ACCEPT, query={"limit": "500"}),
+        raw("GET", "/apis/networking.istio.io/v1/gateways", accept=t.LIST_ACCEPT, query={"limit": "1"}),
+        dict(t.destroy_metadata_request(p, TGB), headers={"Accept": "application/json"}),
+        dict(t.destroy_metadata_request(p, TGB), headers={"Accept": meta, "X-Extra": "1"}),
+        dict(t.crd_read_request(p, CRD_NAME), query={"limit": "1"}),
+        dict(good_delete, headers={"Accept": "application/json"}),
+    ]
+    sent = len(api.requests)
+    for request in refused:
+        case.assertEqual(code_of(lambda: fake.send(request), mods), "request_not_authorized", request["path"])
+    case.assertEqual(len(api.requests), sent, "no refused request reaches the server")
+    _, api2, nodisc, _ = transport_env(mods, discovery=False)
+    case.assertEqual(code_of(lambda: nodisc.send(raw("GET", "/apis", accept="application/json")), mods),
+                     "request_not_authorized", "no discovery without the discovery scope")
+    case.assertEqual(api2.requests, [])
+
+
+def scenario_generic_policy_guard(case, mods):
+    t = mods.transport
+    crd_id = {"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition", "namespace": "",
+              "name": CRD_NAME}
+    case.assertEqual(code_of(lambda: t.Policy([crd_id], [crd_id]), mods), "delete_identity_refused")
+    case.assertEqual(code_of(lambda: t.Policy([KUBE_SYSTEM], [KUBE_SYSTEM]), mods), "delete_identity_refused")
+    secrets = t.secret_identities(PROJECT)
+    case.assertEqual(len(t.Policy(secrets, secrets, secret_project=PROJECT).delete), 4, "the G9 contract is unchanged")
+    case.assertEqual(code_of(lambda: t.DestroyPolicy(PROJECT, IDENTITIES + IDENTITIES[:1]), mods),
+                     "plan_identity_invalid")
+
+
+def scenario_receipt_policy_inputs(case, mods):
+    r = mods.receipt
+    with env_for(mods, ("namespaces", "base", "controller", "istiod")) as env:
+        case.assertEqual(r.plan_identities(env.plan), IDENTITIES)
+        write(env, env.store.begin_destroy)
+        destroy_steps_until(env, "istiod")
+        seq = write(env, lambda: env.store.destroy_intent(DEPLOYMENT, env.uid_of(DEPLOYMENT)))
+        write(env, lambda: env.store.destroy_result(seq, DEPLOYMENT, "deleted"))
+        other = ident("Service", "istiod-acme-v1", "istio-system")
+        seq = write(env, lambda: env.store.destroy_intent(other, env.uid_of(other)))
+        write(env, lambda: env.store.quarantine(other, uid(70), "uid_changed_before_delete"))
+        owned = r.owned_uids(env.load()["state"])
+        case.assertNotIn(key(DEPLOYMENT), owned, "destroyed")
+        case.assertNotIn(key(other), owned, "quarantined")
+        case.assertNotIn(key(CRD), owned, "CRDs are retained")
+        case.assertEqual(owned[key(VALIDATOR)], env.uid_of(VALIDATOR))
+        policy(mods, owned)  # the journal's map is a valid destroy policy
+
+
+def scenario_discovery_bound_lists(case, mods):
+    t = mods.transport
+    p, api, fake, clock = transport_env(mods)
+    configmaps = raw("GET", "/api/v1/namespaces/acme-app/configmaps", accept=t.LIST_ACCEPT, query={"limit": "500"})
+    case.assertEqual(code_of(lambda: fake.send(configmaps), mods), "request_not_authorized", "no LIST before discovery")
+    lists = dict(discovery_docs()[2])
+    del lists["autoscaling/v1"]
+    api.install_discovery(lists)
+    incomplete = fake.discover_all()
+    case.assertEqual((incomplete["status"], incomplete.get("reason")), ("UNKNOWN", "unexpected_status"),
+                     "a 404 for an advertised version")
+    case.assertNotIn("evidence", incomplete)
+    case.assertEqual(code_of(lambda: fake.send(configmaps), mods), "request_not_authorized")
+    api.install_discovery()
+    first = fake.discover_all()
+    case.assertEqual(first["status"], "COMPLETE")
+    api.answers[("GET", "/api/v1/namespaces/acme-app/configmaps", None)] = page([])
+    case.assertEqual(fake.list_namespace(first["evidence"], "acme-app", "", "v1", "configmaps")["status"], "COMPLETE")
+    case.assertEqual(code_of(lambda: fake.list_namespace(first["evidence"], "acme-app", "", "v1", "widgets"), mods),
+                     "list_target_not_discovered")
+    widgets = raw("GET", "/api/v1/namespaces/acme-app/widgets", accept=t.LIST_ACCEPT, query={"limit": "500"})
+    sent = len(api.requests)
+    case.assertEqual(code_of(lambda: fake.send(widgets), mods), "request_not_authorized")
+    case.assertEqual(len(api.requests), sent)
+    second = fake.discover_all()
+    case.assertEqual(code_of(lambda: fake.list_namespace(first["evidence"], "acme-app", "", "v1", "configmaps"), mods),
+                     "evidence_invalid", "a new discovery withdraws the earlier evidence")
+    case.assertEqual(second["status"], "COMPLETE")
+
+
+def scenario_inventory_namespace(case, mods):
+    p, api, fake, clock = transport_env(mods)
+    api.install_discovery()
+    discovery = fake.discover_all()
+    for group, version, resource in discovery["targets"]:
+        path = mods.transport.group_version_path(group, version) + "/namespaces/acme-app/" + resource
+        api.answers[("GET", path, None)] = page([])
+    api.answers[("GET", "/api/v1/namespaces/acme-app/configmaps", None)] = page([item("kube-root-ca.crt", "acme-app",
+                                                                                      uid(1))])
+    result = fake.inventory_namespace(discovery["evidence"], "acme-app")
+    case.assertEqual((result["status"], result.get("targets"), [o["name"] for o in result.get("objects", [])]),
+                     ("COMPLETE", len(discovery["targets"]), ["kube-root-ca.crt"]))
+    api.answers[("GET", "/api/v1/namespaces/acme-app/secrets", None)] = (403, b"")
+    blocked = fake.inventory_namespace(discovery["evidence"], "acme-app")
+    case.assertEqual((blocked["status"], blocked.get("reason")), ("BLOCKED", "inventory_forbidden"))
+
+
+def scenario_deadline_requests(case, mods):
+    t = mods.transport
+    p, api, fake, clock = transport_env(mods, seconds=100)
+    api.install_discovery()
+    discovery = fake.discover_all()
+    read = {"state": None}
+    api.answers[("GET", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + CRD_NAME, None)] = crd_body()
+    read = fake.read_crd(CRD_NAME)
+    verified = fake.verify_crd(read["evidence"], uid(5))
+    clock.t += 100
+    sent = len(api.requests)
+    calls = [lambda: fake.get_metadata(TGB), lambda: fake.delete_runtime(TGB, uid(8)), lambda: fake.read_crd(CRD_NAME),
+             lambda: fake.read_service_type(GATEWAY_SERVICE), lambda: fake.send(t.discovery_request(p, "/api"))]
+    for call in calls:
+        case.assertEqual(code_of(call, mods), "deadline_exceeded")
+    case.assertEqual(fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps"),
+                     {"status": "UNKNOWN", "reason": "deadline_exceeded"})
+    case.assertEqual(fake.discover_all(), {"status": "UNKNOWN", "reason": "deadline_exceeded"})
+    case.assertEqual(fake.crd_instances(verified["evidence"]), {"verdict": "UNKNOWN", "reason": "deadline_exceeded"})
+    case.assertEqual(len(api.requests), sent, "nothing, and no DELETE, reaches the server after the deadline")
+
+
+def scenario_request_timeouts(case, mods):
+    p, api, fake, clock = transport_env(mods)
+    api.latency[("GET", TGB_PATH, None)] = 21
+    api.answers[("GET", TGB_PATH, None)] = not_found("elbv2.k8s.aws", "targetgroupbindings", "acme-gateway")
+    case.assertEqual(code_of(lambda: fake.get_metadata(TGB), mods), "request_timeout", "a late answer is not absence")
+    api.latency[("DELETE", TGB_PATH, None)] = 21
+    api.answers[("DELETE", TGB_PATH, None)] = (200, b"")
+    case.assertEqual(code_of(lambda: fake.delete_runtime(TGB, uid(8)), mods), "request_timeout")
+    api.latency[("GET", TGB_PATH, None)] = 20
+    case.assertIsNone(fake.get_metadata(TGB), "20 s is within the bound")
+    api.answers[("GET", TGB_PATH, None)] = TimeoutError("api timeout")
+    api.latency[("GET", TGB_PATH, None)] = 0
+    case.assertEqual(code_of(lambda: fake.get_metadata(TGB), mods), "transport_timeout", "the fake API's own timeout")
+    p2, api2, short, clock2 = transport_env(mods, seconds=10)
+    api2.latency[("GET", TGB_PATH, None)] = 15
+    api2.answers[("GET", TGB_PATH, None)] = not_found("elbv2.k8s.aws", "targetgroupbindings", "acme-gateway")
+    case.assertEqual(code_of(lambda: short.get_metadata(TGB), mods), "deadline_exceeded",
+                     "the remaining global time bounds a request below its own 20 s")
+
+
+def scenario_restart_keeps_deadline(case, mods):
+    t = mods.transport
+    p, api, fake, clock = transport_env(mods, seconds=30)
+    api.install_discovery()
+    discovery = fake.discover_all()
+    path = "/api/v1/namespaces/acme-app/configmaps"
+    api.answers[("GET", path, None)] = (410, b"")
+    api.latency[("GET", path, None)] = 12
+    result = fake.list_namespace(discovery["evidence"], "acme-app", "", "v1", "configmaps")
+    case.assertEqual((result["status"], result.get("reason")), ("UNKNOWN", "deadline_exceeded"),
+                     "restarts never extend the global deadline")
+
+
+def scenario_metadata_strict(case, mods):
+    t = mods.transport
+    good = item("p", "acme-app", uid(1))
+    owner = {"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "rs", "uid": uid(9), "controller": True}
+    cases = [
+        (page([dict(good, apiVersion="v1")]), "response_item_type_invalid"),
+        (page([{"kind": "PartialObjectMetadata", "metadata": good["metadata"]}]), "response_item_type_invalid"),
+        (page([good], rv=""), "list_resource_version_invalid"),
+        (page([item("p", "acme-app", uid(1), resourceVersion="")]), "response_item_invalid"),
+        (page([item("p", "acme-app", uid(1), ownerReferences=[dict(owner, apiVersion="Apps")])]),
+         "response_owner_invalid"),
+        (page([item("p", "acme-app", uid(1), ownerReferences=[dict(owner, controller="yes")])]),
+         "response_owner_invalid"),
+        (page([item("p", "acme-app", uid(1), ownerReferences=[owner, dict(owner, uid=uid(10), name="rs2")])]),
+         "response_owner_conflict"),
+        (page([item("p", "acme-app", uid(1), ownerReferences=[owner, dict(owner, controller=False)])]),
+         "response_owner_conflict"),
+        (page([item("p", "acme-app", uid(1), finalizers=["x.io/y", "x.io/y"])]), "response_finalizers_invalid"),
+        (page([item("p", "acme-app", uid(1), deletionTimestamp="yesterday")]), "response_deletion_invalid"),
+        (page([good], remainingItemCount=-1), "response_shape"),
+    ]
+    for (status, body), code in cases:
+        case.assertEqual(code_of(lambda: t.validate_list_response("acme-app", 500, status, body), mods), code, code)
+    for meta in ({"resourceVersion": "1", "remainingItemCount": -1}, {"resourceVersion": "1", "remainingItemCount": 5},
+                 {"resourceVersion": "1", "remainingItemCount": True},
+                 {"resourceVersion": "1", "continue": "t", "remainingItemCount": "3"}):
+        body = json.dumps({"kind": "PartialObjectMetadataList", "apiVersion": "meta.k8s.io/v1", "metadata": meta,
+                           "items": []}).encode()
+        case.assertEqual(code_of(lambda: t.validate_list_response("acme-app", 500, 200, body), mods),
+                         "list_remaining_invalid", meta)
+    ok = json.dumps({"kind": "PartialObjectMetadataList", "apiVersion": "meta.k8s.io/v1",
+                     "metadata": {"resourceVersion": "1", "continue": "t", "remainingItemCount": 3},
+                     "items": []}).encode()
+    case.assertEqual(t.validate_list_response("acme-app", 500, 200, ok)["continue"], "t")
+    bad_tgb = json.dumps({"kind": "PartialObjectMetadata", "apiVersion": "meta.k8s.io/v1",
+                          "metadata": {"name": "acme-gateway", "namespace": "acme-ingress", "uid": uid(8),
+                                       "finalizers": ["elbv2.k8s.aws/resources", "elbv2.k8s.aws/resources"]}}).encode()
+    case.assertEqual(code_of(lambda: t.validate_destroy_metadata(TGB, 200, bad_tgb), mods),
+                     "response_finalizers_invalid")
+
+
+def scenario_page_identity_conflict(case, mods):
+    t = mods.transport
+    result = t.collect_list(Pages([page([item("a", "acme-app", uid(1))], token="t1"),
+                                   page([item("a", "acme-app", uid(2))])]))
+    case.assertEqual((result["status"], result.get("reason")), ("UNKNOWN", "list_identity_conflict"))
+
+
+def scenario_crd_evidence(case, mods):
+    t = mods.transport
+    p, api, fake, clock = transport_env(mods)
+    api.answers[("GET", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + CRD_NAME, None)] = crd_body()
+    api.answers[("GET", "/apis/networking.istio.io/v1/gateways", None)] = page([])
+    read = fake.read_crd(CRD_NAME)
+    case.assertEqual(code_of(lambda: fake.crd_instances(read["evidence"]), mods), "evidence_invalid",
+                     "a read is not a verification")
+    blocked = fake.verify_crd(read["evidence"], uid(6))
+    case.assertEqual((blocked["verdict"], blocked["reason"]), ("BLOCKED", "crd_uid_mismatch"))
+    case.assertNotIn("evidence", blocked, "another UID gets no evidence")
+    verified = fake.verify_crd(read["evidence"], uid(5))["evidence"]
+    case.assertEqual(fake.crd_instances(verified)["verdict"], "ZERO_INSTANCES")
+    handmade = t.Evidence(p, "crd_verified", {"name": CRD_NAME, "uid": uid(5), "receipt_uid": uid(5),
+                                              "storage_version": "v1"})
+    case.assertEqual(code_of(lambda: fake.crd_instances(handmade), mods), "evidence_invalid", "not issued here")
+    other_name = t.Evidence(p, "crd_verified", {"name": "sidecars.networking.istio.io", "uid": uid(5),
+                                                "receipt_uid": uid(5), "storage_version": "v1"})
+    case.assertEqual(code_of(lambda: fake.crd_instances(other_name), mods), "evidence_invalid")
+    case.assertEqual(code_of(lambda: fake.verify_crd({"name": CRD_NAME}, uid(5)), mods), "evidence_invalid")
+    _, api2, other, _ = transport_env(mods)
+    case.assertEqual(code_of(lambda: other.crd_instances(verified), mods), "evidence_invalid", "another policy")
+    case.assertEqual(code_of(lambda: t.crd_instance_list_request(other.policy, verified), mods), "evidence_invalid")
+    case.assertEqual(code_of(lambda: setattr(verified, "_data", "{}"), mods), "evidence_immutable")
+    forged = t.Evidence(p, "crd_verified", {"name": CRD_NAME, "uid": uid(5), "receipt_uid": uid(5),
+                                            "storage_version": "v1"})
+    edited = fake.verify_crd(read["evidence"], uid(5))["evidence"]
+    object.__setattr__(edited, "_data", forged._data.replace("v1", "v2"))
+    case.assertEqual(code_of(lambda: fake.crd_instances(edited), mods), "evidence_invalid", "edited after issue")
+    resealed = fake.verify_crd(read["evidence"], uid(5))["evidence"]
+    data = json.dumps({"name": CRD_NAME, "uid": uid(6), "receipt_uid": uid(6), "storage_version": "v1"},
+                      sort_keys=True, separators=(",", ":"))
+    object.__setattr__(resealed, "_data", data)
+    object.__setattr__(resealed, "_seal", t.Evidence(p, "crd_verified", json.loads(data))._seal)
+    case.assertEqual(code_of(lambda: fake.crd_instances(resealed), mods), "evidence_invalid", "re-sealed edit")
+    case.assertEqual(api2.requests, [])
+
+
+def scenario_crd_response_strict(case, mods):
+    t = mods.transport
+
+    def body(conditions=None, versions=None):
+        manifest = crd_manifest(CRD_NAME)
+        manifest["metadata"]["uid"] = uid(5)
+        if versions is not None:
+            manifest["spec"]["versions"] = versions
+        manifest["status"] = {"conditions": conditions if conditions is not None else
+                              [{"type": "Established", "status": "True"}]}
+        return json.dumps(manifest).encode()
+    cases = [(body(conditions=[]), "crd_established_invalid"),
+             (body(conditions=[{"type": "Established", "status": "True"},
+                               {"type": "Established", "status": "False"}]), "crd_established_invalid"),
+             (body(conditions=[{"type": "Established", "status": "Maybe"}]), "crd_established_invalid"),
+             (body(versions=[{"name": "v1", "served": True, "storage": True},
+                             {"name": "v1", "served": True, "storage": False}]), "crd_versions_invalid"),
+             (body(versions=[{"name": "v1", "served": True, "storage": True},
+                             {"name": "v1beta1", "served": True, "storage": True}]), "crd_versions_invalid"),
+             (body(versions=[{"name": "v1", "served": True, "storage": False}]), "crd_versions_invalid"),
+             (body(versions=[{"name": "V1", "served": True, "storage": True}]), "crd_versions_invalid")]
+    for data, code in cases:
+        case.assertEqual(code_of(lambda: t.validate_crd_response(CRD_NAME, 200, data), mods), code, code)
 
 
 # ---- receipt / journal ----------------------------------------------------------------------------------------------
@@ -1109,6 +1482,16 @@ class DestroyTransportTests(unittest.TestCase):
         scenario_fake_transport(self, real_mods())
         scenario_real_refused(self, real_mods())
 
+    def test_send_boundary_authorises_every_request(self):
+        scenario_boundary_bypass(self, real_mods())
+        scenario_generic_policy_guard(self, real_mods())
+        scenario_receipt_policy_inputs(self, real_mods())
+
+    def test_deadline_bounds_every_request(self):
+        scenario_deadline_requests(self, real_mods())
+        scenario_request_timeouts(self, real_mods())
+        scenario_restart_keeps_deadline(self, real_mods())
+
 
 class DiscoveryAndListTests(unittest.TestCase):
     def test_discovery_reads_every_advertised_version(self):
@@ -1116,6 +1499,7 @@ class DiscoveryAndListTests(unittest.TestCase):
 
     def test_incomplete_discovery_is_unknown(self):
         scenario_discovery_incomplete(self, real_mods())
+        scenario_discovery_lists_exact(self, real_mods())
         scenario_discovery_validation(self, real_mods())
 
     def test_list_pages_are_metadata_only(self):
@@ -1134,6 +1518,18 @@ class DiscoveryAndListTests(unittest.TestCase):
     def test_merge_by_uid(self):
         scenario_merge_listed(self, real_mods())
 
+    def test_lists_are_bound_to_a_complete_discovery(self):
+        scenario_discovery_bound_lists(self, real_mods())
+        scenario_inventory_namespace(self, real_mods())
+
+    def test_inventory_needs_every_target(self):
+        scenario_inventory_coverage(self, real_mods())
+        scenario_cross_version_conflict(self, real_mods())
+
+    def test_strict_metadata_and_page_identity(self):
+        scenario_metadata_strict(self, real_mods())
+        scenario_page_identity_conflict(self, real_mods())
+
 
 class CrdAndServiceReadTests(unittest.TestCase):
     def test_crd_read_contract(self):
@@ -1146,6 +1542,10 @@ class CrdAndServiceReadTests(unittest.TestCase):
 
     def test_service_type_read(self):
         scenario_service_type(self, real_mods())
+
+    def test_crd_evidence_is_bound_and_sealed(self):
+        scenario_crd_evidence(self, real_mods())
+        scenario_crd_response_strict(self, real_mods())
 
 
 class DestroyJournalTests(unittest.TestCase):
@@ -1210,8 +1610,8 @@ DESTROY_MUTATIONS = [
     ("check_delete_options", T, '''need(isinstance(options, dict) and set(options) == DELETE_BODY_KEYS and options["kind"] == "DeleteOptions"''',
      '''need(isinstance(options, dict) and options["kind"] == "DeleteOptions"''', scenario_check_request),
     ("check_propagation", T, ' and options["propagationPolicy"] == "Background"', "", scenario_check_request),
-    ("fake_checks_requests", T, "        check_request(request)\n        self.requests.append(request)",
-     "        self.requests.append(request)", scenario_fake_transport),
+    ("authorize_exact_match", T, "            if expected == request:\n                return timeout",
+     "            return timeout", scenario_boundary_bypass),
     ("namespace_scope", T, 'need(namespace in policy.namespaces, "namespace_not_approved")', "pass",
      scenario_namespace_list_scope),
     ("discovery_flag", T, 'need(policy.discovery, "discovery_not_allowed")', "pass", scenario_namespace_list_scope),
@@ -1240,8 +1640,8 @@ DESTROY_MUTATIONS = [
     ("list_limit", T, 'need(len(items) <= limit, "list_over_limit")', "pass", scenario_list_page_refusals),
     ("list_kind", T, '''    need(document.get("kind") == "PartialObjectMetadataList" and document.get("apiVersion") == "meta.k8s.io/v1",
          "response_not_partial_object_metadata_list")''', "    pass", scenario_list_page_refusals),
-    ("list_minimal_items", T, '        result.append({"name": name, "namespace": item_namespace, "uid": uid, "owners": minimal_owners,',
-     '        result.append({"labels": metadata.get("labels"), "name": name, "namespace": item_namespace, "uid": uid, "owners": minimal_owners,',
+    ("list_minimal_items", T, '        result.append({"name": name, "namespace": item_namespace, "uid": uid, "owners": owners,',
+     '        result.append({"labels": metadata.get("labels"), "name": name, "namespace": item_namespace, "uid": uid, "owners": owners,',
      scenario_list_page),
     # pagination
     ("page_final", T, "            if token is None:\n                return {\"status\": \"COMPLETE\"",
@@ -1268,8 +1668,7 @@ DESTROY_MUTATIONS = [
     ("deadline_immutable", T, '        raise TransportError("deadline_immutable")', "        object.__setattr__(self, name, value)",
      scenario_deadline),
     ("deadline_bound", T, "and 0 < seconds <= DESTROY_DEADLINE_SECONDS,", "and 0 < seconds,", scenario_deadline),
-    ("merge_mapping", T, "            if (seen[\"name\"], seen[\"namespace\"]) != (item[\"name\"], item[\"namespace\"]) or not (same_resource or alias):",
-     "            if False:", scenario_merge_listed),
+    ("merge_mapping", T, "            if not (same_resource or alias):", "            if False:", scenario_merge_listed),
     # CRD and Service reads
     ("crd_uid", T, '(info["uid"] == receipt_uid, "crd_uid_mismatch"),', "", scenario_crd_mismatches),
     ("crd_established", T, '(info["established"] is True, "crd_not_established"),', "", scenario_crd_mismatches),
@@ -1280,8 +1679,8 @@ DESTROY_MUTATIONS = [
     ("crd_scope", T, '(info["scope"] == spec["scope"], "crd_scope_mismatch"),', "", scenario_crd_mismatches),
     ("crd_trusted_404", T, '''        need(trusted_not_found("apiextensions.k8s.io", "customresourcedefinitions", name, status, body),
              "not_found_untrusted")''', "        pass", scenario_crd_mismatches),
-    ("crd_list_verified", T, '''    need(isinstance(verified, dict) and verified.get("verdict") == "VERIFIED" and verified.get("name") == name
-         and verified.get("storage_version") == spec["storage_version"], "crd_not_verified")''', "    pass",
+    ("crd_list_evidence", T, '    payload = evidence_payload(verified, policy, "crd_verified")',
+     '    payload = verified if isinstance(verified, dict) else evidence_payload(verified, policy, "crd_verified")',
      scenario_crd_read),
     ("crd_reviewed_only", T, '    need(found is not None, "crd_not_reviewed")', "    found = found or '{}'", scenario_crd_read),
     ("crd_foreign", T, '        return {"verdict": "BLOCKED", "name": name, "reason": "foreign_crd"}',
@@ -1343,6 +1742,75 @@ DESTROY_MUTATIONS = [
      '                elif False:\n                    verdict = "UID_CHANGED"', scenario_crash_states),
     ("reconcile_absent_unconfirmed", R, '                    verdict = "DELETE_ABSENT_UNCONFIRMED"', '                    verdict = "DESTROYED"',
      scenario_crash_states),
+    # review fixes F01-F05
+    ("send_authorizes", T, "        timeout = self.authorize(request)\n", "        timeout = API_READ_TIMEOUT_SECONDS\n",
+     scenario_boundary_bypass),
+    ("generic_policy_delete_guard", T, '''        need(not any((k[0], k[1]) == ("apiextensions.k8s.io/v1", "CustomResourceDefinition")
+                     or k == ("v1", "Namespace", "", "kube-system") for k in self.delete), "delete_identity_refused")''',
+     "        pass", scenario_generic_policy_guard),
+    ("plan_unique", T, 'need(key not in plan and (key[0], key[1]) in KINDS, "plan_identity_invalid")', "pass",
+     scenario_generic_policy_guard),
+    ("owned_uids_destroyed", R, "if v[\"owned_uid\"] is not None and v.get(\"destroyed\") is None and k not in state[\"quarantined\"]",
+     "if v[\"owned_uid\"] is not None and k not in state[\"quarantined\"]", scenario_receipt_policy_inputs),
+    ("owned_uids_quarantined", R, "and v.get(\"destroyed\") is None and k not in state[\"quarantined\"]\n",
+     "and v.get(\"destroyed\") is None\n", scenario_receipt_policy_inputs),
+    ("builder_target_discovered", T, '    need((group, version, resource) in targets, "list_target_not_discovered")\n    query',
+     "    query", scenario_discovery_bound_lists),
+    ("list_namespace_target", T, '        need((group, version, resource) in targets, "list_target_not_discovered")\n\n        def page',
+     "\n        def page", scenario_discovery_bound_lists),
+    ("discovery_withdraws", T, "                del self._issued[key]", "                pass", scenario_discovery_bound_lists),
+    ("discovery_targets_nonempty", T, '    if not targets:\n        return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}',
+     '    if False:\n        return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}', scenario_discovery_lists_exact),
+    ("discovery_unexpected_lists", T, '    if set(resource_lists) - expected_lists:', "    if False:", scenario_discovery_lists_exact),
+    ("merge_missing", T, '    if expected - set(listed):', "    if False:", scenario_inventory_coverage),
+    ("merge_unexpected", T, '    if set(listed) - expected:', "    if False:", scenario_inventory_coverage),
+    ("merge_duplicate", T, '    if len(set(listed)) != len(listed):', "    if False:", scenario_inventory_coverage),
+    ("merge_empty", T, '    if not expected:\n        return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}\n    listed',
+     "    listed", scenario_inventory_coverage),
+    ("merge_cross_version", T, '            if seen["evidence"] != evidence:', "            if False:", scenario_cross_version_conflict),
+    ("send_deadline_before", T, '        need(not self.deadline.expired(), "deadline_exceeded")\n        timeout', "        timeout",
+     scenario_deadline_requests),
+    ("send_response_late", T, '        need(clock.now() - start <= limit, "deadline_exceeded" if self.deadline.expired() else "request_timeout")',
+     "        pass", scenario_request_timeouts),
+    ("send_remaining_bound", T, "        limit = min(timeout, self.deadline.remaining())", "        limit = timeout",
+     scenario_request_timeouts),
+    ("send_api_timeout", T, '        except TimeoutError:\n            raise TransportError("transport_timeout") from None',
+     '        except TimeoutError:\n            return 404, b""', scenario_request_timeouts),
+    ("item_type", T, '''        need(typed == (False, False) or (item.get("kind") == "PartialObjectMetadata"
+                                         and item.get("apiVersion") == "meta.k8s.io/v1"), "response_item_type_invalid")''',
+     "        pass", scenario_metadata_strict),
+    ("list_rv", T, '''    need(isinstance(meta.get("resourceVersion"), str) and RESOURCE_VERSION_FORM.fullmatch(meta["resourceVersion"]),
+         "list_resource_version_invalid")''', "    pass", scenario_metadata_strict),
+    ("item_rv", T, '''        need(version is None or (isinstance(version, str) and RESOURCE_VERSION_FORM.fullmatch(version)),
+             "response_item_invalid")''', "        pass", scenario_metadata_strict),
+    ("remaining_count", T, '''    need(remaining is None or (type(remaining) is int and remaining >= 0 and (token != "" or remaining == 0)),
+         "list_remaining_invalid")''', "    pass", scenario_metadata_strict),
+    ("owner_shape", T, '             and isinstance(owner.get("apiVersion"), str) and API_VERSION_FORM.fullmatch(owner["apiVersion"])\n', "",
+     scenario_metadata_strict),
+    ("owner_single_controller", T, '    need(sum(1 for o in result if o["controller"]) <= 1, "response_owner_conflict")', "    pass",
+     scenario_metadata_strict),
+    ("owner_unique", T, '        need(owner["uid"] not in uids, "response_owner_conflict")', "        pass", scenario_metadata_strict),
+    ("finalizers_unique", T, '         and len(set(finalizers)) == len(finalizers), "response_finalizers_invalid")',
+     ', "response_finalizers_invalid")', scenario_metadata_strict),
+    ("deletion_format", T, '''    need(deletion is None or (isinstance(deletion, str) and RFC3339.fullmatch(deletion) is not None),
+         "response_deletion_invalid")''', "    pass", scenario_metadata_strict),
+    ("page_identity_conflict", T, '                if names.setdefault((item["namespace"], item["name"]), item["uid"]) != item["uid"]:',
+     "                if False:", scenario_page_identity_conflict),
+    ("evidence_registry", T, '        need(stored is not None and stored[0] is evidence and stored[1] == evidence._seal, "evidence_invalid")',
+     "        pass", scenario_crd_evidence),
+    ("evidence_seal", T, '''        need(isinstance(self, Evidence) and self._policy is policy and self._kind == kind
+             and hashlib.sha256((self._kind + "\\n" + self._data).encode()).hexdigest() == self._seal,
+             "evidence_invalid")''', "        pass", scenario_crd_evidence),
+    ("evidence_immutable", T, '        raise TransportError("evidence_immutable")', "        object.__setattr__(self, name, value)",
+     scenario_crd_evidence),
+    ("crd_evidence_only_verified", T, '        if verdict["verdict"] != "VERIFIED":\n            return verdict\n        self._verified_crds',
+     "        self._verified_crds", scenario_crd_evidence),
+    ("crd_instances_accept", T, '        self._accept(verified, "crd_verified")\n        try:', "        try:", scenario_crd_evidence),
+    ("crd_established_single", T, '    need(len(established) == 1 and established[0].get("status") in CONDITION_STATES, "crd_established_invalid")',
+     "    established = established or [{}]", scenario_crd_response_strict),
+    ("crd_versions_unique", T, '         and len({v["name"] for v in versions}) == len(versions), "crd_versions_invalid")',
+     ', "crd_versions_invalid")', scenario_crd_response_strict),
+    ("crd_single_storage", T, '    need(len(storage) == 1, "crd_versions_invalid")', "    pass", scenario_crd_response_strict),
     # apply phase guard
     ("apply_phase_guard", A, '        if receipt.load(self.store.dir, self.plan, self.store.expected)["state"]["phase"] != "apply":',
      "        if False:", scenario_apply_refuses_destroy_phase),
@@ -1363,7 +1831,7 @@ def mutant(filename, old, new):
 
 class DestroyMutationTests(unittest.TestCase):
     def test_each_destroy_guard_mutation_is_detected_by_an_assertion(self):
-        self.assertEqual(len(DESTROY_MUTATIONS), 83)
+        self.assertEqual(len(DESTROY_MUTATIONS), 120)
         self.assertEqual(len(DESTROY_MUTATIONS), len({m[0] for m in DESTROY_MUTATIONS}))
         undetected = []
         for name, filename, old, new, scenario in DESTROY_MUTATIONS:

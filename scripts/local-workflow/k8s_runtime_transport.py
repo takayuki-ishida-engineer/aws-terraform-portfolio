@@ -28,6 +28,7 @@ destroy inventory reads are not part of this contract (D3 and D19, before 6c-B4)
 ``UNIMPLEMENTED_REQUIREMENTS`` lists what the real transport must satisfy before it
 may be approved.
 """
+import hashlib
 import json
 import re
 import sys
@@ -119,6 +120,10 @@ class Policy:
             frozenset(identity_key(i) for i in secret_identities(secret_project))
         need(self.delete <= self.read, "delete_identity_not_readable")
         need(all(k in self.secrets for k in self.read if k[1] == "Secret"), "secret_path_not_approved")
+        # 6c-B4a: this generic policy is never a way around the destroy contract (DestroyPolicy): no CRD and no
+        # kube-system namespace can be deleted through it.
+        need(not any((k[0], k[1]) == ("apiextensions.k8s.io/v1", "CustomResourceDefinition")
+                     or k == ("v1", "Namespace", "", "kube-system") for k in self.delete), "delete_identity_refused")
 
 
 def object_path(identity, secrets=frozenset()):
@@ -241,13 +246,17 @@ def open_transport(kind, policy=None, server=None):
 # Separate scopes, each built only from the reviewed plan and the receipt, never from what a read returns:
 #   single-object metadata read  -> DestroyPolicy.read      (the plan's identities and the kube-system namespace)
 #   discovery                    -> DestroyPolicy.discovery (GET /api, /apis and each advertised group version)
-#   namespace LIST               -> DestroyPolicy.namespaces (istio-system, <project>-ingress, <project>-app only)
-#   CRD instance LIST            -> DestroyPolicy.crds      (the reviewed CRDs, at their verified storage version)
+#   namespace LIST               -> DestroyPolicy.namespaces and the transport's complete discovery evidence
+#   CRD instance LIST            -> DestroyPolicy.crds and the transport's own CRD verification evidence
 #   specialised CRD read         -> DestroyPolicy.crds      (structured fields only, never the object)
 #   specialised Service read     -> DestroyPolicy.services  (spec.type of the runtime's <project>-ingress Services)
 #   runtime DELETE               -> DestroyPolicy.delete    (identity -> UID proven by the receipt; no CRD, Secret or
 #                                                            kube-system namespace)
 #   G9 Secret DELETE             -> Policy(secret_project=...) above, unchanged
+# The plan identities come from the reviewed plan (k8s_runtime_receipt.plan_identities) and the UIDs from a verified
+# journal (k8s_runtime_receipt.owned_uids). Every request is authorised again at the send boundary
+# (FakeDestroyTransport.authorize): it must equal, field for field, the request a builder makes for this policy and
+# this transport's evidence; anything else never reaches the server. Every request runs under one global Deadline.
 # There is no destroy engine here: nothing orchestrates deletions (6c-B4b).
 
 # D11 destroy values (approved 2026-11-24). Every bound is finite; the global deadline is never extended or reset.
@@ -270,15 +279,21 @@ VERSION = re.compile(r"v[0-9]+((alpha|beta)[0-9]+)?")
 RESOURCE = re.compile(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?")
 CONTINUE_TOKEN = re.compile(r"[A-Za-z0-9_+/=-]{1,4096}")
 FINALIZER = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(/[A-Za-z0-9_.-]{1,316})?")
+RFC3339 = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z")
+API_VERSION_FORM = re.compile(r"([a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?/)?v[0-9]+((alpha|beta)[0-9]+)?")
+KIND_FORM = re.compile(r"[A-Z][A-Za-z0-9]{0,62}")
+RESOURCE_VERSION_FORM = re.compile(r"[0-9]{1,20}")
+OWNER_KEYS = {"apiVersion", "kind", "name", "uid", "controller", "blockOwnerDeletion"}
 INVENTORY_NAMESPACES = ("istio-system", "{project}-ingress", "{project}-app")
 # Namespaced resources without the list verb that design section 5.1 allows: virtual, never persisted.
 VIRTUAL_RESOURCES = frozenset({("", "bindings"), ("authorization.k8s.io", "localsubjectaccessreviews")})
 # The same objects served under two resources (design section 5.1: both are listed).
 RESOURCE_ALIASES = (frozenset({("", "events"), ("events.k8s.io", "events")}),)
 CRD_TYPE = ("apiextensions.k8s.io/v1", "CustomResourceDefinition")
+CRD_PATH = "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/"
 KUBE_SYSTEM_KEY = ("v1", "Namespace", "", "kube-system")
-LIST_ITEM_METADATA = {"name", "namespace", "uid", "ownerReferences", "deletionTimestamp", "finalizers"}
 SERVICE_TYPES = {"ClusterIP", "NodePort", "LoadBalancer", "ExternalName"}
+CONDITION_STATES = {"True", "False", "Unknown"}
 DELETE_BODY_KEYS = {"apiVersion", "kind", "preconditions", "propagationPolicy"}
 OBJECT_PATH = re.compile(r"/(api/v1|apis/[a-z0-9.-]+/v[0-9a-z]+)(/namespaces/[a-z0-9.-]+)?/[a-z0-9-]+(/[a-z0-9.-]+)?")
 DISCOVERY_PATH = re.compile(r"/api|/apis|/api/v1|/apis/[a-z0-9.-]+/v[0-9a-z]+")
@@ -295,6 +310,10 @@ class Deadline:
 
     def __setattr__(self, name, value):
         raise TransportError("deadline_immutable")
+
+    @property
+    def clock(self):
+        return self._clock
 
     def expired(self):
         return self._clock.now() >= self._end
@@ -337,8 +356,16 @@ def check_crd_spec(name, spec):
     need(spec["storage_version"] in spec["served_versions"], "crd_spec_invalid")
 
 
+def identity_of(key):
+    return dict(zip(("apiVersion", "kind", "namespace", "name"), key))
+
+
 class DestroyPolicy:
-    """What a destroy transport may read, list and delete. Immutable; nothing a read returns can widen it."""
+    """What a destroy transport may read, list and delete. Immutable; nothing a read returns can widen it.
+
+    ``plan_identities`` are the reviewed plan's identities (k8s_runtime_receipt.plan_identities) and
+    ``owned_uids`` the identity -> UID map of a verified journal (k8s_runtime_receipt.owned_uids).
+    """
 
     def __init__(self, project, plan_identities, owned_uids=None, inventory=False, discovery=False, crd_specs=None,
                  services=()):
@@ -347,6 +374,8 @@ class DestroyPolicy:
         for identity in plan_identities:
             key = identity_key(identity)
             need(key[1] != "Secret", "secret_path_not_approved")
+            need(key not in plan and (key[0], key[1]) in KINDS, "plan_identity_invalid")
+            object_path(identity)  # name, namespace and scope rules
             plan[key] = identity
         owned = {}
         for key, uid in dict(owned_uids or {}).items():
@@ -389,8 +418,33 @@ class DestroyPolicy:
         return json.loads(found)
 
 
-def api_prefix(api_version):
-    return "/api/v1" if api_version == "v1" else "/apis/" + api_version
+class Evidence:
+    """A validated result issued by one transport for one policy; immutable and sealed.
+
+    A builder accepts it only for its own policy and kind with an intact seal; the transport accepts only evidence it
+    issued itself and has not withdrawn. Hand-made, copied, re-bound or edited evidence is refused (evidence_invalid).
+    """
+
+    def __init__(self, policy, kind, payload):
+        data = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        object.__setattr__(self, "_policy", policy)
+        object.__setattr__(self, "_kind", kind)
+        object.__setattr__(self, "_data", data)
+        object.__setattr__(self, "_seal", hashlib.sha256((kind + "\n" + data).encode()).hexdigest())
+
+    def __setattr__(self, name, value):
+        raise TransportError("evidence_immutable")
+
+    def payload_for(self, policy, kind):
+        need(isinstance(self, Evidence) and self._policy is policy and self._kind == kind
+             and hashlib.sha256((self._kind + "\n" + self._data).encode()).hexdigest() == self._seal,
+             "evidence_invalid")
+        return json.loads(self._data)
+
+
+def evidence_payload(evidence, policy, kind):
+    need(isinstance(evidence, Evidence), "evidence_invalid")
+    return evidence.payload_for(policy, kind)
 
 
 def destroy_metadata_request(policy, identity):
@@ -426,29 +480,37 @@ def continue_query(token):
     return {"continue": token}
 
 
-def namespace_list_request(policy, namespace, group, version, resource, token=None):
-    """Metadata-only LIST of one discovered resource in one approved namespace, one page."""
+def namespace_list_request(policy, targets, namespace, group, version, resource, token=None):
+    """Metadata-only LIST, one page, of a resource that a complete discovery returned, in an approved namespace."""
     need(namespace in policy.namespaces, "namespace_not_approved")
     need(isinstance(resource, str) and RESOURCE.fullmatch(resource) is not None, "list_resource_invalid")
+    path = group_version_path(group, version) + "/namespaces/" + namespace + "/" + resource
+    need((group, version, resource) in targets, "list_target_not_discovered")
     query = dict({"limit": str(LIST_PAGE_SIZE)}, **continue_query(token))
-    return {"method": "GET", "path": group_version_path(group, version) + "/namespaces/" + namespace + "/" + resource,
-            "query": query, "headers": {"Accept": LIST_ACCEPT}, "body": None}
+    return {"method": "GET", "path": path, "query": query, "headers": {"Accept": LIST_ACCEPT}, "body": None}
 
 
 def crd_read_request(policy, name):
     """The specialised CRD read: one reviewed CRD, structured fields only (validate_crd_response)."""
     policy.crd_spec(name)
-    return {"method": "GET", "path": "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/" + name, "query": {},
-            "headers": {"Accept": JSON_ACCEPT}, "body": None}
+    return {"method": "GET", "path": CRD_PATH + name, "query": {}, "headers": {"Accept": JSON_ACCEPT}, "body": None}
 
 
-def crd_instance_list_request(policy, name, verified):
-    """Cluster-wide metadata-only LIST (limit=1) at the storage version the specialised read verified."""
-    spec = policy.crd_spec(name)
-    need(isinstance(verified, dict) and verified.get("verdict") == "VERIFIED" and verified.get("name") == name
-         and verified.get("storage_version") == spec["storage_version"], "crd_not_verified")
+def crd_instance_request_for(spec):
     return {"method": "GET", "path": group_version_path(spec["group"], spec["storage_version"]) + "/" + spec["plural"],
             "query": {"limit": "1"}, "headers": {"Accept": LIST_ACCEPT}, "body": None}
+
+
+def crd_instance_list_request(policy, verified):
+    """Cluster-wide metadata-only LIST (limit=1) at the storage version the specialised read verified.
+
+    ``verified`` is the transport's crd_verified Evidence for this policy; a hand-made VERIFIED record is refused.
+    """
+    payload = evidence_payload(verified, policy, "crd_verified")
+    spec = policy.crd_spec(payload.get("name"))
+    need(payload.get("storage_version") == spec["storage_version"] and payload.get("uid") is not None
+         and payload.get("uid") == payload.get("receipt_uid"), "crd_not_verified")
+    return crd_instance_request_for(spec)
 
 
 def service_type_request(policy, identity):
@@ -475,7 +537,7 @@ def runtime_delete_request(policy, identity, uid):
 
 
 def check_request(request):
-    """Defence in depth before anything is sent: only the shapes the builders make."""
+    """Structural defence in depth: only the shapes the builders make (policy authorisation is separate)."""
     need(isinstance(request, dict) and set(request) == {"method", "path", "query", "headers", "body"},
          "request_shape")
     method, path, query, body = request["method"], request["path"], request["query"], request["body"]
@@ -555,16 +617,19 @@ def validate_destroy_metadata(identity, status, body):
         group, resource = identity_resource(identity)
         need(trusted_not_found(group, resource, identity["name"], status, body), "not_found_untrusted")
         return None
-    return validate_metadata_response(identity, status, body)
+    metadata = validate_metadata_response(identity, status, body)
+    object_state(metadata)
+    return metadata
 
 
 def object_state(metadata):
     """UID, whether deletion was requested, and the finalizers: nothing else of the metadata."""
     finalizers = metadata.get("finalizers", [])
-    need(isinstance(finalizers, list) and all(isinstance(f, str) and FINALIZER.fullmatch(f) for f in finalizers),
-         "response_finalizers_invalid")
+    need(isinstance(finalizers, list) and all(isinstance(f, str) and FINALIZER.fullmatch(f) for f in finalizers)
+         and len(set(finalizers)) == len(finalizers), "response_finalizers_invalid")
     deletion = metadata.get("deletionTimestamp")
-    need(deletion is None or isinstance(deletion, str), "response_shape")
+    need(deletion is None or (isinstance(deletion, str) and RFC3339.fullmatch(deletion) is not None),
+         "response_deletion_invalid")
     return {"uid": metadata["uid"], "deletion_requested": deletion is not None, "finalizers": list(finalizers)}
 
 
@@ -583,7 +648,8 @@ def validate_discovery_response(path, status, body):
     document = parse_json(status, body)
     if path == "/api":
         need(document.get("kind") == "APIVersions" and isinstance(document.get("versions"), list)
-             and all(isinstance(v, str) and VERSION.fullmatch(v) for v in document["versions"]), "discovery_invalid")
+             and all(isinstance(v, str) and VERSION.fullmatch(v) for v in document["versions"])
+             and len(set(document["versions"])) == len(document["versions"]), "discovery_invalid")
         return {"versions": list(document["versions"])}
     if path == "/apis":
         need(document.get("kind") == "APIGroupList" and document.get("apiVersion") == "v1"
@@ -615,18 +681,22 @@ def validate_discovery_response(path, status, body):
         seen.add(resource["name"])
         resources.append({"name": resource["name"], "namespaced": resource["namespaced"],
                           "verbs": sorted(set(resource["verbs"]))})
-    return {"resources": resources}
+    return {"groupVersion": expected, "resources": resources}
 
 
 def discovery_targets(core, groups, resource_lists):
     """Every namespaced, listable resource of every advertised group version, or UNKNOWN with a reason.
 
-    Every advertised version is examined, not only the preferred one; a group version without its resource list,
-    a malformed resource name or a namespaced resource without list (outside the virtual allowlist) is UNKNOWN.
+    Every advertised version is examined, not only the preferred one; the resource lists must be exactly the
+    advertised group versions; a missing or unexpected list, a malformed resource name or a namespaced resource
+    without list (outside the virtual allowlist) is UNKNOWN.
     """
     if "v1" not in core["versions"]:
         return {"status": "UNKNOWN", "reason": "discovery_core_missing"}
     advertised = [("", "v1")] + [(g["name"], v) for g in groups["groups"] for v in g["versions"]]
+    expected_lists = {group + "/" + version if group else "v1" for group, version in advertised}
+    if set(resource_lists) - expected_lists:
+        return {"status": "UNKNOWN", "reason": "discovery_unexpected_group"}
     targets = []
     for group, version in advertised:
         listing = resource_lists.get(group + "/" + version if group else "v1")
@@ -644,10 +714,32 @@ def discovery_targets(core, groups, resource_lists):
                 targets.append((group, version, name))
             elif (group, name) not in VIRTUAL_RESOURCES:
                 return {"status": "UNKNOWN", "reason": "resource_not_listable"}
-    return {"status": "COMPLETE", "targets": sorted(targets)}
+    if not targets:
+        return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}
+    return {"status": "COMPLETE", "targets": sorted(targets), "advertised": sorted(advertised)}
 
 
 # ---- metadata LIST and pagination ---------------------------------------------------------------------------------
+
+def owner_references(owners):
+    """Minimal owner references; malformed entries, two controllers or a repeated owner UID are refused."""
+    need(isinstance(owners, list), "response_owner_invalid")
+    result, uids = [], set()
+    for owner in owners:
+        need(isinstance(owner, dict) and set(owner) <= OWNER_KEYS
+             and isinstance(owner.get("apiVersion"), str) and API_VERSION_FORM.fullmatch(owner["apiVersion"])
+             and isinstance(owner.get("kind"), str) and KIND_FORM.fullmatch(owner["kind"])
+             and isinstance(owner.get("name"), str) and NAME.fullmatch(owner["name"])
+             and isinstance(owner.get("uid"), str) and UID.fullmatch(owner["uid"])
+             and isinstance(owner.get("controller", False), bool)
+             and isinstance(owner.get("blockOwnerDeletion", False), bool), "response_owner_invalid")
+        need(owner["uid"] not in uids, "response_owner_conflict")
+        uids.add(owner["uid"])
+        result.append({"apiVersion": owner["apiVersion"], "kind": owner["kind"], "name": owner["name"],
+                       "uid": owner["uid"], "controller": owner.get("controller", False)})
+    need(sum(1 for o in result if o["controller"]) <= 1, "response_owner_conflict")
+    return result
+
 
 def validate_list_response(namespace, limit, status, body):
     """One PartialObjectMetadataList page: minimal item metadata, the continue token and the snapshot version.
@@ -663,17 +755,24 @@ def validate_list_response(namespace, limit, status, body):
     need(set(document) == {"kind", "apiVersion", "metadata", "items"}, "response_shape")
     meta, items = document["metadata"], document["items"]
     need(isinstance(meta, dict) and set(meta) <= {"continue", "resourceVersion", "remainingItemCount"}
-         and isinstance(meta.get("resourceVersion"), str) and isinstance(items, list), "response_shape")
+         and isinstance(items, list), "response_shape")
+    need(isinstance(meta.get("resourceVersion"), str) and RESOURCE_VERSION_FORM.fullmatch(meta["resourceVersion"]),
+         "list_resource_version_invalid")
     token = meta.get("continue", "")
     need(isinstance(token, str) and (token == "" or CONTINUE_TOKEN.fullmatch(token) is not None),
          "continue_token_invalid")
+    remaining = meta.get("remainingItemCount")
+    need(remaining is None or (type(remaining) is int and remaining >= 0 and (token != "" or remaining == 0)),
+         "list_remaining_invalid")
     need(len(items) <= limit, "list_over_limit")
     result, uids, names = [], set(), set()
     for item in items:
         need(isinstance(item, dict), "response_shape")
         need(not (FORBIDDEN_RESPONSE_KEYS & set(item)), "response_not_metadata_only")
-        need(set(item) <= {"kind", "apiVersion", "metadata"} and item.get("kind", "PartialObjectMetadata")
-             == "PartialObjectMetadata", "response_shape")
+        need(set(item) <= {"kind", "apiVersion", "metadata"}, "response_shape")
+        typed = ("kind" in item, "apiVersion" in item)
+        need(typed == (False, False) or (item.get("kind") == "PartialObjectMetadata"
+                                         and item.get("apiVersion") == "meta.k8s.io/v1"), "response_item_type_invalid")
         metadata = item.get("metadata")
         need(isinstance(metadata, dict), "response_shape")
         annotations = metadata.get("annotations", {})
@@ -684,20 +783,15 @@ def validate_list_response(namespace, limit, status, body):
         need(isinstance(item_namespace, str) and (namespace is None or item_namespace == namespace)
              and (item_namespace == "" or NAME.fullmatch(item_namespace) is not None), "response_namespace_mismatch")
         need(isinstance(uid, str) and UID.fullmatch(uid) is not None, "response_uid_invalid")
+        version = metadata.get("resourceVersion")
+        need(version is None or (isinstance(version, str) and RESOURCE_VERSION_FORM.fullmatch(version)),
+             "response_item_invalid")
         need(uid not in uids and (item_namespace, name) not in names, "list_duplicate_item")
         uids.add(uid)
         names.add((item_namespace, name))
-        owners = metadata.get("ownerReferences", [])
-        need(isinstance(owners, list), "response_shape")
-        minimal_owners = []
-        for owner in owners:
-            need(isinstance(owner, dict) and isinstance(owner.get("uid"), str) and UID.fullmatch(owner["uid"])
-                 and isinstance(owner.get("kind"), str) and isinstance(owner.get("name"), str)
-                 and owner.get("controller", False) in (True, False), "response_owner_invalid")
-            minimal_owners.append({"kind": owner["kind"], "name": owner["name"], "uid": owner["uid"],
-                                   "controller": owner.get("controller", False) is True})
+        owners = owner_references(metadata.get("ownerReferences", []))
         state = object_state(dict(metadata, uid=uid))
-        result.append({"name": name, "namespace": item_namespace, "uid": uid, "owners": minimal_owners,
+        result.append({"name": name, "namespace": item_namespace, "uid": uid, "owners": owners,
                        "deletion_requested": state["deletion_requested"], "finalizers": state["finalizers"]})
     return {"items": result, "continue": token or None, "resource_version": meta["resourceVersion"]}
 
@@ -707,11 +801,12 @@ def collect_list(fetch_page, deadline=None):
 
     410 restarts the list from the beginning (the partial result is discarded) at most LIST_RESTART_LIMIT times;
     all pages, restarts included, count against LIST_PAGE_LIMIT. A repeated token, a snapshot change, a duplicate
-    item, a timeout or an invalid page is UNKNOWN; 403 is BLOCKED. Never an empty success.
+    UID, one name with two UIDs, a timeout, the deadline or an invalid page is UNKNOWN; 403 is BLOCKED.
     """
     pages, restarts = 0, 0
     while restarts <= LIST_RESTART_LIMIT:
         items, uids, tokens, token, snapshot = [], set(), set(), None, None
+        names = {}
         while True:
             if pages >= LIST_PAGE_LIMIT:
                 return {"status": "UNKNOWN", "reason": "list_page_limit"}
@@ -737,6 +832,8 @@ def collect_list(fetch_page, deadline=None):
             for item in page["items"]:
                 if item["uid"] in uids:
                     return {"status": "UNKNOWN", "reason": "list_duplicate_item"}
+                if names.setdefault((item["namespace"], item["name"]), item["uid"]) != item["uid"]:
+                    return {"status": "UNKNOWN", "reason": "list_identity_conflict"}
                 uids.add(item["uid"])
                 items.append(item)
             token = page["continue"]
@@ -749,32 +846,48 @@ def collect_list(fetch_page, deadline=None):
     return {"status": "UNKNOWN", "reason": "list_restart_limit"}
 
 
-def merge_listed(listed):
-    """Merge COMPLETE lists of every discovered (group, version, resource) of one namespace by UID.
+def merge_listed(expected_targets, results):
+    """Merge the COMPLETE lists of exactly the discovered targets of one namespace by UID.
 
-    The same UID may appear under several versions of one resource, or under the two event resources, always with
-    the same name and namespace; any other repetition is an unknown mapping (UNKNOWN). No classification here.
+    ``results`` is a list of (target, result). Every expected target must be listed once and COMPLETE: a missing,
+    unexpected or repeated target, an empty target set or an incomplete list is never an (empty) inventory. The same
+    UID may appear under several versions of one resource, or under the two event resources, only with the same
+    name, namespace, owners, finalizers and deletion state; anything else is UNKNOWN. No classification here.
     """
-    merged = {}
-    for (group, version, resource), result in sorted(listed.items()):
+    expected = {tuple(t) for t in expected_targets}
+    if not expected:
+        return {"status": "UNKNOWN", "reason": "discovery_targets_empty"}
+    listed = [tuple(target) for target, _ in results]
+    if len(set(listed)) != len(listed):
+        return {"status": "UNKNOWN", "reason": "list_target_duplicate"}
+    for _, result in results:
         if result.get("status") != "COMPLETE":
             return {"status": result.get("status", "UNKNOWN"), "reason": result.get("reason", "list_incomplete")}
+    if expected - set(listed):
+        return {"status": "UNKNOWN", "reason": "list_target_missing"}
+    if set(listed) - expected:
+        return {"status": "UNKNOWN", "reason": "list_target_unexpected"}
+    merged = {}
+    for (group, version, resource), result in sorted(((tuple(t), r) for t, r in results), key=lambda x: x[0]):
         for item in result["items"]:
+            evidence = (item["name"], item["namespace"], json.dumps(item["owners"], sort_keys=True),
+                        tuple(sorted(item["finalizers"])), item["deletion_requested"])
             seen = merged.get(item["uid"])
             if seen is None:
-                merged[item["uid"]] = {"resources": {(group, resource)}, "versions": {(group, version)},
-                                       "name": item["name"], "namespace": item["namespace"], "item": item}
+                merged[item["uid"]] = {"resources": {(group, resource)}, "evidence": evidence, "item": item}
                 continue
             same_resource = (group, resource) in seen["resources"]
             alias = any({(group, resource)} | seen["resources"] <= pair for pair in RESOURCE_ALIASES)
-            if (seen["name"], seen["namespace"]) != (item["name"], item["namespace"]) or not (same_resource or alias):
+            if not (same_resource or alias):
                 return {"status": "UNKNOWN", "reason": "unknown_resource_mapping"}
+            if seen["evidence"] != evidence:
+                return {"status": "UNKNOWN", "reason": "cross_version_conflict"}
             seen["resources"].add((group, resource))
-            seen["versions"].add((group, version))
-    return {"status": "COMPLETE", "objects": [
-        {"uid": uid, "name": m["name"], "namespace": m["namespace"], "resources": sorted(m["resources"]),
-         "owners": m["item"]["owners"], "deletion_requested": m["item"]["deletion_requested"],
-         "finalizers": m["item"]["finalizers"]} for uid, m in sorted(merged.items())]}
+    return {"status": "COMPLETE", "targets": len(expected), "objects": [
+        {"uid": uid, "name": m["item"]["name"], "namespace": m["item"]["namespace"],
+         "resources": sorted(m["resources"]), "owners": m["item"]["owners"],
+         "deletion_requested": m["item"]["deletion_requested"], "finalizers": m["item"]["finalizers"]}
+        for uid, m in sorted(merged.items())]}
 
 
 # ---- specialised CRD and Service reads ------------------------------------------------------------------------------
@@ -792,22 +905,28 @@ def validate_crd_response(name, status, body):
     need(isinstance(metadata, dict) and metadata.get("name") == name, "response_identity_mismatch")
     need(isinstance(metadata.get("uid"), str) and UID.fullmatch(metadata["uid"]) is not None, "response_uid_invalid")
     need(isinstance(spec, dict) and isinstance(spec.get("names"), dict) and isinstance(spec.get("versions"), list)
-         and isinstance(crd_status, dict), "crd_response_invalid")
+         and isinstance(spec.get("group"), str) and isinstance(spec["names"].get("plural"), str)
+         and isinstance(spec.get("scope"), str) and isinstance(crd_status, dict), "crd_response_invalid")
     versions = spec["versions"]
-    need(all(isinstance(v, dict) and isinstance(v.get("name"), str) and isinstance(v.get("served"), bool)
-             and isinstance(v.get("storage"), bool) for v in versions), "crd_response_invalid")
+    need(all(isinstance(v, dict) and isinstance(v.get("name"), str) and VERSION.fullmatch(v["name"])
+             and isinstance(v.get("served"), bool) and isinstance(v.get("storage"), bool) for v in versions)
+         and len({v["name"] for v in versions}) == len(versions), "crd_versions_invalid")
     storage = [v["name"] for v in versions if v["storage"]]
+    need(len(storage) == 1, "crd_versions_invalid")
     conditions = crd_status.get("conditions", [])
     need(isinstance(conditions, list) and all(isinstance(c, dict) for c in conditions), "crd_response_invalid")
-    established = any(c.get("type") == "Established" and c.get("status") == "True" for c in conditions)
-    return {"name": name, "uid": metadata["uid"], "group": spec.get("group"), "plural": spec["names"].get("plural"),
-            "scope": spec.get("scope"), "storage_versions": storage,
-            "served_versions": sorted(v["name"] for v in versions if v["served"]), "established": established}
+    established = [c for c in conditions if c.get("type") == "Established"]
+    need(len(established) == 1 and established[0].get("status") in CONDITION_STATES, "crd_established_invalid")
+    return {"name": name, "uid": metadata["uid"], "group": spec["group"], "plural": spec["names"]["plural"],
+            "scope": spec["scope"], "storage_versions": storage,
+            "served_versions": sorted(v["name"] for v in versions if v["served"]),
+            "established": established[0].get("status") == "True"}
 
 
 def verify_crd(policy, name, info, receipt_uid):
     """VERIFIED only when the live CRD is the reviewed one: UID, group, plural, scope, storage version served,
-    Established. A 200 on a later LIST is never evidence of any of these."""
+    Established. A 200 on a later LIST is never evidence of any of these. This is the verdict only; the evidence a
+    CRD instance LIST needs is issued by FakeDestroyTransport.verify_crd."""
     spec = policy.crd_spec(name)
     checks = (
         (info["uid"] == receipt_uid, "crd_uid_mismatch"),
@@ -828,10 +947,10 @@ def classify_crd(policy, name, read, receipt_uid, open_intent, advertised):
     """VERIFIED, CRD_NOT_CREATED, BLOCKED or UNKNOWN for one reviewed CRD (D5).
 
     ``read``: ("present", info), ("absent", None) or ("unknown", reason). ``receipt_uid``: the UID the receipt
-    owns, or None. ``open_intent``: an unresolved apply INTENT for it. ``advertised``: whether discovery serves its
-    (group, plural), or None when discovery is not COMPLETE. CRD_NOT_CREATED needs no creation evidence, no open
-    INTENT, a trusted NotFound and a discovery that does not serve the plural. A claimed CRD that is gone, another
-    UID and a foreign CRD (present, not claimed) are BLOCKED: never deleted, never adopted.
+    owns, or None. ``open_intent``: an unresolved apply INTENT for it. ``advertised``: whether a COMPLETE discovery
+    serves its (group, plural), or None when discovery is not COMPLETE. CRD_NOT_CREATED needs no creation evidence,
+    no open INTENT, a trusted NotFound and a discovery that does not serve the plural. A claimed CRD that is gone,
+    another UID and a foreign CRD (present, not claimed) are BLOCKED: never deleted, never adopted.
     """
     state, value = read
     if state == "unknown":
@@ -882,41 +1001,175 @@ def validate_service_type_response(identity, status, body):
 
 
 class FakeDestroyTransport:
-    """Offline double for the destroy contracts: every request is built by a builder and checked before sending."""
+    """Offline double for the destroy contracts.
 
-    def __init__(self, policy, server):
+    ``send`` is the only way to the server. It refuses after the global deadline, authorises the request against the
+    policy and this transport's evidence (it must equal, field for field, what a builder makes; see authorize), bounds
+    it by its own timeout or the remaining global time, and refuses a response that arrives too late. A refused
+    request never reaches the server.
+    """
+
+    def __init__(self, policy, server, deadline):
+        need(isinstance(policy, DestroyPolicy) and callable(server) and isinstance(deadline, Deadline),
+             "fake_transport_needs_policy_server_and_deadline")
         self.policy = policy
         self.server = server
+        self.deadline = deadline
         self.requests = []
+        self._issued = {}
+        self._targets = frozenset()
+        self._verified_crds = set()
+        self._paths = {object_path(identity_of(key)): identity_of(key) for key in policy.read}
+
+    # -- evidence ---------------------------------------------------------------------------------------------------
+    def _issue(self, kind, payload):
+        evidence = Evidence(self.policy, kind, payload)
+        self._issued[id(evidence)] = (evidence, evidence._seal)
+        return evidence
+
+    def _accept(self, evidence, kind):
+        stored = self._issued.get(id(evidence)) if isinstance(evidence, Evidence) else None
+        need(stored is not None and stored[0] is evidence and stored[1] == evidence._seal, "evidence_invalid")
+        return evidence.payload_for(self.policy, kind)
+
+    # -- the send boundary ------------------------------------------------------------------------------------------
+    def _candidates(self, request):
+        """(expected request, timeout) pairs this policy and this transport's evidence allow for this method and path."""
+        method, path, query = request["method"], request["path"], request["query"]
+        identity = self._paths.get(path)
+        if method == "DELETE":
+            if identity is not None and self.policy.delete_uid(identity_key(identity)) is not None:
+                yield (lambda: runtime_delete_request(self.policy, identity,
+                                                      self.policy.delete_uid(identity_key(identity)))), \
+                    DELETE_REQUEST_TIMEOUT_SECONDS
+            return
+        if identity is not None:
+            yield (lambda: destroy_metadata_request(self.policy, identity)), API_READ_TIMEOUT_SECONDS
+            if identity_key(identity) in self.policy.services:
+                yield (lambda: service_type_request(self.policy, identity)), API_READ_TIMEOUT_SECONDS
+        if DISCOVERY_PATH.fullmatch(path):
+            yield (lambda: discovery_request(self.policy, path)), API_READ_TIMEOUT_SECONDS
+        if path.startswith(CRD_PATH):
+            yield (lambda: crd_read_request(self.policy, path[len(CRD_PATH):])), API_READ_TIMEOUT_SECONDS
+        for name in sorted(self._verified_crds):
+            yield (lambda name=name: crd_instance_request_for(self.policy.crd_spec(name))), API_READ_TIMEOUT_SECONDS
+        parts = path.split("/")
+        if len(parts) == 6 and parts[1:4] == ["api", "v1", "namespaces"]:
+            target = ("", "v1", parts[5])
+            namespace = parts[4]
+        elif len(parts) == 7 and parts[1] == "apis" and parts[4] == "namespaces":
+            target = (parts[2], parts[3], parts[6])
+            namespace = parts[5]
+        else:
+            return
+        yield (lambda: namespace_list_request(self.policy, self._targets, namespace, *target,
+                                              query.get("continue"))), API_READ_TIMEOUT_SECONDS
+
+    def authorize(self, request):
+        """The request's timeout if this policy and this transport's evidence allow exactly this request."""
+        check_request(request)
+        for build, timeout in self._candidates(request):
+            try:
+                expected = build()
+            except TransportError:
+                continue
+            if expected == request:
+                return timeout
+        raise TransportError("request_not_authorized")
 
     def send(self, request):
-        check_request(request)
+        need(not self.deadline.expired(), "deadline_exceeded")
+        timeout = self.authorize(request)
+        limit = min(timeout, self.deadline.remaining())
+        clock = self.deadline.clock
+        start = clock.now()
         self.requests.append(request)
-        return self.server(request)
+        try:
+            status, body = self.server(request)
+        except TimeoutError:
+            raise TransportError("transport_timeout") from None
+        need(clock.now() - start <= limit, "deadline_exceeded" if self.deadline.expired() else "request_timeout")
+        return status, body
 
+    # -- operations -------------------------------------------------------------------------------------------------
     def get_metadata(self, identity):
         status, body = self.send(destroy_metadata_request(self.policy, identity))
         return validate_destroy_metadata(identity, status, body)
 
-    def discover(self, path):
+    def _discover(self, path):
         status, body = self.send(discovery_request(self.policy, path))
         return validate_discovery_response(path, status, body)
 
-    def list_namespace(self, namespace, group, version, resource, deadline=None):
+    def discover_all(self):
+        """Complete discovery: /api, /apis, /api/v1 and every advertised group version. Only a COMPLETE result issues
+        the discovery evidence that namespace LISTs need; a new discovery withdraws the previous evidence."""
+        for key, (evidence, _) in list(self._issued.items()):
+            if evidence._kind == "discovery":
+                del self._issued[key]
+        self._targets = frozenset()
+        try:
+            core = self._discover("/api")
+            groups = self._discover("/apis")
+            lists = {"v1": self._discover("/api/v1")}
+            for group in groups["groups"]:
+                for version in group["versions"]:
+                    gv = group["name"] + "/" + version
+                    lists[gv] = self._discover("/apis/" + gv)
+        except TransportError as error:
+            return {"status": "BLOCKED" if str(error) == "forbidden" else "UNKNOWN", "reason": str(error)}
+        result = discovery_targets(core, groups, lists)
+        if result["status"] != "COMPLETE":
+            return result
+        self._targets = frozenset(result["targets"])
+        evidence = self._issue("discovery", {"targets": [list(t) for t in result["targets"]],
+                                             "advertised": [list(a) for a in result["advertised"]]})
+        return {"status": "COMPLETE", "targets": result["targets"], "evidence": evidence}
+
+    def list_namespace(self, discovery, namespace, group, version, resource):
+        targets = frozenset(tuple(t) for t in self._accept(discovery, "discovery")["targets"])
+        need((group, version, resource) in targets, "list_target_not_discovered")
+
         def page(token):
-            status, body = self.send(namespace_list_request(self.policy, namespace, group, version, resource, token))
+            status, body = self.send(namespace_list_request(self.policy, targets, namespace, group, version, resource,
+                                                            token))
             return validate_list_response(namespace, LIST_PAGE_SIZE, status, body)
-        return collect_list(page, deadline)
+        return collect_list(page, self.deadline)
+
+    def inventory_namespace(self, discovery, namespace):
+        """Every discovered target of one namespace, listed and merged; no classification (6c-B4b)."""
+        targets = [tuple(t) for t in self._accept(discovery, "discovery")["targets"]]
+        results = []
+        for target in targets:
+            result = self.list_namespace(discovery, namespace, *target)
+            results.append((target, result))
+            if result["status"] != "COMPLETE":
+                break
+        return merge_listed(targets, results)
 
     def read_crd(self, name):
         status, body = self.send(crd_read_request(self.policy, name))
-        return validate_crd_response(name, status, body)
+        info = validate_crd_response(name, status, body)
+        if info is None:
+            return {"state": "absent"}
+        return {"state": "present", "info": info, "evidence": self._issue("crd_read", info)}
 
-    def crd_instances(self, name, verified):
+    def verify_crd(self, read_evidence, receipt_uid):
+        """The verdict for this transport's own CRD read; VERIFIED carries the evidence a CRD instance LIST needs."""
+        info = self._accept(read_evidence, "crd_read")
+        verdict = verify_crd(self.policy, info["name"], info, receipt_uid)
+        if verdict["verdict"] != "VERIFIED":
+            return verdict
+        self._verified_crds.add(info["name"])
+        evidence = self._issue("crd_verified", {"name": info["name"], "uid": info["uid"], "receipt_uid": receipt_uid,
+                                                "storage_version": self.policy.crd_spec(info["name"])["storage_version"]})
+        return dict(verdict, evidence=evidence)
+
+    def crd_instances(self, verified):
+        self._accept(verified, "crd_verified")
         try:
-            status, body = self.send(crd_instance_list_request(self.policy, name, verified))
-        except TimeoutError:
-            return {"verdict": "UNKNOWN", "reason": "transport_timeout"}
+            status, body = self.send(crd_instance_list_request(self.policy, verified))
+        except TransportError as error:
+            return {"verdict": "UNKNOWN", "reason": str(error)}
         return classify_crd_instances(status, body)
 
     def read_service_type(self, identity):
@@ -928,8 +1181,7 @@ class FakeDestroyTransport:
         return validate_runtime_delete_response(status)
 
 
-def open_destroy_transport(kind, policy=None, server=None):
+def open_destroy_transport(kind, policy=None, server=None, deadline=None):
     """Only the offline fake; any real destroy transport is refused."""
     need(APPROVED_TRANSPORTS.__contains__(kind), "real_transport_not_implemented")
-    need(isinstance(policy, DestroyPolicy) and callable(server), "fake_transport_needs_policy_and_server")
-    return FakeDestroyTransport(policy, server)
+    return FakeDestroyTransport(policy, server, deadline)

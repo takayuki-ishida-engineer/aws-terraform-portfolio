@@ -609,9 +609,9 @@ python3 scripts/local-workflow/k8s_runtime.py receipt verify --input <runtime-in
   - bounded timeouts;
   - Secrets only as the G9 contract above.
 
-**Tests.** `test_k8s_runtime_receipt.py` has 89 tests and 208 source mutations, each
+**Tests.** `test_k8s_runtime_receipt.py` has 95 tests and 245 source mutations, each
 detected: 39 tests and 58 mutations of its own, the 27 tests and 67 mutations of
-`test_k8s_certs_receipt.py` and the 23 tests and 83 mutations of
+`test_k8s_certs_receipt.py` and the 29 tests and 120 mutations of
 `test_k8s_runtime_destroy_foundation.py` (both below), whose classes it imports. It uses temporary stores outside the repository, the fake transport, and
 for `--cluster` the fake kubectl of the status tests. It covers:
 - modes, symlinks and owners;
@@ -671,11 +671,27 @@ reviewed plan and the receipt, immutable, and never widened by what a read retur
   `kube-system` namespace, never another UID (`delete_uid_not_proven`);
 - the G9 Secret GET and DELETE stay in `Policy(secret_project=...)`, unchanged.
 
-`check_request` refuses, before anything is sent, any method other than GET and
-DELETE, a collection DELETE, a query other than `limit` and `continue`, and DeleteOptions
-other than exactly the UID precondition with `propagationPolicy: Background` (no grace
-period, force, orphaning or finalizer change). `open_destroy_transport` opens only the
-fake.
+**The send boundary (review of PR #100).** `FakeDestroyTransport.send` is the only
+way to the server. It refuses after the global `Deadline`, then `authorize` requires the
+request to equal, field for field (method, path, query, headers, body), the request a
+builder makes for this policy and this transport's own evidence; anything else, including
+a raw request for a CRD, `kube-system`, a Secret, an unowned object or another UID, a full
+object, an undiscovered LIST or a changed header or query, is `request_not_authorized` and
+never reaches the server. Each request is bounded by its own D11 timeout or the remaining
+global time, whichever is less; a later answer is `request_timeout` or `deadline_exceeded`,
+never evidence, and the fake API's own timeout is `transport_timeout`. `check_request`
+still refuses any method other than GET and DELETE, a collection DELETE, a query other
+than `limit` and `continue`, and DeleteOptions other than exactly the UID precondition with
+`propagationPolicy: Background`. The generic `Policy` can no longer name a CRD or the
+`kube-system` namespace for deletion. `open_destroy_transport` opens only the fake and
+needs the policy, the server and the deadline; the policy's inputs come from
+`k8s_runtime_receipt.plan_identities` and `owned_uids`.
+
+**Evidence.** Discovery, CRD read and CRD verification results that later requests depend
+on are `Evidence`: issued by one transport for one policy, sealed and immutable. A builder
+accepts only evidence for its policy and kind with an intact seal; the transport accepts
+only evidence it issued and has not withdrawn (a new discovery withdraws the old one).
+Hand-made, copied, re-bound, edited or re-sealed evidence is `evidence_invalid`.
 
 **Validation.** Discovery documents (kinds, group versions, duplicates), LIST pages
 (`PartialObjectMetadataList` only; payload keys or the last-applied annotation refused by
@@ -686,18 +702,30 @@ Established) and the Service read (only UID and type). A DELETE answered 200 or 
 `REQUESTED`, never done; a NotFound counts only as the API server's `Status` for that
 object (`trusted_not_found`), never a bare 404 or a missing endpoint.
 
-**Discovery and pagination.** `discovery_targets` reads every advertised group version,
-keeps namespaced listable resources and returns UNKNOWN for a missing group version, an
-unknown mapping or an unlistable resource outside `bindings` and
-`localsubjectaccessreviews`. `collect_list` returns COMPLETE only when the last page has
+**Discovery and pagination.** `discover_all` reads `/api`, `/apis`, `/api/v1` and every
+advertised group version; `discovery_targets` keeps namespaced listable resources and
+returns UNKNOWN for a missing or unexpected resource list, an unknown mapping, an
+unlistable resource outside `bindings` and `localsubjectaccessreviews`, or no target at
+all. Only a COMPLETE discovery issues the evidence that namespace LISTs need, and only its
+targets can be listed (`list_target_not_discovered`). `inventory_namespace` lists every
+target of one namespace and `merge_listed` requires exactly the discovered targets, each
+listed once and COMPLETE (missing, unexpected, repeated or empty is UNKNOWN). `collect_list` returns COMPLETE only when the last page has
 no continue token; a 410 restarts the list from the start (at most twice) and discards the
 partial result; 100 pages per logical list, restarts included; a repeated token, a snapshot
 change, a duplicate, a timeout or an invalid page is UNKNOWN and a 403 is BLOCKED; nothing
 is sent after the global `Deadline` (3600 s, immutable). `merge_listed` merges versions of a
-resource (and the two event resources) by UID with the same name and namespace.
+resource (and the two event resources) by UID only with the same name, namespace, owners,
+finalizers and deletion state (`cross_version_conflict` otherwise). Pages also refuse an
+item type other than `PartialObjectMetadata`, an empty resourceVersion, an invalid
+`remainingItemCount`, malformed or conflicting owner references (two controllers, a
+repeated owner), repeated finalizers, a malformed `deletionTimestamp`, and one name with two
+UIDs across pages (`list_identity_conflict`).
 
 **CRDs.** `verify_crd` is VERIFIED only for the receipt UID, the reviewed group, plural and
-scope, the storage version served and Established. `classify_crd` adds CRD_NOT_CREATED (no
+scope, the storage version served and Established; the CRD read refuses a missing,
+repeated or invalid Established condition and repeated, malformed or not exactly one
+storage version. Only the transport's own `verify_crd` issues the evidence that a CRD
+instance LIST needs; a VERIFIED dictionary is not evidence. `classify_crd` adds CRD_NOT_CREATED (no
 creation evidence, no open INTENT, trusted NotFound, discovery not serving the plural) and
 BLOCKED for a claimed CRD that is missing or a foreign CRD. `classify_crd_instances` is
 ZERO_INSTANCES only for 200, no items and no continue token.
@@ -713,7 +741,7 @@ released. `reconcile` reports `DELETE_PENDING_RECHECK`, `DELETE_ABSENT_UNCONFIRM
 an older reader refuses the new records; `k8s_runtime_apply` stops on a destroy-phase
 journal (`receipt_destroy_phase`) before any read or write.
 
-**Tests.** `test_k8s_runtime_destroy_foundation.py`: 23 tests and 83 source mutations,
+**Tests.** `test_k8s_runtime_destroy_foundation.py`: 29 tests and 120 source mutations,
 each detected by an assertion (a crash is undetected), run inside the
 `k8s_runtime_receipt_tests` suite.
 
