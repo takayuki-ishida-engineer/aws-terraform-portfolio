@@ -487,6 +487,13 @@ Before the Codex handover, CI-PERF-01 shortens Full CI while keeping every check
   and parallel results, matched-environment benchmarks, cost/resource evidence,
   and required CI must pass before separate Owner adoption (OD-PERF-02) and merge
   approval. No automatic adoption, fallback, or waiver of commit-before-CI review.
+  The coordinator and the `ci_policy` tests start behind a clean descriptor
+  boundary (`close_fds`); the strict inherited-descriptor guard stays in force.
+- **PR #104 correction (Owner decision 2026-11-25):** the remaining CI-PERF-01B
+  corrective implementation is assigned to Claude (root cause, correction, local
+  verification, and commit/push after review); ChatGPT independently reviews it and
+  verifies the CI evidence. Every quality gate stays in force; merge and the adoption
+  of a parallel mode still need explicit Owner approval.
 
 Responsibilities, for CI-PERF-01 only (Owner decision after the MASTER_POLICY v14.6
 release, 2026-11-24):
@@ -497,16 +504,21 @@ release, 2026-11-24):
 | Required profiling | Claude |
 | Implementation design and scope | ChatGPT |
 | Implementation approval | Owner |
-| CI-PERF-01B implementation | ChatGPT |
-| Independent review, local tests and benchmark | Claude |
-| Corrections | ChatGPT |
+| CI-PERF-01B implementation | ChatGPT (PR #104 corrective work: Claude, see below) |
+| Independent review, local tests and benchmark | Claude (PR #104 corrective work: ChatGPT reviews) |
+| Corrections | ChatGPT (PR #104 corrective work: Claude) |
 | Required CI and Full CI | Joint verification |
 | Merge approval and squash merge | Owner / Claude |
 | Final handover baseline | ChatGPT |
 | Formal Codex handover | Owner / ChatGPT |
 
 A problem Claude finds in review is reported with its evidence, reproduction and
-impact, and ChatGPT corrects it; Claude then re-verifies independently. This role change
+impact, and ChatGPT corrects it; Claude then re-verifies independently. For the
+remaining PR #104 corrective work the Owner decision of 2026-11-25 above takes
+precedence: Claude investigates, corrects, verifies locally and commits/pushes the
+exact reviewed tree; ChatGPT independently reviews the correction and verifies the CI
+evidence, and a finding goes back to Claude. It applies to CI-PERF-01B only and does
+not change the post-handover responsibilities. This role change
 is not an exemption from the MASTER_POLICY. The quality gates, local verification
 before commit, required CI, security contracts, Owner merge approval, Branch Protection
 and the cost policy stay in force. The one-time PR #101 exception is ended and is not

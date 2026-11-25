@@ -353,7 +353,9 @@ jobs:
           # trigger and merge checks are tested (unit, negative and mutation); every
           # workflow keeps its safety invariants; no tracked file holds a credential;
           # and every real AWS/EKS operation entry point is refused under CI markers.
-          python3 - <<'PYCI'
+          # The tests run behind a clean descriptor boundary (close_fds): the hosted
+          # step shell can hold an inherited descriptor that the fork guard refuses.
+          python3 scripts/ci/runtime_test_runner.py --clean-python-stdin <<'PYCI'
           import sys, unittest
           sys.path.insert(0, "scripts/ci")
           from expected_counts import load
@@ -1135,7 +1137,8 @@ jobs:
           print("Kubernetes runtime status tests passed (fake kubectl only):", status_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_status.MUTATIONS))
           PYRUNTIMEPLAN
           # CI-PERF-01B candidate: bounded, independent offline receipt/apply processes.
-          # A passing candidate run does not authorize adoption or merge.
+          # A passing candidate run does not authorize adoption or merge. The runner
+          # relaunches its coordinator behind the same clean descriptor boundary.
           python3 scripts/ci/runtime_test_runner.py --workers auto | tee "$RUNNER_TEMP/runtime-runner.jsonl"
           python3 - "$RUNNER_TEMP/runtime-runner.jsonl" <<'PYRUNTIMECOUNTS'
           import sys

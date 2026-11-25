@@ -18,7 +18,7 @@ AWS service-reference downloads that the existing Full CI steps already make.
 | `full_ci_trigger.py` | First Full CI step after checkout: refuses any trigger except a high-risk pull request or an Owner milestone dispatch for an exact HEAD |
 | `merge_check.py` | Post-merge tree check: squash parent is the reviewed base and the squash tree equals the tree CI verified |
 | `safety_checks.py` | `workflows`, `secrets`, `guards` (always-on) and `changed` (syntax and `git diff --check` of the changed files) |
-| `test_ci.py` | 65 unit and negative tests and 90 source mutations, run in the `ci_policy` step |
+| `test_ci.py` | 72 unit and negative tests and 97 source mutations, run in the `ci_policy` step |
 | `runtime_test_runner.py` | CI-PERF-01B candidate: bounded Linux fork-per-task execution of offline receipt/apply tests |
 
 ## CI-PERF-01B candidate runtime runner
@@ -41,6 +41,18 @@ Use the pinned Helm binary and the same credential-free environment as Full CI:
 Explicit requests over the detected CPU/memory budget fail; no silent fallback.
 Use the unchanged base in a separate disposable checkout for the legacy serial comparison.
 Compare complete candidate evidence logs using `runtime_test_runner.py --compare SERIAL_JSONL PARALLEL_JSONL`.
+
+**Clean descriptor boundary.** A hosted step shell can hold an inherited descriptor
+that is not close-on-exec (PR #104 failed with `unexpected_parent_descriptor:142`).
+The coordinator therefore never starts in the step's own process: `--workers N`
+relaunches itself through `clean_exec()` (a fresh `subprocess` with `close_fds=True`,
+keeping only stdin, stdout and stderr), and the `ci_policy` step runs `test_ci.py`
+through `runtime_test_runner.py --clean-python-stdin`. Only the new child loses the
+inherited descriptors; the launcher closes nothing of its own. SIGINT/SIGTERM are
+forwarded, and the child's exit code or terminating signal is propagated (SIGKILL
+included; a terminating signal blocked in the launcher is unblocked first; an
+unpropagatable signal yields 128 + signum, never success), so `pipefail` still applies. The strict `check_parent()` guard is unchanged: a descriptor
+opened inside the coordinator is still refused, and no descriptor number is allowlisted.
 
 Each task gets a fresh process, separate HOME/TMPDIR, no inherited unexpected
 file descriptors or threads, a private process group, bounded deadlines and cleanup.
@@ -82,7 +94,7 @@ environment as Full CI. Steps:
 6. **Verify**: exactly the selected and always-on steps succeeded and every other copied
    step was skipped (`impact.py verify` over `toJSON(steps)`).
 
-`ci_policy` runs `test_ci.py` (24 → 31 → 65 tests and 47 → 73 → 90 mutations, pinned in `tests/expected-counts.json`),
+`ci_policy` runs `test_ci.py` (24 → 31 → 65 → 72 tests and 47 → 73 → 90 → 97 mutations, pinned in `tests/expected-counts.json`),
 `pr_safety_workflow.py --check`, `impact.py check`, and `safety_checks.py workflows`,
 `secrets` and `guards`:
 

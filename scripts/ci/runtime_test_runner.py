@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -468,6 +469,61 @@ def managed_signals():
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
+
+
+def clean_exec(argv):
+    """Run argv in a fresh process that holds only stdin, stdout and stderr.
+
+    A CI host can leave a non-close-on-exec descriptor open in the step shell. It is
+    closed in the new child only (close_fds); this process's descriptors are left
+    alone, and the coordinator's strict check_parent() guard still applies inside.
+    SIGINT/SIGTERM are forwarded. Returns the child's returncode (negative: signal).
+    """
+    require(type(argv) is list and argv and all(type(arg) is str for arg in argv), "clean_exec_argv")
+    sys.stdout.flush()
+    sys.stderr.flush()
+    holder, pending = [None], []
+    previous = {sig: signal.getsignal(sig) for sig in STOP_SIGNALS}
+    def forward(signum, _frame):
+        if holder[0] is None:
+            pending.append(signum)  # forwarded as soon as the child exists
+        else:
+            holder[0].send_signal(signum)
+    try:
+        for sig in STOP_SIGNALS:
+            signal.signal(sig, forward)
+        try:
+            process = subprocess.Popen(argv, close_fds=True)
+        except OSError:
+            raise RunnerError("clean_exec_failed") from None
+        holder[0] = process
+        while pending:
+            process.send_signal(pending.pop(0))
+        return process.wait()
+    finally:
+        if holder[0] is not None and holder[0].poll() is None:
+            holder[0].kill()  # never leave the child behind on an unexpected exit
+            holder[0].wait()
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
+def exit_status(returncode):
+    """This process's status for a child's returncode: the same code or signal.
+
+    SIGKILL can be neither handled nor blocked. Any other terminating signal gets its
+    default action and is unblocked, so a mask inherited by this launcher cannot turn
+    the child's signal into an ordinary exit code. If the signal still does not end
+    this process, the result is a nonzero 128 + signum, never success.
+    """
+    if returncode >= 0:
+        return returncode
+    signum = -returncode
+    if signum != signal.SIGKILL:
+        signal.signal(signum, signal.SIG_DFL)
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signum})
+    os.kill(os.getpid(), signum)
+    return 128 + signum
 
 
 def run_tasks(tasks, workers, *, task_timeout=300, deadline=None):
@@ -997,11 +1053,26 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--workers", choices=("auto", "1", "2", "4"), default="1")
     mode.add_argument("--compare", nargs=2, metavar=("SERIAL_JSONL", "PARALLEL_JSONL"))
+    mode.add_argument("--clean-python-stdin", action="store_true",
+                      help="run the Python program on stdin in a fresh process with only stdin/stdout/stderr")
+    parser.add_argument("--clean-child", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.compare:
         compare_evidence(read_evidence(args.compare[0]), read_evidence(args.compare[1]))
         print("Candidate serial/parallel evidence matched")
         return 0
+    if args.clean_python_stdin:
+        require(not args.clean_child, "clean_child_mode_conflict")
+        return exit_status(clean_exec([sys.executable, "-"]))
+    if not args.clean_child:
+        # Every coordinator run starts behind the clean descriptor boundary.
+        return exit_status(clean_exec([sys.executable, str(Path(__file__).resolve()),
+                                       "--workers", args.workers, "--clean-child"]))
+    return coordinate(args)
+
+
+def coordinate(args):
+    """The fork-based coordinator; main() starts it only behind clean_exec()."""
     require(not sys.flags.optimize, "optimized_python_refused")
     require(os.environ.get("KUBECONFIG") == "/dev/null" and os.environ.get("PYTHONDONTWRITEBYTECODE") == "1",
             "offline_environment_required")

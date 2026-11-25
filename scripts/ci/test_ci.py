@@ -282,11 +282,108 @@ def probe_runner_explicit_counts(module):
                 path, receipt_expected={"tests": 1, "mutations": 4}, apply_expected={"tests": 1, "mutations": 2}))
 
 
+@contextlib.contextmanager
+def inherited_descriptor(start=142):
+    """A synthetic inheritable (not close-on-exec) descriptor, as a CI host can leak."""
+    source = os.open(os.devnull, os.O_RDONLY)
+    number = start
+    try:
+        while True:
+            try:
+                os.fstat(number)
+            except OSError:
+                break
+            number += 1
+        os.dup2(source, number, inheritable=True)
+    finally:
+        os.close(source)
+    try:
+        yield number
+    finally:
+        os.close(number)
+
+
+def descriptor_probe(number):
+    return "import os, sys; sys.exit(3 if os.path.exists('/proc/self/fd/%d') else 0)" % number
+
+
+def probe_runner_clean_descriptors(module):
+    with inherited_descriptor() as number:
+        argv = [sys.executable, "-c", descriptor_probe(number)]
+        assert subprocess.run(argv, close_fds=False, check=False).returncode == 3, "synthetic descriptor not inherited"
+        assert module.clean_exec(argv) == 0, "an inherited descriptor reached the clean child"
+
+
+def probe_runner_exit_status(module):
+    assert module.exit_status(7) == 7 and module.exit_status(0) == 0, "child exit status not propagated"
+
+
+def probe_runner_relaunch(module):
+    calls = []
+    def clean_exec(argv):
+        calls.append(argv)
+        return 0
+    def coordinate(args):
+        raise AssertionError("coordinator started without the clean descriptor boundary")
+    with mock.patch.object(module, "clean_exec", clean_exec), mock.patch.object(module, "coordinate", coordinate):
+        assert module.main(["--workers", "1"]) == 0
+    assert calls == [[sys.executable, str(Path(module.__file__).resolve()), "--workers", "1", "--clean-child"]], calls
+
+
+def exit_status_in_child(module, returncode, block=()):
+    """Apply module.exit_status in a forked child (it may terminate the caller)."""
+    pid = os.fork()
+    if pid == 0:
+        try:
+            if block:
+                signal.pthread_sigmask(signal.SIG_BLOCK, set(block))
+            code = module.exit_status(returncode)
+            os._exit(code & 0xFF if code else 0)
+        except BaseException:  # noqa: BLE001 - any error is a distinct status
+            os._exit(70)
+        finally:
+            os._exit(71)
+    _, status = os.waitpid(pid, 0)
+    return status
+
+
+def probe_runner_kill_status(module):
+    status = exit_status_in_child(module, -signal.SIGKILL)
+    assert os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGKILL, "SIGKILL not propagated: %d" % status
+
+
+def probe_runner_blocked_signal_status(module):
+    status = exit_status_in_child(module, -signal.SIGTERM, block={signal.SIGTERM})
+    assert os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGTERM, "blocked SIGTERM not propagated: %d" % status
+
+
+def probe_runner_signal_fallback(module):
+    # A signal whose default action is to ignore cannot end the launcher: still nonzero.
+    status = exit_status_in_child(module, -signal.SIGURG)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 128 + signal.SIGURG, "fallback status: %d" % status
+
+
+SIGNAL_CHILD = """import os, signal, sys, time
+signal.signal(signal.SIGTERM, lambda *_: os._exit(42))
+time.sleep(0.2)
+os.kill(os.getppid(), signal.SIGTERM)
+time.sleep(3)
+sys.exit(3)
+"""
+
+
+def probe_runner_signal_forwarding(module):
+    assert module.clean_exec([sys.executable, "-c", SIGNAL_CHILD]) == 42, "stop signal not forwarded to the child"
+
+
 RUNNER_PROBES = (probe_runner_duplicate_task, probe_runner_duplicate_result, probe_runner_missing_result,
                  probe_runner_exit, probe_runner_residual, probe_runner_group, probe_runner_worker_limit,
                  probe_runner_deadline, probe_runner_verdict, probe_runner_inline_baseline,
                  probe_runner_test_failure, probe_runner_witness, probe_runner_baseline_map,
-                 probe_runner_cache, probe_runner_equivalence, probe_runner_diagnostic, probe_runner_explicit_counts)
+                 probe_runner_cache, probe_runner_equivalence, probe_runner_diagnostic, probe_runner_explicit_counts,
+                 probe_runner_clean_descriptors, probe_runner_exit_status, probe_runner_relaunch,
+                 probe_runner_signal_forwarding, probe_runner_kill_status, probe_runner_blocked_signal_status,
+                 probe_runner_signal_fallback)
 
 
 class RuntimeIntegrationTests(unittest.TestCase):
@@ -489,8 +586,88 @@ class RuntimeIntegrationTests(unittest.TestCase):
         self.assertEqual(evidence[0]["parallel_mutations"], {"x": {"verdict": "detected", "inline_baseline": False}})
 
 
-EXPECTED_TESTS = 65
-EXPECTED_MUTATIONS = 90
+class RunnerBoundaryTests(unittest.TestCase):
+    """The clean descriptor boundary in front of the fork-based coordinator."""
+
+    def launch(self, args, script, number=None):
+        return subprocess.run([sys.executable, str(HERE / RUNNER), *args], input=script, text=True,
+                              capture_output=True, cwd=REPO, check=False, timeout=120,
+                              pass_fds=() if number is None else (number,))
+
+    def test_inherited_descriptor_reproduced_and_isolated(self):
+        with inherited_descriptor() as number:
+            script = ("import os, sys\nsys.path.insert(0, 'scripts/ci')\nimport runtime_test_runner as r\n"
+                      "print(r.run_tasks([('fd', lambda: os.path.exists('/proc/self/fd/%d'))], 1))\n" % number)
+            dirty = subprocess.run([sys.executable, "-"], input=script, text=True, capture_output=True, cwd=REPO,
+                                   check=False, timeout=120, pass_fds=(number,))
+            self.assertNotEqual(dirty.returncode, 0)
+            self.assertIn("unexpected_parent_descriptor:%d" % number, dirty.stderr)
+            clean = self.launch(["--clean-python-stdin"], script, number)
+            self.assertEqual((clean.returncode, clean.stdout.strip()), (0, "{'fd': False}"), clean.stderr[-300:])
+            opened = script.replace("import runtime_test_runner as r\n",
+                                    "import runtime_test_runner as r\nheld = open(os.devnull)\n")
+            inside = self.launch(["--clean-python-stdin"], opened, number)
+            self.assertEqual(inside.returncode, 1)
+            self.assertIn("unexpected_parent_descriptor:", inside.stderr)
+            self.assertNotIn("unexpected_parent_descriptor:%d" % number, inside.stderr)
+
+    def test_clean_exec_closes_inherited_descriptor(self):
+        probe_runner_clean_descriptors(runner)
+
+    def test_coordinator_relaunches_behind_boundary(self):
+        probe_runner_relaunch(runner)
+        with mock.patch.object(runner, "clean_exec", side_effect=AssertionError("relaunched twice")), \
+                mock.patch.object(runner, "coordinate", return_value=0) as coordinate:
+            self.assertEqual(runner.main(["--workers", "1", "--clean-child"]), 0)
+        coordinate.assert_called_once()
+        with self.assertRaisesRegex(runner.RunnerError, "clean_child_mode_conflict"):
+            runner.main(["--clean-python-stdin", "--clean-child"])
+
+    def test_exit_status_and_signal_propagation(self):
+        probe_runner_exit_status(runner)
+        self.assertEqual(self.launch(["--clean-python-stdin"], "import sys; sys.exit(7)").returncode, 7)
+        killed = self.launch(["--clean-python-stdin"], "import os, signal; os.kill(os.getpid(), signal.SIGTERM)")
+        self.assertEqual(killed.returncode, -signal.SIGTERM)
+
+    def test_signal_termination_matrix(self):
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGABRT, signal.SIGPIPE, signal.SIGKILL):
+            script = ("import os, signal\nif signal.%s != signal.SIGKILL:\n    signal.signal(signal.%s, signal.SIG_DFL)\n"
+                      "os.kill(os.getpid(), signal.%s)\n" % (signum.name, signum.name, signum.name))
+            launched = self.launch(["--clean-python-stdin"], script)
+            self.assertEqual(launched.returncode, -signum, signum.name)
+            self.assertNotIn("Traceback", launched.stderr)
+
+    def test_blocked_and_uncatchable_signal_status(self):
+        probe_runner_kill_status(runner)
+        probe_runner_blocked_signal_status(runner)
+        probe_runner_signal_fallback(runner)
+        script = ("import os, signal\nsignal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})\n"
+                  "os.kill(os.getpid(), signal.SIGTERM)\n")
+        blocked = subprocess.run([sys.executable, str(HERE / RUNNER), "--clean-python-stdin"], input=script, text=True,
+                                 capture_output=True, cwd=REPO, check=False, timeout=120,
+                                 preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM}))
+        self.assertEqual(blocked.returncode, -signal.SIGTERM)
+
+    def test_stop_signals_forwarded_to_clean_child(self):
+        probe_runner_signal_forwarding(runner)
+        process = subprocess.Popen([sys.executable, str(HERE / RUNNER), "--clean-python-stdin"], cwd=REPO,
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        try:
+            process.stdin.write("import os, signal, sys, time\nsignal.signal(signal.SIGTERM, lambda *_: os._exit(42))\n"
+                                "print('ready', flush=True)\ntime.sleep(10)\nsys.exit(3)\n")
+            process.stdin.close()
+            self.assertEqual(process.stdout.readline().strip(), "ready")
+            process.send_signal(signal.SIGTERM)
+            self.assertEqual(process.wait(timeout=20), 42)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            process.stdout.close()
+
+
+EXPECTED_TESTS = 72
+EXPECTED_MUTATIONS = 97
 FULL = ".github/workflows/terraform-offline-ci.yml"
 SAFETY = ".github/workflows/pr-safety-ci.yml"
 SHA_A, SHA_B, SHA_C, SHA_D = ("a" * 40, "b" * 40, "c" * 40, "d" * 40)
@@ -1158,6 +1335,14 @@ MUTATIONS = [
     (RUNNER, 'require(left == right, "serial_parallel_evidence_mismatch")', 'pass', probe_runner_equivalence),
     (RUNNER, '    validate_diagnostic(item)\n    print("Runtime failure diagnostic:', '    pass\n    print("Runtime failure diagnostic:', probe_runner_diagnostic),
     (RUNNER, '    if receipt_expected is None:', '    if True:', probe_runner_explicit_counts),
+    (RUNNER, 'process = subprocess.Popen(argv, close_fds=True)', 'process = subprocess.Popen(argv, close_fds=False)',
+     probe_runner_clean_descriptors),
+    (RUNNER, '        return returncode', '        return 0', probe_runner_exit_status),
+    (RUNNER, '    if not args.clean_child:', '    if False:', probe_runner_relaunch),
+    (RUNNER, '            holder[0].send_signal(signum)', '            pass', probe_runner_signal_forwarding),
+    (RUNNER, '    if signum != signal.SIGKILL:', '    if True:', probe_runner_kill_status),
+    (RUNNER, '        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signum})', '        pass', probe_runner_blocked_signal_status),
+    (RUNNER, '    return 128 + signum', '    return 0', probe_runner_signal_fallback),
 ]
 
 
