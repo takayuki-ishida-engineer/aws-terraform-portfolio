@@ -18,7 +18,47 @@ AWS service-reference downloads that the existing Full CI steps already make.
 | `full_ci_trigger.py` | First Full CI step after checkout: refuses any trigger except a high-risk pull request or an Owner milestone dispatch for an exact HEAD |
 | `merge_check.py` | Post-merge tree check: squash parent is the reviewed base and the squash tree equals the tree CI verified |
 | `safety_checks.py` | `workflows`, `secrets`, `guards` (always-on) and `changed` (syntax and `git diff --check` of the changed files) |
-| `test_ci.py` | 31 unit and negative tests and 73 source mutations, run in the `ci_policy` step |
+| `test_ci.py` | 65 unit and negative tests and 90 source mutations, run in the `ci_policy` step |
+| `runtime_test_runner.py` | CI-PERF-01B candidate: bounded Linux fork-per-task execution of offline receipt/apply tests |
+
+## CI-PERF-01B candidate runtime runner
+
+The Owner approved implementation and evaluation, not final adoption. Plan and status
+remain serial. Receipt and apply run real unittest TestCases, preserving 144/382 and
+58/163 reviewed test/mutation counts respectively. The 113 destroy-engine and 163
+apply mutations use per-ID tasks inside their original aggregate TestCase. The other
+mutation loops stay serial internally. Explicit normal-code scenario witnesses cover
+125 scenarios; the three RC-2 and two previously uncovered apply scenarios run their
+normal-code baseline before mutation. A baseline/fixture/assembly failure or crash
+is never accepted as detection. The structured per-ID results must match inventory.
+
+Use the pinned Helm binary and the same credential-free environment as Full CI:
+`KUBECONFIG=/dev/null`, `PYTHONDONTWRITEBYTECODE=1`,
+`AWS_EC2_METADATA_DISABLED=true`, `AWS_SHARED_CREDENTIALS_FILE=/dev/null`, and
+`AWS_CONFIG_FILE=/dev/null`. Do not pass actual credentials. The candidate supports
+`python3 scripts/ci/runtime_test_runner.py --workers 1` (candidate serial),
+`--workers 2`, `--workers 4`, and `--workers auto` (resource-bounded, maximum four).
+Explicit requests over the detected CPU/memory budget fail; no silent fallback.
+Use the unchanged base in a separate disposable checkout for the legacy serial comparison.
+Compare complete candidate evidence logs using `runtime_test_runner.py --compare SERIAL_JSONL PARALLEL_JSONL`.
+
+Each task gets a fresh process, separate HOME/TMPDIR, no inherited unexpected
+file descriptors or threads, a private process group, bounded deadlines and cleanup.
+The existing Helm cache is prepared once in the isolated parent. Child mutable state
+is not shared. Result completeness, exit status, unittest lifecycle, baseline witnesses,
+and missing/duplicate/unknown IDs fail closed. The Runner change selects the runtime
+step and requires Full CI. Both runtime suite counts are explicitly loaded in that
+step and bound to the validated runner evidence. Failure diagnostics retain task ID,
+exception category and repository source frames on stderr, never raw worker output,
+exception messages, source text or locals. The generated PR Safety workflow must
+match the generator.
+
+The candidate must not be merged before independent review, exact pre-commit local
+verification, serial/parallel equivalence, measured resource/performance evidence,
+required CI, and the separate Owner adoption and merge approval. Production Receipt
+and Journal replay remain unchanged; the underlying cost is a residual performance
+issue, not an authorization to relax safety validation. Status subprocess cost is
+also outside this candidate's scope.
 
 ## PR Safety CI
 
@@ -42,7 +82,7 @@ environment as Full CI. Steps:
 6. **Verify**: exactly the selected and always-on steps succeeded and every other copied
    step was skipped (`impact.py verify` over `toJSON(steps)`).
 
-`ci_policy` runs `test_ci.py` (24 → 31 tests and 47 → 73 mutations, pinned in `tests/expected-counts.json`),
+`ci_policy` runs `test_ci.py` (24 → 31 → 65 tests and 47 → 73 → 90 mutations, pinned in `tests/expected-counts.json`),
 `pr_safety_workflow.py --check`, `impact.py check`, and `safety_checks.py workflows`,
 `secrets` and `guards`:
 
@@ -158,6 +198,7 @@ order. Over-approximation is deliberate: when in doubt a step runs.
 | --- | --- | --- |
 | kubernetes-runtime | `kubernetes/**` except Markdown | kubernetes_runtime, kubernetes_runtime_plan |
 | ci-tooling | `scripts/ci/**`, Full CI and PR Safety workflows | always-on `ci_policy` (plus changed step definitions) |
+| runtime-test-runner | `scripts/ci/runtime_test_runner.py` | kubernetes_runtime_plan (and its prerequisite) |
 | emulator-workflows | `.github/workflows/aws-emulator-*.yml` | emulator contracts (unit, rehearsal gate) |
 | emulator-tooling | `scripts/emulator-{verification,rehearsal,evidence}/**`, `docs/evidence/**` | all four emulator contracts steps |
 | repository-hygiene | `scripts/repository-hygiene/**` | always-on `hygiene` |

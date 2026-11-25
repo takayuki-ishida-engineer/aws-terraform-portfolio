@@ -475,6 +475,18 @@ Before the Codex handover, CI-PERF-01 shortens Full CI while keeping every check
 - **Order:** profiling and design (CI-PERF-01A) come before implementation approval.
   The implementation (CI-PERF-01B) is a high-risk CI change under the CI execution
   policy above, with Full CI.
+- **CI-PERF-01B candidate (OD-PERF-01):** the Owner approved implementation and
+  evaluation of offline Receipt/Apply test process isolation only. Use bounded
+  Linux fork-per-task, at most four workers subject to CPU/memory limits, one fresh
+  child per task, independent HOME/TMPDIR and process-group cleanup. Keep Plan and
+  Status serial, all 252 Runtime Test IDs and 616 Mutation definitions, and the
+  original aggregate TestCases. Verify normal-code scenario witnesses, including
+  the three RC-2 inline baselines and the two Apply baseline gaps. Reject missing,
+  duplicate, unknown, crashed or timed-out work and any invalid lifecycle/result.
+  Production Receipt/Journal code and contracts remain untouched. Candidate serial
+  and parallel results, matched-environment benchmarks, cost/resource evidence,
+  and required CI must pass before separate Owner adoption (OD-PERF-02) and merge
+  approval. No automatic adoption, fallback, or waiver of commit-before-CI review.
 
 Responsibilities, for CI-PERF-01 only (Owner decision after the MASTER_POLICY v14.6
 release, 2026-11-24):

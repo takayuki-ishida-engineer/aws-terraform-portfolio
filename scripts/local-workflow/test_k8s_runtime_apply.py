@@ -2808,26 +2808,53 @@ def mods_for(filename, old, new):
     return Mods(apply=apply_module, receipt=receipt_mutant)
 
 
+def execute_apply_mutation(case, item):
+    """One mutation with explicit baseline checks for previously uncovered scenarios."""
+    name, filename, old, new, scenario = item
+    inline = scenario in (scenario_write_refused_runtime_lost, scenario_write_time_ownership)
+    CRASHES.clear()
+    if inline:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            scenario(case, real_mods())
+        case.assertFalse(CRASHES, "normal-code baseline crashed")
+    mods = mods_for(filename, old, new)  # assembly failures are outside mutation detection
+    CRASHES.clear()
+    diagnose = getattr(case, "_runtime_diagnostic", None)
+    verdict = "undetected"
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            scenario(case, mods)
+    except AssertionError as error:
+        trace = error.__traceback__
+        fixture_failed = False
+        while trace is not None:
+            if trace.tb_frame.f_code in (Run.__init__.__code__, Run.new_store.__code__, bundle.__code__):
+                fixture_failed = True
+            trace = trace.tb_next
+        verdict = "crashed" if fixture_failed or CRASHES else "detected"
+        if verdict == "crashed" and diagnose is not None:
+            diagnose(sys.exc_info())
+    except BaseException:  # noqa: BLE001 - an escaped exception is a crash, not a detection
+        verdict = "crashed"
+        if diagnose is not None:
+            diagnose(sys.exc_info())
+    if CRASHES:
+        verdict = "crashed"
+    return {"verdict": verdict, "inline_baseline": inline}
+
+
 class MutationTests(unittest.TestCase):
     def test_each_guard_mutation_is_detected(self):
         """A mutant counts only when a contract assertion fails without the code under test crashing."""
         self.assertEqual(len(MUTATIONS), 163)
-        undetected, crashed = [], []
-        for name, filename, old, new, scenario in MUTATIONS:
-            mods = mods_for(filename, old, new)
-            CRASHES.clear()
-            try:
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    scenario(self, mods)
-            except AssertionError:
-                if CRASHES:
-                    crashed.append(name + " (" + CRASHES[0] + ")")
-                continue
-            except Exception as raised:  # noqa: BLE001 - an escaped exception is a crash, not a detection
-                crashed.append(name + " (" + type(raised).__name__ + ")")
-                continue
-            undetected.append(name)
-        self.assertEqual((undetected, crashed), ([], []))
+        self.assertEqual(len(MUTATIONS), len({m[0] for m in MUTATIONS}))
+        dispatch = getattr(self, "_runtime_dispatch", None)
+        if dispatch is None:
+            results = {item[0]: execute_apply_mutation(self, item) for item in MUTATIONS}
+        else:
+            results = dispatch(self, MUTATIONS, execute_apply_mutation)
+        self.assertEqual(set(results), {item[0] for item in MUTATIONS})
+        self.assertEqual([name for name, value in results.items() if value["verdict"] != "detected"], [])
 
 
 if __name__ == "__main__":
