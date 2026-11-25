@@ -2769,29 +2769,49 @@ ENGINE_MUTATIONS = [
 ]
 
 
+def execute_engine_mutation(case, item):
+    """One existing mutation; assembly and the RC-2 baseline are outside detection."""
+    name, filename, old, new, scenario = item
+    inline = name in ("certs_secret_blocks", "namespace_d13", "runtime_object_class")
+    if inline:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            scenario(case, real_mods())
+    mods = real_mods()
+    setattr(mods, {D: "destroy", R: "receipt", TR: "transport"}[filename], mutant(filename, old, new))
+    diagnose = getattr(case, "_runtime_diagnostic", None)
+    verdict = "undetected"
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            scenario(case, mods)
+    except AssertionError as error:
+        # An assertion raised during fixture construction is not a contract detection.
+        trace = error.__traceback__
+        fixture_failed = False
+        while trace is not None:
+            if trace.tb_frame.f_code in (World.__init__.__code__, bundle.__code__):
+                fixture_failed = True
+            trace = trace.tb_next
+        verdict = "crashed" if fixture_failed else "detected"
+        if verdict == "crashed" and diagnose is not None:
+            diagnose(sys.exc_info())
+    except BaseException:  # noqa: BLE001 - a crash is never counted as a detection
+        verdict = "crashed"
+        if diagnose is not None:
+            diagnose(sys.exc_info())
+    return {"verdict": verdict, "inline_baseline": inline}
+
+
 class DestroyEngineMutationTests(unittest.TestCase):
     def test_each_engine_guard_mutation_is_detected_by_an_assertion(self):
         self.assertEqual(len(ENGINE_MUTATIONS), 113)
         self.assertEqual(len(ENGINE_MUTATIONS), len({m[0] for m in ENGINE_MUTATIONS}))
-        undetected = []
-        for name, filename, old, new, scenario in ENGINE_MUTATIONS:
-            # A failing baseline is a test failure, never a detected mutation. These
-            # formerly shared scenarios are now isolated and checked before mutation.
-            if name in ("certs_secret_blocks", "namespace_d13", "runtime_object_class"):
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    scenario(self, real_mods())
-            mods = real_mods()
-            setattr(mods, {D: "destroy", R: "receipt", TR: "transport"}[filename], mutant(filename, old, new))
-            try:
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    scenario(self, mods)
-            except AssertionError:
-                continue
-            except BaseException as crashed:  # noqa: BLE001 - a crash is never counted as a detection
-                undetected.append(name + ":crashed:" + type(crashed).__name__)
-                continue
-            undetected.append(name)
-        self.assertEqual(undetected, [])
+        dispatch = getattr(self, "_runtime_dispatch", None)
+        if dispatch is None:
+            results = {item[0]: execute_engine_mutation(self, item) for item in ENGINE_MUTATIONS}
+        else:
+            results = dispatch(self, ENGINE_MUTATIONS, execute_engine_mutation)
+        self.assertEqual(set(results), {item[0] for item in ENGINE_MUTATIONS})
+        self.assertEqual([name for name, value in results.items() if value["verdict"] != "detected"], [])
 
 
 if __name__ == "__main__":

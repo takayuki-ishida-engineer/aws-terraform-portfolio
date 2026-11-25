@@ -353,7 +353,9 @@ jobs:
           # trigger and merge checks are tested (unit, negative and mutation); every
           # workflow keeps its safety invariants; no tracked file holds a credential;
           # and every real AWS/EKS operation entry point is refused under CI markers.
-          python3 - <<'PYCI'
+          # The tests run behind a clean descriptor boundary (close_fds): the hosted
+          # step shell can hold an inherited descriptor that the fork guard refuses.
+          python3 scripts/ci/runtime_test_runner.py --clean-python-stdin <<'PYCI'
           import sys, unittest
           sys.path.insert(0, "scripts/ci")
           from expected_counts import load
@@ -1133,17 +1135,22 @@ jobs:
           if not status_result.wasSuccessful() or status_result.skipped or status_result.testsRun != load("k8s_runtime_status_tests")["tests"] or len(test_k8s_runtime_status.MUTATIONS) != load("k8s_runtime_status_tests")["mutations"]:
               raise SystemExit("Kubernetes runtime status tests failed, skipped or changed the reviewed counts.")
           print("Kubernetes runtime status tests passed (fake kubectl only):", status_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_status.MUTATIONS))
-          import test_k8s_runtime_receipt
-          receipt_result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_runtime_receipt))
-          if not receipt_result.wasSuccessful() or receipt_result.skipped or receipt_result.testsRun != load("k8s_runtime_receipt_tests")["tests"] or len(test_k8s_runtime_receipt.MUTATIONS) != load("k8s_runtime_receipt_tests")["mutations"]:
-              raise SystemExit("Kubernetes runtime receipt/transport tests failed, skipped or changed the reviewed counts.")
-          print("Kubernetes runtime receipt, recovery and transport-contract tests passed (local fakes only):", receipt_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_receipt.MUTATIONS))
-          import test_k8s_runtime_apply
-          apply_result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_k8s_runtime_apply))
-          if not apply_result.wasSuccessful() or apply_result.skipped or apply_result.testsRun != load("k8s_runtime_apply_tests")["tests"] or len(test_k8s_runtime_apply.MUTATIONS) != load("k8s_runtime_apply_tests")["mutations"]:
-              raise SystemExit("Kubernetes runtime fake apply engine tests failed, skipped or changed the reviewed counts.")
-          print("Kubernetes runtime fake apply engine tests passed (namespaces and base stages, fake adapter only):", apply_result.testsRun, "- guard mutations detected:", len(test_k8s_runtime_apply.MUTATIONS))
           PYRUNTIMEPLAN
+          # CI-PERF-01B candidate: bounded, independent offline receipt/apply processes.
+          # A passing candidate run does not authorize adoption or merge. The runner
+          # relaunches its coordinator behind the same clean descriptor boundary.
+          python3 scripts/ci/runtime_test_runner.py --workers auto | tee "$RUNNER_TEMP/runtime-runner.jsonl"
+          python3 - "$RUNNER_TEMP/runtime-runner.jsonl" <<'PYRUNTIMECOUNTS'
+          import sys
+          sys.path.insert(0, "scripts/ci")
+          from expected_counts import load
+          from runtime_test_runner import read_evidence
+          # Keep executable load calls in the Step: impact.py binds these suites to it.
+          suites = read_evidence(sys.argv[1], receipt_expected=load("k8s_runtime_receipt_tests"),
+                                 apply_expected=load("k8s_runtime_apply_tests"))
+          print("Kubernetes runtime receipt/apply reviewed counts and evidence verified:",
+                [(suite["suite"], suite["testsRun"], len(suite["mutation_definitions"])) for suite in suites])
+          PYRUNTIMECOUNTS
           python3 scripts/local-workflow/k8s_runtime.py plan --input kubernetes/tests/fixtures/runtime.json --helm "$K8S_RUNTIME_HELM" --fixture --format json > "$RUNNER_TEMP/runtime-plan.json"
           python3 - <<'PYPLANREPORT'
           import json, os

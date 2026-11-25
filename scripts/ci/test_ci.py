@@ -28,9 +28,646 @@ import impact  # noqa: E402
 import merge_check  # noqa: E402
 import pr_safety_workflow  # noqa: E402
 import safety_checks  # noqa: E402
+import runtime_test_runner as runner  # noqa: E402
+import contextlib
+import io
+import signal
+import time
 
-EXPECTED_TESTS = 31
-EXPECTED_MUTATIONS = 73
+RUNNER = "runtime_test_runner.py"
+
+
+class RunnerCoreTests(unittest.TestCase):
+    def test_complete_inventory(self):
+        tasks = [("x", lambda: 1), ("y", lambda: 2)]
+        self.assertEqual(runner.run_tasks(tasks, 1), {"x": 1, "y": 2})
+
+    def test_parallel_equivalence(self):
+        self.assertGreaterEqual(runner.available_cpus(), 1)
+        tasks = [(str(i), lambda n=i: n*n) for i in range(8)]
+        expected = runner.run_tasks(tasks, 1)
+        self.assertEqual(runner.run_tasks(tasks, min(4, runner.available_workers())), expected)
+
+    def test_worker_environment_and_state(self):
+        parent_home = os.environ.get("HOME")
+        parent_tmp = tempfile.tempdir
+        shared = []
+        def task():
+            shared.append(1)
+            return {"pid": os.getpid(), "home": str(Path.home()), "tmp": tempfile.gettempdir(),
+                    "size": len(shared), "kubeconfig": os.environ["KUBECONFIG"]}
+        results = runner.run_tasks([(str(i), task) for i in range(3)], min(2, runner.available_workers()))
+        self.assertEqual(len({x["pid"] for x in results.values()}), 3)
+        self.assertEqual(len({x["home"] for x in results.values()}), 3)
+        self.assertEqual(len({x["tmp"] for x in results.values()}), 3)
+        self.assertTrue(all(x["size"] == 1 and x["kubeconfig"] == "/dev/null" for x in results.values()))
+        self.assertTrue(all(not Path(x["home"]).exists() for x in results.values()))
+        self.assertEqual(shared, [])
+        self.assertEqual(os.environ.get("HOME"), parent_home)
+        self.assertEqual(tempfile.tempdir, parent_tmp)
+
+    def test_duplicate_task(self):
+        with self.assertRaisesRegex(runner.RunnerError, "duplicate_task_id"):
+            runner.run_tasks([("a", lambda: None), ("a", lambda: None)], 1)
+
+    def test_duplicate_result(self):
+        with self.assertRaisesRegex(runner.RunnerError, "duplicate_result_id"):
+            runner.check_results(["a", "b"], [{"id": "a", "value": 1}, {"id": "a", "value": 2}])
+
+    def test_missing_and_unknown_result(self):
+        for results in ([], [{"id": "b", "value": True}]):
+            with self.assertRaisesRegex(runner.RunnerError, "result_inventory_mismatch"):
+                runner.check_results(["a"], results)
+
+    def test_invalid_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for value in ('{', '{"id":"a","id":"a","value":1}', '{"id":"b","value":1}',
+                          '{"id":"a","value":NaN}', '{"id":"a","value":1,"extra":0}'):
+                (root / "result").write_text(value)
+                with self.assertRaises(runner.RunnerError):
+                    runner.read_result(root, "a")
+
+    def test_no_result(self):
+        with self.assertRaisesRegex(runner.RunnerError, "missing_or_unsafe_result"):
+            runner.run_tasks([("empty", lambda: os._exit(0))], 1)
+
+    def test_crash_is_not_detection(self):
+        def crash():
+            raise AssertionError("not a runner success")
+        with self.assertRaisesRegex(runner.RunnerError, "child_nonzero_exit"):
+            runner.run_tasks([("crash", crash)], 1)
+
+    def test_nonzero_after_result(self):
+        def bad_child(name, fn, directory):
+            os.setsid()
+            (directory / "result").write_text(json.dumps({"id": name, "value": True}))
+            os._exit(7)
+        with mock.patch.object(runner, "child_entry", bad_child):
+            with self.assertRaisesRegex(runner.RunnerError, "child_nonzero_exit"):
+                runner.run_tasks([("bad", lambda: None)], 1)
+
+    def test_timeout_reaps_child(self):
+        with self.assertRaisesRegex(runner.RunnerError, "task_timeout"):
+            runner.run_tasks([("slow", lambda: time.sleep(10))], 1, task_timeout=0.1)
+        self.assertEqual(runner.run_tasks([("next", lambda: True)], 1), {"next": True})
+
+    def test_residual_child_process_group(self):
+        def leaked():
+            if os.fork() == 0:
+                time.sleep(1)
+                os._exit(0)
+            return True
+        with self.assertRaisesRegex(runner.RunnerError, "residual_process_group|unexpected_adopted_child"):
+            runner.run_tasks([("leaked", leaked)], 1)
+        self.assertFalse(runner.direct_children())
+
+    def test_escaped_child_is_reclaimed(self):
+        def escaped():
+            if os.fork() == 0:
+                os.setsid()
+                time.sleep(1)
+                os._exit(0)
+            # Let the descendant enter its new session before returning.
+            time.sleep(0.05)
+            return True
+        with self.assertRaisesRegex(runner.RunnerError, "unexpected_adopted_child|residual_process_group"):
+            runner.run_tasks([("escaped", escaped)], 1)
+        self.assertFalse(runner.direct_children())
+
+    def test_deadline(self):
+        with self.assertRaisesRegex(runner.RunnerError, "global_deadline"):
+            runner.run_tasks([("late", lambda: True)], 1, deadline=time.monotonic()-1)
+
+    def test_worker_limit(self):
+        with self.assertRaisesRegex(runner.RunnerError, "worker_limit"):
+            runner.run_tasks([("x", lambda: True)], 5)
+
+    def test_open_descriptor_rejected(self):
+        with tempfile.TemporaryFile():
+            with self.assertRaisesRegex(runner.RunnerError, "unexpected_parent_descriptor"):
+                runner.run_tasks([("x", lambda: True)], 1)
+
+    def test_python_thread_rejected(self):
+        with mock.patch.object(runner.threading, "active_count", return_value=2):
+            with self.assertRaisesRegex(runner.RunnerError, "parent_not_single_threaded"):
+                runner.run_tasks([("x", lambda: True)], 1)
+
+
+def runner_rejects(module, code, callback):
+    """A missing or wrong guard fails; unrelated exceptions do not count as detection."""
+    try:
+        callback()
+    except module.RunnerError as exc:
+        assert code in str(exc), (code, str(exc))
+        return
+    raise AssertionError("runner did not refuse " + code)
+
+
+def probe_runner_duplicate_task(module):
+    runner_rejects(module, "duplicate_task_id", lambda: module.checked_inventory([
+        ("a", lambda: None), ("a", lambda: None)]))
+
+
+def probe_runner_duplicate_result(module):
+    runner_rejects(module, "duplicate_result_id", lambda: module.check_results(
+        ["a"], [{"id": "a", "value": 1}, {"id": "a", "value": 2}]))
+
+
+def probe_runner_missing_result(module):
+    runner_rejects(module, "result_inventory_mismatch", lambda: module.check_results(
+        ["a"], [{"id": "b", "value": 1}]))
+
+
+def probe_runner_exit(module):
+    runner_rejects(module, "child_nonzero_exit", lambda: module.validate_exit(100, (100, set(), 7 << 8)))
+
+
+def probe_runner_residual(module):
+    runner_rejects(module, "residual_process_group", lambda: module.validate_exit(100, (100, {101}, 0)))
+
+
+def probe_runner_group(module):
+    runner_rejects(module, "child_group_not_established", lambda: module.validate_exit(100, (99, set(), 0)))
+
+
+def probe_runner_worker_limit(module):
+    with mock.patch.object(module, "available_workers", return_value=1):
+        runner_rejects(module, "worker_limit", lambda: module.run_tasks([], 2))
+
+
+def probe_runner_deadline(module):
+    runner_rejects(module, "global_deadline", lambda: module.run_tasks([], 1, deadline=time.monotonic() - 1))
+
+
+def probe_runner_verdict(module):
+    runner_rejects(module, "mutation_not_detected", lambda: module.verify_mutation_result(
+        "x", {"verdict": "crashed", "inline_baseline": True}, True))
+
+
+def probe_runner_inline_baseline(module):
+    runner_rejects(module, "mutation_baseline_mismatch", lambda: module.verify_mutation_result(
+        "x", {"verdict": "detected", "inline_baseline": False}, True))
+
+
+def runner_passed_value(test_id, witnesses=()):
+    return {"result": {"testsRun": 1, "started": [test_id], "stopped": [test_id],
+                       "successes": [test_id], "successful": True, "failures": [], "errors": [],
+                       "skips": [], "expectedFailures": [], "unexpectedSuccesses": [], "subtestFailures": []},
+            "baselines": sorted(witnesses)}
+
+
+def probe_runner_test_failure(module):
+    value = runner_passed_value("x")
+    value["result"]["failures"] = ["x"]
+    runner_rejects(module, "test_not_passed", lambda: module.verify_case_result("x", value, []))
+
+
+def probe_runner_witness(module):
+    runner_rejects(module, "baseline_witness_mismatch", lambda: module.verify_case_result(
+        "x", runner_passed_value("x"), ["scenario_x"]))
+
+
+def probe_runner_baseline_map(module):
+    def scenario_x(case, mods):
+        pass
+    fake = types.SimpleNamespace(__name__="fake")
+    runner_rejects(module, "baseline_inventory_mismatch", lambda: module.baseline_map(
+        fake, "", [("x", scenario_x)], set(), set()))
+
+
+def probe_runner_cache(module):
+    cache = {"synthetic": [1]}
+    fingerprint = module.cache_fingerprint(cache)
+    runner_rejects(module, "cache_changed_after_task", lambda: module.guarded_call(
+        lambda: cache["synthetic"].append(2), cache, fingerprint))
+
+
+def probe_runner_equivalence(module):
+    runner_rejects(module, "serial_parallel_evidence_mismatch", lambda: module.compare_evidence(
+        [{"id": "x", "verdict": "detected"}], [{"id": "x", "verdict": "undetected"}]))
+
+
+def probe_runner_diagnostic(module):
+    output = io.StringIO()
+    with contextlib.redirect_stderr(output):
+        runner_rejects(module, "diagnostic_shape", lambda: module.emit_diagnostic(
+            "task", {"kind": "test_failure", "exception": "AssertionError", "frames": [], "raw": "synthetic-private"}))
+    assert not output.getvalue(), "unvalidated diagnostic emitted"
+
+
+def probe_runner_explicit_counts(module):
+    # Workflow-provided reviewed counts must not be overwritten by an internal load.
+    # Use actual suite evidence validation, with synthetic reduced inventories.
+    fake_counts = types.ModuleType("expected_counts")
+    fake_counts.load = lambda suite: {"tests": 1, "mutations": 4 if "receipt" in suite else 1}
+    receipt = {"suite": "test_k8s_runtime_receipt", "tests": ["receipt.Test.test_case"], "testsRun": 1,
+               "status": "passed", "baseline_witnesses": [],
+               "mutation_definitions": [[group, "x"] for group in ("runtime", "secret", "foundation", "engine")],
+               "parallel_mutations": {"x": {"verdict": "detected", "inline_baseline": False}}}
+    apply = {"suite": "test_k8s_runtime_apply", "tests": ["apply.Test.test_case"], "testsRun": 1,
+             "status": "passed", "baseline_witnesses": [], "mutation_definitions": [["apply", "x"]],
+             "parallel_mutations": {"x": {"verdict": "detected", "inline_baseline": False}}}
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "evidence.jsonl"
+        path.write_text("\n".join(json.dumps(item) for item in ({"runtime_runner": "candidate"}, receipt, apply)))
+        with mock.patch.dict(sys.modules, {"expected_counts": fake_counts}), \
+                mock.patch.object(module, "DESTROY_BASELINES", ""), mock.patch.object(module, "APPLY_BASELINES", ""), \
+                mock.patch.object(module, "DESTROY_INLINE", {}), mock.patch.object(module, "APPLY_INLINE", {}):
+            assert module.read_evidence(path, receipt_expected={"tests": 1, "mutations": 4},
+                                        apply_expected={"tests": 1, "mutations": 1}) == [receipt, apply]
+            runner_rejects(module, "evidence_not_passed", lambda: module.read_evidence(
+                path, receipt_expected={"tests": 2, "mutations": 4}, apply_expected={"tests": 1, "mutations": 1}))
+            runner_rejects(module, "evidence_definition_inventory", lambda: module.read_evidence(
+                path, receipt_expected={"tests": 1, "mutations": 4}, apply_expected={"tests": 1, "mutations": 2}))
+
+
+@contextlib.contextmanager
+def inherited_descriptor(start=142):
+    """A synthetic inheritable (not close-on-exec) descriptor, as a CI host can leak."""
+    source = os.open(os.devnull, os.O_RDONLY)
+    number = start
+    try:
+        while True:
+            try:
+                os.fstat(number)
+            except OSError:
+                break
+            number += 1
+        os.dup2(source, number, inheritable=True)
+    finally:
+        os.close(source)
+    try:
+        yield number
+    finally:
+        os.close(number)
+
+
+def descriptor_probe(number):
+    return "import os, sys; sys.exit(3 if os.path.exists('/proc/self/fd/%d') else 0)" % number
+
+
+def probe_runner_clean_descriptors(module):
+    with inherited_descriptor() as number:
+        argv = [sys.executable, "-c", descriptor_probe(number)]
+        assert subprocess.run(argv, close_fds=False, check=False).returncode == 3, "synthetic descriptor not inherited"
+        assert module.clean_exec(argv) == 0, "an inherited descriptor reached the clean child"
+
+
+def probe_runner_exit_status(module):
+    assert module.exit_status(7) == 7 and module.exit_status(0) == 0, "child exit status not propagated"
+
+
+def probe_runner_relaunch(module):
+    calls = []
+    def clean_exec(argv):
+        calls.append(argv)
+        return 0
+    def coordinate(args):
+        raise AssertionError("coordinator started without the clean descriptor boundary")
+    with mock.patch.object(module, "clean_exec", clean_exec), mock.patch.object(module, "coordinate", coordinate):
+        assert module.main(["--workers", "1"]) == 0
+    assert calls == [[sys.executable, str(Path(module.__file__).resolve()), "--workers", "1", "--clean-child"]], calls
+
+
+def exit_status_in_child(module, returncode, block=()):
+    """Apply module.exit_status in a forked child (it may terminate the caller)."""
+    pid = os.fork()
+    if pid == 0:
+        try:
+            if block:
+                signal.pthread_sigmask(signal.SIG_BLOCK, set(block))
+            code = module.exit_status(returncode)
+            os._exit(code & 0xFF if code else 0)
+        except BaseException:  # noqa: BLE001 - any error is a distinct status
+            os._exit(70)
+        finally:
+            os._exit(71)
+    _, status = os.waitpid(pid, 0)
+    return status
+
+
+def probe_runner_kill_status(module):
+    status = exit_status_in_child(module, -signal.SIGKILL)
+    assert os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGKILL, "SIGKILL not propagated: %d" % status
+
+
+def probe_runner_blocked_signal_status(module):
+    status = exit_status_in_child(module, -signal.SIGTERM, block={signal.SIGTERM})
+    assert os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGTERM, "blocked SIGTERM not propagated: %d" % status
+
+
+def probe_runner_signal_fallback(module):
+    # A signal whose default action is to ignore cannot end the launcher: still nonzero.
+    status = exit_status_in_child(module, -signal.SIGURG)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 128 + signal.SIGURG, "fallback status: %d" % status
+
+
+SIGNAL_CHILD = """import os, signal, sys, time
+signal.signal(signal.SIGTERM, lambda *_: os._exit(42))
+time.sleep(0.2)
+os.kill(os.getppid(), signal.SIGTERM)
+time.sleep(3)
+sys.exit(3)
+"""
+
+
+def probe_runner_signal_forwarding(module):
+    assert module.clean_exec([sys.executable, "-c", SIGNAL_CHILD]) == 42, "stop signal not forwarded to the child"
+
+
+RUNNER_PROBES = (probe_runner_duplicate_task, probe_runner_duplicate_result, probe_runner_missing_result,
+                 probe_runner_exit, probe_runner_residual, probe_runner_group, probe_runner_worker_limit,
+                 probe_runner_deadline, probe_runner_verdict, probe_runner_inline_baseline,
+                 probe_runner_test_failure, probe_runner_witness, probe_runner_baseline_map,
+                 probe_runner_cache, probe_runner_equivalence, probe_runner_diagnostic, probe_runner_explicit_counts,
+                 probe_runner_clean_descriptors, probe_runner_exit_status, probe_runner_relaunch,
+                 probe_runner_signal_forwarding, probe_runner_kill_status, probe_runner_blocked_signal_status,
+                 probe_runner_signal_fallback)
+
+
+class RuntimeIntegrationTests(unittest.TestCase):
+    def test_runner_probes_on_unmodified_code(self):
+        for probe in RUNNER_PROBES:
+            probe(runner)
+
+    def test_memory_admission(self):
+        with mock.patch.object(runner, "available_memory", return_value=1024 * 1024 * 1024), \
+                mock.patch.object(runner, "available_cpus", return_value=4):
+            self.assertEqual(runner.available_workers(), 1)
+        with mock.patch.object(runner, "available_memory", return_value=1):
+            self.assertEqual(runner.available_workers(), 0)
+
+    def test_signal_reclaims_children(self):
+        def interrupt():
+            os.kill(os.getppid(), signal.SIGTERM)
+            time.sleep(2)
+        with self.assertRaisesRegex(runner.RunnerError, "interrupted"):
+            runner.run_tasks([("interrupt", interrupt)], 1)
+        self.assertFalse(runner.direct_children())
+
+    def test_rejects_invalid_result_types(self):
+        value = runner_passed_value("x")
+        value["result"]["testsRun"] = True
+        with self.assertRaisesRegex(runner.RunnerError, "test_not_passed"):
+            runner.verify_case_result("x", value, [])
+
+    def test_actual_unittest_lifecycle(self):
+        events = []
+        def setup(case):
+            events.append("setup")
+            case.addCleanup(events.append, "cleanup")
+        def body(case):
+            with case.subTest(sample=1):
+                case.assertEqual(1, 1)
+            events.append("body")
+        def teardown(case):
+            events.append("teardown")
+        cls = type("Lifecycle", (unittest.TestCase,), {"setUp": setup, "test_body": body, "tearDown": teardown})
+        case = cls("test_body")
+        value = runner.execute_case(case)
+        runner.verify_case_result(case.id(), value, [])
+        self.assertEqual(events, ["setup", "body", "teardown", "cleanup"])
+
+    def test_subtest_failure_not_success(self):
+        def body(case):
+            with case.subTest(sample=1):
+                case.fail("synthetic failure")
+        cls = type("SubtestFailure", (unittest.TestCase,), {"test_body": body})
+        case = cls("test_body")
+        value = runner.execute_case(case)
+        result = runner.ObservedResult()
+        runner.record_result(result, value)
+        self.assertFalse(result.wasSuccessful())
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(result.subtest_failures, [case.id()])
+        with self.assertRaisesRegex(runner.RunnerError, "test_not_passed"):
+            runner.verify_case_result(case.id(), value, [])
+
+    def test_baseline_failure_and_missing_witness(self):
+        fake = types.SimpleNamespace(real_mods=lambda: types.SimpleNamespace(normal=True))
+        def scenario_x(case, mods):
+            case.fail("synthetic baseline failure")
+        fake.scenario_x = scenario_x
+        def body(case):
+            fake.scenario_x(case, fake.real_mods())
+        cls = type("BaselineFailure", (unittest.TestCase,), {"test_body": body})
+        case = cls("test_body")
+        value = runner.execute_case(case, fake, ["scenario_x"])
+        self.assertEqual(value["baselines"], [])
+        with self.assertRaisesRegex(runner.RunnerError, "test_not_passed"):
+            runner.verify_case_result(case.id(), value, ["scenario_x"])
+        with self.assertRaisesRegex(runner.RunnerError, "mutation_baseline_unproven"):
+            runner.mutation_dispatch(case, [("x", scenario_x)], lambda *_: None, 1, time.monotonic() + 10,
+                                     fake, {"scenario_x": case.id()}, set(), set())
+
+    def test_assembly_errors_never_detected(self):
+        def crash(error):
+            raise error
+        for error in (ImportError("synthetic import failure"), SyntaxError("synthetic compile failure")):
+            with self.assertRaisesRegex(runner.RunnerError, "child_nonzero_exit"):
+                runner.run_tasks([("assembly", lambda error=error: crash(error))], 1)
+
+    def test_undetected_mutation_refused(self):
+        with self.assertRaisesRegex(runner.RunnerError, "mutation_not_detected"):
+            runner.verify_mutation_result("x", {"verdict": "undetected", "inline_baseline": False}, False)
+
+    def test_cache_guard_and_helm_paths(self):
+        cache = {"synthetic": [1]}
+        fingerprint = runner.cache_fingerprint(cache)
+        self.assertEqual(runner.guarded_call(lambda: 1, cache, fingerprint), 1)
+        probe_runner_cache(runner)
+        before = dict(os.environ)
+        with runner.isolated_parent():
+            home = Path.home()
+            self.assertTrue(home.is_dir())
+            for key in ("XDG_RUNTIME_DIR", "HELM_CACHE_HOME", "HELM_CONFIG_HOME", "HELM_DATA_HOME", "HELM_PLUGINS"):
+                self.assertIn(home, Path(os.environ[key]).parents)
+        self.assertEqual(dict(os.environ), before)
+        self.assertFalse(home.exists())
+
+    def test_evidence_comparison_and_inventory(self):
+        probe_runner_equivalence(runner)
+        self.assertTrue(runner.compare_evidence([{"id": "x"}], [{"id": "x"}]))
+        with self.assertRaisesRegex(runner.RunnerError, "duplicate_evidence_field"):
+            runner.strict_json('{"id":"x","id":"y"}')
+        value = {"suite": "fake", "tests": ["fake.Test.test_case"], "testsRun": 1,
+                 "baseline_witnesses": [["fake.Test.test_case", "scenario_x"]], "status": "passed",
+                 "mutation_definitions": [["apply", "x"]],
+                 "parallel_mutations": {"x": {"verdict": "detected", "inline_baseline": False}}}
+        runner.verify_suite_evidence(value, "fake", {"tests": 1, "mutations": 1}, "Test.test_case x", "apply", {})
+        value["parallel_mutations"] = {}
+        with self.assertRaisesRegex(runner.RunnerError, "evidence_mutation_inventory"):
+            runner.verify_suite_evidence(value, "fake", {"tests": 1, "mutations": 1}, "Test.test_case x", "apply", {})
+
+    def test_runner_only_change_selects_runtime(self):
+        report = pair({}).select(changes("scripts/ci/runtime_test_runner.py"))
+        self.assertIn("kubernetes_runtime_plan", report["selected"])
+        self.assertIn("kubernetes_runtime", report["selected"])
+        self.assertTrue(report["full_ci_required"] and report["full_ci_automatic"])
+        for suite in ("k8s_runtime_receipt_tests", "k8s_runtime_apply_tests"):
+            self.assertEqual(analysis().suite_steps[suite], {"kubernetes_runtime_plan"})
+
+    def test_failure_diagnostics_sanitized(self):
+        # A known source location is retained; exception text, subTest parameters,
+        # and arbitrary captured output must not be emitted.
+        namespace = {}
+        filename = str(Path(runner.__file__).resolve().parents[2] / "scripts/local-workflow/test_synthetic.py")
+        exec(compile("def body(case):\n    with case.subTest(sample='synthetic-private-parameter'):\n        case.fail('synthetic-private-message')\n", filename, "exec"), namespace)
+        cls = type("DiagnosticFailure", (unittest.TestCase,), {"test_body": namespace["body"]})
+        case = cls("test_body")
+        output = io.StringIO()
+        with contextlib.redirect_stderr(output):
+            results = runner.run_tasks([(case.id(), lambda: runner.execute_case(case))], 1)
+            with self.assertRaisesRegex(runner.RunnerError, "test_not_passed"):
+                runner.verify_case_result(case.id(), results[case.id()], [])
+        text = output.getvalue()
+        self.assertIn("subtest_failure", text)
+        self.assertIn("scripts/local-workflow/test_synthetic.py", text)
+        self.assertIn("AssertionError", text)
+        self.assertNotIn("synthetic-private", text)
+
+    def test_worker_exception_diagnostics_sanitized(self):
+        def crash():
+            os.write(2, b"synthetic-private-raw-output")
+            raise ValueError("synthetic-private-exception")
+        output = io.StringIO()
+        with contextlib.redirect_stderr(output):
+            with self.assertRaisesRegex(runner.RunnerError, "child_nonzero_exit"):
+                runner.run_tasks([("crash_case", crash)], 1)
+        self.assertIn("worker_exception", output.getvalue())
+        self.assertIn("ValueError", output.getvalue())
+        self.assertIn("crash_case", output.getvalue())
+        self.assertNotIn("synthetic-private", output.getvalue())
+
+    def test_diagnostic_invalid_sidecar_rejected(self):
+        probe_runner_diagnostic(runner)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "diagnostics"
+            path.write_bytes(b"\xffsynthetic-private")
+            output = io.StringIO()
+            with contextlib.redirect_stderr(output):
+                with self.assertRaisesRegex(runner.RunnerError, "malformed_diagnostic"):
+                    runner.emit_child_diagnostics(Path(directory), "task")
+            self.assertEqual(output.getvalue(), "")
+            path.unlink()
+            path.symlink_to("/dev/null")
+            with self.assertRaisesRegex(runner.RunnerError, "diagnostic_file_unsafe"):
+                runner.emit_child_diagnostics(Path(directory), "task")
+
+    def test_workflow_reviewed_counts_bind_evidence(self):
+        probe_runner_explicit_counts(runner)
+
+    def test_candidate_suite_and_aggregate(self):
+        module = types.ModuleType("synthetic_runtime_suite")
+        module.real_mods = lambda: types.SimpleNamespace(normal=True)
+        def scenario_x(case, mods):
+            case.assertTrue(mods.normal)
+        module.scenario_x = scenario_x
+        def ordinary(case):
+            module.scenario_x(case, module.real_mods())
+        def aggregate(case):
+            results = case._runtime_dispatch(case, module.MUTATIONS,
+                lambda test, item: {"verdict": "detected", "inline_baseline": False})
+            case.assertEqual(set(results), {"x"})
+        module.Normal = type("Normal", (unittest.TestCase,), {"__module__": module.__name__, "test_case": ordinary})
+        module.Aggregate = type("Aggregate", (unittest.TestCase,), {"__module__": module.__name__, "test_case": aggregate})
+        module.MUTATIONS = [("x", scenario_x)]
+        with mock.patch.dict(sys.modules, {module.__name__: module}):
+            evidence = []
+            for workers in (1, min(4, runner.available_workers())):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    self.assertEqual(runner.run_runtime_suite(module, module, module.MUTATIONS,
+                        "Normal.test_case x", set(), module.Aggregate, workers, time.monotonic() + 15,
+                        {"tests": 2, "mutations": 1}), 2)
+                evidence.append(json.loads(output.getvalue()))
+        self.assertEqual(evidence[0], evidence[1])
+        self.assertEqual(evidence[0]["parallel_mutations"], {"x": {"verdict": "detected", "inline_baseline": False}})
+
+
+class RunnerBoundaryTests(unittest.TestCase):
+    """The clean descriptor boundary in front of the fork-based coordinator."""
+
+    def launch(self, args, script, number=None):
+        return subprocess.run([sys.executable, str(HERE / RUNNER), *args], input=script, text=True,
+                              capture_output=True, cwd=REPO, check=False, timeout=120,
+                              pass_fds=() if number is None else (number,))
+
+    def test_inherited_descriptor_reproduced_and_isolated(self):
+        with inherited_descriptor() as number:
+            script = ("import os, sys\nsys.path.insert(0, 'scripts/ci')\nimport runtime_test_runner as r\n"
+                      "print(r.run_tasks([('fd', lambda: os.path.exists('/proc/self/fd/%d'))], 1))\n" % number)
+            dirty = subprocess.run([sys.executable, "-"], input=script, text=True, capture_output=True, cwd=REPO,
+                                   check=False, timeout=120, pass_fds=(number,))
+            self.assertNotEqual(dirty.returncode, 0)
+            self.assertIn("unexpected_parent_descriptor:%d" % number, dirty.stderr)
+            clean = self.launch(["--clean-python-stdin"], script, number)
+            self.assertEqual((clean.returncode, clean.stdout.strip()), (0, "{'fd': False}"), clean.stderr[-300:])
+            opened = script.replace("import runtime_test_runner as r\n",
+                                    "import runtime_test_runner as r\nheld = open(os.devnull)\n")
+            inside = self.launch(["--clean-python-stdin"], opened, number)
+            self.assertEqual(inside.returncode, 1)
+            self.assertIn("unexpected_parent_descriptor:", inside.stderr)
+            self.assertNotIn("unexpected_parent_descriptor:%d" % number, inside.stderr)
+
+    def test_clean_exec_closes_inherited_descriptor(self):
+        probe_runner_clean_descriptors(runner)
+
+    def test_coordinator_relaunches_behind_boundary(self):
+        probe_runner_relaunch(runner)
+        with mock.patch.object(runner, "clean_exec", side_effect=AssertionError("relaunched twice")), \
+                mock.patch.object(runner, "coordinate", return_value=0) as coordinate:
+            self.assertEqual(runner.main(["--workers", "1", "--clean-child"]), 0)
+        coordinate.assert_called_once()
+        with self.assertRaisesRegex(runner.RunnerError, "clean_child_mode_conflict"):
+            runner.main(["--clean-python-stdin", "--clean-child"])
+
+    def test_exit_status_and_signal_propagation(self):
+        probe_runner_exit_status(runner)
+        self.assertEqual(self.launch(["--clean-python-stdin"], "import sys; sys.exit(7)").returncode, 7)
+        killed = self.launch(["--clean-python-stdin"], "import os, signal; os.kill(os.getpid(), signal.SIGTERM)")
+        self.assertEqual(killed.returncode, -signal.SIGTERM)
+
+    def test_signal_termination_matrix(self):
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGABRT, signal.SIGPIPE, signal.SIGKILL):
+            script = ("import os, signal\nif signal.%s != signal.SIGKILL:\n    signal.signal(signal.%s, signal.SIG_DFL)\n"
+                      "os.kill(os.getpid(), signal.%s)\n" % (signum.name, signum.name, signum.name))
+            launched = self.launch(["--clean-python-stdin"], script)
+            self.assertEqual(launched.returncode, -signum, signum.name)
+            self.assertNotIn("Traceback", launched.stderr)
+
+    def test_blocked_and_uncatchable_signal_status(self):
+        probe_runner_kill_status(runner)
+        probe_runner_blocked_signal_status(runner)
+        probe_runner_signal_fallback(runner)
+        script = ("import os, signal\nsignal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})\n"
+                  "os.kill(os.getpid(), signal.SIGTERM)\n")
+        blocked = subprocess.run([sys.executable, str(HERE / RUNNER), "--clean-python-stdin"], input=script, text=True,
+                                 capture_output=True, cwd=REPO, check=False, timeout=120,
+                                 preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM}))
+        self.assertEqual(blocked.returncode, -signal.SIGTERM)
+
+    def test_stop_signals_forwarded_to_clean_child(self):
+        probe_runner_signal_forwarding(runner)
+        process = subprocess.Popen([sys.executable, str(HERE / RUNNER), "--clean-python-stdin"], cwd=REPO,
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        try:
+            process.stdin.write("import os, signal, sys, time\nsignal.signal(signal.SIGTERM, lambda *_: os._exit(42))\n"
+                                "print('ready', flush=True)\ntime.sleep(10)\nsys.exit(3)\n")
+            process.stdin.close()
+            self.assertEqual(process.stdout.readline().strip(), "ready")
+            process.send_signal(signal.SIGTERM)
+            self.assertEqual(process.wait(timeout=20), 42)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            process.stdout.close()
+
+
+EXPECTED_TESTS = 72
+EXPECTED_MUTATIONS = 97
 FULL = ".github/workflows/terraform-offline-ci.yml"
 SAFETY = ".github/workflows/pr-safety-ci.yml"
 SHA_A, SHA_B, SHA_C, SHA_D = ("a" * 40, "b" * 40, "c" * 40, "d" * 40)
@@ -681,6 +1318,31 @@ MUTATIONS = [
     (IMPACT, 'required = bool(risks)', 'required = False', probe_automatic),
     (IMPACT, '    if report["owner_dispatch_required"]:', '    if False:', probe_verdict),
     (SAFETY_CHECKS, 'if HARD_CODED_COUNT.search(text):', 'if False:', probe_hard_coded_count),
+    (RUNNER, 'require(len(names) == len(set(names)), "duplicate_task_id")', 'pass', probe_runner_duplicate_task),
+    (RUNNER, 'require(len(observed) == len(set(observed)), "duplicate_result_id")', 'pass', probe_runner_duplicate_result),
+    (RUNNER, 'require(set(observed) == set(expected), "result_inventory_mismatch")', 'pass', probe_runner_missing_result),
+    (RUNNER, 'require(os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "child_nonzero_exit")', 'pass', probe_runner_exit),
+    (RUNNER, 'require(not residual, "residual_process_group")', 'pass', probe_runner_residual),
+    (RUNNER, 'require(group == pid, "child_group_not_established")', 'pass', probe_runner_group),
+    (RUNNER, 'require(type(workers) is int and 1 <= workers <= available_workers(), "worker_limit")', 'pass', probe_runner_worker_limit),
+    (RUNNER, 'require(deadline > time.monotonic(), "global_deadline")', 'pass', probe_runner_deadline),
+    (RUNNER, 'require(value["verdict"] == "detected", "mutation_not_detected:" + name)', 'pass', probe_runner_verdict),
+    (RUNNER, 'require(type(value["inline_baseline"]) is bool and value["inline_baseline"] == expected_inline,\n            "mutation_baseline_mismatch:" + name)', 'pass', probe_runner_inline_baseline),
+    (RUNNER, '            and result == expected, "test_not_passed:" + test_id)', '            , "test_not_passed:" + test_id)', probe_runner_test_failure),
+    (RUNNER, 'require(value["baselines"] == sorted(witnesses), "baseline_witness_mismatch:" + test_id)', 'pass', probe_runner_witness),
+    (RUNNER, 'require(not set(mapping) & set(inline) and set(mapping) | set(inline) == scenarios,\n            "baseline_inventory_mismatch")', 'pass', probe_runner_baseline_map),
+    (RUNNER, 'require(cache_fingerprint(cache) == fingerprint, "cache_changed_after_task")', 'pass', probe_runner_cache),
+    (RUNNER, 'require(left == right, "serial_parallel_evidence_mismatch")', 'pass', probe_runner_equivalence),
+    (RUNNER, '    validate_diagnostic(item)\n    print("Runtime failure diagnostic:', '    pass\n    print("Runtime failure diagnostic:', probe_runner_diagnostic),
+    (RUNNER, '    if receipt_expected is None:', '    if True:', probe_runner_explicit_counts),
+    (RUNNER, 'process = subprocess.Popen(argv, close_fds=True)', 'process = subprocess.Popen(argv, close_fds=False)',
+     probe_runner_clean_descriptors),
+    (RUNNER, '        return returncode', '        return 0', probe_runner_exit_status),
+    (RUNNER, '    if not args.clean_child:', '    if False:', probe_runner_relaunch),
+    (RUNNER, '            holder[0].send_signal(signum)', '            pass', probe_runner_signal_forwarding),
+    (RUNNER, '    if signum != signal.SIGKILL:', '    if True:', probe_runner_kill_status),
+    (RUNNER, '        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signum})', '        pass', probe_runner_blocked_signal_status),
+    (RUNNER, '    return 128 + signum', '    return 0', probe_runner_signal_fallback),
 ]
 
 

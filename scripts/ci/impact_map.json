@@ -226,6 +226,12 @@
       "reason": "Covered by the always-on ci_policy step (CI tooling tests, generated-workflow drift, workflow safety, secret scan, real-operation guards); changed Full CI step definitions are selected separately. High-risk: Full CI runs on the pull request."
     },
     {
+      "id": "runtime-test-runner",
+      "paths": ["scripts/ci/runtime_test_runner.py"],
+      "steps": ["kubernetes_runtime_plan"],
+      "reason": "Changes to the offline receipt/apply runner must execute the complete runtime test step and its prerequisite, as well as always-on CI policy tests. Full CI remains mandatory."
+    },
+    {
       "id": "emulator-workflows",
       "paths": [
         ".github/workflows/aws-emulator-*.yml"
