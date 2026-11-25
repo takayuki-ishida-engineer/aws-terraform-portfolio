@@ -234,21 +234,23 @@ reachability, controller registration or TLS/mTLS communication.
 The latest Owner-approved AWS Terraform Portfolio MASTER_POLICY, as designated by the
 Owner, is the sole controlling policy. [AGENTS.md](AGENTS.md#repository-guidance)
 holds the rule for identifying it and the repository rules that apply it. Earlier
-Master Policy versions (v10 to v14.5), their
+Master Policy versions (v10 to v14.6), their
 [alignment record](docs/policy-v14-2-alignment.md) and earlier operating instructions
 are historical records, not current rules. A new policy release authorizes no
 implementation, execution or scope change by itself.
 
-**Current status (Owner decision 2026-11-24).**
+**Current status (MASTER_POLICY v14.7, 2026-11-25).**
 
 | Item | Status |
 | --- | --- |
 | Step 1 | SOURCE / OFFLINE COMPLETE |
-| Step 2 | COMPLETE with accepted, explicitly limited Emulator evidence |
+| Step 2 | Closed with accepted, explicitly limited Emulator evidence |
+| CI-PERF-01A/B | COMPLETE (PR #104, merged and post-merge verified; OD-PERF-02-A to F approved) |
+| Codex formal handover | PENDING — DOCUMENTATION ALIGNMENT AND OWNER APPROVAL |
+| Step 3 | NOT STARTED |
+| Step 4 | NOT STARTED |
 | CORE PORTFOLIO COMPLETE | NOT DECLARED |
 | PORTFOLIO COMPLETE | NOT DECLARED |
-| Codex formal handover | NOT STARTED; CI-PERF-01 (Full CI performance) comes first |
-| Step 3 | NOT STARTED |
 
 The remaining order, the OPEN decisions and the handover gate are in
 [AGENTS.md](AGENTS.md#current-work-and-remaining-order-master_policy-19).
@@ -259,8 +261,11 @@ The remaining order, the OPEN decisions and the handover gate are in
   Owner milestones, never on a push to `main`; otherwise reports say FULL CI NOT RUN.
   Expected test counts live in `tests/expected-counts.json`. After a squash merge the
   merged tree is checked against the tree CI verified instead of re-running Full CI.
-  CI-PERF-01 targets Full CI within 40 minutes (ideally 35), keeping every check and
-  the 60-minute timeout ([AGENTS.md](AGENTS.md#ci-perf-01-full-ci-performance-master_policy-1251)).
+  CI-PERF-01 is complete: Full CI took 28m18s on PR #104 (target within 40 minutes,
+  ideally 35), keeping every check and the 60-minute timeout. The offline Receipt/Apply
+  runtime tests run in bounded parallel processes (`--workers auto`, at most four;
+  Plan and Status serial), formally adopted by OD-PERF-02
+  ([AGENTS.md](AGENTS.md#ci-perf-01-full-ci-performance-master_policy-1251)).
   See the [CI execution policy](docs/portfolio-verification-policy.md#ci-execution-policy--owner-decision-2026-11-23).
 - **Completion (§01, §20).** CORE PORTFOLIO COMPLETE and AWS EMULATOR DEMONSTRATED
   are assessed separately; PORTFOLIO COMPLETE needs both and the Owner's acceptance.
@@ -272,7 +277,7 @@ The remaining order, the OPEN decisions and the handover gate are in
 - **Cost and Emulator (§13, §14).** Zero additional cost, the fourteen Emulator
   isolation controls and the evidence ledger stay in force.
 
-Older policy version references below (v10 to v14.5), including Live gates and
+Older policy version references below (v10 to v14.6), including Live gates and
 budgets, are historical snapshots, not current requirements. `infra/README.md` still describes the earlier
 Full CI triggers ("every pull request and push", a 20-minute timeout); that text is
 not a current rule and will be corrected with the next approved `infra/` change

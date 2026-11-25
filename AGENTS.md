@@ -17,7 +17,7 @@ documents refer to "the controlling MASTER_POLICY" (with its section numbers, su
 §15) instead of a version number, so a new policy release needs no repository-wide
 edit for the version number alone. Documents are still updated when a release
 changes substance: rules, implementation status, technical contracts, stop conditions
-or responsibilities. A version named elsewhere (for example v10 to v14.5, the v14.2 alignment
+or responsibilities. A version named elsewhere (for example v10 to v14.6, the v14.2 alignment
 record, `infra/**` module READMEs naming v11, `infra/README.md`'s earlier CI text) is
 a dated record of that time, not current authority. Historical approvals,
 implementations and verification results stay as records.
@@ -460,69 +460,96 @@ Rules:
 
 ### CI-PERF-01: Full CI performance (MASTER_POLICY §12.5.1)
 
-Before the Codex handover, CI-PERF-01 shortens Full CI while keeping every check:
-- **Targets:** Full CI within 40 minutes, ideally within 35 minutes, and about 50–55
-  minutes at the final portfolio stage (targets, not guarantees). The hard timeout
-  stays at 60 minutes.
+**Status: COMPLETE.** PR #104 was squash merged as `bab22ef` and verified after the
+merge. The Owner decisions OD-PERF-02-A to F formally adopted the parallel offline
+runtime execution (MASTER_POLICY §12.5.1, Appendices A and B). Full CI is shorter and
+keeps every check:
+- **Targets and result:** the targets were Full CI within 40 minutes, ideally within
+  35 minutes, and about 50–55 minutes at the final portfolio stage (targets, not
+  guarantees). Full CI took 53m43s on PR #102 (run 45453872145), 35m24s on PR #103
+  (run 45473185925) and 28m18s on PR #104 (run 45525299922); its runtime step took
+  1465 s, 921 s and 461 s. Hosted runner speed varies, so the whole difference is not
+  attributed to parallelization. The hard timeout stays at 60 minutes.
 - **Kept:** every test, mutation ID, expected count, assertion and safety contract, and
   the isolation evidence. Nothing is skipped or weakened for speed, and no timeout is
   extended.
-- **Not allowed without approval:** parallelization (an evaluation candidate only; it
-  needs CPU, I/O and cost evidence, isolation, full execution, rejection of missing,
-  duplicate, crashed or timed-out work, serial-equivalence evidence and Owner
-  approval), persistent caches, paid or larger runners, and any change to production
-  Receipt or Journal safety contracts.
-- **Order:** profiling and design (CI-PERF-01A) come before implementation approval.
-  The implementation (CI-PERF-01B) is a high-risk CI change under the CI execution
-  policy above, with Full CI.
-- **CI-PERF-01B candidate (OD-PERF-01):** the Owner approved implementation and
-  evaluation of offline Receipt/Apply test process isolation only. Use bounded
-  Linux fork-per-task, at most four workers subject to CPU/memory limits, one fresh
-  child per task, independent HOME/TMPDIR and process-group cleanup. Keep Plan and
-  Status serial, all 252 Runtime Test IDs and 616 Mutation definitions, and the
-  original aggregate TestCases. Verify normal-code scenario witnesses, including
-  the three RC-2 inline baselines and the two Apply baseline gaps. Reject missing,
-  duplicate, unknown, crashed or timed-out work and any invalid lifecycle/result.
-  Production Receipt/Journal code and contracts remain untouched. Candidate serial
-  and parallel results, matched-environment benchmarks, cost/resource evidence,
-  and required CI must pass before separate Owner adoption (OD-PERF-02) and merge
-  approval. No automatic adoption, fallback, or waiver of commit-before-CI review.
-  The coordinator and the `ci_policy` tests start behind a clean descriptor
-  boundary (`close_fds`); the strict inherited-descriptor guard stays in force.
-- **PR #104 correction (Owner decision 2026-11-25):** the remaining CI-PERF-01B
-  corrective implementation is assigned to Claude (root cause, correction, local
-  verification, and commit/push after review); ChatGPT independently reviews it and
-  verifies the CI evidence. Every quality gate stays in force; merge and the adoption
-  of a parallel mode still need explicit Owner approval.
+- **Adopted runtime contract (OD-PERF-02-A, B):** `scripts/ci/runtime_test_runner.py`
+  runs the offline Receipt and Apply tests under resource-bounded Linux fork-per-task
+  process isolation. Full CI uses `--workers auto`: at most four workers, bounded by the
+  CPU affinity, the cgroup quota and the memory budget. The command line defaults to one
+  worker, and an explicit request over the budget fails with no silent fallback. Plan
+  and Status stay serial.
+  - Each task gets a fresh child, its own HOME, TMPDIR, XDG and Helm directories, a
+    credential-free environment with `KUBECONFIG=/dev/null`, a private process group
+    under a subreaper, bounded deadlines and checked cleanup.
+  - The parent must have a single thread and no unexpected descriptor or lock. The
+    coordinator and the `ci_policy` tests start behind a clean `close_fds=True`
+    boundary; no descriptor number is allowlisted. The child's exit code or
+    terminating signal is propagated, SIGKILL and blocked signals included.
+  - Missing, duplicate, unknown, crashed or timed-out work, an invalid lifecycle or
+    result, and a baseline or fixture failure fail closed.
+  - All 252 runtime Test IDs and 616 mutation definitions, the 276 parallelized
+    mutations, the 125 normal-code witnesses plus 5 explicit inline baselines, and both
+    suite counts loaded with `load()` in the workflow step are kept.
+  - Production Receipt/Journal code and contracts, real operations, the timeout, the
+    runner type and the cache policy are unchanged.
+  - Details are in [scripts/ci/README.md](scripts/ci/README.md#adopted-runtime-test-runner-ci-perf-01b-od-perf-02).
+- **Evidence identifier:** the runner's evidence header `"runtime_runner": "candidate"`
+  is a stable evidence-format identifier, read by `read_evidence` and its tests. It is
+  not the adoption status: the runner is adopted.
+- **Accepted residual risks (OD-PERF-02-C):** no direct test of the 64 KiB diagnostic
+  limit; a malformed diagnostic can be reported before the original failure (still
+  fail-closed); the resource type of the inherited descriptor 142 is unknown; hosted
+  runner performance varies; full Production Receipt/Journal replay optimization and
+  the Status subprocess cost are out of scope. None of these permits real AWS/EKS, real
+  Apply/Destroy or an OPEN decision such as D1.
+- **Further changes:** any further performance work (more parallelism, persistent
+  caches, paid or larger runners, Receipt/Journal changes) is a new task under
+  MASTER_POLICY §12.2–12.7 and needs its own Owner approval.
 
-Responsibilities, for CI-PERF-01 only (Owner decision after the MASTER_POLICY v14.6
-release, 2026-11-24):
+**History (records only).**
+- CI-PERF-01A profiling and design came before the implementation approval.
+- Under OD-PERF-01 the Owner approved the implementation and evaluation of offline
+  Receipt/Apply process isolation as a candidate, with adoption left to a separate
+  decision (OD-PERF-02) and no automatic adoption or fallback.
+- PR #104's first CI failed (runs 45516671772 and 45516671756): an inherited
+  descriptor 142 that was not close-on-exec caused 9 failures and 5 errors in 65
+  `ci_policy` tests. The clean descriptor boundary and the BF-02/N-5 exit status
+  corrections resolved it without allowlisting a descriptor or weakening the guard.
+- The Owner then approved OD-PERF-02:
+  - A adopts the parallel offline runtime tests;
+  - B sets `--workers auto` with a maximum of four;
+  - C accepts the residual risks above;
+  - D approves the PR #104 squash merge (done);
+  - E completes CI-PERF-01 after the post-merge verification (done);
+  - F assigns the MASTER_POLICY revision and handover preparation to ChatGPT. The
+    formal Codex handover and Step 3 implementation need separate approval.
 
-| Stage | Responsibility |
-| --- | --- |
-| CI-PERF-01A analysis and design | ChatGPT |
-| Required profiling | Claude |
-| Implementation design and scope | ChatGPT |
-| Implementation approval | Owner |
-| CI-PERF-01B implementation | ChatGPT (PR #104 corrective work: Claude, see below) |
-| Independent review, local tests and benchmark | Claude (PR #104 corrective work: ChatGPT reviews) |
-| Corrections | ChatGPT (PR #104 corrective work: Claude) |
-| Required CI and Full CI | Joint verification |
-| Merge approval and squash merge | Owner / Claude |
-| Final handover baseline | ChatGPT |
-| Formal Codex handover | Owner / ChatGPT |
+PR #104 records (all attempt 1):
 
-A problem Claude finds in review is reported with its evidence, reproduction and
-impact, and ChatGPT corrects it; Claude then re-verifies independently. For the
-remaining PR #104 corrective work the Owner decision of 2026-11-25 above takes
-precedence: Claude investigates, corrects, verifies locally and commits/pushes the
-exact reviewed tree; ChatGPT independently reviews the correction and verifies the CI
-evidence, and a finding goes back to Claude. It applies to CI-PERF-01B only and does
-not change the post-handover responsibilities. This role change
-is not an exemption from the MASTER_POLICY. The quality gates, local verification
-before commit, required CI, security contracts, Owner merge approval, Branch Protection
-and the cost policy stay in force. The one-time PR #101 exception is ended and is not
-reapplied. CI-PERF-01 starts only on the Owner's instruction.
+| Check | Run | Result |
+| --- | --- | --- |
+| PR Safety CI | 45525300626 (job 138907027995) | SUCCESS, 9m51s; 45 verified steps, Full CI required and started automatically |
+| AWS Emulator Offline Contracts | 45525300472 (job 138907025924) | SUCCESS, 17s |
+| Full CI | 45525299922 (job 138907024109) | SUCCESS, 28m18s; runtime step 461 s |
+| `main` Offline Contracts after the merge | 45529485939 (job 138920947939) | SUCCESS, 15s |
+
+Base `9fa3abc`, reviewed HEAD `bd707b1`, squash commit `bab22ef`, tested and merged
+tree `1f51da75e7446d6b381b8e0d77e2dd49bc62bd53`; `merge_check.py` PASS. Counts: CI
+Policy 72 tests / 97 mutations; Runtime 252 tests / 616 mutations (Plan 29/39, Status
+21/32, Receipt 144/382, Apply 58/163); 276/276 parallelized mutations detected, none
+crashed or undetected; 125 witnesses plus 5 inline baselines. No duplicate Full CI or
+additional Emulator rehearsal ran.
+
+**Responsibilities (closed, not precedents).** For CI-PERF-01 only, the Owner set a
+temporary split after the MASTER_POLICY v14.6 release (2026-11-24): ChatGPT for
+analysis, design, implementation and corrections; Claude for profiling, independent
+review, local tests and the benchmark; joint CI verification; Owner merge approval.
+By the Owner decision of 2026-11-25 the remaining PR #104 corrective work went to
+Claude, with ChatGPT reviewing. Both arrangements and the one-time PR #101 exception
+are closed and are not precedents (MASTER_POLICY Appendix B.4). The current
+responsibilities are in
+[Current work and remaining order](#current-work-and-remaining-order-master_policy-19).
 
 ### Codex execution efficiency and verification
 
@@ -608,25 +635,31 @@ claiming compatibility; preserve the accepted record's limitations and residual 
 
 ## Current work and remaining order (MASTER_POLICY §19)
 
-**Status (Owner decision 2026-11-24; MASTER_POLICY v14.6 issued that day, §19.3).**
-The Owner approved OD-01 to OD-13, which closes the planned Step 1 and Step 2
-implementation and audit work and accepts the residual risks:
+**Status (MASTER_POLICY v14.7, issued 2026-11-25; §03, §19.3, Appendix C).** On
+2026-11-24 the Owner approved OD-01 to OD-13, which closes the planned Step 1 and
+Step 2 implementation and audit work and accepts the residual risks. CI-PERF-01 then
+completed with PR #104 and the Owner decisions OD-PERF-02-A to F:
 
 | Item | Status |
 | --- | --- |
 | Step 1 | SOURCE / OFFLINE COMPLETE (OD-01) |
-| Step 2 | COMPLETE with accepted, explicitly limited Emulator evidence (OD-02 to OD-07; see the [Step 2 record](docs/step2-emulator-rehearsals.md)) |
+| Step 2 | Closed with accepted, explicitly limited Emulator evidence (OD-02 to OD-07; see the [Step 2 record](docs/step2-emulator-rehearsals.md)) |
+| CI-PERF-01A/B | COMPLETE ([CI-PERF-01](#ci-perf-01-full-ci-performance-master_policy-1251)) |
+| OD-PERF-02-A to F | Approved |
+| PR #104 | Merged (`bab22ef`) and post-merge verified |
+| Codex formal handover | PENDING — DOCUMENTATION ALIGNMENT AND OWNER APPROVAL |
+| Step 3 | NOT STARTED |
+| Step 4 | NOT STARTED |
 | CORE PORTFOLIO COMPLETE | NOT DECLARED |
 | PORTFOLIO COMPLETE | NOT DECLARED |
-| Codex formal handover | NOT STARTED |
-| Step 3 | NOT STARTED |
 
 The closure does not mark any unverified item PASS and is not portfolio completion.
 OD-08 to OD-13 keep D1, D4, D14, D15, D20, D21 and D22 OPEN, real Apply and Destroy
 BLOCKED, Live AWS/EKS verification out of scope, NP-2B and NP-3 PAUSED, no further
-Emulator demonstration before the Codex handover, and CI-PERF-01 before the handover.
-V7-B/C/D, NP-2B/NP-3, DB, Delivery, CloudFront and other new features stay paused; the
-closure alone does not make any of them startable. The history of Steps 1 and 2 is in
+Emulator demonstration before the Codex handover, and CI-PERF-01 before the handover
+(now done). V7-B/C/D, NP-2B/NP-3, DB, Delivery, CloudFront and other new features
+stay paused; the closure alone does not make any of them startable. The history of
+Steps 1 and 2 is in
 [deployment configuration](docs/deployment-configuration.md#8-step-plan) and the
 [audit report](docs/step1-audit-report.md) (6c-B5 final audit in section 7).
 
@@ -641,22 +674,39 @@ for independent review and Owner merge approval. Listing is not approval:
    item 4].
 4. MASTER_POLICY v14.6: issued 2026-11-24 [§19.3 item 4].
 5. CI-PERF-01A and CI-PERF-01B, benchmark, independent review, required CI, Full CI,
-   merge and post-merge verification ([CI-PERF-01](#ci-perf-01-full-ci-performance-master_policy-1251))
-   [§19.3 item 5].
-6. The final handover baseline (latest `main` and tree, risk, CI contracts) and an
-   explicit Owner-approved Codex handover [§19.3 item 6].
+   merge and post-merge verification ([CI-PERF-01](#ci-perf-01-full-ci-performance-master_policy-1251)):
+   completed with PR #104 and OD-PERF-02-A to F; MASTER_POLICY v14.7 issued
+   2026-11-25 [§19.3 item 5].
+6. Next: the final handover baseline (latest `main` and tree, risk, CI contracts), the
+   documentation alignment (DOC-ALIGN-02) and an explicit Owner-approved Codex
+   handover [§19.3 item 6].
 7. Step 3: the remaining Core services by individually approved functional unit, by
    Codex; Full CI at each Root completion; normal pull requests follow §12. Findings F6
    and F10 stay assigned to Step 3 [§19.3 item 7].
 8. Step 4: final Core acceptance (Full CI required), independent confirmation of the
    representative Emulator evidence and the Owner's completion decision [§19.3 item 8].
 
-**Handover gate (MASTER_POLICY §19.3).** Before the formal handover:
+**Handover gate (MASTER_POLICY §19.3, Appendix C).** Before the formal handover:
 - CI-PERF-01 is merged with its benchmark, exact-HEAD Full CI, independent review and
-  post-merge verification; a missed target goes to the Owner.
+  post-merge verification: met (PR #104, Appendix A).
+- The repository's candidate and incomplete-status text is aligned with MASTER_POLICY
+  v14.7 by an Owner-approved documentation-only pull request, keeping historical
+  records distinct.
+- The final merged baseline is independently verified and the Owner explicitly
+  approves the formal handover.
 - The handover instruction fixes the latest `main` and tree, the target roots and files,
   architecture and scope, residual risk, OPEN decisions, expected counts, CI and
   Emulator evidence and the stop conditions.
+
+**Responsibilities after the formal handover (MASTER_POLICY §00, Appendix B.4, C.4).**
+- Codex is the primary implementation agent for individually approved Step 3 tasks.
+- ChatGPT performs independent review and governance oversight.
+- The Owner keeps scope, risk, cost and merge authority.
+- Claude performs additional implementation only when the Owner separately
+  authorizes it.
+
+The CI-PERF-01 responsibilities, the PR #104 corrective exception and the PR #101
+exception are closed and are not precedents.
 
 Codex implements nothing before the formal handover and an individual Owner scope
 approval. Fake-only engines are never Live procedures. D1 and the other OPEN decisions
