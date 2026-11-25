@@ -2,7 +2,7 @@
 
 > **Current authority.** The latest Owner-approved MASTER_POLICY, identified under the
 > rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy. Sections below
-> that cite a specific policy version (v10 to v14.5), the v14.2 alignment record,
+> that cite a specific policy version (v10 to v14.6), the v14.2 alignment record,
 > optional DEV Live, G01–G07, the JPY 10,000 limit or 72-hour teardown are historical
 > records, not current rules. Under the controlling MASTER_POLICY §15,
 > real AWS/EKS Live verification and enabling real Apply/Destroy are outside the
@@ -496,15 +496,33 @@ NOT RUN under a one-time Owner exception. The 6c-B5 audit is Claude's Owner-desi
 final task, with Full CI dispatched by the Owner (reason `claude-final-task`): run
 45453872145 succeeded on PR #102's exact HEAD `b9edba4`.
 
-**CI-PERF-01 (Full CI performance, MASTER_POLICY §12.5.1).** Before the Codex handover,
-Full CI is shortened without removing anything: target within 40 minutes, ideally
-within 35, about 50–55 minutes at the final portfolio stage (targets, not guarantees),
-hard timeout unchanged at 60 minutes. Every test, mutation ID, expected count,
-assertion and safety contract is kept. Parallelization, persistent caches, paid
-runners and production safety changes need separate approval. Profiling and design
-precede implementation approval, and the implementation is a high-risk CI change with
-Full CI. The responsibilities for CI-PERF-01 are in
-[AGENTS.md](../AGENTS.md#ci-perf-01-full-ci-performance-master_policy-1251).
+**CI-PERF-01 (Full CI performance, MASTER_POLICY §12.5.1): COMPLETE.** Full CI was
+shortened without removing anything: every test, mutation ID, expected count,
+assertion and safety contract is kept, and the hard timeout stays at 60 minutes. The
+targets were within 40 minutes, ideally within 35, and about 50–55 minutes at the final
+portfolio stage (targets, not guarantees). Profiling and design (CI-PERF-01A) came
+before the implementation approval. The implementation (CI-PERF-01B, PR #104) was a
+high-risk CI change with Full CI. Under OD-PERF-01 it was first approved for
+implementation and evaluation as a candidate only. The Owner decisions OD-PERF-02-A
+to F then formally adopted it after review, the required CI, the squash merge
+(`bab22ef`) and the post-merge verification. The offline Receipt/Apply runtime tests
+run in resource-bounded Linux fork-per-task processes with `--workers auto` (at most
+four), the command line defaults to one worker, and Plan and Status stay serial. The
+residual risks accepted under OD-PERF-02-C are listed in
+[AGENTS.md](../AGENTS.md#ci-perf-01-full-ci-performance-master_policy-1251). Recorded
+runs, all attempt 1:
+
+| Pull request | PR Safety CI | Offline Contracts | Full CI | `main` Offline Contracts |
+| --- | --- | --- | --- | --- |
+| #102 | 45452026201 | 45452026074 | 45453872145, 53m43s (runtime step 1465 s) | 45464497212 |
+| #103 | 45473185901 | 45473185810 | 45473185925, 35m24s (runtime step 921 s) | 45480648788 |
+| #104 | 45525300626, SUCCESS | 45525300472, SUCCESS | 45525299922, SUCCESS, 28m18s (runtime step 461 s) | 45529485939, SUCCESS |
+
+PR #104 kept CI Policy at 72 tests / 97 mutations and the runtime suites at 252 tests /
+616 mutations; all 276 parallelized mutations were detected, with 125 baseline
+witnesses plus 5 explicit inline baselines. Hosted runner speed varies, so the whole
+difference is not attributed to parallelization. The responsibilities used for
+CI-PERF-01 and the PR #104 correction are closed and are not precedents.
 
 ## Historical: DEV Live limits (not current)
 

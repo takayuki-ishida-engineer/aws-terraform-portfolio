@@ -19,28 +19,35 @@ AWS service-reference downloads that the existing Full CI steps already make.
 | `merge_check.py` | Post-merge tree check: squash parent is the reviewed base and the squash tree equals the tree CI verified |
 | `safety_checks.py` | `workflows`, `secrets`, `guards` (always-on) and `changed` (syntax and `git diff --check` of the changed files) |
 | `test_ci.py` | 72 unit and negative tests and 97 source mutations, run in the `ci_policy` step |
-| `runtime_test_runner.py` | CI-PERF-01B candidate: bounded Linux fork-per-task execution of offline receipt/apply tests |
+| `runtime_test_runner.py` | Adopted CI-PERF-01B runner (OD-PERF-02): bounded Linux fork-per-task execution of offline receipt/apply tests |
 
-## CI-PERF-01B candidate runtime runner
+## Adopted runtime test runner (CI-PERF-01B, OD-PERF-02)
 
-The Owner approved implementation and evaluation, not final adoption. Plan and status
-remain serial. Receipt and apply run real unittest TestCases, preserving 144/382 and
-58/163 reviewed test/mutation counts respectively. The 113 destroy-engine and 163
-apply mutations use per-ID tasks inside their original aggregate TestCase. The other
-mutation loops stay serial internally. Explicit normal-code scenario witnesses cover
-125 scenarios; the three RC-2 and two previously uncovered apply scenarios run their
-normal-code baseline before mutation. A baseline/fixture/assembly failure or crash
-is never accepted as detection. The structured per-ID results must match inventory.
+The Owner formally adopted this runner with OD-PERF-02-A to F (MASTER_POLICY §12.5.1,
+Appendix B), after PR #104 was reviewed, passed the required CI and Full CI on its
+exact HEAD and was squash merged and verified. Plan and status remain serial. Receipt
+and apply run real unittest TestCases, preserving 144/382 and 58/163 reviewed
+test/mutation counts respectively. The 113 destroy-engine and 163 apply mutations use
+per-ID tasks inside their original aggregate TestCase. The other mutation loops stay
+serial internally. Explicit normal-code scenario witnesses cover 125 scenarios; the
+three RC-2 and two previously uncovered apply scenarios run their normal-code
+baseline before mutation. A baseline/fixture/assembly failure or crash is never
+accepted as detection. The structured per-ID results must match inventory.
 
 Use the pinned Helm binary and the same credential-free environment as Full CI:
 `KUBECONFIG=/dev/null`, `PYTHONDONTWRITEBYTECODE=1`,
 `AWS_EC2_METADATA_DISABLED=true`, `AWS_SHARED_CREDENTIALS_FILE=/dev/null`, and
-`AWS_CONFIG_FILE=/dev/null`. Do not pass actual credentials. The candidate supports
-`python3 scripts/ci/runtime_test_runner.py --workers 1` (candidate serial),
-`--workers 2`, `--workers 4`, and `--workers auto` (resource-bounded, maximum four).
-Explicit requests over the detected CPU/memory budget fail; no silent fallback.
-Use the unchanged base in a separate disposable checkout for the legacy serial comparison.
-Compare complete candidate evidence logs using `runtime_test_runner.py --compare SERIAL_JSONL PARALLEL_JSONL`.
+`AWS_CONFIG_FILE=/dev/null`. Do not pass actual credentials. The command line
+defaults to one worker (`--workers 1`, serial); `--workers 2`, `--workers 4` and
+`--workers auto` (resource-bounded, maximum four) run in parallel. Full CI uses
+`--workers auto`. Explicit requests over the detected CPU/memory budget fail; no
+silent fallback. Compare complete evidence logs using
+`runtime_test_runner.py --compare SERIAL_JSONL PARALLEL_JSONL`.
+
+**Evidence identifier.** Each evidence log starts with the header
+`{"runtime_runner": "candidate", ...}`. `candidate` is a stable evidence-format
+identifier that `read_evidence` and the tests require; it is kept unchanged so the
+reviewed format stays valid, and it does not mean the runner is still a candidate.
 
 **Clean descriptor boundary.** A hosted step shell can hold an inherited descriptor
 that is not close-on-exec (PR #104 failed with `unexpected_parent_descriptor:142`).
@@ -65,12 +72,25 @@ exception category and repository source frames on stderr, never raw worker outp
 exception messages, source text or locals. The generated PR Safety workflow must
 match the generator.
 
-The candidate must not be merged before independent review, exact pre-commit local
-verification, serial/parallel equivalence, measured resource/performance evidence,
-required CI, and the separate Owner adoption and merge approval. Production Receipt
-and Journal replay remain unchanged; the underlying cost is a residual performance
-issue, not an authorization to relax safety validation. Status subprocess cost is
-also outside this candidate's scope.
+The 60-minute Full CI hard timeout, the standard runner, the cache policy and
+Production Receipt and Journal replay remain unchanged. Accepted residual risks
+(OD-PERF-02-C): no direct test of the 64 KiB diagnostic limit; a malformed diagnostic
+can be reported before the original failure (still fail-closed); the resource type of
+the inherited descriptor 142 is unknown; hosted runner performance varies; the
+underlying Receipt/Journal replay cost and the status subprocess cost are residual
+performance issues outside this scope, not an authorization to relax safety
+validation. Any further performance change is a new task under MASTER_POLICY
+§12.2–12.7 with its own Owner approval and Full CI.
+
+History (records only): under OD-PERF-01 the Owner approved implementation and
+evaluation of this runner as a candidate, not final adoption; it was not to be merged
+before independent review, exact pre-commit local verification, serial/parallel
+equivalence, measured resource/performance evidence, required CI and a separate Owner
+adoption and merge approval. PR #104's first CI failed on the inherited descriptor 142
+(runs 45516671772 and 45516671756); the clean descriptor boundary above corrected it.
+The exact HEAD `bd707b1` then passed PR Safety CI 45525300626, Offline Contracts
+45525300472 and Full CI 45525299922 (28m18s, runtime step 461 s), all attempt 1, and
+OD-PERF-02 adopted the runner.
 
 ## PR Safety CI
 

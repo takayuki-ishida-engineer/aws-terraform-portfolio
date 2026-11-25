@@ -307,7 +307,7 @@ runtime is in scope at a minimal development level.
 | --- | --- | --- |
 | 1 | Make the existing DEV roots and the minimal Kubernetes runtime deploy-ready, without new features except those needed to deploy. **Closed 2026-11-24: SOURCE / OFFLINE COMPLETE (OD-01)** | Claude Code |
 | 2 | Emulator rehearsals of the real modules; the plan also named an end-to-end apply and destroy, which was not demonstrated (NOT_TESTED, OD-07). The rehearsals run automatically on a `main` change to their trigger paths (Owner decision 2026-11-20). **Closed 2026-11-24: COMPLETE with accepted, explicitly limited Emulator evidence (OD-02 to OD-07)**. Recorded in [Step 2 emulator rehearsals](step2-emulator-rehearsals.md) | Claude Code |
-| 3 | Add the remaining target services. NOT STARTED; after CI-PERF-01 and the formal handover | Codex, after an Owner-approved handover |
+| 3 | Add the remaining target services. NOT STARTED; after the documentation alignment and the formal handover (CI-PERF-01 is complete) | Codex, after an Owner-approved handover |
 | 4 | Core acceptance audit. NOT STARTED | Independent reviewer and Owner |
 
 Step 1 and Step 2 closed on 2026-11-24 (Owner decisions OD-01 to OD-13, recorded in
@@ -403,8 +403,12 @@ explicit instruction as its own reviewed pull request; listing is not approval:
 3. the Step 1/2 closure and residual risk acceptance (OD-01 to OD-13): completed;
 4. MASTER_POLICY v14.6: issued 2026-11-24;
 5. CI-PERF-01A and CI-PERF-01B (Full CI performance), benchmark, independent review,
-   required CI, Full CI, merge and post-merge verification;
-6. the final handover baseline and an explicit Owner-approved Codex handover;
+   required CI, Full CI, merge and post-merge verification: completed with PR #104
+   (Full CI 45525299922, 28m18s) and the Owner decisions OD-PERF-02-A to F, which
+   formally adopted the bounded parallel offline runtime tests; MASTER_POLICY v14.7
+   issued 2026-11-25;
+6. next: the final handover baseline, the documentation alignment and an explicit
+   Owner-approved Codex handover (PENDING);
 7. Step 3 by Codex, by individually approved functional unit (Full CI at each Root
    completion; F6 and F10 stay assigned here);
 8. Step 4, final Core acceptance with Full CI and the representative Emulator evidence,
