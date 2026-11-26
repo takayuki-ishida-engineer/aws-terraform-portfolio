@@ -7,6 +7,52 @@
 > the JPY 10,000 limit or 72-hour teardown, are historical. Under the controlling
 > MASTER_POLICY §15 real AWS/EKS Live verification is outside the current scope.
 
+## Revision 6 foundation contracts
+
+MASTER_POLICY v15.0 CF-06–10 and PD-01–06/14/18/22 and the v1.30 Final Contracts
+govern the current design. The following sections preserve the historical
+foundation proposal and its evidence.
+
+- **Root and State.** Environment × Region × service defines the State boundary.
+  The Root owns Provider, Account/Region Guard, Backend, Child composition and
+  exposed outputs. Child Modules own resources, typed inputs/outputs, validation
+  and secure defaults for one function. Stacks compose approved reusable
+  contracts. DEV defaults to local per Root. The tfstate bootstrap stays local,
+  with SSE-S3 and S3 Native Locking for the bucket it defines. Optional workload
+  S3 backend uses untracked parameters. No real State or additional STG/PROD
+  Roots are in scope.
+- **Single Writer.** Match the exact or longest authorized path from the 431-rule
+  catalog and preserve one writer per resource. Terraform owns infrastructure,
+  controllers their dynamic state, and release automation its declared release
+  state. Use the specified Terraform parameter / Rotation value split for SSM.
+  Terraform never handles private keys or secret values.
+- **Versioned I/O.** Fix network-v1 for existing consumers and make network-v2
+  additive. Bind typed minimal outputs to publisher, freshness, scope, integrity
+  and authorization. Use approved manifests or typed non-secret SSM as specified.
+  Preserve the 32 Root Inputs and their classifications. Operator and capacity
+  fields are explicit. Fixture values, input locks and generated AMI/image/bundle
+  witnesses are distinct.
+- **Profiles and flags.** R1–R6, minimal and serverless-only separate capability
+  selection from activation. Apply configuration according to its approved
+  Root Override, Module Default or Module Fixed category and verify effective
+  settings. Reject insecure flag combinations, missing producers and implicit
+  teardown. DEV and STG/PROD fixtures share security contracts. DEV uses RDS;
+  STG/PROD reuse Aurora. Engine changes require migration.
+
+| Gate | INT-00 shared contract |
+| --- | --- |
+| X01 | Capability/Profile activation, mandatory security, dependency closure and legacy zero-diff |
+| X02 | RDS/Aurora selection and non-destructive State, mock addresses and recovery witnesses |
+| X03 | Per-resource create / existing / disabled, read-only existing mode, single writer, Region and recorder ownership |
+| X04 | Per-resource encryption, delivery, retention, typed exceptions, old-key custody and exact consumer evidence |
+
+X01–X04 remain OPEN. After CI-INT merge, GUARD-01/EXA-11 needs the approved
+20-Root Shared Root Catalog, its bound canonical digest, Full evidence and
+Owner merge. SYNC-GUARD brings that same catalog to Integration. INT-00 also
+needs actual G-PROOF, the X01–X04 evidence and specific Owner scope. The
+catalog in the handoff is a candidate. GUARD-01, SYNC and INT-00 have not run.
+OD-HO-06 remains unauthorized.
+
 This is an implementation-readiness proposal, not implementation or execution
 approval. At that time (historical), the operating requirements were the owner-authorized Master Policy
 v14.2 [alignment record](policy-v14-2-alignment.md), with separate Core offline and

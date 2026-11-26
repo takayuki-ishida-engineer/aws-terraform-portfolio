@@ -7,6 +7,111 @@
 > the JPY 10,000 limit or 72-hour teardown, are historical. Under the controlling
 > MASTER_POLICY §15 real AWS/EKS Live verification is outside the current scope.
 
+## Revision 6 approved target
+
+MASTER_POLICY v15.0 and Revision 6 Final Conditional v1.30 govern this target.
+The sections that follow preserve the earlier architecture and evidence. The
+approved design inventory is 20 Terraform Roots, 27 Functional Units, 28 Plan
+Parts, 14 Resolution Packages, 20 Cross Contracts, 32 Root Inputs, 431 Writer
+Rules and 120 Technical Findings. All 120 acceptance states are OPEN. DEV
+ca-central-1 is the Source/Offline scope. STG / PROD and other regions are
+reuse and fixture designs.
+
+The Final Contracts Root catalog supplies the names and primary assignments.
+DEV paths share the prefix infra/services/dev/ca-central-1/. LR entries are
+designated legacy-root work in the Task Packets.
+
+| Root / DEV path suffix | Primary work | Design group | Fixed baseline |
+| --- | --- | --- | --- |
+| tfstate | LR-TFSTATE | PR-C | Existing Root |
+| network | C1 | PR-C | Existing Root |
+| platform | C2 | PR-C | Existing Root |
+| api | C4 | PR-C | Existing Root |
+| serverless-api | LR-SAPI | PR-O | Existing Root |
+| registry | A6 | PR-A | Existing Root |
+| developer-access | LR-DEV | PR-O | Existing Root |
+| kms | S1 | PR-S | Target Root |
+| access | S2 | PR-S | Target Root |
+| security-baseline | S3 | PR-S | Target Root |
+| network-protection | S7 | PR-S | Target Root |
+| edge | C4 | PR-C | Target Root |
+| database | C5 | PR-C | Target Root |
+| observability | O1 | PR-O | Target Root |
+| ops-automation | O4 | PR-O | Target Root |
+| backup | O6 | PR-O | Target Root |
+| data-streaming | A1 | PR-A | Target Root |
+| data-warehouse | A3 | PR-A | Target Root |
+| platform-addons | C2 | PR-C | Target Root |
+| ec2-service | A5 | PR-A | Target Root |
+
+| FU | Design group | Root scope | Module or deliverable |
+| --- | --- | --- | --- |
+| S1 | PR-S | kms | kms_key |
+| S2 | PR-S | access | iam_access*, iam_account_policies*, org_guardrail_policies |
+| S3 | PR-S | security-baseline | audit_logging |
+| S4 | PR-S | security-baseline | threat_detection |
+| S5 | PR-S | security-baseline | security_lake |
+| S6 | PR-S | security-baseline | private_ca, certificate_automation |
+| S7 | PR-S | network-protection | dns_firewall, network_firewall |
+| S8 | PR-S | platform-addons | (no Terraform module) security/policies, renovate.json, policy-controller add-on |
+| C1 | PR-C | network | vpc* |
+| C2 | PR-C | platform, platform-addons | eks_platform*, karpenter_prereqs |
+| C3 | PR-C | platform-addons | argocd_capability |
+| C4 | PR-C | api, edge | api_gateway_rest*, cognito_auth*, waf_web_acl, cloudfront_distribution, private_ingress* (additive outputs only) |
+| C5 | PR-C | database | rds_postgres |
+| C6 | PR-C | platform | (writes through C2-owned eks_platform with an explicit cross-FU change record) |
+| O1 | PR-O | observability | amp_workspace, add-ons: cloudwatch-observability, metrics-server, k8s-events, prometheus, grafana, adot, datadog |
+| O2 | PR-O | observability | observability_alarms, log_detection, synthetics_canary, cloudwatch_logs* (owner of record, no change) |
+| O3 | PR-O | ops-automation | dynamodb_table |
+| O4 | PR-O | ops-automation | ops_automation |
+| O5 | PR-O | ops-automation, ec2-service | ssm_operations |
+| O6 | PR-O | backup | backup_plan |
+| O7 | PR-O | ops-automation | eventing |
+| A1 | PR-A | data-streaming | msk_cluster, msk_connect, flink_application, firehose_stream |
+| A2 | PR-A | data-warehouse | redshift_serverless, glue_catalog |
+| A3 | PR-A | data-warehouse | emr_serverless, mwaa_environment, glue_data_quality |
+| A4 | PR-A | data-warehouse | opensearch |
+| A5 | PR-A | ec2-service | ec2_asg_service |
+| A6 | PR-A | registry | ecr_repository* |
+
+An asterisk marks an existing module. Exact changes and protected paths are
+defined by the corresponding Task Packet.
+
+Module and cross-FU assignments, exact files and required witnesses remain in
+Final Contracts and Task Packets. The network Root owns routes and
+network-protection owns firewalls. Protected routes depend on firewall readiness
+in selected AZ IDs, with no direct NAT fallback. Use AWS managed keys in the
+baseline and typed CMK selections for eligible strict resources. Terraform owns
+declared PKI metadata; Rotation owns its authorized certificate lifecycle and
+keeps private keys in invocation memory only. CloudFront requires a custom viewer
+domain, us-east-1 ACM and TLSv1.2_2021 when enabled. Scope-bound API output and
+backend TLS/mTLS evidence remain gated. NP-2B/NP-3 remain PAUSED, and runtime stays
+Fake-only.
+
+Keep approved AWS-native and Datadog modes separate. Direct ADOT OTLP HTTP
+trace-only remains conditional on exact Site/endpoint and Sampling/SLO evidence.
+DogStatsD is a separate flow. Data and delivery consumers require verified locks,
+compatibility, and scoped offline checks before use. See
+[foundation contracts](architecture-v2-foundation-design.md#revision-6-foundation-contracts)
+for State, profiles and ownership.
+
+### Revision 6 residual blockers
+
+| Gate | State | Affected scope and release evidence |
+| --- | --- | --- |
+| B-01 | HOLD | Affected A3 and mandatory M6/M7 scope require an AWS-supported patched MWAA runtime and constraints |
+| B-02 | HOLD | C2 and dependent Chart/CRD work require exact public archives, hashes, signature and inventory before implementation |
+| B-03 | HOLD | Consumers need exact OCI child/config/layers, signatures and dynamic image closure before use |
+| B-04 | HOLD | Regional capability and Config ownership shared model at INT-00; exact region/feature before affected FU |
+| B-05 | HOLD | Shared X01–X04 at INT-00; exact IAM/KMS/SG/NP/DNS/retention rows before affected FU |
+| B-06 | HOLD | Lenses/Glue/Flink artifact, effective classpath, compatibility and security before affected A-series |
+| B-07 | HOLD | Exact locks, signatures, scan and release age before CI-INT for M1 tools and before use for each affected FU |
+| B-08 | PROVENANCE_LIMITATION | Eight historical image names remain unavailable; no reconstruction gate |
+| B-09 | HOLD | O1/S7/C1 require Datadog Site configuration, exact FQDNs and flow evidence before affected work |
+
+Unresolved gates stop their dependent scope. Independent work needs its own
+approval. Missing mandatory witnesses hold affected LAND or ACC acceptance.
+
 ## V7-A source update — runtime not demonstrated
 
 V7-A adds [api_gateway_rest](../infra/modules/api_gateway_rest/README.md) and composes Regional REST core plus Cognito

@@ -1,13 +1,57 @@
 # Portfolio verification policy — evidence and operating boundaries
 
-> **Current authority.** The latest Owner-approved MASTER_POLICY, identified under the
-> rule in [AGENTS.md](../AGENTS.md), is the sole controlling policy. Sections below
+> **Current authority.** Owner-issued MASTER_POLICY v15.0 governs.
+> See the precedence rule in [AGENTS.md](../AGENTS.md). Sections below
 > that cite a specific policy version (v10 to v14.6), the v14.2 alignment record,
 > optional DEV Live, G01–G07, the JPY 10,000 limit or 72-hour teardown are historical
 > records, not current rules. Under the controlling MASTER_POLICY §15,
 > real AWS/EKS Live verification and enabling real Apply/Destroy are outside the
 > current scope. The current CI rules are in the
 > [CI execution policy](#ci-execution-policy--owner-decision-2026-11-23) below.
+
+## Revision 6 verification and acceptance
+
+MASTER_POLICY v15.0 Part I (CF-16–25, CF-29–31, PD-18–19) governs. M0 is complete.
+The Owner accepted ChatGPT's final plan and its self-review with the absence of
+a separate independent plan review recorded. Implementation PR review remains
+required.
+
+| Scope | Evidence boundary |
+| --- | --- |
+| GOV-01 / DES-01 | IMPACT + independent Offline Contracts. Full only if required by the current verdict or controlling policy. Separate acceptance for each task |
+| M1-TOOLS | Offline Tool Checks Only; independent review and Owner acceptance |
+| CI-INT-01 | FULL + independent Offline Contracts; start only after M1-TOOLS and both GOV/DES acceptances, exact File Manifest and individual authority |
+| Initial Integration PRs (post OD-HO-06) | Planned Light + independent Offline Contracts and trusted pre-merge review |
+| LAND / ACC | Full scope and original witnesses; independent review and Owner approval |
+
+Bind CI to exact HEAD, Base, tested Tree, Run and Attempt. Record workflow,
+event, actor, check/App, selected steps, counts, logs and conclusion. The planned
+CI-INT design derives requirements from trusted Catalog and independent
+readback, with evidence from one Run and Attempt. Keep 42 CI Steps, 38 Test
+Suites, 154 Expected Counts and 18 historical Emulator Ledger records as
+inventories. Distinguish Source/Offline, Emulator and Live evidence.
+
+**M1-TOOLS.** Initial execution is complete and acceptance is HOLD. Codex
+reported successful Terraform and AWS Provider artifact verification. Helm
+signature and LocalTLS are BLOCKED, Helm render is NOT_TESTED, and Buildx /
+BuildKit applicability for M1 is UNKNOWN. Supply-chain Scan is outstanding,
+Hosted Runner details are unverified, and the D1–D7 originals have not been
+independently verified. The amended EXA-01-D permits GOV/DES first while
+retaining the M1-TOOLS acceptance gate before CI-INT-01.
+
+All 120 technical findings are OPEN. Confirm the applicable
+[residual blockers](architecture-v2.md#revision-6-residual-blockers), exact
+input evidence and ownership before starting or using an affected Root/FU.
+Stop on missing or conflicting evidence; resumption needs the stated witness,
+review and applicable Owner approval. B-08 is provenance only. M1 preparation
+has individual approvals; EXA-05 (OD-HO-06) needs D-03, accepted INT-00, actual
+G-PROOF and Owner approval of the specific scope.
+
+M6 assesses Core through ACC and required Full evidence. M7 independently
+verifies representative Emulator evidence within its demonstrated scope and
+the fourteen controls. Portfolio Complete requires both and final Owner
+acceptance. Step 1, limited Step 2 and historical VPC evidence retain their
+accepted scopes.
 
 ## Representative Emulator workflow — AWS EMULATOR DEMONSTRATED for the VPC scenario
 
