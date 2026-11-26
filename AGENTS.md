@@ -1,7 +1,10 @@
 # Repository guidance
 
-**Controlling policy.** The latest Owner-approved AWS Terraform Portfolio
-MASTER_POLICY is the sole controlling policy.
+**Controlling policy.** The Owner-issued **MASTER_POLICY v15.0 (2026-11-26)**
+is the sole controlling policy. Part I prevails over conflicting Part II text.
+Apply MASTER_POLICY v15.0, Revision 6 Final Conditional v1.30, Final Contracts,
+M1 Handoff and Codex Task Packets, then historical designs and evidence, in that
+order. The v1.30 package preserves pre-issuance labels as historical records.
 
 - Use the current policy document explicitly designated by the Owner. Do not infer
   current authority from an older version, a file name, repository history or a
@@ -382,6 +385,15 @@ hours) are historical records, not a current permission.
 
 ### CI execution policy (Owner decision 2026-11-23)
 
+The checked-in workflows below remain operative. Under v15.0 CF-16–22 and
+PD-10/12/16, CI-INT-01 specifies trusted Catalog and independent readback,
+same-Run shard aggregation, and Integration Light + independent Offline Contracts
+with a trusted pre-merge check. This design is pending implementation. Keep
+the checked-in queue guard until the planned per-PR/per-workflow queue takes
+effect through an approved change. Bind results to exact HEAD, Base, tested
+Tree, Run and Attempt. Independent review and serial Owner merges remain required.
+See [Revision 6 verification](docs/portfolio-verification-policy.md#revision-6-verification-and-acceptance).
+
 Every pull request to `main` runs **PR Safety CI** (check name `PR Safety CI`,
 `.github/workflows/pr-safety-ci.yml`, generated from Full CI by
 `scripts/ci/pr_safety_workflow.py`). Its always-on steps check repository hygiene,
@@ -635,6 +647,54 @@ claiming compatibility; preserve the accepted record's limitations and residual 
 
 ## Current work and remaining order (MASTER_POLICY §19)
 
+**Current record (2026-11-26, America/Toronto).** Step 1 Source/Offline acceptance
+and Step 2 closure with accepted limited Emulator evidence stand. CI-PERF-01A/B,
+DOC-ALIGN-02 (PR #105), CODEX-HO-01 and formal Codex handover are complete.
+OD-HO-05 is accepted. M0 and the document handover are complete. The Owner
+approved Revision 6 v1.30 and issued MASTER_POLICY v15.0 under M0-D01–04. The
+same ChatGPT authored and self-reviewed the final plan; the Owner accepted
+that independent plan review had not occurred. Implementation PRs still need
+independent review.
+
+| Item | Current status |
+| --- | --- |
+| EXA-01 A–D | APPROVED; EXA-01-D order amended and approved |
+| M1 / GOV-01 and DES-01 | IN PROGRESS; one documentation PR with separate acceptance conditions |
+| M1-TOOLS | Initial execution complete; Acceptance HOLD |
+| CI-INT-01 | CONDITIONALLY AUTHORIZED / HOLD |
+| EXA-02 and subsequent gates, including OD-HO-06 | NOT AUTHORIZED |
+| Step 3 full implementation / Step 4 | NOT STARTED |
+| 120 Technical Findings / NP-2B and NP-3 | OPEN / PAUSED |
+| CORE PORTFOLIO COMPLETE / PORTFOLIO COMPLETE | NOT DECLARED |
+
+**Owner-amended EXA-01-D.** GOV-01 / DES-01 precedes resolution of M1-TOOLS.
+The combined documentation PR needs IMPACT + Offline Contracts, independent
+review and Owner merge approval. Resolve M1-TOOLS evidence in separate,
+limited work. CI-INT-01 needs both GOV/DES and M1-TOOLS acceptance, an exact
+File Manifest and specific execution authority.
+
+1. **M1:** CI-INT-01 Full + Offline Contracts and independent review precede
+   EXA-02 Owner merge. EXA-03/04 cover Owner ruleset/branch readback and
+   PROOF-01 P1–P7 for G-PROOF. After CI-INT merge, GUARD-01/EXA-11 binds the
+   reviewed shared catalog. SYNC-GUARD, X01–X04 and G-PROOF feed INT-00.
+   EXA-05 (OD-HO-06) requires D-03, accepted INT-00, actual G-PROOF, issued
+   policy and Owner approval of the eligible FU, files and gates.
+2. **M2:** Four initial Integration PRs in the individually approved scope.
+3. **M3:** Focused verification, authorized fixes, RT-01 and SYNC. Applicable
+   EMU-PARITY and actual run/attempt ledger work precede LAND.
+4. **M4–M5:** LAND exact Full, independent review, Owner squash, parent/tree
+   verification and actual run/attempt ledger entries.
+5. **M6–M7:** ACC Core acceptance, independent representative Emulator evidence
+   and final Owner acceptance. Mandatory blockers and original witnesses apply.
+
+**Current roles.** Owner controls policy, scope, risk, cost, acceptance and merge.
+Codex implements and verifies individually authorized work. ChatGPT manages
+development governance and independently reviews it. Claude Code performs
+additional work only with individual Owner approval.
+
+**Historical sequence and prerequisites.** The following v14.7 status, order and
+handover checklist record the state before formal handover.
+
 **Status (MASTER_POLICY v14.7, issued 2026-11-25; §03, §19.3, Appendix C).** On
 2026-11-24 the Owner approved OD-01 to OD-13, which closes the planned Step 1 and
 Step 2 implementation and audit work and accepts the residual risks. CI-PERF-01 then
@@ -713,7 +773,7 @@ approval. Fake-only engines are never Live procedures. D1 and the other OPEN dec
 are never implemented on Codex's own judgment. Codex stops on any real operation,
 contract widening, unapproved cost or missing required CI.
 
-**Runtime decisions (MASTER_POLICY §19.2, Source/Offline only).**
+**Continuing runtime decisions (MASTER_POLICY §19.2, Source/Offline only).**
 - **Approved:** D2, D3, D5, D6, D7, D8, D9, D10, D11, D12, D13, D16, D17, D18, D19 and
   D23. The approved scope includes G9 registration pinning and the Fake-only atomic
   namespace gate (PR #101; Fake-only, real cascade safety NOT_VERIFIED).

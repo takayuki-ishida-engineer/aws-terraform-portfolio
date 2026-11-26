@@ -1,5 +1,12 @@
 # AWS Terraform and Kubernetes Portfolio
 
+The approved target is a **Reusable AWS Infrastructure & Automated Operations
+Platform**. Revision 6 defines reusable IaC, security by design, observability and
+log analytics, automated operations and security operations, self-healing
+infrastructure, human-in-the-loop governance, and secure CI/CD and software
+supply chains. The existing DEV source and scoped evidence are recorded below.
+STG / PROD reuse is a design and fixture boundary.
+
 ## Step 2 emulator rehearsal — network and api roots PASS in GitHub Actions
 
 **Step 2 is closed** (Owner decision 2026-11-24, OD-01 to OD-13): it ended with the
@@ -217,9 +224,9 @@ reachability, controller registration or TLS/mTLS communication.
 - NP-2P resolves Gateway port consistency in source. **P0-WEBHOOK** port translation
   and **P0-CNI** version/bootstrap compatibility remain OPEN before NP-3; NP-2B
   communication allow policies are not implemented.
-- V7-A REST core source is implemented; integration/runtime are not. **P0-01–P0-04** retain unresolved
-  integration-target ARN, backend server trust/SNI, client-certificate lifecycle
-  and trusted minimal output-handoff decisions. CloudFront, database, delivery and
+- V7-A REST core source is implemented. Revision 6 records P0-01 to P0-03
+  design resolutions. Provider/network compatibility, actual mTLS and trusted
+  minimal output handoff remain gated. CloudFront, database, delivery and
   application/backend architecture are incomplete; no application workload or
   tenant/owner authorization is demonstrated.
 - Cognito Google federation, browser PKCE/state/nonce behavior and real login are
@@ -231,15 +238,32 @@ reachability, controller registration or TLS/mTLS communication.
 
 ## Current controlling policy
 
-The latest Owner-approved AWS Terraform Portfolio MASTER_POLICY, as designated by the
-Owner, is the sole controlling policy. [AGENTS.md](AGENTS.md#repository-guidance)
+The Owner-issued **MASTER_POLICY v15.0 (2026-11-26)** is the sole controlling policy. [AGENTS.md](AGENTS.md#repository-guidance)
 holds the rule for identifying it and the repository rules that apply it. Earlier
 Master Policy versions (v10 to v14.6), their
 [alignment record](docs/policy-v14-2-alignment.md) and earlier operating instructions
 are historical records, not current rules. A new policy release authorizes no
 implementation, execution or scope change by itself.
 
-**Current status (MASTER_POLICY v14.7, 2026-11-25).**
+**Current status (2026-11-26, America/Toronto).** Step 1 Source/Offline acceptance
+and Step 2 closure with limited Emulator evidence stand. CI-PERF-01A/B,
+DOC-ALIGN-02, CODEX-HO-01 and formal Codex handover are complete. OD-HO-05 is
+accepted. Revision 6 Final Conditional v1.30 is Owner-approved, v15.0 is issued,
+and M0 and document handover are complete.
+
+M1 is in progress. EXA-01 is approved and the amended EXA-01-D puts the current
+GOV-01 / DES-01 documentation work first. M1-TOOLS initial execution is complete
+and its acceptance is HOLD. CI-INT-01 is conditionally authorized and on HOLD.
+EXA-02 onward, including OD-HO-06, remains unauthorized. Step 3 full
+implementation and Step 4 have not started. All 120 technical findings are OPEN.
+NP-2B / NP-3 remain PAUSED. Core and Portfolio Complete are undeclared.
+
+See the [current order](AGENTS.md#current-work-and-remaining-order-master_policy-19),
+[approved architecture and blockers](docs/architecture-v2.md#revision-6-approved-target)
+and [verification and acceptance](docs/portfolio-verification-policy.md#revision-6-verification-and-acceptance).
+
+**Historical alignment snapshot (v14.7, 2026-11-25).** The table records the
+state before formal handover.
 
 | Item | Status |
 | --- | --- |
@@ -254,6 +278,8 @@ implementation, execution or scope change by itself.
 
 The remaining order, the OPEN decisions and the handover gate are in
 [AGENTS.md](AGENTS.md#current-work-and-remaining-order-master_policy-19).
+
+**Checked-in CI and continuing evidence boundaries.**
 
 - **CI (§12).** Every pull request runs **PR Safety CI**, the only required check
   (always-on safety checks plus the impacted Full CI steps). **Full CI** runs on
