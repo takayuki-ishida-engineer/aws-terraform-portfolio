@@ -1,0 +1,153 @@
+{
+  "task_id": "B06-WP-02",
+  "publication_decision": "OD-B06-EV-02",
+  "files": [
+    {
+      "path": "collect_inputs.py",
+      "size_bytes": 1631,
+      "sha256": "97d6ea6c82c2067d4ecd71449575f521ed0bb2d67485961e8649ae205fe6ab12",
+      "classification": "NEW_ORIGINAL_VERIFIER"
+    },
+    {
+      "path": "api_refs.py",
+      "size_bytes": 6353,
+      "sha256": "ddc559560f65365bf1e323a83d552a8f41fbbd6fd87cf8e96d7635e177991e72",
+      "classification": "NEW_ORIGINAL_VERIFIER"
+    },
+    {
+      "path": "evaluate.py",
+      "size_bytes": 16347,
+      "sha256": "f977560d5af65ba3a25a15e30323c5c96074d6758a54ef9d982d63d33af0247c",
+      "classification": "NEW_ORIGINAL_VERIFIER"
+    },
+    {
+      "path": "runtime_decisions.py",
+      "size_bytes": 6030,
+      "sha256": "e62b23f8bb82803ba566b7fe7422881aa5950212306dff1733de235772404b35",
+      "classification": "NEW_ORIGINAL_VERIFIER"
+    },
+    {
+      "path": "NEW_ARTIFACT_IDENTITY_MANIFEST.json",
+      "size_bytes": 69164,
+      "sha256": "42ff309ddfaa7fc0fd8ce50da7630972886a88ed4ab1a244823852956b8152b3",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "DEPENDENCY_API_COMPATIBILITY_DELTA.json",
+      "size_bytes": 178033,
+      "sha256": "df2dd78576f77c3122816354a1389a2dce2f71d197862a0a6613fcf2e4091e31",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "RUNTIME_DECISION_MATRIX.json",
+      "size_bytes": 6713,
+      "sha256": "9c10bd7db5c1e25301bef39e085fbf4fe2f387547201dd17235ff4c79b47ca78",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "ACTUAL_STATIC_TEST_RESULTS.json",
+      "size_bytes": 14546,
+      "sha256": "4d0d539fa7690b968bd07e66dda1abcdcb9a262f550d3c5622a2cb5c01eed54c",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "EXISTING_EVIDENCE_REUSE_MANIFEST.json",
+      "size_bytes": 6295,
+      "sha256": "6b9d84a6fa34ae48ee626bc4c76035ec3d9b324f763ff6301a29a4afa0e58f4f",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 903,
+      "sha256": "b1d47e4608555b8176db2b8e1b10b24324633b08e7d5d30b8bdb2324ae917d6c",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "artifact-controls-1.json",
+      "size_bytes": 1349,
+      "sha256": "27b9e0406474aaa92381abd4f5b5ba1a80a8e26ffdab1a4521ac963957890b3e",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "artifact-controls-2.json",
+      "size_bytes": 4857,
+      "sha256": "6554c315b4521ae8e4deb46d983befedb49d8ac7f079f4033d3ce328a05b82ea",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "artifact-controls-3.json",
+      "size_bytes": 2304,
+      "sha256": "5c93bbb69ada79081a95fb201794bb080500adf1df7209b15a5d60e0f2223169",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "artifact-controls-4.json",
+      "size_bytes": 1131,
+      "sha256": "c0b2697ac50ca844493ae976f5d21ca827f76cd3145d881275811d09ab1ce9e2",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "artifact-targeted-followup.json",
+      "size_bytes": 3459,
+      "sha256": "e55e476247d409d43a96feb15b99f2b6444a3c5481bdd37cffbd74b29a4ab752",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "artifact-top.json",
+      "size_bytes": 10244,
+      "sha256": "2fa3d0e05a1e400fadf8c236c72f5843f55e3c839a3b05768efd2dafaffe4c9d",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "documentation-receipts.json",
+      "size_bytes": 7049,
+      "sha256": "2e2fe66c6d4773d8e360dabbe521f5cc90981fe0b5f42ecfb915b0a7d33c0e28",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "connector-control-set.json",
+      "size_bytes": 402,
+      "sha256": "88b75e9420b92200f1cf1935114fa58b64c221730d70e50a8eb24ec40e000ae7",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "offline-results.sha256",
+      "size_bytes": 600,
+      "sha256": "6c2512266136510cbf3d72e23b1532992a97ded37b38a93a5f035997be7d05eb",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 2450,
+      "sha256": "689c0d56092cde6f3c18891d6c8872debde809d7dec5b06f4983344e9e769522",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 2301,
+      "sha256": "c16cc264a3e698556fdb98abb4ab011b22162f795ac5117c64837b5b1fe5ade6",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 4986,
+      "sha256": "637bf1e6ccce7c21cc72bcd7094d35dcc7563963d0f37f00ecb6dbebc0b4299c",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 2013,
+      "sha256": "4aa4845ce8560dc6494e01b2e0ca2bc31e0b600d03daa4db5410368986833003",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    }
+  ],
+  "controls": [
+    "LC-01",
+    "LC-02",
+    "LC-03",
+    "LC-04",
+    "LC-05",
+    "LC-06"
+  ],
+  "licensing": "Project-original verifier and derived results only. Third-party and WP01 bytes withheld. Disclosure screening passed."
+}
