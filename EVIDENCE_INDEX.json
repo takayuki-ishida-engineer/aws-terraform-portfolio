@@ -152,6 +152,30 @@
       "agent_self_review_status": "PASS",
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-SA-01A-R2/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "15097dc8b79c64392996f2e75d5d458a4730899426a7fd067b70825ff52d7110"
+    },
+    {
+      "artifact_id": "WP-03",
+      "artifact_type": "integrated-preparation-evidence",
+      "task_id": "M1-WP-03",
+      "source_baseline_head": "1a5e3d41da208407caaf8ac9a4702c3458367a18",
+      "source_baseline_tree": "b91ef273126464718b5b541c79b8bc5483665138",
+      "original_filename": "M1_WP03_Integrated_Preparation_Evidence_Package.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-WP-03/20261127/M1_WP03_Integrated_Preparation_Evidence_Package.zip",
+      "size_bytes": 139572,
+      "sha256": "f375c34c057f58cfc86d781cb742f52d3cabfff5f602cab6c3a68bd8d21bf5f4",
+      "zip_entry_count": 33,
+      "owner_publication_decision_id": "OD-M1E-09",
+      "owner_authorization_sha256": "24e14af26206bfa7c3bcd3381250dc50741da6c8321d44492c6cb3ca8921f912",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "publication_date_utc": "2026-11-27",
+      "generation_date_utc": "2026-11-27",
+      "distribution_type": "IMMUTABLE_ORIGINAL_ZIP",
+      "license_compliance_status": "PASS",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-WP-03/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "ca4776c13ca72c053c34824ef3ef7de845b6c14219555d232e1ab0027e519859",
+      "agent_self_review_status": "PASS"
     }
   ]
 }

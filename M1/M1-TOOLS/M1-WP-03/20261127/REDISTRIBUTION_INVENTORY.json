@@ -1,0 +1,256 @@
+{
+  "artifact": "WP-03",
+  "decision": "OD-M1E-09",
+  "size_bytes": 139572,
+  "sha256": "f375c34c057f58cfc86d781cb742f52d3cabfff5f602cab6c3a68bd8d21bf5f4",
+  "entries": 33,
+  "crc": 33,
+  "manifest": 31,
+  "checksums": 32,
+  "case": "A1",
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "review_limit": "Qualification remains HOLD; publisher permission only covers these exact evidence bytes. Source and license identification is not scanner redistribution approval.",
+  "inventory": [
+    {
+      "path": "owner-authorization.txt",
+      "size_bytes": 24,
+      "sha256": "2d3cb79d535c4837cb243a7aa6f63d7fe85acfe75468c5d06bec4164dea61e5b",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-a/R2_Original_Integrity_Record.json",
+      "size_bytes": 227,
+      "sha256": "10673159b154969d47be19112c02df8b8bcbc58e7274a47fc77ee723a735be6f",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-a/REDISTRIBUTION_INVENTORY.json",
+      "size_bytes": 9278,
+      "sha256": "15097dc8b79c64392996f2e75d5d458a4730899426a7fd067b70825ff52d7110",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-a/Publication_Receipt.json",
+      "size_bytes": 740,
+      "sha256": "542405880a196a6110c5599673523a7dc7640f6aa99db5fff6ca4191e557c85b",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-a/Commit_Identity_Record.json",
+      "size_bytes": 266,
+      "sha256": "539981f644c4be68755857eb26dd98bcc5e08974214829adf65805b7a08ecb79",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body; official public GitHub noreply identity independently verified",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-a/Remote_Readback_Record.json",
+      "size_bytes": 1569,
+      "sha256": "07872aaae60a0f41cc74fb4b03f85543aff713a3aa39a72c5a8772ee767e8b98",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-a/EB_01_12_Evaluation.json",
+      "size_bytes": 307,
+      "sha256": "4d33eb6d3293498486ec229f0f118a682f073bac7e2154c64cffe1f53a4d9286",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-a/Main_End_Readback.jsonl",
+      "size_bytes": 598,
+      "sha256": "7c58cee9482be15d67cb06fff21f465ac63b612e93f8afcc750ac3ef52a51189",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_Gate_Register.json",
+      "size_bytes": 1656,
+      "sha256": "59f562505f2e0100bde39c0433701c6d7e9cd1114bf1ec32980cef5a3f781f26",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_Conditional_Witness.json",
+      "size_bytes": 1365,
+      "sha256": "eda65fb8456bfd3b3f355171a9a183438b7c1de5902422a8df11ff9d2d0e1151",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_Environment_Capability.json",
+      "size_bytes": 1394,
+      "sha256": "78a8bcdbd35f5f43678c673756b347a0f119feed566c4cf695b0ee497a27aa43",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_Execution_Boundary.json",
+      "size_bytes": 1492,
+      "sha256": "ff81fbea9c642ba73f725fdfc4f92abc5960542528b97eff86aefe1018fe6336",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_Historical_Evidence_Disposition.json",
+      "size_bytes": 632,
+      "sha256": "bddc7eb6cbb7fd552224ae29d58efcf9123bb4aa5cbc2fab3a602f1a20bacc30",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_License_Closure_Ledger.jsonl",
+      "size_bytes": 535553,
+      "sha256": "b8d5910faa104561059564ea74e9048d4ae9753611aecb78c582fd6237b03a52",
+      "review": "Normalized fact records: module/version, SPDX/license IDs, index paths, URL, status, time and digest; no license or SBOM file copied",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_License_Coverage_Summary.json",
+      "size_bytes": 2248,
+      "sha256": "ef7362b47254214e7bdc448d740044d27da78669cd25922590570d81eab9fff3",
+      "review": "Cosign public SPDX-2.3 CC0 subject and metadata facts only; raw upstream file retained privately",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_OTel_Residual_Evaluation.json",
+      "size_bytes": 1266,
+      "sha256": "c105da86694114442f2078341d7e719f8353eed99ea6f35f7cbd5b1f0460c09d",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-b/M1_SA_01A_R3_Unique_Dependency_Inventory.jsonl",
+      "size_bytes": 178564,
+      "sha256": "b450098df1fb8a72960a37c08f330e3588a090387a421e85eda19533664bdd9e",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-c/M1_WP03_Dependency_Boundary_Register.json",
+      "size_bytes": 5812,
+      "sha256": "522097e6dc0e36ac33f830a471f1e48694502630d44f6618c6e78b11f0c3f49d",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-c/M1_SA_01B_Preparation_Matrix.json",
+      "size_bytes": 34239,
+      "sha256": "4476cd2b1037d0b4d338af16f94916b598aff0f143ac93e993458105da802f75",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-c/M1_TQ_01_Qualification_Plan.json",
+      "size_bytes": 3127,
+      "sha256": "1cb8763d372e01098f37a7e8099f37e325efc2236edc1f72f1c21ab61a2b6935",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-c/M1_SI_01_Installer_Contract.json",
+      "size_bytes": 2233,
+      "sha256": "827726eed2510902f46f734025c77beb0f4c063100b09d9375d7b87b4d4756d4",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-c/M1_HR_01_03_Runtime_Contract.json",
+      "size_bytes": 1613,
+      "sha256": "65c57c7ff413834ed73a1f94fd126062d495611a54440dd4ea05e2db7fd0cf35",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "track-c/M1_WP03_Follow_on_Execution_Plan.json",
+      "size_bytes": 2222,
+      "sha256": "70bacbf23eb971085ec993db84abe4115f483aac4e34ca7803e49c2248381d49",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "M1_WP03_Gate_Register.json",
+      "size_bytes": 745,
+      "sha256": "b0887c8c81f015445d21511466e7f5ca8411d1c23e0a4351fb38697719125dca",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Execution_Command_Register.json",
+      "size_bytes": 1545,
+      "sha256": "6b4cb6af44870dc3bb407eac4764eea8649f13fc4f6d21e9c432ae1a719cf3b9",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/review_a.py",
+      "size_bytes": 4577,
+      "sha256": "03015474aefc1ab1089f1d8bcdafdbf1c170ec86c4e3ce690372b947fd919ef1",
+      "review": "Locally authored defensive or analysis script; any license phrase is a short classification marker; generic workspace paths, no person or credential",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/license_batch.py",
+      "size_bytes": 4926,
+      "sha256": "0dd1f3bb632f19d39fa7783fd386abae4718dec09405cabd7bd9eb9137615ed3",
+      "review": "Locally authored defensive or analysis script; any license phrase is a short classification marker; generic workspace paths, no person or credential",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/license_supplement.py",
+      "size_bytes": 4446,
+      "sha256": "93077e7c3cd235d396247615d5ac04bb9695769030eb3eda55306b1ddeefa789",
+      "review": "Locally authored defensive or analysis script; any license phrase is a short classification marker",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/license_fixed_paths.py",
+      "size_bytes": 3186,
+      "sha256": "1a031b710bb95e8ac441ac552f3d39478f36cd4f6755849e27e3b263711a28a7",
+      "review": "Locally authored defensive or analysis script; any license phrase is a short classification marker",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/prepare_tracks.py",
+      "size_bytes": 19365,
+      "sha256": "5b93ef2a1abd564fd95607bcafcf34d587c83da207bce3668428f5fe247da0e1",
+      "review": "Locally authored defensive or analysis script; any license phrase is a short classification marker; generic workspace paths, no person or credential",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "M1_WP03_Integrated_Self_Review.md",
+      "size_bytes": 1189,
+      "sha256": "7a9d9772f625c2139cad468767d3a038e642c64cb76f034de371845ad12c0d67",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "M1_WP03_Evidence_Manifest.json",
+      "size_bytes": 10595,
+      "sha256": "3ea3c8bf591546007dd8572dfe6a64d761814e1faab26fe86817b7eff369051d",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 3354,
+      "sha256": "8a87f382facd57d42879f47f51822e1a103a6de6a134705eb6ca952423ae2a89",
+      "review": "Locally authored evaluation, design, or record; no third-party source/SBOM/LICENSE body",
+      "classification": "ELIGIBLE"
+    }
+  ],
+  "independent_review": "PENDING_INDEPENDENT_VERIFICATION"
+}
