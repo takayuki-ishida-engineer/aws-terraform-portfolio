@@ -1,0 +1,59 @@
+{
+  "decision": "OD-M1E-12",
+  "artifact": "WP-07",
+  "size_bytes": 7106,
+  "sha256": "3acdeb2b72909b3db9f1d399f183edee9e1900420ecb7bbd2a648bc4a24b7088",
+  "entries": 6,
+  "crc": 6,
+  "manifest": 4,
+  "checksums": 5,
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS_METADATA_ONLY",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "scope": "Locally written factual trust delta and digest receipts. No key, cert, root, log proof, bundle body, third-party source, license text, executable, DB or prior WP report is embedded. Technical trust remains HOLD.",
+  "inventory": [
+    {
+      "path": "Evidence_Manifest.json",
+      "size_bytes": 1174,
+      "sha256": "bf73d05dceb030a43a0a885306a78b4df41747a040ab328c1e52aa461db5ea30",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Gate_Register.json",
+      "size_bytes": 669,
+      "sha256": "03070fb207857cfa627d8898009cce5e6f27308b76d8a49dff863e99809b392e",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 2936,
+      "sha256": "998d4f2847be0ef84ac8eab0af7acd334c225a6a289087b1cc2150edf0de19fb",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Publisher_and_Bundle_Results.json",
+      "size_bytes": 5105,
+      "sha256": "36f2f5e1d7db3fd75b342a1daf29a195cf6a4a930f60a7f068090dd88e7f47f6",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 457,
+      "sha256": "3ee4ec2bf1e3da4cce97f9005d8b804fc92d75308ac93d852adcf6fc0f4262a8",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Trust_Material_Delta.json",
+      "size_bytes": 3898,
+      "sha256": "1803ac27b9fedafefe52bd76c97a470109771e81031860c3e62b2a7cee67c918",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    }
+  ]
+}
