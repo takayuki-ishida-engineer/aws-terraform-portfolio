@@ -1,0 +1,71 @@
+{
+  "artifact": "WP-06",
+  "decision": "OD-M1E-11",
+  "size_bytes": 84803,
+  "sha256": "134626043a999b9fa3f7986d434b1a50b99b2eb3bbff54f53198b0e5535bd7d2",
+  "entries": 8,
+  "crc": 8,
+  "manifest": 6,
+  "checksums": 7,
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS_METADATA_ONLY",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "scope": "Exact ZIP of locally authored records and factual public provenance only. No third-party source, SBOM body, license/notice text, bundle, key, binary, database or reference file included. Technical acceptance and hardening obligations remain open.",
+  "inventory": [
+    {
+      "path": "Evidence_Manifest.json",
+      "size_bytes": 1478,
+      "sha256": "d696e3ee100562c97f7feb3e2710dde971d57df9894dd8c91bf56b5c1c4370a5",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Gate_Register.json",
+      "size_bytes": 1325,
+      "sha256": "d55db2cd92c8aa1013c246b722e1e43dc4d98969288dc65dd9ae59f398ffc4e4",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 2687,
+      "sha256": "2a56ad881325921b2bc8349adaba433f42355d3878eace71343d0d99788a5c9f",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 619,
+      "sha256": "30d926c193c45c75385454e4e4a9299e8f7aa391fb5bc4cd5e80deadf4cc9231",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "cosign-artifact.json",
+      "size_bytes": 8618,
+      "sha256": "a2a608ee3013a90e2ae56c8135cde9890a44426cf9d154b7f322edca6dd5a134",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "cosign-dependencies.json",
+      "size_bytes": 195132,
+      "sha256": "0316f37d100366b1272015f4470abeb8a05740f5d5c62ee3783217b7175dd916",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "grype-artifact.json",
+      "size_bytes": 4763,
+      "sha256": "4f4b5f8f72eb1099fc19761be2607e7941615e45e863d7c2198640248bba8c4f",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "grype-dependencies.json",
+      "size_bytes": 193829,
+      "sha256": "cacdfe2c564b1249fd74e56679cafb8ba9e4fe25017c3dbff057eb0f12e7c11f",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    }
+  ]
+}
