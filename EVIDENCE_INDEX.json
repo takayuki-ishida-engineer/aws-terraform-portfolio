@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "repository": "takayuki-ishida-engineer/aws-terraform-portfolio",
+  "branch": "evidence",
+  "visibility": "public",
+  "governance_rules": [
+    "EB-01",
+    "EB-02",
+    "EB-03",
+    "EB-04",
+    "EB-05",
+    "EB-06",
+    "EB-07",
+    "EB-08",
+    "EB-09",
+    "EB-10",
+    "EB-11",
+    "EB-12"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "ET-A",
+      "artifact_type": "network-resume",
+      "task_id": "M1-ET-01",
+      "source_baseline_head": "1a5e3d41da208407caaf8ac9a4702c3458367a18",
+      "source_baseline_tree": "b91ef273126464718b5b541c79b8bc5483665138",
+      "original_filename": "M1_TOOLS_Final_Residual_Evidence_Package.zip",
+      "repository_relative_path": "M1/M1-TOOLS/20261126/Network_Resume_Evidence.zip",
+      "size_bytes": 415141,
+      "sha256": "76a8cd110fdb691f82244946be6ffe50d209e31b5115cbbafff14e657221f478",
+      "zip_entry_count": 91,
+      "owner_publication_decision_id": "OD-M1E-02",
+      "owner_authorization_sha256": "ed4304e6b92d46f7ab750746547e69ebf58eafe09ea4881b69952193b1f836fa",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "publication_date_utc": "2026-11-27"
+    },
+    {
+      "artifact_id": "ET-B",
+      "artifact_type": "vulnerability-disposition",
+      "task_id": "M1-ET-01",
+      "source_baseline_head": "1a5e3d41da208407caaf8ac9a4702c3458367a18",
+      "source_baseline_tree": "b91ef273126464718b5b541c79b8bc5483665138",
+      "original_filename": "M1_TOOLS_Vulnerability_Disposition_Evidence_Package.zip",
+      "repository_relative_path": "M1/M1-TOOLS/20261126/Vulnerability_Disposition_Evidence.zip",
+      "size_bytes": 116039,
+      "sha256": "ecd89ee78f30d94c023f7bb44d0ee0c66d777bbcd35121781544ea213a0f6a5d",
+      "zip_entry_count": 21,
+      "owner_publication_decision_id": "OD-M1E-02",
+      "owner_authorization_sha256": "ed4304e6b92d46f7ab750746547e69ebf58eafe09ea4881b69952193b1f836fa",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "publication_date_utc": "2026-11-27"
+    }
+  ]
+}
