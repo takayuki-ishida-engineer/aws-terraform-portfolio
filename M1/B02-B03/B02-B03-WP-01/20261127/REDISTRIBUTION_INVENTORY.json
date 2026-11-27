@@ -1,0 +1,117 @@
+{
+  "task_id": "B02-B03-WP-01",
+  "publication_decision": "OD-B02B03-EV-01",
+  "files": [
+    {
+      "path": "acquire.py",
+      "size_bytes": 12816,
+      "sha256": "6622ecfc58a50511cca49b8505fea53a61cdecc2496b88e45473236a6254fc5e",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "locate_signatures.py",
+      "size_bytes": 1511,
+      "sha256": "d31c84f4e9867e7e601a5a14c5755235bf837f8d527a8e92f60c1ef5a87120e3",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "inspect_charts.py",
+      "size_bytes": 10150,
+      "sha256": "c1d0a6c64826ae621b2a9827368671e431c6825caefe65bbdbc03dcc059b7589",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "verify_retained.py",
+      "size_bytes": 1137,
+      "sha256": "dbcfa0dbe5d26365b8e5d4130bfce921f9ba39369c0049808f514c25e84643c1",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "initial-acquisition-results.json",
+      "size_bytes": 5094,
+      "sha256": "d3b585215ad95f8875167d3dfa935d8e72e6c296494ca91921915ff1112f6758",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-results.json",
+      "size_bytes": 23200,
+      "sha256": "11310887d689b0f6401f5404a66d89a2ecf9c1d9ac103dfa49a34e32a96397aa",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "chart-static-inventory.json",
+      "size_bytes": 18965,
+      "sha256": "cf1658fda913bbb76838782d8dd388aed001dc24bc5e96c182f5c94d23ef7a26",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "retained-verification-results.json",
+      "size_bytes": 10608,
+      "sha256": "7989868e7d5414a88dd52ba14d7c1255b8e86bd557454d7b793904ceffd86051",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "signature-locators.json",
+      "size_bytes": 2610,
+      "sha256": "052d0c15a8d17191aa9dea900ec44ee0dd474f434a2fa27f8994f46d0d9b5080",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "OCI_DESCRIPTOR_INVENTORY.json",
+      "size_bytes": 10038,
+      "sha256": "c4eda6bbdd28329fc12e0fb600c77c11f3f09c137bdea91e58b3ec4b9fdde067",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "PROVENANCE_RELEASE_AGE.json",
+      "size_bytes": 5645,
+      "sha256": "7d883c20f01f892c096f3a9fa0777f077052b346e4c00275863cf8cdf37cf616",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "EXACT_ARTIFACT_IDENTITY_MANIFEST.json",
+      "size_bytes": 11268,
+      "sha256": "1107611f4cf6556d080e5999ebdecfb795d49a3ae3f703a724390b54081f3d33",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 1575,
+      "sha256": "d80b2c9823cbd9aea9950c3759a5b993abef5c03aeaee5c4beb8ebb891f2772a",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 1332,
+      "sha256": "0359bd77182ef60ecf1b920ee7f0bf9156a497a5d9717b91e48908dcfa76e757",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 1835,
+      "sha256": "b99c52cd7d61b299a070c2910e994e0d514860d254636e883114bafd5116c150",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 3531,
+      "sha256": "3b535f082423d39ce6048f4cebfb9c670a9976820c88afcc0bbc97c1a50bdc4d",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1461,
+      "sha256": "cc4a59739f38b9926cfa2fb4330af7795e86e5e65123b6e9270f040d5b1b7001",
+      "classification": "OWN_RESULT_OR_METADATA"
+    }
+  ],
+  "controls": [
+    "LC-01",
+    "LC-02",
+    "LC-03",
+    "LC-04",
+    "LC-05",
+    "LC-06"
+  ],
+  "licensing": "Project-original verifier and newly derived results only. Third-party raw/archives/metadata withheld pending redistribution closure. Disclosure screening passed."
+}

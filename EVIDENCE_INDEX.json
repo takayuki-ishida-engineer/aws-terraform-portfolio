@@ -374,6 +374,30 @@
       "redistribution_inventory_path": "M1/X01-X04/X01-X04-OFFLINE-02/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "4b068e13a061bc0f2446535e01a02d38926867f8239c8c1fb08817abe723a5d6",
       "agent_self_review_status": "PASS"
+    },
+    {
+      "artifact_id": "B02-B03-WP-01",
+      "task_id": "B02-B03-WP-01",
+      "artifact_type": "karpenter-static-artifact-qualification",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "original_filename": "B02-B03-WP-01-Static-Artifact-Evidence.zip",
+      "repository_relative_path": "M1/B02-B03/B02-B03-WP-01/20261127/B02-B03-WP-01-Static-Artifact-Evidence.zip",
+      "size_bytes": 31167,
+      "sha256": "308c62da4e43290f64e51f7b1bccde017f91c11cba32e1b7ae2a61cb90de1d60",
+      "zip_entry_count": 17,
+      "owner_publication_decision_id": "OD-B02B03-EV-01",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "publication_date_utc": "2026-11-27",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "distribution_type": "ORIGINAL_VERIFIER_AND_STATIC_RESULTS",
+      "license_compliance_status": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+      "redistribution_inventory_path": "M1/B02-B03/B02-B03-WP-01/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "6ea084239eb94bce2e52bb7e73f0c820eb711938a2dce65bef12c31b774c1879",
+      "agent_self_review_status": "PASS"
     }
   ]
 }
