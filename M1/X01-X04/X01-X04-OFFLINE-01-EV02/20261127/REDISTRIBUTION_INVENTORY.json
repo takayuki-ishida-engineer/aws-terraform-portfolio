@@ -1,0 +1,57 @@
+{
+  "task_id": "X01-X04-OFFLINE-01-EV02",
+  "publication_decision": "OD-X01X04-EV-02",
+  "files": [
+    {
+      "path": "candidate/contract_v1.py",
+      "size_bytes": 20216,
+      "sha256": "6c2ee0ba7519db9ce332e2cbafac64b7b6153841d474ffbd4c0f3079d281b9a3",
+      "classification": "ORIGINAL_CANDIDATE_SOURCE"
+    },
+    {
+      "path": "candidate/schema_v1.py",
+      "size_bytes": 3386,
+      "sha256": "c408d9394c2681cbcc17b79cbfde970d4f41b24a63225d8de5ea23c062099310",
+      "classification": "ORIGINAL_CANDIDATE_SOURCE"
+    },
+    {
+      "path": "candidate/test_candidate.py",
+      "size_bytes": 21809,
+      "sha256": "9b2f87033520fbb79ad897039a12942aebd70bc97acf1e5fa19221dcb85ca766",
+      "classification": "ORIGINAL_CANDIDATE_SOURCE"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 5170,
+      "sha256": "5a10024e302d5f5665fb4f9b6873b551b60373090b0e43e2a12989dcdb60dc7c",
+      "classification": "NEW_REPRODUCTION_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 937,
+      "sha256": "234fe0c39ad1bdc978b04b3672d54ca822c947a40cbabfacea14c08483c6e520",
+      "classification": "NEW_REPRODUCTION_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 1407,
+      "sha256": "3ee4927d91e724c9d593d7908eedf9102dd4f51b24494624b278b18fe4e0b951",
+      "classification": "NEW_REPRODUCTION_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 538,
+      "sha256": "c8843e3e993a994bb9955de7280cb5ad4d7276b4bfc78b494ea42e57de2d5947",
+      "classification": "NEW_REPRODUCTION_METADATA"
+    }
+  ],
+  "license_review": "Original project source and new metadata. Third-party items referenced by identity only. Sensitive-pattern review passed.",
+  "controls": [
+    "LC-01",
+    "LC-02",
+    "LC-03",
+    "LC-04",
+    "LC-05",
+    "LC-06"
+  ]
+}
