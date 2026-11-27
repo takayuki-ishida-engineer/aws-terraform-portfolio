@@ -1,0 +1,184 @@
+{
+  "artifact": "SA-A-R2",
+  "decision": "OD-M1E-08",
+  "original_sha256": "cdeb6f869ac21f7351955cf3ca733e336b84d32e3d7a92f7bf6040fac55dbcec",
+  "original_size": 65228,
+  "original_internal_authorization": "OD-M1SA-03 digest verified",
+  "publication_case": "A1",
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "review": "Full 18-entry content and archive check; raw traces and acquired full upstream licenses remain outside the archive",
+  "inventory": [
+    {
+      "path": "M1_SA_01A_R2_Reachability_Ledger.jsonl",
+      "size_bytes": 5973,
+      "sha256": "bddc950737533d920caf43f3142056713f5ffb34d285b8b1098d701b19cbf192",
+      "review": "Authored three-Finding analysis and factual identity pointers",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Restricted_Usage_Contract.json",
+      "size_bytes": 3025,
+      "sha256": "e5ff436402673a3f1a7b535bad9a0ea9ec246fdf3049d4ec4ba756fd0d201d5e",
+      "review": "Authored fixed execution specification",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Isolation_and_Negative_Regression.json",
+      "size_bytes": 3563,
+      "sha256": "4fc243734d316d59d860588b8ab5cdb7c03a316ff58cb38a9f3425519a723c5c",
+      "review": "Authored control/results description",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_OpenTelemetry_Witness.json",
+      "size_bytes": 7528,
+      "sha256": "01c80e744c1a8a248be7960783cbf149e252284362dfdc6d3937180cc007c6ba",
+      "review": "Derived package initialization, fixed-source analysis without copied code",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Execution_Receipts.json",
+      "size_bytes": 40434,
+      "sha256": "660dcfc2e80f5889cafcd5380f8f23eb811c0169853ed3c5f0b5bfad393c4879",
+      "review": "Authored/sanitized records of scanner invocations and OS observations; selected diagnostic lines and public dependency names, not raw logs",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Binary_and_License_Closure.json",
+      "size_bytes": 123201,
+      "sha256": "bd8d96cceff1c46c3bde07d9d4432627a93ded34742cd65d7b04ebabd6f9ef63",
+      "review": "Dependency names, versions, checksums, license identity metadata and release inventory; no upstream license body",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Historical_Evidence_Disposition.json",
+      "size_bytes": 1241,
+      "sha256": "6634d5211ece460b2ecef75acc9cc37e8f019b6cffca409cbe458c77501d6952",
+      "review": "Authored decisions and limitations",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Gate_Register.json",
+      "size_bytes": 985,
+      "sha256": "efc3e09d602e10807e1776081aaebeff7938cff24c04b09fec0cc85f8391bd9f",
+      "review": "Authored gate register",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/launcher.py",
+      "size_bytes": 9709,
+      "sha256": "0b4e6a2e3884f5e159d080dfb35bbfd2c542d0c3724fb35e55be6436ec58ab6c",
+      "review": "Locally authored defensive launcher; no upstream source fixture or credential",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/run.py",
+      "size_bytes": 7197,
+      "sha256": "0b1d68225368d429204ceef82d9e04aea608e3d7daa6ac4f02d1191463a67d06",
+      "review": "Locally authored test driver; generic scratch path",
+      "generic_path_count": 1,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/verify_results.py",
+      "size_bytes": 1476,
+      "sha256": "03d112f2433952d0bf4403baab4d3764cf2365d167a7ff6d47fb2c829387a5db",
+      "review": "Locally authored trace summary script",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/licenses.py",
+      "size_bytes": 5373,
+      "sha256": "62246f9c027c7e8e440ec5ef478ef9ee0d9c728d3bcdfdeaff5b10080c8bb363",
+      "review": "Locally authored dependency metadata script with official URL references; generic scratch paths",
+      "generic_path_count": 3,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/owner-authorization.txt",
+      "size_bytes": 27,
+      "sha256": "64a662cf934a8563871bf540729dac4cb1c57e13673297cacf4173595ef9cb70",
+      "review": "Owner-approved authorization with no identifiers beyond approved wording",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/main-final.jsonl",
+      "size_bytes": 598,
+      "sha256": "7c58cee9482be15d67cb06fff21f465ac63b612e93f8afcc750ac3ef52a51189",
+      "review": "Public GitHub metadata",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/evidence-final.jsonl",
+      "size_bytes": 389,
+      "sha256": "aa0d987128c4eb3e8a43ff7b283893fed1f15c22dbc9b200861467cadf090226",
+      "review": "Public GitHub metadata",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Self_Review.md",
+      "size_bytes": 1203,
+      "sha256": "b7f2961bf784b1c54cc452f4bfca8605669b6f0805ca755836d8b1a9600a3331",
+      "review": "Authored review",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R2_Evidence_Manifest.json",
+      "size_bytes": 16907,
+      "sha256": "bff216bf8d75c96ab4b33f1f1fd3db9328b150747f86ab65917614b89be2cc9a",
+      "review": "Integrity metadata",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1699,
+      "sha256": "f04b9de16de1328682d3f02d05c9594ca11e1a07cad2b4a39e37fc5fa2d03c6f",
+      "review": "Checksum facts",
+      "generic_path_count": 0,
+      "rights": "Owner-authorized authored material or factual/short technical record; no third-party source/license body or separately redistributable material found",
+      "eligibility": "ELIGIBLE"
+    }
+  ],
+  "independent_review": "PENDING_INDEPENDENT_VERIFICATION"
+}

@@ -125,6 +125,33 @@
       "agent_self_review_status": "PASS",
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-SA-01A-R1/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "a28a3d21160476f685465af97a96ff69df9306108d9fc0356f4b13d801d9a437"
+    },
+    {
+      "artifact_id": "SA-A-R2",
+      "artifact_type": "controlled-scanner-closure-evidence",
+      "task_id": "M1-SA-01A-R2",
+      "source_baseline_head": "1a5e3d41da208407caaf8ac9a4702c3458367a18",
+      "source_baseline_tree": "b91ef273126464718b5b541c79b8bc5483665138",
+      "original_filename": "M1_SA_01A_R2_Controlled_Scanner_Closure_Evidence_Package.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-SA-01A-R2/20261127/M1_SA_01A_R2_Controlled_Scanner_Closure_Evidence_Package.zip",
+      "size_bytes": 65228,
+      "sha256": "cdeb6f869ac21f7351955cf3ca733e336b84d32e3d7a92f7bf6040fac55dbcec",
+      "zip_entry_count": 18,
+      "owner_publication_decision_id": "OD-M1E-08",
+      "owner_authorization_sha256": "2d3cb79d535c4837cb243a7aa6f63d7fe85acfe75468c5d06bec4164dea61e5b",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "publication_date_utc": "2026-11-27",
+      "generation_date_utc": "2026-11-27",
+      "original_size_bytes": 65228,
+      "original_sha256": "cdeb6f869ac21f7351955cf3ca733e336b84d32e3d7a92f7bf6040fac55dbcec",
+      "distribution_type": "IMMUTABLE_ORIGINAL_ZIP",
+      "license_compliance_status": "PASS",
+      "public_disclosure_eligibility": "ELIGIBLE_FOR_PUBLICATION",
+      "agent_self_review_status": "PASS",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-SA-01A-R2/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "15097dc8b79c64392996f2e75d5d458a4730899426a7fd067b70825ff52d7110"
     }
   ]
 }
