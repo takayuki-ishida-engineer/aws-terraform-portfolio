@@ -470,6 +470,30 @@
       "redistribution_inventory_path": "M1/B06/B06-WP-03/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "1b941b3704828724d6579fc183023db72c8de0a8566291fd3e6c6a7305dd241a",
       "agent_self_review_status": "PASS"
+    },
+    {
+      "artifact_id": "B09-WP-01",
+      "task_id": "B09-WP-01",
+      "artifact_type": "datadog-static-configuration-qualification",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "original_filename": "B09-WP-01-Datadog-Static-Configuration-Evidence.zip",
+      "repository_relative_path": "M1/B09/B09-WP-01/20261127/B09-WP-01-Datadog-Static-Configuration-Evidence.zip",
+      "size_bytes": 57904,
+      "sha256": "e56e1ba1384bd854db3a106c4d90cb10c0c077a74c36fb5a86494e79cf80733d",
+      "zip_entry_count": 26,
+      "owner_publication_decision_id": "OD-B09-EV-01",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "publication_date_utc": "2026-11-27",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "distribution_type": "ORIGINAL_CONFIGURATION_VERIFIER_AND_STATIC_RESULTS",
+      "license_compliance_status": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+      "redistribution_inventory_path": "M1/B09/B09-WP-01/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "6fc5fc517cb8a0f15ff1a5e0a0b2e48ea1a3554bcdfa758396f8f73ef46cf15e",
+      "agent_self_review_status": "PASS"
     }
   ]
 }

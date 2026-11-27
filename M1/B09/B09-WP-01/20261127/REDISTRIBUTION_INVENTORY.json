@@ -1,0 +1,171 @@
+{
+  "task_id": "B09-WP-01",
+  "publication_decision": "OD-B09-EV-01",
+  "files": [
+    {
+      "path": "chart_inspect.py",
+      "size_bytes": 6048,
+      "sha256": "a2cac21e6cc22ccf8ee6e0ea0756707879256e3d091b33321e5f26c5d879cb30",
+      "classification": "NEW_ORIGINAL_STATIC_SOURCE_OR_CONFIGURATION"
+    },
+    {
+      "path": "qualify.py",
+      "size_bytes": 27340,
+      "sha256": "cffa0eb59e861030a7c617326f52456cbc4f31eb445d36cd08710f7cb29582af",
+      "classification": "NEW_ORIGINAL_STATIC_SOURCE_OR_CONFIGURATION"
+    },
+    {
+      "path": "static_fixtures.py",
+      "size_bytes": 5565,
+      "sha256": "c240643aa3ddc0d1b6a633399f947c79b77e32a84af985fa67e2ac148f1ec5b4",
+      "classification": "NEW_ORIGINAL_STATIC_SOURCE_OR_CONFIGURATION"
+    },
+    {
+      "path": "fetch_sources.py",
+      "size_bytes": 3218,
+      "sha256": "c3f9e7aeec212f6ed0f943ee8149de243d628b0af2b862f28b3be82abc8b84b2",
+      "classification": "NEW_ORIGINAL_STATIC_SOURCE_OR_CONFIGURATION"
+    },
+    {
+      "path": "source-fetch.json",
+      "size_bytes": 26850,
+      "sha256": "472d3cf5b4a5447a1cd37077408a7eb2481a312af7df6deefd52afd0b8455866",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "source-followup.json",
+      "size_bytes": 2764,
+      "sha256": "e8bb9b0b69b1711dc0b0de911612cd4aa7eee00b917d2e830b3b1f6fe6423d6f",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "EXPECTED_BEFORE_IMPLEMENTATION.sha256",
+      "size_bytes": 97,
+      "sha256": "c89c18607daaba3d5534c5c6f2d5c2e7d2778eca07cc1b84e0cda536b07e27d4",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "offline-results.sha256",
+      "size_bytes": 842,
+      "sha256": "5bffe608756d81f7893d588c0ff4450e6d8b792ef3aeb5cb84f4e230c27182eb",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "EXPECTED_FIXTURE_MANIFEST.json",
+      "size_bytes": 734,
+      "sha256": "cd09cd0e883dcd9bdac7883abf141161ca937c3bf7b14bc970f1b5cd7fd22dab",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "ACTUAL_STATIC_RESULTS.json",
+      "size_bytes": 4123,
+      "sha256": "0961e4062ab6ba2f34eb74ab94976f5f98e727cd9f24977018de9046b25fe282",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "originals/datadog-operator-2.32.0.release.tgz.at",
+      "size_bytes": 21,
+      "sha256": "a4e19a659706d04a3da4c46849a7e9d1edfdf3b99c3a2ba914cf32d535671c2d",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "CHART_CRD_STATIC_INVENTORY.json",
+      "size_bytes": 12344,
+      "sha256": "19072e1ad6e0ce727361f2a62732dea2f98c03a8ed1d74d9de31fa0b2ea085a3",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "FEATURE_CONFIGURATION_MATRIX.json",
+      "size_bytes": 62400,
+      "sha256": "4aaae44491abe26fe6c3bd47a6a1dd51af3725786694e7ac86e72924b8d459bf",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "TRACE_SAMPLING_DECISION_MATRIX.json",
+      "size_bytes": 5250,
+      "sha256": "7f6fbffa54d4c3f8cb7af4383c7872438919ded33c36d9e6ee68ec60ca6be714",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "ENDPOINT_42_ROWS.json",
+      "size_bytes": 99533,
+      "sha256": "232bcf5179fd175ceec782966813a8d6d907b70b6cae3e30d9d184fa29be5558",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "FLOW_15_ROWS.json",
+      "size_bytes": 15674,
+      "sha256": "be40b5ff508c10282d05ff5a1a5fc6005039bfc248b1ddef521b77f3937e3801",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "candidate-datadogagent.yaml",
+      "size_bytes": 1747,
+      "sha256": "6c0008ca4d67544921f76810d04b4522e04311ec6fadd39f98b6e1a21796ec43",
+      "classification": "NEW_ORIGINAL_STATIC_SOURCE_OR_CONFIGURATION"
+    },
+    {
+      "path": "candidate-operator-values.yaml",
+      "size_bytes": 741,
+      "sha256": "610bdd1ad48b86a6724229be23413599e3d8df284a901d152516a9a104c36e10",
+      "classification": "NEW_ORIGINAL_STATIC_SOURCE_OR_CONFIGURATION"
+    },
+    {
+      "path": "candidate-adot.yaml",
+      "size_bytes": 592,
+      "sha256": "f0ee5728c10ccf6c040781a3e476e3b6cb82c726000c566304b565cefc2fe3b3",
+      "classification": "NEW_ORIGINAL_STATIC_SOURCE_OR_CONFIGURATION"
+    },
+    {
+      "path": "EXACT_ARTIFACT_IDENTITY_MANIFEST.json",
+      "size_bytes": 39831,
+      "sha256": "79108c9e56909ac588ddb139c2471c846e22312a1a5e8335458866e79c73ab0e",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "SOURCE_EVIDENCE_REUSE_MANIFEST.json",
+      "size_bytes": 4636,
+      "sha256": "982bc570bb0e3136e72d2557132688032747df6776192ca66cc501ea9afb5efb",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 2059,
+      "sha256": "2cda75798cf57a37530c91d3d3b4e47715f059e84b875d3e02ca587591ff924d",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 1464,
+      "sha256": "48a0146296ae884810096724450d4d65bdf45a1dc03be9e3ec0c13506b4b9ee1",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 2305,
+      "sha256": "a34906d1f71ac3d0c2016d26b48a9403cfff096a1359860c492c7e7cd59c5f34",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 5758,
+      "sha256": "291482223a65302755f43dc21009e75369a2d54d21777e79a97c1ed0dfb49acc",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 2311,
+      "sha256": "bb18c1cc17aa98a9d24bfe2044461b9fc2236e346acaf10cace0292196823c25",
+      "classification": "OWN_DERIVED_RESULTS_OR_METADATA"
+    }
+  ],
+  "controls": [
+    "LC-01",
+    "LC-02",
+    "LC-03",
+    "LC-04",
+    "LC-05",
+    "LC-06"
+  ],
+  "licensing": "Project-original tools/candidate configurations plus original derived evidence. Third-party raw bytes withheld. Disclosure screening passed."
+}
