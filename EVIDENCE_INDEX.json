@@ -53,6 +53,51 @@
       "internal_integrity_status": "PASS",
       "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
       "publication_date_utc": "2026-11-27"
+    },
+    {
+      "artifact_id": "SA-A-DIST",
+      "artifact_type": "scanner-security-acceptance-distribution",
+      "task_id": "M1-SA-01A",
+      "source_baseline_head": "1a5e3d41da208407caaf8ac9a4702c3458367a18",
+      "source_baseline_tree": "b91ef273126464718b5b541c79b8bc5483665138",
+      "original_filename": "M1_SA_01A_Evidence_Distribution.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-SA-01A/20261127/M1_SA_01A_Evidence_Distribution.zip",
+      "size_bytes": 96264,
+      "sha256": "8598b6fe8226446e42315e0e2e38ed08a1ffcbce3541adbb4a07753a70c6f7bb",
+      "zip_entry_count": 10,
+      "owner_publication_decision_id": "OD-M1E-06",
+      "owner_authorization_sha256": "52728c5b1843f7ab8ca9700977c4cfb879cb06b5bfdd707ca0a83f0a1ecf3178",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "publication_date_utc": "2026-11-27",
+      "distribution_revision": 2,
+      "distribution_format": "NESTED_IMMUTABLE_EVIDENCE_ZIP",
+      "license_compliance_status": "PASS",
+      "distribution_manifest_member": "DISTRIBUTION_MANIFEST.json",
+      "distribution_sha256sums_member": "SHA256SUMS",
+      "original_evidence": {
+        "filename": "M1_SA_01A_Scanner_Security_Acceptance_Evidence_Package.zip",
+        "size_bytes": 67597,
+        "sha256": "5f5850f49aa6fe302e3dc736b962fc27811044c019aa7d3047f90b5c0924669e",
+        "zip_entry_count": 37,
+        "internal_manifest_count": 35,
+        "internal_sha256sums_count": 36,
+        "integrity_status": "PASS",
+        "preservation_status": "BYTE_IDENTICAL",
+        "artifact_id": "SA-A",
+        "wrapper_member_path": "M1_SA_01A_Scanner_Security_Acceptance_Evidence_Package.zip",
+        "original_publication_decision_id": "OD-M1E-04"
+      },
+      "previous_distribution": {
+        "filename": "M1_SA_01A_Evidence_Distribution.zip",
+        "size_bytes": 84745,
+        "sha256": "07edf7bb55d1e412f581be4671e02394c7eeabc511ed00b74246983f4be29a73",
+        "zip_entry_count": 8,
+        "publication_status": "NOT_PUBLISHED",
+        "preservation_status": "PRESERVED",
+        "distribution_revision": 1
+      }
     }
   ]
 }
