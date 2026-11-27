@@ -1,0 +1,139 @@
+{
+  "task_id": "M1-SA-01A-R1",
+  "owner_decision": "OD-M1E-07",
+  "owner_authorization_sha256": "144e997241c80903742b0422b19321052b8f06832b1be654277a0f24db315e11",
+  "original_sha256": "24a5c13bb0572ae63ef18b5ca91744f911a9b86218e385623968c11fe88f19c5",
+  "review_scope": "Exact immutable R1 bytes; no new Security applicability analysis",
+  "publication_case": "D1",
+  "public_disclosure_eligibility": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance_status": "PASS",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "original_entry_count": 12,
+  "manifest_count": 10,
+  "sha256sums_count": 11,
+  "crc_count": 12,
+  "inventory": [
+    {
+      "path": "M1_SA_01A_R1_Source_and_Binary_Closure.json",
+      "size_bytes": 26713,
+      "sha256": "94437a0aaf35cc01fb9ae5921c1d12b104e8e5bc753e09e1703363a73716743f",
+      "content_review": "Derived trace of fixed upstream functions, own analysis and acquisition citations",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R1_Execution_and_Trace_Supplement.json",
+      "size_bytes": 14784,
+      "sha256": "ebbbf75ed08ba9aedb388e49335afc4e187f5cc66408e7126cee03b5dda816ba",
+      "content_review": "Derived historical command summary and Trace digest/observation records; no Trace body",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R1_Historical_Impact_and_Remediation.json",
+      "size_bytes": 5330,
+      "sha256": "b8d824d81f0ce3878688a9b8a06cccb0e01f2a1726e5875b7a02d72c10c6fdfd",
+      "content_review": "Locally authored conclusions and option comparison",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R1_Gate_Register.json",
+      "size_bytes": 1138,
+      "sha256": "25431a1150592619a39a026192f74ff5910f30eb40631c0719f13829cac64e4d",
+      "content_review": "Locally authored decision statuses",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R1_Reachability_Ledger.jsonl",
+      "size_bytes": 16128,
+      "sha256": "203058ebbc0ea98e48de6e9c6422ab211c58be03c8388c37a13eaeec12137f22",
+      "content_review": "Derived Finding identity and pointer, function names, and local scope analysis",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/owner-authorization.txt",
+      "size_bytes": 545,
+      "sha256": "a69052e3d8e1084e05047eccbf6b0a2a2dfa478e858cc197f36990db8c65bffb",
+      "content_review": "Owner instruction approved for exact-artifact publication; no contact details",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/pcln.py",
+      "size_bytes": 3470,
+      "sha256": "b1054152350d86b1cb24a34704346203618d9adb04f519169650e42f24bb75ee",
+      "content_review": "Locally authored ELF metadata reader; one generic scratch path, no upstream code in script",
+      "generic_path_count": 1,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/binary-witness.json",
+      "size_bytes": 259978,
+      "sha256": "3e3a731a36f1ac80cbdb3dc0849e693c2eb559ee4450f7f8afc607bd72387801",
+      "content_review": "ELF function names, dependency identities, checksums and generic build paths; no binary code or raw Scan JSON",
+      "generic_path_count": 126,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "evidence/source-acquisition.json",
+      "size_bytes": 17299,
+      "sha256": "e2133f9eee1c02cdefc82e94c3cecf159b3c4d911e2b94331c7a81ca6d8e7ab3",
+      "content_review": "Official URL, HTTP status, timestamp, byte size and digest facts; no source copy",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R1_Self_Review.md",
+      "size_bytes": 1362,
+      "sha256": "2db8fb0cf4fe5a54d8bd4360555131ae5fa4feaabb6c77d364161f9a74f19816",
+      "content_review": "Locally authored self-review",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "M1_SA_01A_R1_Evidence_Manifest.json",
+      "size_bytes": 4899,
+      "sha256": "6feddb0dbb3b3377cb3b67a34d96dec5f453b8c0be82c903208b2a55e4dcdd81",
+      "content_review": "Locally produced inventory and digest data",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1118,
+      "sha256": "ed961bd47ef48dfcc1b14df969405bf85d7308785b02fc130516d94c63a69a85",
+      "content_review": "File identities",
+      "generic_path_count": 0,
+      "rights_basis": "Owner-approved locally authored material or factual metadata; no redistributable upstream text requiring companion files identified",
+      "redistribution": "ELIGIBLE"
+    }
+  ],
+  "limitations": [
+    "Static confidentiality inspection of all twelve actual entries. Generic runner and scratch paths observed; no account-specific path or private email identified.",
+    "Official source references, package/function identifiers and factual metadata are present. No upstream source/patch body or raw trace was found.",
+    "This record verifies publication scope only. Scanner Security Acceptance remains HOLD."
+  ],
+  "self_review": "PASS",
+  "independent_review": "PENDING_INDEPENDENT_VERIFICATION"
+}
