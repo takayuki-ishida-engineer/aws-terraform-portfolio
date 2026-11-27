@@ -300,6 +300,31 @@
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-WP-09/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "12a7768f7a3a1c3dba18773ee1bec37cd7bfde16ca5e996e4e0e2ccdfabd7d64",
       "agent_self_review_status": "PASS"
+    },
+    {
+      "artifact_id": "X01-X04-OFFLINE-01",
+      "artifact_type": "offline-contract-candidate-metadata",
+      "task_id": "X01-X04-OFFLINE-01",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "original_filename": "X01-X04-OFFLINE-01-Metadata-Evidence.zip",
+      "repository_relative_path": "M1/X01-X04/X01-X04-OFFLINE-01/20261127/X01-X04-OFFLINE-01-Metadata-Evidence.zip",
+      "size_bytes": 21098,
+      "sha256": "f1bee5b9dd9e6b69009ba72d7e60f6570ffce4cf9b8867cc97052916ad92ea70",
+      "zip_entry_count": 10,
+      "owner_publication_decision_id": "OD-X01X04-EV-01",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "task_instruction_sha256": "3888f89ea741c3f7f67f47240a09bc930619edafa2f76c68358974ac8f26f844",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "publication_date_utc": "2026-11-27",
+      "distribution_type": "METADATA_ONLY_EVIDENCE_ZIP",
+      "license_compliance_status": "PASS_METADATA_ONLY",
+      "redistribution_inventory_path": "M1/X01-X04/X01-X04-OFFLINE-01/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "9196ce032cf346c0e31b1430ddbabf0c538fa373fe7c713e7187923f73f404bf",
+      "agent_self_review_status": "PASS"
     }
   ]
 }

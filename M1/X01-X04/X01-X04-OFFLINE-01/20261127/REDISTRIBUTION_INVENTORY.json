@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "task_id": "X01-X04-OFFLINE-01",
+  "publication_decision": "OD-X01X04-EV-01",
+  "LC-01": "Inventory enumerates the ten newly generated metadata members.",
+  "LC-02": "Original data and candidate identity are referenced by SHA-256 only.",
+  "LC-03": "No redistribution material required for newly generated metadata.",
+  "LC-04": "Originals and candidate source stay outside the publication.",
+  "LC-05": "Strict allowlist and sensitive-pattern screening passed.",
+  "LC-06": "One new archive; optimized result is byte-identical and not duplicated.",
+  "files": [
+    {
+      "path": "expected-result-manifest.json",
+      "size_bytes": 68411,
+      "sha256": "55c3a43e8651a684042fc447a4e28362e6365eadc2979568a08c8827ae0bd69e",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "actual-test-results.json",
+      "size_bytes": 160525,
+      "sha256": "9c05dd37014fe881f2ce04dc4c05722cebd25b9cafb9b0f3ac1444707a46f187",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "acceptance-and-gates.json",
+      "size_bytes": 1985,
+      "sha256": "f769dd9fc1ff04f2ca44f7d83079298b09c9b2728ffa1e19d855b952b5f36354",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "contract-delta.md",
+      "size_bytes": 2774,
+      "sha256": "09c6156dae787e3fefd96ac140984064751de83d88c98f1220b097027cc25fd2",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "regression-and-self-review.md",
+      "size_bytes": 2512,
+      "sha256": "a81d601ee417500e8dec6ccebd98ba891a13e6744808f594186c9c4a7463946d",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "original-preservation.json",
+      "size_bytes": 5190,
+      "sha256": "45dc98e5505f7911889286bc3e5332ad5863cab8ea676d9c8918c5e20e434b2d",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "preservation-recheck.json",
+      "size_bytes": 693,
+      "sha256": "139dfc8a7ee5fbbefbc2c06f57e225321bc90fba73007d06776f107d6f2546a6",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "candidate-source-identity.json",
+      "size_bytes": 742,
+      "sha256": "8ec2ae3294e000087bb4e6be39d0619b0b3bd61b7afdf95b6f8e2df7a9cd26e8",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 1895,
+      "sha256": "856f92eeb18e47eee447b85e2b1173bb2b7633161cbdc8de5b3910c5a558f4bf",
+      "classification": "NEW_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 821,
+      "sha256": "1a967c669c7edba17cfca16a424c877a5588d1a59ea37c116bbed934e72e2dc7",
+      "classification": "NEW_METADATA"
+    }
+  ]
+}
