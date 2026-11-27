@@ -446,6 +446,30 @@
       "redistribution_inventory_path": "M1/B06/B06-WP-02/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "31e2a3613a36ed0baf16af04d820e2525560a7495d082ad50e3f542247d47364",
       "agent_self_review_status": "PASS"
+    },
+    {
+      "artifact_id": "B06-WP-03",
+      "task_id": "B06-WP-03",
+      "artifact_type": "kafka-client-static-dependency-mediation",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "original_filename": "B06-WP-03-Dependency-Mediation-Evidence.zip",
+      "repository_relative_path": "M1/B06/B06-WP-03/20261127/B06-WP-03-Dependency-Mediation-Evidence.zip",
+      "size_bytes": 34788,
+      "sha256": "c0dd68af0ff30b028b00603968c4f098d0763cdc5d3f6c79b3b6cce26eaa0ba2",
+      "zip_entry_count": 18,
+      "owner_publication_decision_id": "OD-B06-EV-03",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "publication_date_utc": "2026-11-27",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "distribution_type": "ORIGINAL_CANDIDATE_VERIFIER_AND_STATIC_RESULTS",
+      "license_compliance_status": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+      "redistribution_inventory_path": "M1/B06/B06-WP-03/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "1b941b3704828724d6579fc183023db72c8de0a8566291fd3e6c6a7305dd241a",
+      "agent_self_review_status": "PASS"
     }
   ]
 }

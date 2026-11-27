@@ -1,0 +1,123 @@
+{
+  "task_id": "B06-WP-03",
+  "publication_decision": "OD-B06-EV-03",
+  "files": [
+    {
+      "path": "verify.py",
+      "size_bytes": 13355,
+      "sha256": "322643bbcb4c45807d0dc5053619f9aa10719efab4487281a7ed518fc51a725e",
+      "classification": "NEW_ORIGINAL_CANDIDATE_OR_TEST"
+    },
+    {
+      "path": "abi_mediation.py",
+      "size_bytes": 11327,
+      "sha256": "b662220ea98cb73a3181b09576dfad832c13a81c86ba48547d56fc934c863ef2",
+      "classification": "NEW_ORIGINAL_CANDIDATE_OR_TEST"
+    },
+    {
+      "path": "packaging_contract.py",
+      "size_bytes": 2602,
+      "sha256": "298dc341f7def5bce4a0cfc93abbaedfd2353bd59a57f8f4aa9fdd81a36cf825",
+      "classification": "NEW_ORIGINAL_CANDIDATE_OR_TEST"
+    },
+    {
+      "path": "fixtures.py",
+      "size_bytes": 2386,
+      "sha256": "0f720f2defdaa0b113ff29d3e2b88e1783789c5d7ccdf677546fef0c52d2d1b7",
+      "classification": "NEW_ORIGINAL_CANDIDATE_OR_TEST"
+    },
+    {
+      "path": "candidate-pom.xml",
+      "size_bytes": 1700,
+      "sha256": "811bdb55c314edb8727fe0e5497188a2ac349db730e3eae0c5f7339a2624c38e",
+      "classification": "NEW_ORIGINAL_CANDIDATE_OR_TEST"
+    },
+    {
+      "path": "EXPECTED_RESULT_MANIFEST.json",
+      "size_bytes": 1267,
+      "sha256": "22ac9a5850681becc098a7ebac62125ece361e953c7ba61e4446355bd7d1d8d4",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "EXPECTED_BEFORE_IMPLEMENTATION.sha256",
+      "size_bytes": 96,
+      "sha256": "87af993ca426df49eacb383eb80c998aa4cc6189e39ad4df40c7ca50589bbf5d",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "ACTUAL_STATIC_RESULTS.json",
+      "size_bytes": 6316,
+      "sha256": "7f340bb85a93e1848b49fb978fcfb521cbb9631652d038b8fbdc4d4f4e912785",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "ABI_REFERENCE_INVENTORY.json",
+      "size_bytes": 174980,
+      "sha256": "dcd13ebb415565a14dd6fdb4eca91e69c16a3ba2fb085f58a987f7a4cfe30e79",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "PROJECTED_DEPENDENCY_GRAPH.json",
+      "size_bytes": 24746,
+      "sha256": "d9bbfabda37d463c8c9027e55572a8a91005d6102210c84cf23a98b15dc73a6a",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "PACKAGING_CLASSLOADER_CONTRACT.json",
+      "size_bytes": 2008,
+      "sha256": "a0d320728a34949259b7bc52842fdbef3173c59e509f4196eaa4e0015b0f88eb",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "EXISTING_EVIDENCE_REUSE_MANIFEST.json",
+      "size_bytes": 3684,
+      "sha256": "c9ea4a34e4b8b1292fd8fbd0479ddac603a36ba787e61dd0c696972e7d1abeec",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "POLICY_V15_2_DIGEST_RECEIPT.json",
+      "size_bytes": 554,
+      "sha256": "282e9a164f5aef3024e502239eeb48223a7bb08a93466732e2b6b58583f6153e",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 1198,
+      "sha256": "2636b839d1255ff9fb41cf29438c2321ca438b9b03b6e9f094d0a08520402553",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 4650,
+      "sha256": "1df41ebfec5692f6c93dd4576bed869d95b6dc6dbd9fe4a74d546489c6f6cdd0",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 1764,
+      "sha256": "f86ce697368c19883630c86f82d50280246429e4d1a3d3f5a243858396dad08e",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 3807,
+      "sha256": "53ed3c3a5d62d6d94cab062ba8c95af01daee164d6cd780c60f9e3d7a87aef53",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1559,
+      "sha256": "bbd8f0925e6779bebb0ce5aad460fcdaff83d57c709e2f73e78d7b84380fb904",
+      "classification": "OWN_RESULT_OR_METADATA"
+    }
+  ],
+  "controls": [
+    "LC-01",
+    "LC-02",
+    "LC-03",
+    "LC-04",
+    "LC-05",
+    "LC-06"
+  ],
+  "licensing": "Project-generated source and derived results only. Third-party, WP01, WP02 and v15.2 policy bytes excluded. Disclosure screening passed."
+}
