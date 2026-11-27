@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "effortLevel": "medium",
+  "permissions": {
+    "deny": [
+      "Read(//**/*.tfstate)",
+      "Read(//**/*.tfstate.*)",
+      "Read(//**/*.tfplan)",
+      "Read(//**/*.tfplan.*)",
+      "Read(//**/.terraform.tfstate.lock.info)",
+      "Read(//**/local.auto.tfvars)",
+      "Read(//**/local.auto.tfvars.json)",
+      "Read(//**/*.local.tfvars)",
+      "Read(//**/*.tfbackend)",
+      "Read(//**/backend_override.tf)",
+      "Read(//**/.env)",
+      "Read(//**/.env.*)",
+      "Read(//**/*.pem)",
+      "Read(//**/*.key)",
+      "Read(//**/*.p12)",
+      "Read(//**/*.pfx)",
+      "Read(//**/*.jks)",
+      "Read(~/.aws/**)",
+      "Read(~/.ssh/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.netrc)",
+      "Read(~/.git-credentials)",
+      "Edit(//**/*.tfstate)",
+      "Edit(//**/*.tfstate.*)",
+      "Edit(//**/*.tfplan)",
+      "Edit(//**/local.auto.tfvars)",
+      "Edit(//**/.env)",
+      "Edit(//**/.env.*)",
+      "Edit(//**/*.pem)",
+      "Edit(//**/*.key)",
+      "Edit(~/.aws/**)",
+      "Edit(~/.ssh/**)",
+      "Bash(gh pr merge *)",
+      "mcp__github__merge_pull_request",
+      "mcp__github__enable_pr_auto_merge"
+    ],
+    "ask": [
+      "mcp__github__actions_run_trigger",
+      "mcp__github__push_files",
+      "mcp__github__create_or_update_file",
+      "mcp__github__delete_file",
+      "mcp__github__update_pull_request_branch"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_tool_guard.py\"",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -299,8 +299,26 @@
         ".editorconfig",
         "**/.gitkeep"
       ],
+      "exclude": [
+        "CLAUDE.md",
+        ".claude/**"
+      ],
       "steps": [],
       "reason": "Documentation and editor settings: always-on checks only, unless a test reads the file (then its step is selected through step inputs)."
+    },
+    {
+      "id": "claude-code-harness",
+      "paths": [
+        "CLAUDE.md",
+        ".claude/settings.json",
+        ".claude/hooks/pre_tool_guard.py",
+        ".claude/skills/verify-change/SKILL.md",
+        ".claude/skills/evidence-package/SKILL.md",
+        ".claude/agents/code-reviewer.md",
+        ".claude/agents/security-reviewer.md"
+      ],
+      "steps": [],
+      "reason": "Claude Code governance, permissions, hooks and agent instructions. Always-on CI policy includes harness regression checks. High-risk: Full CI required. Existing infrastructure test selection is unchanged."
     }
   ],
   "high_risk": {
@@ -349,6 +367,10 @@
       "infra/modules/vpc/main.tf",
       "infra/modules/vpc/routing.tf",
       "infra/services/dev/ca-central-1/developer-access/main.tf"
+    ],
+    "claude-code-harness": [
+      "CLAUDE.md",
+      ".claude/**"
     ]
   },
   "high_risk_content": {
