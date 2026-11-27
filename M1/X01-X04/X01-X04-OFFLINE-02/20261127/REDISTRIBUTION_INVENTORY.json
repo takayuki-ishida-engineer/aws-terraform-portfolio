@@ -1,0 +1,92 @@
+{
+  "task_id": "X01-X04-OFFLINE-02",
+  "files": [
+    {
+      "path": "candidate/contract_v2.py",
+      "sha256": "265da6dde24684e2805674c6ebf6aafc23ba9bd4f3704b19a55baa3228251869",
+      "size_bytes": 29220,
+      "origin": "NEW_ORIGINAL_PROJECT_CODE"
+    },
+    {
+      "path": "candidate/review_fixtures.py",
+      "sha256": "02b0473a35d6717ab33c17e964e193fa8668a58d8dea13d3dc62528f306ca86d",
+      "size_bytes": 6823,
+      "origin": "NEW_ORIGINAL_PROJECT_CODE"
+    },
+    {
+      "path": "candidate/schema_v2.py",
+      "sha256": "b3d6cae27e06754a51050d5d09a6d10cdeeda20a95038656714c17999ea3eadf",
+      "size_bytes": 3800,
+      "origin": "NEW_ORIGINAL_PROJECT_CODE"
+    },
+    {
+      "path": "candidate/test_candidate_v2.py",
+      "sha256": "8b05ecbad91e3f229ac99aad0bd4bbc81511dcfbd7121592d79981179ef34681",
+      "size_bytes": 23879,
+      "origin": "NEW_ORIGINAL_PROJECT_CODE"
+    },
+    {
+      "path": "expected-result-manifest-v2.json",
+      "sha256": "5284e1787eed36060989072b1744aca133d25af2a0d31f61512e2346cfcf13e2",
+      "size_bytes": 73164,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "actual-test-results.json",
+      "sha256": "db03811ffd05ae8a3dc7b1d7ac6e46f3da1607595cc87ff8c3f15a1ffb23ad9c",
+      "size_bytes": 169811,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "compatibility-delta.json",
+      "sha256": "d6ac0ea2ffecbf1b5c215e69a359401744bee90467b2fc9ee02ef8ad05e994d5",
+      "size_bytes": 2489,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "FINDING_RESOLUTION_MATRIX.json",
+      "sha256": "a060a713646fe9e23466e0c7c6f73a10f45739c50c6d72fe52f691c6ca65915d",
+      "size_bytes": 10149,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "sha256": "bfbf1a1afdc8008ee230bd90b3a3a2ac2648884d64092e81c1d63e7f6bd4147f",
+      "size_bytes": 3735,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "sha256": "69c126461b3f8d0c931130574fd4d44b507f0af7346bb851f288165eb1661c5d",
+      "size_bytes": 1670,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "PREIMPLEMENTATION_SHA256SUMS",
+      "sha256": "66a91bd1570b0e0d26697f7154ddad2757cc6b4f2bf9d10c7a260ad6266ac57f",
+      "size_bytes": 190,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "MANIFEST.json",
+      "sha256": "03e244179fef548817959d563b79288720901556f80b7158e3067a003c872d6f",
+      "size_bytes": 2607,
+      "origin": "NEW_METADATA_OR_RESULT"
+    },
+    {
+      "path": "SHA256SUMS",
+      "sha256": "5ce0c571975d64a514c44d18f6e429f363a1b7761f413b53321e45f89096166d",
+      "size_bytes": 1109,
+      "origin": "NEW_METADATA_OR_RESULT"
+    }
+  ],
+  "license_review": "Original project source, synthetic fixtures, results and documents. No redistributed original input or dependency source. Disclosure screening passed.",
+  "controls": [
+    "LC-01",
+    "LC-02",
+    "LC-03",
+    "LC-04",
+    "LC-05",
+    "LC-06"
+  ]
+}
