@@ -1,0 +1,115 @@
+{
+  "artifact": "WP-05",
+  "decision": "OD-M1E-10",
+  "size_bytes": 25025,
+  "sha256": "cf116d651cd0d2595d048e44c7a064a32012458ba379f6d2475cf0b2aae91ae1",
+  "entries": 13,
+  "crc": 13,
+  "manifest": 11,
+  "checksums": 12,
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "scope": "The exact 25,025-byte locally authored evidence ZIP. All 13 members are text records, hashes and metadata. Embedded third-party source, patch, LICENSE/NOTICE/SBOM text, scanner and database bytes: zero. License findings are not a grant to redistribute dependencies. Prior evidence references are metadata only. No additional license or notice accompanies this artifact.",
+  "review_limit": "M1-TOOLS technical acceptance remains separate. The 63,441,554-byte manifest-reference archive is excluded.",
+  "inventory": [
+    {
+      "path": "BSD_License_Identifier_Refinement.json",
+      "size_bytes": 32671,
+      "sha256": "9cae004016bedd712726af54307ffaf1eb9f85b44d4fd5146aaf23007ad26a5b",
+      "review": "Local classification and conditional obligations, source locators and digests; no license text or personal attribution strings copied.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Dependency_License_Closure_Delta.json",
+      "size_bytes": 69941,
+      "sha256": "93e33c5fa01e03878fa4ab68d7c2a9d79fe98999aca2121dd92b29d1db904b25",
+      "review": "Local dependency identity and residual requirement analysis. Public source links, module coordinates, h1 hashes and license expressions only for third-party references.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Environment_Eligibility_Record.json",
+      "size_bytes": 1977,
+      "sha256": "2f075976ee48f123e64529b17699a4af40d008dd6fddc8863f9bac3b0098389d",
+      "review": "Local metadata and eligibility observations; Unix endpoint string, no connection credential or host state.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Evidence_Manifest.json",
+      "size_bytes": 6376,
+      "sha256": "af91e80bd907e33a316dc9bd1ba0af311a7f3814848076d170ce7962c1751d36",
+      "review": "Local manifest, sizes, paths and digests. Prior reference artifacts and source scripts are represented by metadata only.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Finding_Disposition_Delta.json",
+      "size_bytes": 2868,
+      "sha256": "2faa12efc43f018d29c27c7de5e6635545db3578275e9f6a6c0237582ced8bc4",
+      "review": "Local findings status and references; advisory IDs and scoped metadata; no advisory body.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Inert_Isolation_Witness.json",
+      "size_bytes": 1206,
+      "sha256": "d93b87d6a1ef67e53b2b42c36c9a4b958e4e027c24e7e184ea4d58036cbd8581",
+      "review": "Local status observations and control names.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 5099,
+      "sha256": "e26be4d3a577c45dc7c1b57c206771116e5bd258d1fc259d85d542805e95ef5b",
+      "review": "Local self review and command/result summaries.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Repository_End_Readback.jsonl",
+      "size_bytes": 631,
+      "sha256": "03c0e8378b54407ea0ef7d48f757f5bbdd53407afee72505825b00c84aadfad0",
+      "review": "Git branch and clean status metadata only.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1167,
+      "sha256": "5f2231846bf97cbc388f7ebd34f845b3e7ea02ea7bf967168b746c83fd8843d8",
+      "review": "Local member digests.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Scanner_Observation_Delta.json",
+      "size_bytes": 1385,
+      "sha256": "b3544e447496f0c1e950fcaa14c42bcad5662e170deb5244515b24123924dcbc",
+      "review": "Local scope and observation status.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Static_Artifact_Identity.json",
+      "size_bytes": 1953,
+      "sha256": "af496f9b1e197010d319e18b7c462ab28a92c0929a38dadb6efb0faec0219a48",
+      "review": "Local ELF and database identities and timestamps. No binary, database body or raw scan.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Static_Verification_Regression.json",
+      "size_bytes": 810,
+      "sha256": "36770c26a366ca6c76d6dd14f5028b348b803e7f7464dcf84463e8d9274e1301",
+      "review": "Local synthetic test names and status.",
+      "classification": "ELIGIBLE"
+    },
+    {
+      "path": "Updated_Gate_Register.json",
+      "size_bytes": 2081,
+      "sha256": "dc51f3071ad779571079ec4b99dc6969dc5fa55d7a4e3fa37f731910ae3a1bf0",
+      "review": "Local milestone statuses; no qualification claim.",
+      "classification": "ELIGIBLE"
+    }
+  ]
+}
