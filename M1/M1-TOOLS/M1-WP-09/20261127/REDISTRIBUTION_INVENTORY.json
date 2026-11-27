@@ -1,0 +1,59 @@
+{
+  "artifact": "WP-09",
+  "decision": "OD-M1E-14",
+  "size_bytes": 5936,
+  "sha256": "c4147a747755a17033f077d4c1a3693184f76e2629cf6af3e5c428e41d4b09d2",
+  "entries": 6,
+  "crc": 6,
+  "manifest": 4,
+  "checksums": 5,
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS_METADATA_ONLY",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "scope": "Locally written factual test results and digests only. No original evidence, artifact, mutation payload, signature, key, third-party source or license body. Technical acceptance is separate.",
+  "inventory": [
+    {
+      "path": "Candidate_Negative_Test_Results.json",
+      "size_bytes": 10567,
+      "sha256": "039424c83f3181370e68bacb585d7a76a19c1551672d5d01fd1d6e485a016ab2",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Evidence_Manifest.json",
+      "size_bytes": 1192,
+      "sha256": "677e3afc66ead8f1c2f2276fc94c81f5eb6ab58e87c2658ebb8d73d85f90fe59",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 2437,
+      "sha256": "c3af668721650e13f2a8c0d55d60cf3118e82e345f52e99049b3368616e1fc51",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Original_Artifact_Preservation_Receipt.json",
+      "size_bytes": 2187,
+      "sha256": "09b8b1ad9a1e89322b4e354552658317bac806ea5f487462c6c6e7c8d2fc01db",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Remaining_Gate_Delta.json",
+      "size_bytes": 691,
+      "sha256": "b16b7a6348e62fcba3243540bad30518afb36bd77e2472bafe265a083b51dfc6",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 485,
+      "sha256": "ab3b275ccc4435c3348d4adfdb74b40508b99c37df3ada537eeb125ec836e3f1",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    }
+  ]
+}
