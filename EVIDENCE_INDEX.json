@@ -542,6 +542,30 @@
       "redistribution_inventory_path": "M1/B04/B04-CSPM-WP-01/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "48b3bdfc8147b9fa253cab3749914b46fb89b0c4dc4a187f4f92c3b7ed8cac26",
       "agent_self_review_status": "PASS"
+    },
+    {
+      "artifact_id": "B04-CSPM-WP-01-R1",
+      "task_id": "B04-CSPM-WP-01-R1",
+      "artifact_type": "cspm-config-targeted-review-correction",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "original_filename": "B04-CSPM-WP-01-R1-Targeted-Correction-Evidence.zip",
+      "repository_relative_path": "M1/B04/B04-CSPM-WP-01-R1/20261127/B04-CSPM-WP-01-R1-Targeted-Correction-Evidence.zip",
+      "size_bytes": 24083,
+      "sha256": "3ac0c597a54cb0de4e9f8398448de65054053c1deaedb7f5209506bf276be612",
+      "zip_entry_count": 19,
+      "owner_publication_decision_id": "OD-B04-CSPM-EV-02",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "publication_date_utc": "2026-11-27",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "distribution_type": "ORIGINAL_CONFIGURATION_VERIFIER_AND_STATIC_RESULTS",
+      "license_compliance_status": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+      "redistribution_inventory_path": "M1/B04/B04-CSPM-WP-01-R1/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "f39fd0c89e605a90777469a305941a9b7d6864bb7b79ec4512241fa8b11a7419",
+      "agent_self_review_status": "PASS"
     }
   ]
 }

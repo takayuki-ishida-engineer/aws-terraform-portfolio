@@ -1,0 +1,123 @@
+{
+  "artifact_id": "B04-CSPM-WP-01-R1",
+  "classification": "Project original and transformed technical facts only.",
+  "third_party_original_bytes_in_zip": 0,
+  "technical_acceptance": "PENDING_INDEPENDENT_VERIFICATION",
+  "files": [
+    {
+      "path": "ACTUAL_STATIC_RESULTS.json",
+      "size_bytes": 10226,
+      "sha256": "876513eab82a8aa1c41f4454339b19363ba111a56c5c9f4595bd5f4b49e1e5b7",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXPECTED_BEFORE_IMPLEMENTATION.sha256",
+      "size_bytes": 97,
+      "sha256": "9b229a3e4591fd6231b2976714093c91543d873f39b8dc6912af4023a6b269e3",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXPECTED_FIXTURE_MANIFEST.json",
+      "size_bytes": 3034,
+      "sha256": "4ac4545ca791ee8176cb7df00eed9dbddd271dd71e63bf543767ed8055641d0f",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "FINDING_DISPOSITION.json",
+      "size_bytes": 1409,
+      "sha256": "33be0c5ac890e3c2f0e130370981165e3153ec698b9d4b80947e375048dc5424",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "FIXED_SOURCE_IDENTITY_REGISTER.json",
+      "size_bytes": 7065,
+      "sha256": "a3f624cef2feebfe839650389cbdc16295875b32c1f2e59467d7625bab57f231",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 1906,
+      "sha256": "802ddd9bed14a62cca70449eddb8bd14308a99d3a56ab8e1faed7d2cd157aa37",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 3153,
+      "sha256": "b8cdad5ebac8d32bdfe1d15b7711d5d0a13194291f79d541df85cafcd04709b2",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MEMBERSHIP_DISCREPANCY_SUPPLEMENT.json",
+      "size_bytes": 491,
+      "sha256": "41ebb1000801ed44abbd4b0268e6ae36a24218bd5ef292a6924272ebc5b80444",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "ORIGINAL_EVIDENCE_REUSE_MANIFEST.json",
+      "size_bytes": 3808,
+      "sha256": "839a98f43c2c97e0a5e255dfc3ba7abeea4241d99dc85ea25976e431f463ac4d",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "ORIGINAL_TO_SUCCESSOR_FIXTURE_TRACEABILITY.json",
+      "size_bytes": 7119,
+      "sha256": "ed6e8d3961c52981cb5b437aada599c66b7d688893a162c77103a2dd3c7d7a11",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 2306,
+      "sha256": "a14a08167c445dc266ff332777f9a3e59e2caf8df9e190b4bb623f35d92b8a9b",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 1055,
+      "sha256": "13a41a1ee4402340f9143315aeb2344abfc36455aef7c3b645062d45966940a9",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "SERVICECATALOG_TRIGGER_CONFLICT.json",
+      "size_bytes": 561,
+      "sha256": "e0befa858b59eeca7f7e70fe9c043a45ff22faee31210550889821cb584224e1",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1698,
+      "sha256": "b4ccb873d8dbbc29c57471c1cf8a8f2bf5ed45e4e529af55c67dfa2f74b3c5b6",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "WORKSPACES_CANONICAL_TYPE_DELTA.json",
+      "size_bytes": 1655,
+      "sha256": "2259736b389803c4cc0cc070a2ecf1a9e5efe9a727a5f6708332a82d429c8a30",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "ownership.py",
+      "size_bytes": 4464,
+      "sha256": "baa78502810206e338a5af5598dccf0c849d03a18ec43c541d533043f29b1132",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "prepare_delta.py",
+      "size_bytes": 9349,
+      "sha256": "46889ccc74e668548e82f66f04ed932f5f68221520a1a2ab4ab13e60a7efa85a",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "regression.py",
+      "size_bytes": 5427,
+      "sha256": "092091ba46ad371b70b0c78da5d8f3a09e38b99ccb5111a3ba95389630b92ac1",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "retrieval.json",
+      "size_bytes": 3236,
+      "sha256": "73c03a7d1bb66646f900cb6e1079e9b0cb88011c101ad59b24f88b57ddeb8877",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    }
+  ],
+  "withholding": "See FIXED_SOURCE_IDENTITY_REGISTER.json. No raw third-party inputs, original release archives, binaries, or documentation included."
+}
