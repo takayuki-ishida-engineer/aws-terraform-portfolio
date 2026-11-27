@@ -1,0 +1,207 @@
+{
+  "task_id": "B06-WP-01",
+  "publication_decision": "OD-B06-EV-01",
+  "files": [
+    {
+      "path": "acquire.py",
+      "size_bytes": 6306,
+      "sha256": "fb0cdcd0384abed33a0693639b6f591445ef7f3d381db0d8a3d42011bacbc04b",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "central_metadata.py",
+      "size_bytes": 511,
+      "sha256": "d9f37b8f4b1bf9ff01f5b50a5c7e20ed1a5a92e6af1aba4901abf6858ac7fb1a",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "pom_model.py",
+      "size_bytes": 7650,
+      "sha256": "242eed6247d0db6b42837d6d946a9ef439dee77e19d74a3a666608a8e33b5093",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "jar_inventory.py",
+      "size_bytes": 9493,
+      "sha256": "a6087398a110bf0f151db196a7ff7a33f5fd09caab6f50c786b25349222b05d9",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "qualify.py",
+      "size_bytes": 14073,
+      "sha256": "8763e96fa6ef40b8dfc80a69595417bff6af8d25f394c55ce2153839c29fdc21",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "route_evidence.py",
+      "size_bytes": 7975,
+      "sha256": "19320ca84325465eeacf45eb138f860fcfbb44147cd357529aa7ae089d3be059",
+      "classification": "ORIGINAL_PROJECT_VERIFIER"
+    },
+    {
+      "path": "ACTUAL_TEST_RESULTS.json",
+      "size_bytes": 19567,
+      "sha256": "541896770ac1f0eec7ad46da42591fa925507641a5f82bbfbc8cb5452a808329",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "EXACT_ARTIFACT_IDENTITY_MANIFEST.json",
+      "size_bytes": 170639,
+      "sha256": "e4e7b47d5d840d771dc0645c4465c1e141ff585fce3df8449035c2c96373069e",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "DEPENDENCY_INVENTORY.json",
+      "size_bytes": 497191,
+      "sha256": "9900442e24b037aa3e95f480a8aa8a3ad0b5c4649ed2db4ab26387bf2ad0bf3f",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "JAR_PLUGIN_CLASS_INVENTORY.json",
+      "size_bytes": 2330347,
+      "sha256": "aca55fe93c932fea73a67cd2a58b5c2bc6a10719a177c0cd434dbd8a6fe803da",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "JAVA_COMPATIBILITY_MATRIX.json",
+      "size_bytes": 16336,
+      "sha256": "01d03a0d096240ac864554dc3a967ffaea839afc3f84a25f6dc6f74daf0bb827",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "LICENSE_NOTICE_INVENTORY.json",
+      "size_bytes": 12299,
+      "sha256": "a88a829f494b5ba9a351d3a67c7026f286a401807c1331c482a3525d548c0f6d",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "CVE_APPLICABILITY_REPORT.json",
+      "size_bytes": 3138,
+      "sha256": "0d60896989e4c2927be52dc5dbc4579d90659d83009f9c441f94f0297a50ca4b",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "PER_ROUTE_COMPATIBILITY_MATRIX.json",
+      "size_bytes": 10018,
+      "sha256": "1170fb7c0add9784551835484ee6ec4786aba41ad44162251febce0777c0e1b3",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "RELEASE_AGE_AND_TRUST.json",
+      "size_bytes": 8813,
+      "sha256": "3f49b47b29f5e5a570ed1f66e3d6c3af3b34d3d437b9867dcfbb1189477e0bb8",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 666,
+      "sha256": "14f17bff86678b191d524b33ef15024020c321c789cb421cd26c44fe239254e0",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-bounded-recovery.json",
+      "size_bytes": 1449,
+      "sha256": "1e36bf6cb488e3176c71fa84d87fd41a09717a3216594030dc1063ab0d53189c",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-central-metadata.json",
+      "size_bytes": 6382,
+      "sha256": "298661704796e5cd99c7defc4a8dfe17d441ea7d54ef324b9416e6660bfa8e5a",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-checksum.json",
+      "size_bytes": 27359,
+      "sha256": "d03b7f8d6b829debc8247f710f2899732d28e9c5efdec29439baaf215f5c97fc",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-controls-01.json",
+      "size_bytes": 3196,
+      "sha256": "dd66386837035a6aa16764fdd0cfe44a4db38add73b0e8f85338cbb6f416e6a9",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-controls-02.json",
+      "size_bytes": 5386,
+      "sha256": "7bc2e6dbed2d0e4fbadf84c28963597fa989824294b65d3679cb19e59cc979ad",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-controls-03.json",
+      "size_bytes": 3536,
+      "sha256": "657fc537fc216cfce43bdde66d904a499cad80f686cf33fd1d78d0a81d672a5c",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-controls-04.json",
+      "size_bytes": 1674,
+      "sha256": "c626886ec988638a46dcd4611c4a29126ee02215f7c04f0f0040894872a4b0fd",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "acquisition-top.json",
+      "size_bytes": 13312,
+      "sha256": "439023bb62ea098f93d7e29a0ebe9831e5434113300e75d125a94ea9721a4748",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "existing-source-receipts.json",
+      "size_bytes": 1466,
+      "sha256": "e279788b4612ca32406ff045283b646242c763c107a45b9646a09df7b2f99140",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "lenses-build-http.txt",
+      "size_bytes": 8,
+      "sha256": "af4d6b93ede81841304aca72b2279af393403763b4ec630b50438064c1edb671",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "lenses-build-observed.txt",
+      "size_bytes": 21,
+      "sha256": "194b128bcee33e47f8ec2517dd2f0c73ff5444b5c8f65f52fa22837ad20bea41",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 1426,
+      "sha256": "cd6b7557ce4f11fc11f5d37949e4e1fba1f0d560f5452e21dcfd09a0977b7847",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "offline-results.sha256",
+      "size_bytes": 281,
+      "sha256": "8f1e448b77fafdfd1ca37ce40bddbe342e229d54c45da36accc6d66e38c55f55",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 1898,
+      "sha256": "eb17a38a5b0e9643aa2771da197de88f76b4164c97feec27d5af1600664d5004",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 6748,
+      "sha256": "33bc977c3b797e9a43da99e8df8ffef5b8e8f04527245d6487dcf1b1fd1d911e",
+      "classification": "OWN_RESULT_OR_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 2838,
+      "sha256": "30f27588bb277ec8b94bc52a0983e8f87de264bc95461b52d96a5ceda0ca0980",
+      "classification": "OWN_RESULT_OR_METADATA"
+    }
+  ],
+  "controls": [
+    "LC-01",
+    "LC-02",
+    "LC-03",
+    "LC-04",
+    "LC-05",
+    "LC-06"
+  ],
+  "licensing": "Project-original verification code and derived metadata only. No third-party bytes republished. Disclosure screening passed."
+}
