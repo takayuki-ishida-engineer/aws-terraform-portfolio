@@ -1,0 +1,59 @@
+{
+  "decision": "OD-M1E-13",
+  "artifact": "WP-08",
+  "size_bytes": 8041,
+  "sha256": "6e16a54e29ff73d884843fd1aac3662d6c9d0f907a3e3e9977962eef80296829",
+  "entries": 6,
+  "crc": 6,
+  "manifest": 4,
+  "checksums": 5,
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS_METADATA_ONLY",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "scope": "Only locally authored metadata and factual record copies from WP-04. No executable, vendor archive, license or key body, raw status, third-party source or Scanner/DB payload.",
+  "inventory": [
+    {
+      "path": "Evidence_Manifest.json",
+      "size_bytes": 1120,
+      "sha256": "6d24765c69ac8e4a801cd7b0c9ba3e58d0c854095940da4068c0df09785556b6",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "M1_TQ_01_Artifact_Acquisition_Record.json",
+      "size_bytes": 1597,
+      "sha256": "ccbbe206e72dea2d15feefe7ed5f58c7d4e590ab1f017d61545175cacae35202",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "M1_TQ_01_Security_and_License_Delta.json",
+      "size_bytes": 4403,
+      "sha256": "e08d71a72f3b61edb16db95c63c42f1ba0e77d85ecac32020c83ea3558be62d8",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 1976,
+      "sha256": "1d3c426509a1babb1c0e3fe63d5de8c9d21804b87368aed0ee341c09adf64421",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 489,
+      "sha256": "e012d0ec51cda15c0a54c537c20694df1bfd6fe46e5c42bc154da8283a2593af",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    },
+    {
+      "path": "WP04_Selection_Receipt.json",
+      "size_bytes": 7349,
+      "sha256": "3ee9f2eeb2565457ff762dd6823a3fdafb8a1d53dec0ab8391a394405839fe47",
+      "classification": "ELIGIBLE_OWN_METADATA_ONLY"
+    }
+  ]
+}
