@@ -566,6 +566,33 @@
       "redistribution_inventory_path": "M1/B04/B04-CSPM-WP-01-R1/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "f39fd0c89e605a90777469a305941a9b7d6864bb7b79ec4512241fa8b11a7419",
       "agent_self_review_status": "PASS"
+    },
+    {
+      "artifact_id": "GOV-CLAUDE-HARNESS-01",
+      "task_id": "GOV-CLAUDE-HARNESS-01-FINAL",
+      "artifact_type": "claude-code-harness-final-integration",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "successor_head": "d1777b777f3c4d7528ee50d587f6607ccca86a32",
+      "successor_tree": "46ed7fc7c92bc2c935682ac34d2c8bd65f9f72ef",
+      "pull_request": 108,
+      "original_filename": "GOV-CLAUDE-HARNESS-01-Final-Integration-Evidence.zip",
+      "repository_relative_path": "GOV/GOV-CLAUDE-HARNESS-01/20261127/GOV-CLAUDE-HARNESS-01-Final-Integration-Evidence.zip",
+      "size_bytes": 119661,
+      "sha256": "7e52397b932c754c9a1bc3a98af82626fd5ff4e8eacfb1758b20d117c439607d",
+      "zip_entry_count": 37,
+      "owner_publication_decision_id": "OD-GOV-CLAUDE-EV-01",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "N/A - authorization text digest not supplied to Claude",
+      "publication_date_utc": "2026-11-27",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "distribution_type": "ORIGINAL_SOURCE_PATCHES_TEST_FIXTURES_CI_LOGS_AND_DERIVED_RECORDS",
+      "license_compliance_status": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+      "redistribution_inventory_path": "GOV/GOV-CLAUDE-HARNESS-01/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "850b12dbff65e77f80a08298a133678ae7daa3905bc1f50bb045723e15ad4e78",
+      "agent_self_review_status": "PASS_WITH_DISCLOSED_LIMITATIONS"
     }
   ]
 }

@@ -1,0 +1,221 @@
+{
+ "artifact": "GOV-CLAUDE-HARNESS-01",
+ "decision": "OD-GOV-CLAUDE-EV-01",
+ "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+ "license_compliance": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+ "LC": {
+  "LC-01": "PASS",
+  "LC-02": "PASS",
+  "LC-03": "PASS",
+  "LC-04": "PASS",
+  "LC-05": "PASS",
+  "LC-06": "PASS"
+ },
+ "scope": "Project-original source patches, test fixtures, verification and CI logs of a public repository, and derived records. No third-party source, license body, secret, State, plan or credential value.",
+ "inventory": [
+  {
+   "path": "CI_Results.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "66a1f6572b804def79edc0efa87e96175497280e5706e6f9096710c6b2a11ba1",
+   "bytes": 2950
+  },
+  {
+   "path": "FIND_Disposition.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "495e49f432138bc42d9cff24be898cf8f97878ff78bcfad5bc71906c1f2cb5d2",
+   "bytes": 3531
+  },
+  {
+   "path": "Fresh_Web_Session_Evidence.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "41d5773c9764fa73c688dd5e05f385abf1515c759d5d32f6cbe8574046c2f823",
+   "bytes": 4614
+  },
+  {
+   "path": "Frozen_Expected_Fixture_Manifest.digest.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "ef6f7586b0b4bc4c329a68f1daf10a9f5529cf572e73a80b3540f0a4dece8e12",
+   "bytes": 246
+  },
+  {
+   "path": "Frozen_Expected_Fixture_Manifest.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "ca5677fd79b21d1b7525defe6ebcb84138a6023af19a2ebb5987c14e940531bd",
+   "bytes": 11496
+  },
+  {
+   "path": "Mandatory_Self_Review.md",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "69ea877c79cd59d016180d73e175964e9f22e80f1a0580d5022e33a101505a80",
+   "bytes": 3479
+  },
+  {
+   "path": "Previous_Evidence_Reuse_Manifest.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "42eb43ca9ab8b4c37bd3422d068859947628a5b4aec7d3edc0c9b5a22a5b1093",
+   "bytes": 1142
+  },
+  {
+   "path": "Reproduction_Manifest.md",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "3798fc730ecb2fc115256750e6a0e1800fb1a7abd055fd033ea9e96658ba2d3d",
+   "bytes": 1891
+  },
+  {
+   "path": "Rollback_Manifest.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "641436009fddde84588ae951cf829d2fec500cc96bbd058b810114cbd3f257ce",
+   "bytes": 1073
+  },
+  {
+   "path": "Writer_Ownership_Delta_and_Release.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "d9b22f6b871dbbf73699c749798224ee61baf3adcd74f4716afde1258ed48779",
+   "bytes": 3171
+  },
+  {
+   "path": "harness/build_package.py",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "b19023b6bcef3ce1da1066a60cac88c0872a9742e03d0941b2b8892d7fd3fb1c",
+   "bytes": 6060
+  },
+  {
+   "path": "harness/candidate_pre_tool_guard.py",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "a2c6d895d1e2835de2510b24d4a1d36e877a05157fa7cfd5fd94426023ac2434",
+   "bytes": 15452
+  },
+  {
+   "path": "harness/extract_ci.py",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "0d9cf81058ea6274da01b59bf25c7fbcaf60676f6646f4a12e06c6af1b0fee1c",
+   "bytes": 964
+  },
+  {
+   "path": "harness/freeze_fixtures.py",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "ccaf722a60c8d2d1ba6cdc330a228bfae9890a34c1207ac996cbcee3bf94656c",
+   "bytes": 6079
+  },
+  {
+   "path": "harness/local_verify.sh",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "759c5aa20c4b5f2a992ff310f58d3dd8f628a18113289d964e7e7467ad7bcd53",
+   "bytes": 3890
+  },
+  {
+   "path": "harness/run_fixtures.py",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "367b8edd874aaf08d0abc0266f635d0ed686d5a005e0a61863e5711bdddf0372",
+   "bytes": 2463
+  },
+  {
+   "path": "harness/write_records.py",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "d8e71d3f37c682d6d21930cec26ee545afcfab3d752008d3def0e361a03536da",
+   "bytes": 6920
+  },
+  {
+   "path": "original_logs/check_hygiene.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "81ed3e07dd36417244d2f4e4e981ab650a2333ee60a134510e136e6ff6b2f2fa",
+   "bytes": 63
+  },
+  {
+   "path": "original_logs/check_impact.py_check.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "a9dd3fe6a8a7d3b0e152cf038e237b25a776910a830917ff84d4d8b6d4d14270",
+   "bytes": 115
+  },
+  {
+   "path": "original_logs/check_pr_safety_workflow.py_--check.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "c8ff3e3864a62d199a6ae7697dbd8674bdf0b6957b747e4e5df32d85570c064a",
+   "bytes": 62
+  },
+  {
+   "path": "original_logs/check_safety_checks.py_guards.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "ba554ee04009aecd58366f35cce7a7facc692e9f03a6aee2e83b223545e5ff66",
+   "bytes": 65
+  },
+  {
+   "path": "original_logs/check_safety_checks.py_secrets.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "01d583ee32964174cefe0dd91cd9ba93ea8f36550b8416a56cd15ed6b0544cd2",
+   "bytes": 71
+  },
+  {
+   "path": "original_logs/check_safety_checks.py_workflows.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "52d5b8e7141327aff46e68693445e0ed235cada8ae32a383c951d35161db180d",
+   "bytes": 59
+  },
+  {
+   "path": "original_logs/ci_policy_local.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "f754d31c7b85665bb7a4d85a544b3d16aff564b483458f33eeb78c2d4fb11a42",
+   "bytes": 1920
+  },
+  {
+   "path": "original_logs/explain.jsonl",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "ad1b31915048626afe81ebfb12b95712409c8b8d39cd7e14ec454c08c9bfe0ac",
+   "bytes": 1636
+  },
+  {
+   "path": "original_logs/fixtures_candidate.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "89b2f82d69b6c460b2dfda3645fd9eacf5476ac19519f5124f08b851e0b93cd5",
+   "bytes": 12940
+  },
+  {
+   "path": "original_logs/fixtures_candidate_O.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "8ac6b6ddfc15a98e4a9ed86fe65989acaa9c7d2556c8fe05baefc99a425a3443",
+   "bytes": 12949
+  },
+  {
+   "path": "original_logs/fixtures_repo.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "89b2f82d69b6c460b2dfda3645fd9eacf5476ac19519f5124f08b851e0b93cd5",
+   "bytes": 12940
+  },
+  {
+   "path": "original_logs/fixtures_repo_O.json",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "8ac6b6ddfc15a98e4a9ed86fe65989acaa9c7d2556c8fe05baefc99a425a3443",
+   "bytes": 12949
+  },
+  {
+   "path": "original_logs/job_140771049437_Full_CI_log_via_MCP.txt",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "aa879380c54973d4ea6e1b08238abb9945b208da78d8c54daa44691682a5d4f4",
+   "bytes": 344910
+  },
+  {
+   "path": "original_logs/job_140771049484_PR_Safety_CI_log_via_MCP.txt",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "7408d5f68d7debf8a3705bdebfba814b9a8a176b63f20833ee6c22c04b5afbac",
+   "bytes": 72866
+  },
+  {
+   "path": "original_logs/local_verify.log",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "3c366bec65f736de184f5016534cc240aad75b7e9fcff76e451715e4b7809640",
+   "bytes": 4557
+  },
+  {
+   "path": "patches/CI_Governance.patch",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "3bab3661cddeb03c41a49016f6076b598862f98c67e7891c337dce2784dee906",
+   "bytes": 23056
+  },
+  {
+   "path": "patches/Final_Seven_File_Source.patch",
+   "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+   "sha256": "4406b520fc970f3c32845e4abdbe83103ff2e6c525ccf3ace5f7dc7f0d5bfe8a",
+   "bytes": 30298
+  }
+ ]
+}
