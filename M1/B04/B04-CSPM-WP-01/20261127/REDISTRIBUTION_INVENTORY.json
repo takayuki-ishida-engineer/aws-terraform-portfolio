@@ -1,0 +1,165 @@
+{
+  "artifact_id": "B04-CSPM-WP-01",
+  "classification": "Project original and transformed technical facts only.",
+  "third_party_original_bytes_in_zip": 0,
+  "technical_acceptance": "PENDING_INDEPENDENT_VERIFICATION",
+  "files": [
+    {
+      "path": "ACCOUNT_RECORDER_OWNERSHIP_MATRIX.json",
+      "size_bytes": 7674,
+      "sha256": "a779fb90eabff3430cbf7e8ab2c52625df6177ab521652077926d95fefb16479",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "ACTUAL_STATIC_RESULTS.json",
+      "size_bytes": 4202,
+      "sha256": "30beefb050b17833caba9a42bf7667069d3acfe12f6dbf092457155d09b7f9f0",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "AFFECTED_FINAL_CONTRACT_WITNESS_MAPPING.json",
+      "size_bytes": 5350,
+      "sha256": "33175e61acba82590a84ea7dd6d92f8081fdbfb56194f98815532accc97402f3",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "CIS_5_0_0_MEMBERSHIP_INVENTORY.json",
+      "size_bytes": 40702,
+      "sha256": "0bbd3035615900a32c496687ad60741926b08d4695479b8dd1d47fd693a5a11a",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "CONTROL_TO_CONFIG_DEPENDENCY_MATRIX.json",
+      "size_bytes": 1055174,
+      "sha256": "9ebc064c13850146657b2a9e7e072a43dcd38982f0623be062d69752f997f412",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "DEDUPLICATED_CONTROL_UNION.json",
+      "size_bytes": 74423,
+      "sha256": "f1313833a0aa2a365b9e75e52d4bed1d0cf93667f3d232bcfc8307e6f525932e",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXACT_UNRESOLVED_ROWS.json",
+      "size_bytes": 104368,
+      "sha256": "1e4d8785315864a0f631475dea2991c5201179141da2ff0f02e871b2f402933a",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXISTING_DESIGN_DELTA_COMPARISON.json",
+      "size_bytes": 3775,
+      "sha256": "07688e1d9d07787380df5364ae3b0f4afe0d53ac8f432b5cc773483d540575ae",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXPECTED_BEFORE_IMPLEMENTATION.sha256",
+      "size_bytes": 97,
+      "sha256": "40ad6fb4a094f276b5ae4fe926f89c3a805e854846ff488f154bb35e36092da3",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXPECTED_FIXTURE_MANIFEST.json",
+      "size_bytes": 1464,
+      "sha256": "e6c448904e59c77222a2578d2527e71b90e80b0861dda2bb732be7b2105d08d1",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "FIXED_SOURCE_IDENTITY_AND_REUSE_MANIFEST.json",
+      "size_bytes": 114281,
+      "sha256": "284c8da071a8b2705a31684f5660fdb6ff5a5003a5c5c6d80a1687ccf829f831",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "FSBP_MEMBERSHIP_INVENTORY.json",
+      "size_bytes": 344599,
+      "sha256": "c8c8dd26821865e00b4552d0c467bbdf995cdd824c897b2f9000d8b1553ff323",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 3250,
+      "sha256": "c82110bdb66e99506b92aa342d5f33ba8bee4a119ced00a4fb4d35b969b31b37",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 4310,
+      "sha256": "387abc83f47298ea1d4d786a3ea977ec28db37b31381aa9c11edb38843149de8",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "QUALIFICATION_RESULTS.sha256",
+      "size_bytes": 1027,
+      "sha256": "9a25a038494f5f0cdb7fdf5deeaa78e0dad3faba071ff002c34be505ccd6209f",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "REGIONAL_CAPABILITY_MATRIX.json",
+      "size_bytes": 1152922,
+      "sha256": "54138596dc45cc733f3dc94eed294e6f7b82fb1938035f8ea4b9caed92706ad3",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 1831,
+      "sha256": "b2dcab7e1a960a154a2dbec383f3dc7f928824d2eb7fcc7330ccf41c04f7ab52",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 1602,
+      "sha256": "eea5b3809cba1fb0673baeea66e867c1920ccb3980f3ea9fa277c93283576033",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 2332,
+      "sha256": "1d0c575eaa160f595110ff5ac479f786e1a680d5822c77da939c4e8065ab7501",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "acquire.py",
+      "size_bytes": 3648,
+      "sha256": "bd1723fb2d25d5cfc0278057cfc879fabaad6eb3b1a7d8d0d47a9d2e98f64736",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "fixtures.py",
+      "size_bytes": 6773,
+      "sha256": "eed35060a815c04201e40f801c52122a57e20b99c6308ff2154e921607bdd23a",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "governance.py",
+      "size_bytes": 11981,
+      "sha256": "69fa8aa084126b3141208b0999dcc7bfeb27bf7e2e4ecfb34e7007872b9f531d",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "qualify.py",
+      "size_bytes": 28448,
+      "sha256": "e895c7935550efee12675d3a34e134783d9ac81097be62012be949e10bee40e8",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "retrieval-rules.json",
+      "size_bytes": 584,
+      "sha256": "338951c191137852b8c9efded51a94f116ada79dc53e2e4dd957e4eb546aabc6",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "retrieval.json",
+      "size_bytes": 38104,
+      "sha256": "b565526b0ab564effb155e9779cc5e3237e14fbac42837e42337076f2ce72e9c",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "sources.py",
+      "size_bytes": 11003,
+      "sha256": "4bb53060777943c33f06e8423cb6e2bdfa8a497ef385f94b95b7406bd3811f2a",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    }
+  ],
+  "withholding": "See FIXED_SOURCE_IDENTITY_AND_REUSE_MANIFEST.json. No raw third-party inputs, original release archives, binaries, or documentation included."
+}
