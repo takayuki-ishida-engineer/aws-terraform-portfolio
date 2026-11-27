@@ -45,8 +45,12 @@ Claude Code from reading AGENTS.md natively, so the import above must stay first
   confirmation. A confirmation approves only a file change inside the exact authorized
   scope; it is never a policy waiver or an operation authorization.
 - A denial or an unexpected question means stop and report. Never work around the guard.
-- The guard is defense in depth, not a sandbox; server-side branch protection, the
-  required check and the Owner merge remain the binding controls.
+- Use literal paths for shell redirects, explicit working directories, and one explicit
+  remote and branch ref for an authorized push. A fall-through is not authorization.
+- The guard checks recognized literal operations as defense in depth, not as a shell
+  parser or sandbox. Indirect scripts, shell expansion and other tool routes remain
+  subject to native permissions and exact policy authorization. Server-side branch
+  protection, required checks and the Owner merge remain binding.
 
 ## Completion and stop conditions
 - State the completion condition before starting. Done means the required commands

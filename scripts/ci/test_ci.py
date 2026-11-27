@@ -753,6 +753,500 @@ GUARD_FIXTURES = json.loads(r"""{
  ]
 }""")
 GUARD_FIXTURES_SHA256 = "970cdf2e1da1c10062698f1088ae3cf773f51f18065b739a2ec3250a3eca4af7"
+# Independent correction fixtures: expectations frozen before the respective corrections.
+GUARD_R1_FIXTURES = json.loads(r"""{
+ "schema": "claude-harness-guard-r1/1",
+ "setup": [
+  [
+   "symlink",
+   "{OUT}/link-dir",
+   "{REPO}/scripts"
+  ]
+ ],
+ "cases": [
+  {
+   "id": "R01",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > {OUT}/dummy.tfstate"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R02",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > \"{OUT}/dummy file.tfplan\""
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R03",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "touch {OUT}/.env"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R04",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > {OUT}/link-state"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R05",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "cat {OUT}/link-state"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R06",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > impact_map.json"
+    },
+    "cwd": "{REPO}/scripts/ci"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R07",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "rm ../AGENTS.md"
+    },
+    "cwd": "{REPO}/scripts"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R08",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > {OUT}/link-to-agents"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R09",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "cd {REPO}/scripts/ci && printf x > impact_map.json"
+    },
+    "cwd": "{OUT}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R10",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > {OUT}/notes.txt"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R11",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "cd {OUT} && printf x > notes.txt"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R12",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git diff -- AGENTS.md > {OUT}/diff.txt"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R13",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "tee {OUT}/a.txt {OUT}/link-state"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R14",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > {OUT}/link-dir/../AGENTS.md"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R15",
+   "event": {
+    "tool_name": "Write",
+    "tool_input": {
+     "file_path": "{OUT}/link-dir/../AGENTS.md"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "ask"
+  },
+  {
+   "id": "R16",
+   "event": {
+    "tool_name": "Read",
+    "tool_input": {
+     "file_path": "{OUT}/.config/gh/hosts.yml"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R17",
+   "event": {
+    "tool_name": "Write",
+    "tool_input": {
+     "file_path": "{REPO}/.terraform.lock.hcl"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "ask"
+  },
+  {
+   "id": "R18",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > {REPO}/.terraform.lock.hcl"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R19",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > notes.txt"
+    },
+    "cwd": "relative"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R20",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x 2>&1"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R21",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "find {REPO}/scripts/ci -delete"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R22",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > \"$TARGET\""
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R23",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "cat {OUT}/notes.txt"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R24",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git diff -- scripts/ci/impact_map.json > {OUT}/diff.txt"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R25",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > \"{OUT}/notes with space.txt\""
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R26",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "cat < {OUT}/link-state"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R27",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "cat {OUT}/.config/gh/hosts.yml"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R28",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "cat {OUT}/notes.txt > {OUT}/copy.txt"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R29",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git -C {REPO} push origin main"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R30",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push origin 'main'"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R31",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push --all origin"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R32",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R33",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push -u origin claude/harness-optimization"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R34",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git diff --name-status --no-renames origin/main...HEAD"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R35",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "printf x > \"{OUT}/link-dir/../AGENTS.md\""
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R36",
+   "event": {
+    "tool_name": "Grep",
+    "tool_input": {
+     "pattern": "x",
+     "glob": ".env"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  }
+ ]
+}""")
+GUARD_R1_FIXTURES_SHA256 = "abe9a0fc00376bd1f989c81d83e1db4fb283653060886e811d53179bed6ca2f5"
+GUARD_R1_PUSH_FIXTURES = json.loads(r"""{
+ "schema": "claude-harness-guard-r1-push-supplement/1",
+ "cases": [
+  {
+   "id": "R37",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push origin HEAD"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R38",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push --receive-pack custom origin claude/example"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R39",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push --no-verify origin claude/example"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R40",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push origin refs/tags/v1"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  },
+  {
+   "id": "R41",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push origin HEAD:refs/heads/claude/example"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R42",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git push --dry-run origin claude/example"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "allow"
+  },
+  {
+   "id": "R43",
+   "event": {
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "git -c core.hooksPath=/tmp/x push origin claude/example"
+    },
+    "cwd": "{REPO}"
+   },
+   "expect": "deny"
+  }
+ ]
+}""")
+GUARD_R1_PUSH_FIXTURES_SHA256 = "0465eaf9063961c6e9d223e4b051cdbff8c1e78816f4d1185675173ddcbc3950"
 SAFETY = ".github/workflows/pr-safety-ci.yml"
 SHA_A, SHA_B, SHA_C, SHA_D = ("a" * 40, "b" * 40, "c" * 40, "d" * 40)
 _TREE = None
@@ -1488,6 +1982,10 @@ class ImpactTests(unittest.TestCase):
                       "Read(//**/.env)", "Read(//**/.env.*)", "Read(//**/*.pem)", "Read(//**/*.key)",
                       "Read(~/.aws/**)", "Read(~/.ssh/**)", "Read(//**/local.auto.tfvars)"):
             self.assertIn(entry, deny)
+        # Native Read/Edit defense-in-depth must cover the reviewed sensitive names and stores.
+        for path in ["//**/*.tfstate","//**/*.tfstate.*","//**/*.tfplan","//**/*.tfplan.*","//**/tfplan","//**/planout","//**/plan.out","//**/.terraform.tfstate.lock.info","//**/local.auto.tfvars","//**/local.auto.tfvars.json","//**/*.local.tfvars","//**/*.local.tfvars.json","//**/*.tfbackend","//**/backend_override.tf","//**/backend_override.tf.json","//**/.env","//**/.env.*","//**/*.pem","//**/*.key","//**/*.p12","//**/*.pfx","//**/*.jks","//**/*.keystore","//**/id_rsa","//**/id_ed25519","//**/id_ecdsa","//**/.netrc","//**/.git-credentials","~/.aws/**","~/.ssh/**","~/.gnupg/**","~/.docker/**","~/.kube/**","~/.config/gh/**"]:
+            for tool in ("Read", "Edit"):
+                self.assertIn("%s(%s)" % (tool, path), deny)
         self.assertFalse([d for d in deny if "terraform.tfvars" in d or "features.auto.tfvars" in d])
         [group] = settings["hooks"]["PreToolUse"]
         [handler] = group["hooks"]
@@ -1516,11 +2014,14 @@ class ImpactTests(unittest.TestCase):
                     return value.replace("{REPO}", str(REPO.resolve())).replace("{OUT}", out)
                 return {k: fill(v) for k, v in value.items()} if isinstance(value, dict) else value
 
-            for _kind, link, target in GUARD_FIXTURES["setup"]:
+            for manifest, digest in ((GUARD_R1_FIXTURES, GUARD_R1_FIXTURES_SHA256),
+                                     (GUARD_R1_PUSH_FIXTURES, GUARD_R1_PUSH_FIXTURES_SHA256)):
+                self.assertEqual(hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest(), digest)
+            for _kind, link, target in GUARD_FIXTURES["setup"] + GUARD_R1_FIXTURES["setup"]:
                 os.symlink(fill(target), fill(link))
 
-            def decide(stdin):
-                run = subprocess.run([sys.executable, str(guard)], input=stdin, capture_output=True, text=True,
+            def decide(stdin, flags=()):
+                run = subprocess.run([sys.executable, *flags, str(guard)], input=stdin, capture_output=True, text=True,
                                      timeout=20, check=False, env={"PATH": "/usr/bin:/bin", "HOME": out})
                 self.assertEqual(run.returncode, 0, run.stderr)
                 if not run.stdout.strip():
@@ -1530,12 +2031,13 @@ class ImpactTests(unittest.TestCase):
                 self.assertIn(output["permissionDecision"], ("deny", "ask"))
                 return output["permissionDecision"]
 
-            for case in GUARD_FIXTURES["cases"]:
-                event = fill(case["event"])
-                event.setdefault("cwd", fill(GUARD_FIXTURES["default_cwd"]))
-                self.assertEqual(decide(json.dumps(event)), case["expect"], case["id"])
-            for case in GUARD_FIXTURES["malformed"]:
-                self.assertEqual(decide(case["stdin"]), case["expect"], case["id"])
+            for flags in ([], ["-O"]):
+                for case in GUARD_FIXTURES["cases"] + GUARD_R1_FIXTURES["cases"] + GUARD_R1_PUSH_FIXTURES["cases"]:
+                    event = fill(case["event"])
+                    event.setdefault("cwd", fill(GUARD_FIXTURES["default_cwd"]))
+                    self.assertEqual(decide(json.dumps(event), flags), case["expect"], (case["id"], flags))
+                for case in GUARD_FIXTURES["malformed"]:
+                    self.assertEqual(decide(case["stdin"], flags), case["expect"], (case["id"], flags))
 
     def test_unmapped_and_oversized_changes_fail_closed(self):
         self.assertIn("unmapped_paths", fails(analysis().select, changes("new-top-level/file.txt", "docs/a.md")))

@@ -18,6 +18,7 @@ import fnmatch
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -29,7 +30,7 @@ SENSITIVE_NAMES = ("*.tfstate", "*.tfstate.*", "*.tfplan", "*.tfplan.*", "tfplan
                    "*.local.tfvars", "*.local.tfvars.json", "*.tfbackend", "backend_override.tf",
                    "backend_override.tf.json", ".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "*.jks",
                    "*.keystore", "id_rsa", "id_ed25519", "id_ecdsa", ".netrc", ".git-credentials")
-SENSITIVE_DIRS = (".aws", ".ssh", ".gnupg", ".docker", ".kube")  # under the home directory
+SENSITIVE_DIRS = (".aws", ".ssh", ".gnupg", ".docker", ".kube", ".config/gh")  # under the home directory
 
 # Governance files: file-tool edits ASK (exact scoped approval); shell mutation is DENIED.
 PROTECTED = ("AGENTS.md", "CLAUDE.md", ".claude/**", ".github/**", "scripts/ci/**",
@@ -38,7 +39,7 @@ PROTECTED = ("AGENTS.md", "CLAUDE.md", ".claude/**", ".github/**", "scripts/ci/*
              "scripts/terraform-testing/isolated_root.py", "tests/expected-counts.json",
              "docs/portfolio-verification-policy.md", "docs/policy-v14-2-alignment.md",
              "docs/step1-audit-report.md", "docs/step2-emulator-rehearsals.md", "docs/step3/**",
-             "docs/evidence/**", "**/.terraform.lock.hcl", "kubernetes/dependencies.lock.json",
+             "docs/evidence/**", ".terraform.lock.hcl", "**/.terraform.lock.hcl", "kubernetes/dependencies.lock.json",
              "kubernetes/images.lock.json", "kubernetes/vendor/**", ".gitignore", ".gitattributes",
              ".editorconfig")
 EVIDENCE = "docs/evidence/**"  # append-only: an existing file is never edited
@@ -81,7 +82,7 @@ BASH_ASK = (
 # Commands that can read file contents (used with sensitive names) or mutate files (used with protected paths).
 READERS = r"(?:cat|tac|less|more|head|tail|cp|mv|scp|rsync|base64|xxd|od|hexdump|strings|grep|egrep|rg|awk|sed|cut|" \
           r"sort|uniq|diff|cmp|jq|yq|tar|zip|gzip|openssl|curl|wget|nc|vi|vim|nano|source|\.|python3?|perl|ruby|node|php)"
-MUTATORS = r"(?:rm|mv|cp|ln|install|rsync|tee|truncate|dd|chmod|chown|touch|unlink|shred|sed\s+[^;&|\n]*-i|" \
+MUTATORS = r"(?:rm|mv|cp|ln|install|rsync|tee|truncate|dd|chmod|chown|touch|unlink|shred|mkdir|rmdir|sed\s+[^;&|\n]*-i|" \
            r"perl\s+[^;&|\n]*-[a-zA-Z]*i|git\s+(?:rm|mv|checkout\s+[^;&|\n]*--|restore|update-index))"
 INTERP_INLINE = r"(?:python3?|perl|ruby|node|php|bash|sh|zsh)\s+(?:-[a-zA-Z]*[ce]\b|-\s|<<|$)"
 
@@ -120,7 +121,7 @@ def resolve_paths(raw, cwd):
             raise ValueError("relative path without an absolute cwd")
         expanded = os.path.join(cwd, expanded)
     lexical = os.path.normpath(expanded)
-    resolved = os.path.realpath(lexical)  # follows existing symlinks; a missing tail is kept
+    resolved = str(Path(expanded).resolve(strict=False))  # resolve symlinks before collapsing parent traversal
     return lexical, resolved
 
 
@@ -144,44 +145,130 @@ def classify_path(tool, raw, cwd):
     return None
 
 
-def mentions_protected(command):
-    for token in re.findall(r"[A-Za-z0-9_./~${}\-]+", command):
-        token = token.strip("'\"")
-        rel = token[2:] if token.startswith("./") else token
-        absolute = os.path.normpath(token) if token.startswith("/") else None
-        if absolute:
-            rel = repo_relative(absolute) or ""
-        if rel and (protected(rel) or any(rel.startswith(p[:-2]) for p in PROTECTED if p.endswith("/**"))):
+def shell_paths(words, cwds):
+    """Conservative literal candidates, not shell expansion or a shell parser."""
+    for word in words:
+        if not word or word.startswith("-") or word in (";", "&&", "||", "|", "&"):
+            continue
+        for cwd in cwds:
+            yield from resolve_paths(word, cwd)
+
+
+def protected_path(paths):
+    for path in paths:
+        rel = repo_relative(path)
+        if rel is not None and protected(rel):
             return rel
     return None
 
 
-def classify_bash(command):
+def git_push_boundary(words):
+    """Recognize explicit literal git push forms; native permissions still apply."""
+    separators = (";", "&&", "||", "|", "&", "(", ")", ">", ">>", "<", "\n")
+    for i, word in enumerate(words):
+        if PurePosixPath(word).name != "git":
+            continue
+        segment = []
+        for token in words[i + 1:]:
+            if token in separators:
+                break
+            segment.append(token)
+        # Skip recognized global options and their values. An unrecognized global
+        # option is ambiguous and is not accepted for a detected push operation.
+        j = 0
+        while j < len(segment) and segment[j].startswith("-"):
+            option = segment[j]
+            if option in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"):
+                j += 2
+            elif option in ("--no-pager", "--paginate", "--literal-pathspecs", "--no-optional-locks") or option.startswith(("--git-dir=", "--work-tree=", "--namespace=", "--config-env=")):
+                j += 1
+            else:
+                if "push" in segment[j:]:
+                    return decision("deny", "unrecognized git push option")
+                break
+        if j >= len(segment) or segment[j] != "push":
+            continue
+        if any(a in ("-c", "--config-env", "--namespace", "--git-dir", "--work-tree") or
+               a.startswith(("--config-env=", "--namespace=", "--git-dir=", "--work-tree=")) for a in segment[:j]):
+            return decision("deny", "git push cannot override repository or Git configuration")
+        args = segment[j + 1:]
+        if any(a.startswith(("+", ":", "--force", "--delete", "--all", "--mirror", "--tags", "--follow-tags", "--prune")) or
+               a.startswith("-") and not a.startswith("--") and any(c in a[1:] for c in "fd") for a in args):
+            return decision("deny", "force, delete or broad git push")
+        supported = {"-u", "--set-upstream", "-n", "--dry-run", "--porcelain", "-v", "--verbose",
+                     "-q", "--quiet", "--atomic", "--progress"}
+        if any(a.startswith("-") and a not in supported for a in args):
+            return decision("deny", "unsupported git push option")
+        positional = [a for a in args if not a.startswith("-")]
+        if len(positional) != 2:
+            return decision("deny", "git push requires one explicit remote and destination ref")
+        ref = positional[1]
+        destination = ref.rsplit(":", 1)[-1]
+        if (destination in ("main", "refs/heads/main", "HEAD", "@") or not destination or
+                (destination.startswith("refs/") and not destination.startswith("refs/heads/")) or
+                any(c in ref for c in "$`*?[]{}") or ref.count(":") > 1):
+            return decision("deny", "protected or ambiguous git push destination")
+    return None
+
+
+def classify_bash(command, cwd):
     if not isinstance(command, str) or not command.strip() or "\x00" in command:
         raise ValueError("missing or invalid command")
+    if not isinstance(cwd, str) or not os.path.isabs(cwd) or "\x00" in cwd:
+        raise ValueError("invalid Bash cwd")
     for pattern, reason in BASH_DENY:
         if pattern.search(command):
             return decision("deny", reason)
-    names = re.findall(r"[^\s'\"<>|;&()=]+", command)
-    if any(is_sensitive(os.path.expanduser(n)) for n in names) and (
-            re.search(SEG + READERS + r"\b", command) or "<" in command):
-        return decision("deny", "state, plan, key, credential or local value file in a shell command")
-    write_targets = re.findall(r"(?<![<&0-9])>{1,2}\s*([^\s;&|()]+)", command)
-    write_targets += re.findall(SEG + r"tee\s+(?:-[a-zA-Z]+\s+)*([^\s;&|()]+)", command)
-    for written in write_targets:
-        target = mentions_protected(written)
-        if target:
-            return decision("deny", "shell write to protected file " + target + " (use a file-edit tool within the "
-                            "approved scope)")
-    target = mentions_protected(command)
-    if target and (re.search(SEG + MUTATORS, command) or re.search(SEG + INTERP_INLINE, command)):
-        return decision("deny", "shell mutation of protected file " + target + " (use a file-edit tool within the "
-                        "approved scope)")
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>()")
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    words = list(lexer)
+    git_result = git_push_boundary(words)
+    if git_result:
+        return git_result
+    # The regex supplements shlex for literal paths embedded in inline source.
+    # No shell expansion is performed. Include literal cd destinations as possible
+    # working directories; unknown destinations cannot authorize a file mutation.
+    names = words + re.findall(r"[A-Za-z0-9_./~${}\-]+", command)
+    mutates = bool(re.search(SEG + MUTATORS, command) or re.search(SEG + INTERP_INLINE, command) or
+                   re.search(SEG + r"find\b[^;&|\n]*(?:-delete|-exec(?:dir)?)\b", command))
+    reads = bool(re.search(SEG + READERS + r"\b", command))
+    redirect_ops = {">", ">>", ">|", "&>", "&>>", ">&", "<", "<>", "<&"}
+    cwds = {cwd}
+    for i, word in enumerate(words):
+        if word not in ("cd", "pushd", "popd"):
+            continue
+        target = words[i + 1] if i + 1 < len(words) else ""
+        if word == "popd" or not target or target.startswith("-") or any(c in target for c in "$`*?[]{}"):
+            if mutates or reads or redirect_ops.intersection(words):
+                return decision("deny", "ambiguous shell working directory for file operation")
+            continue
+        cwds.update(path for path in shell_paths([target], tuple(cwds)))
+        if len(cwds) > 32:
+            return decision("deny", "too many possible shell working directories")
+    for i, word in enumerate(words):
+        if word not in redirect_ops:
+            continue
+        target = words[i + 1] if i + 1 < len(words) else ""
+        if word in (">&", "<&") and (target.isdecimal() or target == "-"):
+            continue
+        if not target or target in redirect_ops or any(c in target for c in "$`*?[]{}"):
+            return decision("deny", "ambiguous shell redirection target")
+        paths = list(shell_paths([target], cwds))
+        if any(is_sensitive(path) for path in paths):
+            return decision("deny", "sensitive shell redirection target")
+        if word not in ("<", "<&") and protected_path(paths):
+            return decision("deny", "shell write to protected file (use a file-edit tool within approved scope)")
+    if mutates or reads:
+        paths = list(shell_paths(names, cwds))
+        if any(is_sensitive(path) for path in paths):
+            return decision("deny", "state, plan, key, credential or local value file in a shell command")
+        if mutates and protected_path(paths):
+            return decision("deny", "shell mutation of protected file (use a file-edit tool within approved scope)")
     for pattern, reason in BASH_ASK:
         if pattern.search(command):
             return decision("ask", reason)
     return None
-
 
 def decide(event):
     if not isinstance(event, dict):
@@ -193,7 +280,7 @@ def decide(event):
         return decision("deny", "unknown tool routed to the guard: " + tool[:64])
     cwd = event.get("cwd", str(REPO))
     if tool == "Bash":
-        return classify_bash(data.get("command"))
+        return classify_bash(data.get("command"), cwd)
     if tool in EDIT_TOOLS:
         return classify_path(tool, data.get(EDIT_TOOLS[tool]), cwd)
     if tool == "Read":
@@ -202,7 +289,7 @@ def decide(event):
         if not isinstance(data.get("pattern"), str):
             raise ValueError("missing Grep pattern")
         glob = data.get("glob")
-        if glob is not None and (not isinstance(glob, str) or any(
+        if glob is not None and (not isinstance(glob, str) or is_sensitive(glob) or any(
                 fnmatch.fnmatchcase(PurePosixPath(glob).name, s) or s.lstrip("*") in glob for s in SENSITIVE_NAMES
                 if s.startswith("*."))):
             return decision("deny", "search targets state, plan, key or credential files")
