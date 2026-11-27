@@ -1,0 +1,147 @@
+{
+  "artifact_id": "B09-WP-02",
+  "classification": "Project original and transformed technical facts only.",
+  "third_party_original_bytes_in_zip": 0,
+  "technical_acceptance": "PENDING_INDEPENDENT_VERIFICATION",
+  "files": [
+    {
+      "path": "ACQUISITION_RECEIPTS.json",
+      "size_bytes": 43432,
+      "sha256": "d8d2ae8f1497c19da0b465a809fb4ad15cb7c1134245a8af2083435d1b299cfd",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "ACTUAL_STATIC_RESULTS.json",
+      "size_bytes": 4297,
+      "sha256": "addbc648aec31fcf326e9b395c85d16111489f248165c46473d872d392d97d04",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "CANDIDATE_CONFIGURATION_SUCCESSOR.json",
+      "size_bytes": 1705,
+      "sha256": "ece7e3180019cf591061288a1ea55eb1fd64afea3535da0a919633be33c8cc86",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "CLUSTER_AGENT_CONFLICT_ANALYSIS.json",
+      "size_bytes": 6484,
+      "sha256": "504415a3336fb5da038ea759bf854590e1a4359c9a8696439e034b794255d030",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "CONFIGURATION_PRECEDENCE_MATRIX.json",
+      "size_bytes": 3029,
+      "sha256": "bd2c6eff72fdd5bf15c6829ba3773a01df0c201040a5e876c8815d82533019a6",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "DENIED_FEATURE_CLOSURE_DELTA.json",
+      "size_bytes": 42283,
+      "sha256": "40172e6cc99bf5dcb78e56202b27f7518c681ebb2dd63d39bf29b278f1c597af",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "ENDPOINT_EVIDENCE_DELTA.json",
+      "size_bytes": 7269,
+      "sha256": "31075987983241e9f02e867368ff2537d2720efaa9a83a3a437e6647fa86788a",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXPECTED_BEFORE_IMPLEMENTATION.sha256",
+      "size_bytes": 97,
+      "sha256": "adc83d655fc13224274c4251618ad56f1f4613fe71d790cbf5f817edf52aacd5",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "EXPECTED_FIXTURE_MANIFEST.json",
+      "size_bytes": 1574,
+      "sha256": "350d0f30befaf8a081e968681b84aa07e5831bc56718b7b8732bdfe0399057ca",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "FIXED_SOURCE_IDENTITY_AND_REUSE_MANIFEST.json",
+      "size_bytes": 57372,
+      "sha256": "9ff27e893899cdc4a082c9f9aa0e5c7b6ee96980f531764e1482d395ae32ec3e",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 2900,
+      "sha256": "0975e284e9bc8a152e72ef92aeda58b1aa8f3ebdc2f41d4ef06e1e9ea2888c96",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 3810,
+      "sha256": "3acf93254d6c4dcbf82af442667386b2ba5a74b8c395e72ca4ce6ab20ddd7599",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "MINIMUM_METADATA_AND_INTEGRATION_INVENTORY.json",
+      "size_bytes": 22222,
+      "sha256": "40e6af7d76152a2a21be6054520fd24b2c25e0e3516c3934af28d34e219cc481",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "REMAINING_GATE_REGISTER.json",
+      "size_bytes": 2130,
+      "sha256": "6d1785e6a4491623ef84c370f7e3b8dd756e1311adafb4b7cd9d1cbe30652931",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.json",
+      "size_bytes": 1978,
+      "sha256": "30100dc2784550ab4dd081f326d39876cc164702f8347bc1ab44490dd1f7cc7e",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 2079,
+      "sha256": "3671c72d75be1cb5e79193685010c467ff144a26e6f58f97d343f1058e55fff6",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "STATIC_QUALIFICATION.sha256",
+      "size_bytes": 827,
+      "sha256": "4836bf562a43eb64aa1216f1f2672faf764a69320a87ddeefdc373585e3e6168",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "SYNTHETIC_FIXTURES.json",
+      "size_bytes": 5507,
+      "sha256": "b35a3038dcedbcf1f42bb018e10478c0e1db789a090fe53ab4d8dda99f9c1fe4",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "candidate-agent-denials.yaml",
+      "size_bytes": 980,
+      "sha256": "bca3a1454445ae3191557c20263242d669a690fae4292c3114b44da78b4adabd",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "fetch.py",
+      "size_bytes": 3240,
+      "sha256": "979d9afc0e906a52df12ad63f6275f235bed6d1025c79b1f0022e798eb9e8711",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "findings.py",
+      "size_bytes": 21860,
+      "sha256": "f748677abc42e2729eb0f57f1ec23f04766912191973e25fb26476d7fbd66150",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "qualification.py",
+      "size_bytes": 12565,
+      "sha256": "9ac6de6b0303a079afca85dabda34c01cd1584153c917f2ca7a5168eab47768a",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    },
+    {
+      "path": "targeted_fixtures.py",
+      "size_bytes": 3655,
+      "sha256": "f291cc7dfd84c7e411808118292bfdfdac9cef887b684caad2393c2025740793",
+      "distribution_eligibility": "PASS_PROJECT_ORIGINAL_OR_DERIVED_FACTUAL_METADATA"
+    }
+  ],
+  "withholding": "See FIXED_SOURCE_IDENTITY_AND_REUSE_MANIFEST.json. No raw third-party inputs, original release archives, binaries, or documentation included."
+}
