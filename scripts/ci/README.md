@@ -18,7 +18,7 @@ AWS service-reference downloads that the existing Full CI steps already make.
 | `full_ci_trigger.py` | First Full CI step after checkout: refuses any trigger except a high-risk pull request or an Owner milestone dispatch for an exact HEAD |
 | `merge_check.py` | Post-merge tree check: squash parent is the reviewed base and the squash tree equals the tree CI verified |
 | `safety_checks.py` | `workflows`, `secrets`, `guards` (always-on) and `changed` (syntax and `git diff --check` of the changed files) |
-| `test_ci.py` | 72 unit and negative tests and 97 source mutations, run in the `ci_policy` step |
+| `test_ci.py` | 73 unit and negative tests and 97 source mutations, run in the `ci_policy` step |
 | `runtime_test_runner.py` | Adopted CI-PERF-01B runner (OD-PERF-02): bounded Linux fork-per-task execution of offline receipt/apply tests |
 
 ## Adopted runtime test runner (CI-PERF-01B, OD-PERF-02)
@@ -114,7 +114,7 @@ environment as Full CI. Steps:
 6. **Verify**: exactly the selected and always-on steps succeeded and every other copied
    step was skipped (`impact.py verify` over `toJSON(steps)`).
 
-`ci_policy` runs `test_ci.py` (24 → 31 → 65 → 72 tests and 47 → 73 → 90 → 97 mutations, pinned in `tests/expected-counts.json`),
+`ci_policy` runs `test_ci.py` (24 → 31 → 65 → 72 → 73 tests and 47 → 73 → 90 → 97 mutations, pinned in `tests/expected-counts.json`),
 `pr_safety_workflow.py --check`, `impact.py check`, and `safety_checks.py workflows`,
 `secrets` and `guards`:
 
@@ -236,7 +236,8 @@ order. Over-approximation is deliberate: when in doubt a step runs.
 | repository-hygiene | `scripts/repository-hygiene/**` | always-on `hygiene` |
 | gitignore | `.gitignore` | committed_values |
 | terraform-testing | `scripts/terraform-testing/**` | root_integration, network, platform, tfstate, registry, developer_access |
-| documentation | `**/*.md`, `.gitattributes`, `.editorconfig`, `**/.gitkeep` | always-on only, unless a test reads the file |
+| documentation | `**/*.md`, `.gitattributes`, `.editorconfig`, `**/.gitkeep`, except `CLAUDE.md` and `.claude/**` | always-on only, unless a test reads the file |
+| claude-code-harness | the seven exact Claude Code harness files (below) | always-on `ci_policy`; high-risk |
 
 Prerequisites: `root_integration` and `storage_after_first_init` need `dev`;
 `reference` and `toolkit` need `iam` and `account_policies`; `lambda_workload` needs
@@ -263,6 +264,24 @@ python3 scripts/ci/impact.py explain infra/modules/vpc/main.tf
 ```bash
 python3 scripts/ci/impact.py select --base origin/main --head HEAD --report /tmp/impact.json
 ```
+
+### Claude Code harness (GOV-CLAUDE-HARNESS-01, OD-GOV-CLAUDE-HARNESS-02)
+
+The rule `claude-code-harness` maps exactly seven files: `CLAUDE.md`,
+`.claude/settings.json`, `.claude/hooks/pre_tool_guard.py`,
+`.claude/skills/verify-change/SKILL.md`, `.claude/skills/evidence-package/SKILL.md`,
+`.claude/agents/code-reviewer.md` and `.claude/agents/security-reviewer.md`. The
+documentation rule excludes `CLAUDE.md` and `.claude/**`, so any other `.claude` file
+stays unmapped and fails closed until it is mapped explicitly. The high-risk category
+`claude-code-harness` (`CLAUDE.md`, `.claude/**`) is in Full CI's path filter, so every
+harness change starts Full CI automatically. No infrastructure step is selected.
+
+`test_ci.py` covers the harness statically: the mapping and high-risk category, the
+path filter, the settings (effort, deny rules, hook wiring with `onFailure: block`),
+the read-only subagent tool lists, and the guard's decisions on frozen, inert synthetic
+inputs (`GUARD_FIXTURES`, digest-pinned) plus its `--self-test`. This proves the files
+and the guard logic only. Whether Claude Code on the Web loads and enforces them is
+runtime behaviour, verified separately in a fresh session; CI never runs Claude Code.
 
 ## High-risk determination and merge approval
 

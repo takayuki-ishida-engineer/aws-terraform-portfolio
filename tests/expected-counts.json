@@ -3,7 +3,7 @@
   "comment": "Reviewed expected test and mutation counts for Full CI and PR Safety CI (scripts/ci/expected_counts.py). Update a value only together with the tests it counts; never copy observed counts from a run. A decrease needs an approved_reductions record (suite, key, from, to, reason) and is high-risk: Full CI and Owner review.",
   "suites": {
     "ci_policy": {
-      "tests": 72,
+      "tests": 73,
       "mutations": 97
     },
     "network_required_inputs": {

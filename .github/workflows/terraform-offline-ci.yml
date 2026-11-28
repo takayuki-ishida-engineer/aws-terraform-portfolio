@@ -49,6 +49,8 @@ on:
       - infra/modules/vpc/main.tf
       - infra/modules/vpc/routing.tf
       - infra/services/dev/ca-central-1/developer-access/main.tf
+      - CLAUDE.md
+      - .claude/**
   workflow_dispatch:
     inputs:
       pull_request_number:
