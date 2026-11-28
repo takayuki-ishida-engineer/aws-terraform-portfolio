@@ -1,0 +1,71 @@
+{
+ "files": [
+  {
+   "path": "M1-TOOLS-CORE-RC02-T1-T3-Evidence.zip",
+   "size_bytes": 17964,
+   "sha256": "64b7f8c5e4faf893b1fc858dcbbab6ddb69dc03a132da3557c27c8fd327abb09",
+   "zip_entry_count": 9,
+   "classification": "Executor-produced evidence package containing project-authored records/script and unchanged public vendor verification metadata",
+   "redistribution": "ELIGIBLE (public verification metadata intended for distribution; no binaries, license texts, private keys, credentials or personal data; public organizational contact addresses only). Not legal advice."
+  }
+ ],
+ "members": [
+  {
+   "path": "Mandatory_Self_Review.md",
+   "size_bytes": 2802,
+   "sha256": "c918742ebd66e114c605ce670c65db037322bd9f1a86801df00ea5bff0d48814",
+   "classification": "Project-authored record or script"
+  },
+  {
+   "path": "commands.jsonl",
+   "size_bytes": 7285,
+   "sha256": "f9c1c5ac6d6f93e0ff61a963eee75d2584217ad03b3b0c1d8ab14ed4e121f1c2",
+   "classification": "Project-authored record or script"
+  },
+  {
+   "path": "originals/hashicorp_pgp_public.asc",
+   "size_bytes": 7717,
+   "sha256": "c2f5bc1163bd8d15a711616b587bcede212d045a5b8b52df01c74095897cd065",
+   "classification": "Third-party public OpenPGP key published by HashiCorp for release verification (https://www.hashicorp.com/.well-known/pgp-key.txt); public key only, unchanged"
+  },
+  {
+   "path": "originals/terraform_1.17.0_SHA256SUMS",
+   "size_bytes": 1592,
+   "sha256": "8a324f66c91b6d741e88eed20f655bcf4d92dbe34bdcc894d085dfaf3d432abd",
+   "classification": "Third-party public release checksum manifest (releases.hashicorp.com), unchanged; factual verification metadata"
+  },
+  {
+   "path": "originals/terraform_1.17.0_SHA256SUMS.72D7468F.sig",
+   "size_bytes": 566,
+   "sha256": "a60e7fe7227eb40282357e73728d902deaa5c2532bd4cd878352ac3737a543e3",
+   "classification": "Third-party public detached signature (releases.hashicorp.com), unchanged; verification metadata"
+  },
+  {
+   "path": "result.json",
+   "size_bytes": 5304,
+   "sha256": "51bc2afc59afd92fd08c7b9581041d11bcc724e657c442c668537aa8e3ecd8b3",
+   "classification": "Project-authored record or script"
+  },
+  {
+   "path": "tools/rc02_t1_t3.py",
+   "size_bytes": 7619,
+   "sha256": "715deb4c73e687fa60003710f4dc21d07ce466879a8c9e7a8d64f9953ef0e034",
+   "classification": "Project-authored record or script"
+  },
+  {
+   "path": "MANIFEST.json",
+   "size_bytes": 1435,
+   "sha256": "890e253f648ec4984e8f742aa7a09f18fa505caec9b3a20292eb93bea7a590bb",
+   "classification": "Project-authored record or script"
+  },
+  {
+   "path": "SHA256SUMS",
+   "size_bytes": 738,
+   "sha256": "60fe77e7c70310dfb5358197464ed9c9c92b57eb90a64a3d5552d5688028840a",
+   "classification": "Project-authored record or script"
+  }
+ ],
+ "excluded": [
+  "Terraform archive/binary (not acquired, not redistributed)"
+ ]
+}

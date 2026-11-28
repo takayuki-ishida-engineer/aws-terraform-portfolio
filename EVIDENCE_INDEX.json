@@ -708,6 +708,27 @@
       "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-TRUST-CLAUDE-01/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "05d47e496f07255abe858b9a64d4f9f66a8fc1dc477402a726c6c44fd753f706"
+    },
+    {
+      "artifact_id": "M1-TOOLS-CORE-RC02",
+      "task_id": "M1-TOOLS-CORE-RC02",
+      "artifact_type": "terraform-signature-verification",
+      "source_baseline_head": "6226b5cd8cb14df685803bd1fbd9a71712744803",
+      "source_baseline_tree": "ec4a1a7b6dfb2cbded2d9614ab6b9f0769a6d6c5",
+      "original_filename": "M1-TOOLS-CORE-RC02-T1-T3-Evidence.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC02/20261128/M1-TOOLS-CORE-RC02-T1-T3-Evidence.zip",
+      "size_bytes": 17964,
+      "sha256": "64b7f8c5e4faf893b1fc858dcbbab6ddb69dc03a132da3557c27c8fd327abb09",
+      "zip_entry_count": 9,
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "authority": "OD-DELEGATION-01",
+      "owner_publication_decision_id": "OD-M1-TOOLS-CORE-RC02-EV-01",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC02/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "a330faba3ebb960530f7835050ab601c9484c7819af819502a5537668329567b"
     }
   ]
 }
