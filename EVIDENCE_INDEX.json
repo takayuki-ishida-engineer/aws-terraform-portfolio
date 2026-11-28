@@ -876,6 +876,27 @@
       "independent_review_status": "FORMAL_INTEGRATED_REVIEW_PASS_SCOPED_SECTION_33_LIMITATIONS_RETAINED",
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-ACCEPTANCE/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "a5c20888dbbada4927c77e43983fcb07147e540485cc08eea458683fca373c30"
+    },
+    {
+      "artifact_id": "M1-TOOLS-CORE-STABLE-20261128",
+      "task_id": "M1-TOOLS-CORE",
+      "artifact_type": "stable-closure-derived-preserved-baseline",
+      "source_baseline_head": "182dc389c6de94736c92da4f17286937dc2ea64b",
+      "source_baseline_tree": "8306ee13004b5e6f55bf724a2d3bbd9eb2b22b1c",
+      "original_filename": "M1-TOOLS-CORE_Stable_Closure_Evidence_20261128.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-TOOLS-CORE-STABLE/20261128/M1-TOOLS-CORE_Stable_Closure_Evidence_20261128.zip",
+      "size_bytes": 30243,
+      "sha256": "2af87875b421781dd85867d342b9f2ac251e751f863bc69cdf344990f0f40561",
+      "zip_entry_count": 12,
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "authority": "OD-DELEGATION-01",
+      "owner_publication_decision_id": "OD-M1-TOOLS-CORE-STABLE-PUB-20261128",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PRESERVED_STABLE_SUBRESULTS; FINAL_ACCEPTANCE_SEPARATE",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-STABLE/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "fe971e354235a6aea82ab96cb1c7f5ebd345c2dda15ed18b22f3b66e092c3c69"
     }
   ]
 }

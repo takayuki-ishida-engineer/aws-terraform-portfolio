@@ -1,0 +1,76 @@
+{
+  "decision_id": "OD-M1-TOOLS-CORE-STABLE-PUB-20261128",
+  "authority": "OD-DELEGATION-01",
+  "authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+  "policy": "v15.6 section 06 EB-01 through EB-12",
+  "archive": "M1-TOOLS-CORE_Stable_Closure_Evidence_20261128.zip",
+  "archive_sha256": "2af87875b421781dd85867d342b9f2ac251e751f863bc69cdf344990f0f40561",
+  "archive_bytes": 30243,
+  "source": "Exact staged member of M1-TOOLS-CORE_Parallel_PreReview_Staging_20261128.zip",
+  "classification": "PROJECT_AUTHORED_OR_DERIVED; no raw third-party originals",
+  "publication_status": "APPROVED",
+  "scope": "Retrospective publication of preserved stable closure subresults, especially R-C05 finite baseline for CI-INT-01. Historical internal STAGED_NOT_PUBLISHED label superseded only for publication status. No new measurement, no change to technical acceptance, no full R-C03/R-C04 replay claim.",
+  "preflight": "CRC, internal manifest and checksum consistency passed; common credential/private key/email/URL-userinfo/local path patterns not detected; preserve exact bytes.",
+  "members": [
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 1847,
+      "sha256": "b866c4b8a1b6f6d04c13d219123b85c01d08980e24704506ef130d16977f2b27"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 678,
+      "sha256": "d10572cad8da09a59147ab48a1bd0dfb6b100cd2e525d3cbb6faf60c5c9036ab"
+    },
+    {
+      "path": "R-C02_Independent_Readback.json",
+      "size_bytes": 1526,
+      "sha256": "09e9da70f646ef33ce5afd1b6c645b5a0bbbd24978f4e2497fc6228b12e6e885"
+    },
+    {
+      "path": "R-C03_Independent_Replay.json",
+      "size_bytes": 2117,
+      "sha256": "f6306549cc9a1d9a39099ffca517606ea1de75e698c32c30cb66f87b98d23f33"
+    },
+    {
+      "path": "R-C03_Independent_Replay_Tests.json",
+      "size_bytes": 1248,
+      "sha256": "a66cb56eed0725494efd12e0b5aee667eb33adcc445905281833045e8830c3ee"
+    },
+    {
+      "path": "R-C05_Integrated_Finite_Closure.json",
+      "size_bytes": 60909,
+      "sha256": "9417e65ccd99fd1b8be1738607c2be4e9680d0710343c5fb23768981110789f7"
+    },
+    {
+      "path": "R-C05_R-C07_Fixed_HEAD_Reconciliation.json",
+      "size_bytes": 33084,
+      "sha256": "3923882fcb6a5aed71575fe2dd11730e05676f8988b5daeedb264fc5620883c5"
+    },
+    {
+      "path": "R-C07_Independent_Review_Original_Verification.json",
+      "size_bytes": 5018,
+      "sha256": "c23950cb21669e853d01e62ae0a699476738aaa1235461caa2b34fc8ae613bdb"
+    },
+    {
+      "path": "REDISTRIBUTION_INVENTORY.json",
+      "size_bytes": 3891,
+      "sha256": "d4e2104f9c0cadcba17c0e7619cb30f3fe1b261f488a85f5fe4b3893a271c6e0"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1060,
+      "sha256": "891e50636efb12f83c42a53b95a86e2a569491d22b328e155da36c44c90eaac9"
+    },
+    {
+      "path": "replay_rc03.py",
+      "size_bytes": 10673,
+      "sha256": "b3e9e1754852242b2e43a40dbf24aee2e3723f2a6ccf0072efc2813b330e3813"
+    },
+    {
+      "path": "test_replay_rc03.py",
+      "size_bytes": 2886,
+      "sha256": "4e26cdc97d6d613b7f5ec74f238063458c167565c085e76f839f226603f6f79b"
+    }
+  ]
+}
