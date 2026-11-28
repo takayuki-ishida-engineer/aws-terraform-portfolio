@@ -1,0 +1,14 @@
+{
+ "files": [
+  {
+   "path": "M1-ENV-CLAUDE-01-Environment-Qualification-Evidence.zip",
+   "size_bytes": 61078,
+   "sha256": "c39d7848f8b5bfe0f8e20318eaf43cefb3cdd65e748371ee3e9ecd8d6a2e628d",
+   "zip_entry_count": 32,
+   "classification": "Project-authored environment qualification evidence package",
+   "third_party_content": "none",
+   "redistribution": "ELIGIBLE"
+  }
+ ],
+ "inner_inventory": "REDISTRIBUTION_INVENTORY.json inside ZIP"
+}

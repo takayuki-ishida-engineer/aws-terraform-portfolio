@@ -666,6 +666,27 @@
       "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
       "redistribution_inventory_path": "GOV/GOV-CLAUDE-HARNESS-POST-MERGE-01/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "3c8b355d03977119e7611e840b7aa277ce28ede56ba571d5bba368a37b9983ce"
+    },
+    {
+      "artifact_id": "M1-ENV-CLAUDE-01",
+      "task_id": "M1-ENV-CLAUDE-01",
+      "artifact_type": "environment-qualification",
+      "source_baseline_head": "6226b5cd8cb14df685803bd1fbd9a71712744803",
+      "source_baseline_tree": "ec4a1a7b6dfb2cbded2d9614ab6b9f0769a6d6c5",
+      "original_filename": "M1-ENV-CLAUDE-01-Environment-Qualification-Evidence.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-ENV-CLAUDE-01/20261127/M1-ENV-CLAUDE-01-Environment-Qualification-Evidence.zip",
+      "size_bytes": 61078,
+      "sha256": "c39d7848f8b5bfe0f8e20318eaf43cefb3cdd65e748371ee3e9ecd8d6a2e628d",
+      "zip_entry_count": 32,
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "authority": "OD-DELEGATION-01",
+      "owner_publication_decision_id": "OD-M1-ENV-EV-01",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-ENV-CLAUDE-01/20261127/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "14e7a06986ee1e6a48436ba6aeeabd9ca66313f1622181249b46944a634a4973"
     }
   ]
 }
