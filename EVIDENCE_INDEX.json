@@ -771,6 +771,27 @@
       "independent_review_status": "PENDING_FORMAL_INTEGRATED_REVIEW",
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC03/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "59c1468d79c801e779406d9865ed43ac0942e7e3d51951142f3f430b2929c813"
+    },
+    {
+      "artifact_id": "M1-TOOLS-CORE-PREMERGE-REVIEW-20261128",
+      "task_id": "M1-TOOLS-CORE",
+      "artifact_type": "premerge-independent-review-derived-record",
+      "source_baseline_head": "182dc389c6de94736c92da4f17286937dc2ea64b",
+      "source_baseline_tree": "8306ee13004b5e6f55bf724a2d3bbd9eb2b22b1c",
+      "original_filename": "M1-TOOLS-CORE_Premerge_Review_Public_20261128.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-TOOLS-CORE-PREMERGE-REVIEW/20261128/M1-TOOLS-CORE_Premerge_Review_Public_20261128.zip",
+      "size_bytes": 8998,
+      "sha256": "4b33b6e3a6a6de2a250c22a592c66492b718ebd00a9b4c893ebe479b184ba74f",
+      "zip_entry_count": 7,
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "authority": "OD-DELEGATION-01",
+      "owner_publication_decision_id": "OD-M1-TOOLS-CORE-PREMERGE-REVIEW-EV-20261128",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_PREMERGE_REVIEW",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-PREMERGE-REVIEW/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "a8150394b1e676d96621eb32843ff61080f9d1b517897b98d7f5e01d043ac0f3"
     }
   ]
 }
