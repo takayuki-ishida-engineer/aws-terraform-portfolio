@@ -593,6 +593,27 @@
       "redistribution_inventory_path": "GOV/GOV-CLAUDE-HARNESS-01/20261127/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "850b12dbff65e77f80a08298a133678ae7daa3905bc1f50bb045723e15ad4e78",
       "agent_self_review_status": "PASS_WITH_DISCLOSED_LIMITATIONS"
+    },
+    {
+      "artifact_id": "GOV-HANDOVER-01-CODEX",
+      "task_id": "GOV-HANDOVER-01-CODEX",
+      "artifact_type": "fixed-original-recovery",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "original_filename": "GOV-HANDOVER-01-CODEX-Recovered-Originals.zip",
+      "repository_relative_path": "GOV/GOV-HANDOVER-01-CODEX/20261128/GOV-HANDOVER-01-CODEX-Recovered-Originals.zip",
+      "size_bytes": 467975,
+      "sha256": "470e7f77c04daeb64240d69ee85ca9fd4183b491e61c56ee0e16131f796973fc",
+      "zip_entry_count": 21,
+      "owner_publication_decision_id": "OD-GOV-HANDOVER-EV-CODEX-01",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "bcb7a7eee1fb6ae036c8df0860f2e7fefb7ab6b9a55d8edb24997fef3567c2e5",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "ELIGIBLE_ORIGINALS_ONLY_A01_WITHHELD",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "internal_integrity_status": "PASS",
+      "redistribution_inventory_path": "GOV/GOV-HANDOVER-01-CODEX/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "03b1c33e3e76ffbae97ba62445c2ff879df948518b3172ee5d69ab57c0278a09"
     }
   ]
 }

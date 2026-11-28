@@ -1,0 +1,145 @@
+{
+  "task": "GOV-HANDOVER-01-CODEX",
+  "files": [
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 1041,
+      "sha256": "b8706ca4507c1b9421d728b4506443330047a4bb941215129836f0f5704c20fd",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 3646,
+      "sha256": "44652ff300ce296040b70e5980b0a6af2c353ace29b1e3fc3ff8212b64742514",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "ORIGINAL_RECOVERY_INVENTORY.json",
+      "size_bytes": 84284,
+      "sha256": "8dc7d8ed2591d1447e406930bba2b2205387b967cd435b280c5e0089f1908a27",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "REDISTRIBUTION_INVENTORY.json",
+      "size_bytes": 5522,
+      "sha256": "3c8506caad994e4c5ac204e4f553de4191f384c18f7ac7f37cf362322f97878c",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.md",
+      "size_bytes": 618,
+      "sha256": "e3a743e2d2d48caaf08a698312ca319705a7dfca400cf8a819de3045a5739ac5",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 2264,
+      "sha256": "54da7170cc94fe9acd27c6c84586b0e0e49bff45d9c39a8ddefe765fe655a05e",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B04_B05_Consolidated_Design_Record_20261127.json",
+      "size_bytes": 223448,
+      "sha256": "2f62a0df8b16ab2747c0f3813cf0fdcb7ff8957baa0b92d0ab58a7fe4717e1fc",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B04_B05_Design_Delta_20261127.json",
+      "size_bytes": 61690,
+      "sha256": "5d4444972c86836088aa164eac4894afa310aab383f85097fa2da4bdacbd9e42",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B04_CSPM_Membership_Delta_20261127.json",
+      "size_bytes": 236794,
+      "sha256": "4846acc12c853b300d0c2d508f615934ba24a0e4af1ac07af52ddda893ea7ff4",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B04_Regional_Capability_Delta_20261127.json",
+      "size_bytes": 34289,
+      "sha256": "073ef4da36d0821a52888a6c761e8f878ce10686bd84c6119d41cf9f5f5c5aa5",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B05_Backup_Retention_Delta_20261127.json",
+      "size_bytes": 57798,
+      "sha256": "7264bcb35b3957ce2f3e4fa330aaac63dc4f296d245600f2ce2f22a23ceecd5d",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B05_Network_Flow_Delta_20261127.json",
+      "size_bytes": 44840,
+      "sha256": "a9c530fa4598248ca8adfad5d2a5804424572b60609bc827d22e31c2d6b5f48e",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B05_PKI_Rotation_Delta_20261127.json",
+      "size_bytes": 46710,
+      "sha256": "8e555d04cde7a9f8a0db7bdf170565482542528d55f1364076d1eb7e6c0358b3",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B05_Route_Grant_Delta_20261127.json",
+      "size_bytes": 76624,
+      "sha256": "cd878fdfc8d5108222cf45b9aa7e9de929d2a8adddaf94b1d0f95d791bed60cb",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_B05_Security_Boundary_Delta_20261127.json",
+      "size_bytes": 53019,
+      "sha256": "bb9154a3ea2834c09d051211a3d23bf33319a507859459564e08d177ae87e5d5",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_INT00_Contract_Review_02_20261127.json",
+      "size_bytes": 104001,
+      "sha256": "ccd97fa4bc32ef9decee173ea3ce53f6318230066babbe1c89d0a305de141c4a",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_INT00_Delegated_Design_Decision_20261127.json",
+      "size_bytes": 42212,
+      "sha256": "ba43007acc4c89c6a8773df59222d6478ce2ed64b76c82723639212a48c1e8ea",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_M1_Contract_Review_20261127.json",
+      "size_bytes": 72299,
+      "sha256": "0af8c531080cbdfc5828afd8125740323452b2f193bcd6f95a814e6f2f59c74b",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_M1_Resume_Gate_Register_20261127.json",
+      "size_bytes": 32627,
+      "sha256": "2de1090087381faa45aacf5da06bab910dc1d1fe3cd58911224ea987c20cd0ee",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/REV6_X01_X04_Implementation_Obligations_20261127.json",
+      "size_bytes": 39352,
+      "sha256": "8e72a95318b3811a03bb57b8b7be194f8ebb7e0cb6f398f7169c9205d1f94b4c",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    },
+    {
+      "path": "originals/Revision6_Final_Contracts.json",
+      "size_bytes": 2897302,
+      "sha256": "29a396daf7cadb9eee1f089b7ac427fcb7b7c9100f6e170ac97a3bcbd633a783",
+      "disposition": "PROJECT_ORIGINAL_OR_PROJECT_RECOVERY_METADATA"
+    }
+  ],
+  "withheld": [
+    {
+      "id": "A01",
+      "filename": "S3-S4-MASTER-PLAN-REV6-FINAL-CONDITIONAL_Package_20261126.zip",
+      "status": "PUBLICATION_BLOCKED",
+      "source_path": "/workspace/attachments/f341d190-cca4-47e8-970a-25154134e68c/S3-S4-MASTER-PLAN-REV6-FINAL-CONDITIONAL_Package_20261126.zip",
+      "member_path": null,
+      "size_bytes": 33190913,
+      "expected_sha256": "6e3827ca36ff40d159ad36281bfbb2066269675977d7008a953277e3f4bb4635",
+      "actual_sha256": "6e3827ca36ff40d159ad36281bfbb2066269675977d7008a953277e3f4bb4635",
+      "provenance": "Owner-shared Final Plan ZIP",
+      "reason": "Nested github-governance-baseline.txt contains named author records and authenticated repository management metadata. No redaction of fixed ZIP permitted."
+    }
+  ]
+}
