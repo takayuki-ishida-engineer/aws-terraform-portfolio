@@ -1,0 +1,14 @@
+{
+ "files": [
+  {
+   "path": "M1-TRUST-CLAUDE-01-Trust-Bootstrap-Evidence.zip",
+   "size_bytes": 32508,
+   "sha256": "260ced38d3d3c43d1ce83c31ed54695f3c6fe21c28e22e898a576db71e3dbab6",
+   "zip_entry_count": 23,
+   "classification": "Project-authored trust bootstrap evidence package",
+   "third_party_content": "none",
+   "redistribution": "ELIGIBLE"
+  }
+ ],
+ "inner_inventory": "REDISTRIBUTION_INVENTORY.json inside ZIP"
+}
