@@ -834,6 +834,27 @@
       "independent_review_status": "LOCAL_CLI_AND_FORMAL_REVIEW_PENDING",
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC07/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "5c009b12ec8b131fbff24353e0ef529042800171d156ae4f0c799a1588a8bdf8"
+    },
+    {
+      "artifact_id": "M1-TOOLS-CORE-RC07-CLI-20261128",
+      "task_id": "M1-TOOLS-CORE",
+      "artifact_type": "postmerge-owner-cli-measured-closure-derived-record",
+      "source_baseline_head": "f032d0250dcacd011ad4d9e751c8a8336d041c74",
+      "source_baseline_tree": "8306ee13004b5e6f55bf724a2d3bbd9eb2b22b1c",
+      "original_filename": "M1-TOOLS-CORE_RC07_CLI_Closure_20261128.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC07-CLI/20261128/M1-TOOLS-CORE_RC07_CLI_Closure_20261128.zip",
+      "size_bytes": 2142,
+      "sha256": "f4c9fc36eeb6d6b7fa69f8e3c52c1a06755131b3741e4ebba1a5738eae885969",
+      "zip_entry_count": 4,
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "authority": "OD-DELEGATION-01",
+      "owner_publication_decision_id": "OD-M1-TOOLS-CORE-RC07-CLI-EV-20261128",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "OWNER_CLI_MEASURED_ASSISTANT_VALIDATED_FORMAL_REVIEW_PENDING",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC07-CLI/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "6dfd515c62ba59174830e898c16b9fa1865283f23b6b3b90104c29ae91308868"
     }
   ]
 }
