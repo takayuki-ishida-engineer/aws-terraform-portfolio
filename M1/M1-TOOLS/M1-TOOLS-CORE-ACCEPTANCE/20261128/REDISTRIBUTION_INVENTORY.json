@@ -1,0 +1,32 @@
+{
+  "classification": "PROJECT_AUTHORED_DERIVED_ONLY",
+  "decision": "OD-M1-TOOLS-CORE-ACCEPTANCE-20261128",
+  "members": [
+    {
+      "path": "Acceptance_Decision.json",
+      "size_bytes": 5851,
+      "sha256": "63cfec9a50fe3fe193930beb2e0d42055a90b292a26b562844416c9e3e57d033",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 286,
+      "sha256": "1f461cbd39a7f440b6a47dcc2b78d4144a77658b7ffa82534ff4dee5e94b000d",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 252,
+      "sha256": "2af21ebec3cea104f1e8b5ba660a3782c0b732ef7318d4402da2e938e6d1a868",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 262,
+      "sha256": "82485950d42dbebddb318f8e413d963bf90e298f365a1d2481bfce86ea90f976",
+      "redistribution": "eligible project-authored record"
+    }
+  ],
+  "excluded": "private formal review packet and third-party originals",
+  "technical_acceptance": "PASS_SCOPED"
+}
