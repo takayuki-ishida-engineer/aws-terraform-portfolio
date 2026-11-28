@@ -1,0 +1,32 @@
+{
+  "classification": "PROJECT_AUTHORED_DERIVED_ONLY",
+  "decision": "OD-M1-TOOLS-CORE-RC07-POSTMERGE-EV-20261128",
+  "members": [
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 309,
+      "sha256": "fb5e94f737ec33cae7176df24a9948c037b902c9cac010dbd55b597dac769853",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 169,
+      "sha256": "c71f2a19cd17c30cd87fbd070ed53faa946cfe1b8e7c5b86233770cb3c29209a",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "Postmerge_Readback.json",
+      "size_bytes": 1961,
+      "sha256": "4517a3d175220bd8eee52219b0a90994744eaba2123543fc519146a7f6a34bb1",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 261,
+      "sha256": "a9c325c53c192a5ee476649caeb00358d865aa37723a60371846f4fdab271bda",
+      "redistribution": "eligible project-authored record"
+    }
+  ],
+  "excluded": "raw CI logs and private execution evidence",
+  "technical_acceptance": "HOLD"
+}

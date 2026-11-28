@@ -813,6 +813,27 @@
       "independent_review_status": "PREMERGE_REVIEW_RECEIVED_DECISIONS_RECORDED_POSTMERGE_PENDING",
       "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-M1-M2/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "4e9da96e0a4b620778e953289ce7a42f3b751ec6f15f61569ac6393c4f808706"
+    },
+    {
+      "artifact_id": "M1-TOOLS-CORE-RC07-POSTMERGE-20261128",
+      "task_id": "M1-TOOLS-CORE",
+      "artifact_type": "postmerge-remote-readback-derived-record",
+      "source_baseline_head": "f032d0250dcacd011ad4d9e751c8a8336d041c74",
+      "source_baseline_tree": "8306ee13004b5e6f55bf724a2d3bbd9eb2b22b1c",
+      "original_filename": "M1-TOOLS-CORE_RC07_Postmerge_Readback_20261128.zip",
+      "repository_relative_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC07/20261128/M1-TOOLS-CORE_RC07_Postmerge_Readback_20261128.zip",
+      "size_bytes": 2143,
+      "sha256": "ec6e3bea063f59dbb97f73a1fa2fbceb5d16ed78c51228773082f97879fa3283",
+      "zip_entry_count": 4,
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "authority": "OD-DELEGATION-01",
+      "owner_publication_decision_id": "OD-M1-TOOLS-CORE-RC07-POSTMERGE-EV-20261128",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "LOCAL_CLI_AND_FORMAL_REVIEW_PENDING",
+      "redistribution_inventory_path": "M1/M1-TOOLS/M1-TOOLS-CORE-RC07/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "5c009b12ec8b131fbff24353e0ef529042800171d156ae4f0c799a1588a8bdf8"
     }
   ]
 }
