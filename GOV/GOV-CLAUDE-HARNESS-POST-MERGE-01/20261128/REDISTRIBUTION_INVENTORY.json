@@ -1,0 +1,94 @@
+{
+  "files": [
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "size_bytes": 1254,
+      "sha256": "4bf25dd420d6951891f9b4974eec17e7dad13e3284c83399436264c96a742df4",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 2226,
+      "sha256": "5b212bd09c2aa6ab05b8a5fb12007e1a32fc815f31d2afe75457a94758942921",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "POST_MERGE_VERIFICATION.json",
+      "size_bytes": 1528,
+      "sha256": "ef205bca03c00e20d57b101c96074fa2c32fcbf9f77df07ef86e91683d1ca6f2",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "REDISTRIBUTION_INVENTORY.json",
+      "size_bytes": 2967,
+      "sha256": "8845b0fcb482103d76843c1d526d4edb32609a63d7b44ea0306630dcd945c3a4",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.md",
+      "size_bytes": 682,
+      "sha256": "7deb49143686bbd73911b17405a8b74626fcfafac9752ad0f5d6e70d726140e9",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 1178,
+      "sha256": "8b1871a4f04b75bc9f1c4d632cfdc56ae7f15fd3268f5f32ed874427da86606b",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "ci-jobs.json",
+      "size_bytes": 1103,
+      "sha256": "a0064440ca3905f3539d78b73c62b985df7d830ab8bd710ed5eadd412e18545e",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "ci-run.json",
+      "size_bytes": 315,
+      "sha256": "d268d6fcf24971409db9ddb9a990856e1871aa5e367b0888b68ef6f48426dddd",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "evidence.json",
+      "size_bytes": 102,
+      "sha256": "91595a03bb0f2bf24185b6ad4117a97d50a628c2c6f75b4a1910f63f19808ff9",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "harness-branch.json",
+      "size_bytes": 102,
+      "sha256": "1c9398c784bfac75b65f554c99477e840b121cfef7ce40a95b5067014a6316ef",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "main.json",
+      "size_bytes": 119,
+      "sha256": "c20f3c152a956008e9ebe8408e481d959bb9f473dc2fd28a19df1e56ea990477",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "merge-check.exit",
+      "size_bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "merge-check.json",
+      "size_bytes": 270,
+      "sha256": "4d029a0369979e476c6aea831d43ebbacbc2c3ff05db38c86105e18db6b8a494",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "pr.json",
+      "size_bytes": 247,
+      "sha256": "bde7799a5d968d6ee8ef9c91a51d57bc7e500448709a7e4738e3abc1bea86f5a",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    },
+    {
+      "path": "status-before.jsonl",
+      "size_bytes": 497,
+      "sha256": "a21536c9c7c3c470cea149ad68ec81d70a2ec40a2db78e075734d46e0612b9ee",
+      "classification": "Project-authored receipt or public GitHub API factual metadata"
+    }
+  ]
+}

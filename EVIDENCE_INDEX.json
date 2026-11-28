@@ -645,6 +645,27 @@
       "redistribution_inventory_path": "GOV/GOV-CLAUDE-HARNESS-R1/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "30f8b5c28f68c911ee493cb1fbc25d1af717b8e32d1fed737c79425dad081891",
       "agent_self_review_status": "PASS_WITH_DISCLOSED_LIMITATIONS"
+    },
+    {
+      "artifact_id": "GOV-CLAUDE-HARNESS-POST-MERGE-01",
+      "task_id": "GOV-CLAUDE-HARNESS-POST-MERGE-01",
+      "artifact_type": "harness-post-merge-verification",
+      "source_baseline_head": "6226b5cd8cb14df685803bd1fbd9a71712744803",
+      "source_baseline_tree": "ec4a1a7b6dfb2cbded2d9614ab6b9f0769a6d6c5",
+      "original_filename": "GOV-CLAUDE-HARNESS-POST-MERGE-01-Evidence.zip",
+      "repository_relative_path": "GOV/GOV-CLAUDE-HARNESS-POST-MERGE-01/20261128/GOV-CLAUDE-HARNESS-POST-MERGE-01-Evidence.zip",
+      "size_bytes": 7718,
+      "sha256": "cbdc1e38450e819dce6cafe0869e87e66e002e7e10a7c974b9823fb195abdc06",
+      "zip_entry_count": 15,
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c",
+      "authority": "OD-DELEGATION-01",
+      "owner_publication_decision_id": "OD-GOV-CLAUDE-HARNESS-POST-MERGE-EV-01",
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "redistribution_inventory_path": "GOV/GOV-CLAUDE-HARNESS-POST-MERGE-01/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "3c8b355d03977119e7611e840b7aa277ce28ede56ba571d5bba368a37b9983ce"
     }
   ]
 }
