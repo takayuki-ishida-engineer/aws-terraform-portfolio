@@ -1,0 +1,135 @@
+{
+  "artifact": "GOV-CLAUDE-HARNESS-R1",
+  "decision": "OD-GOV-CLAUDE-HARNESS-R1-EV-02",
+  "public_disclosure": "ELIGIBLE_FOR_PUBLICATION",
+  "license_compliance": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+  "LC": {
+    "LC-01": "PASS",
+    "LC-02": "PASS",
+    "LC-03": "PASS",
+    "LC-04": "PASS",
+    "LC-05": "PASS",
+    "LC-06": "PASS"
+  },
+  "scope": "Project-original verification records, runtime tool-result transcription, synthetic guard events, the unpublished predecessor package and derived records. No third-party source, secret, State, plan, credential, environment value or personal email.",
+  "redactions": [
+    "Session scratchpad absolute path replaced by <SCRATCH>"
+  ],
+  "excluded_originals": [
+    "Full session transcript: not published (out-of-scope conversation context); relevant tool results transcribed verbatim in raw/runtime_tool_results.txt"
+  ],
+  "inventory": [
+    {
+      "path": "ACTUAL_WEB_RESULTS.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original: WEB-01..07 actual results (unchanged)",
+      "sha256": "3fda1bbe117213215433afc58189469bad314bdb79ce820e91cc613e9699ec77",
+      "bytes": 10082
+    },
+    {
+      "path": "EXPECTED_RESULTS.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original: expected results fixed before probes (unchanged)",
+      "sha256": "65146993bbcda26366d2d5137b4c4663398c915aabd0af2f5889b4208bca52cc",
+      "bytes": 3921
+    },
+    {
+      "path": "FINDING_MATRIX.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Revision 2: adds FIND-R1-01/02/03",
+      "sha256": "8f379981903341b12b0a9121c12d989692e51c2943ac813e966e04e73b4054d3",
+      "bytes": 3704
+    },
+    {
+      "path": "FINDING_MATRIX.v1.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original v1 finding matrix (unchanged)",
+      "sha256": "b73a8610e1fc87a171b5946656ff43284d09da002bb2e94418de431c3622cfd3",
+      "bytes": 2219
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.md",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Revision 2 self review",
+      "sha256": "00ca44d311ef935e0712c12ec94d896e2cc31f920e5670f0fbf0d1ee59d02a3d",
+      "bytes": 1361
+    },
+    {
+      "path": "MANDATORY_SELF_REVIEW.v1.md",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original v1 self review (unchanged)",
+      "sha256": "f6bf50a09f39368185e75e5dad92827360ddf68fb74626cc4328ac17ca356670",
+      "bytes": 1725
+    },
+    {
+      "path": "PUBLICATION_CORRECTION_RECORD.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "EV-02 publication correction and identity qualification",
+      "sha256": "beb3155d3c7564e38af51ba5c02de59c73084cc978f18b9020aa4d60d632db26",
+      "bytes": 3406
+    },
+    {
+      "path": "R1_SOURCE_AND_CI_REFERENCES.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original: fixed source, CI and evidence references (unchanged)",
+      "sha256": "54f91dd1aaeb6ccdaa7cd673321f038a0e791f943d42f77565c6212ed7f4cc5d",
+      "bytes": 2433
+    },
+    {
+      "path": "REPRODUCTION_MANIFEST.md",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original: reproduction steps (unchanged)",
+      "sha256": "92e8474fba19163c54422490bcb390a90d8a72367d5e1e17f8e5b3f45c8f233c",
+      "bytes": 2053
+    },
+    {
+      "path": "WRITER_RELEASE_RECORD.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Revision 2 writer record",
+      "sha256": "f5d847a0378510fba25983d350c7b15c8c78b13790c7dcf43c3674ca8e3bbf58",
+      "bytes": 999
+    },
+    {
+      "path": "WRITER_RELEASE_RECORD.v1.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original v1 writer record (unchanged)",
+      "sha256": "b0002188210c4a758a1c18256cafd40aecf134b09ac124e8cfb0f06a463f1942",
+      "bytes": 1031
+    },
+    {
+      "path": "predecessor/GOV-CLAUDE-HARNESS-R1-Final-Web-Evidence.v1-unpublished.zip",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original unpublished v1 package, byte-identical (sha256 189451c0...)",
+      "sha256": "189451c08643efa3e33abcb5f799cc133a7574a55016e42356722aafb7104b04",
+      "bytes": 19368
+    },
+    {
+      "path": "raw/direct_guard.py",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original synthetic event driver (unchanged)",
+      "sha256": "1da53630fc9152730433309938c66d0049a94ca644e1155b42ff7b9070ce6622",
+      "bytes": 3073
+    },
+    {
+      "path": "raw/direct_guard_synthetic_results.json",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original direct-input guard results, not runtime (unchanged)",
+      "sha256": "3600fd32853d47f90a0d0a7bc31fbbef8f4af01701b988117e11be9185c11a80",
+      "bytes": 5659
+    },
+    {
+      "path": "raw/guard_self_test.txt",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original guard --self-test output (unchanged)",
+      "sha256": "3208a25c31af5781a1c09a676139bf6770893f7f7001424bc32f634e9c567809",
+      "bytes": 32
+    },
+    {
+      "path": "raw/runtime_tool_results.txt",
+      "classification": "ELIGIBLE_OWN_ORIGINAL_OR_DERIVED",
+      "description": "Original runtime tool results, verbatim transcription (unchanged)",
+      "sha256": "5494c9de323b503f7cc6275924713ea293da8d12c0235ca51d004080185c96e2",
+      "bytes": 2155
+    }
+  ]
+}

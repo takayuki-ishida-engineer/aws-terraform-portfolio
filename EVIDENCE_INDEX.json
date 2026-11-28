@@ -614,6 +614,37 @@
       "internal_integrity_status": "PASS",
       "redistribution_inventory_path": "GOV/GOV-HANDOVER-01-CODEX/20261128/REDISTRIBUTION_INVENTORY.json",
       "redistribution_inventory_sha256": "03b1c33e3e76ffbae97ba62445c2ff879df948518b3172ee5d69ab57c0278a09"
+    },
+    {
+      "artifact_id": "GOV-CLAUDE-HARNESS-R1",
+      "task_id": "GOV-CLAUDE-HARNESS-R1-WEB-01",
+      "artifact_type": "claude-code-harness-r1-final-web-verification",
+      "source_baseline_head": "9987ca5346b08906e3e1ece49ef33873284d8f64",
+      "source_baseline_tree": "c57429cad1ccc15384116318944c9e6342859350",
+      "successor_head": "1f40de942d2ab29a4b1eab42e6bd4259470d39e9",
+      "successor_tree": "ec4a1a7b6dfb2cbded2d9614ab6b9f0769a6d6c5",
+      "pull_request": 108,
+      "original_filename": "GOV-CLAUDE-HARNESS-R1-Final-Web-Evidence.zip",
+      "repository_relative_path": "GOV/GOV-CLAUDE-HARNESS-R1/20261128/GOV-CLAUDE-HARNESS-R1-Final-Web-Evidence.zip",
+      "size_bytes": 44765,
+      "sha256": "e3d0634d41d9e7f0e398dea2017234d9e03d86d5941b68afe05889d19e158e57",
+      "zip_entry_count": 19,
+      "owner_publication_decision_id": "OD-GOV-CLAUDE-HARNESS-R1-EV-02",
+      "authority": "OD-DELEGATION-01",
+      "owner_authorization_sha256": "6bb61bcdd7ea92b4ced261bcf73a7ff91d2f55ec97ab4c02f746228df099f26c (OD-DELEGATION-01 standing delegation text; publication decision text digest not supplied)",
+      "previous_distribution": "GOV/GOV-CLAUDE-HARNESS-01/20261127/GOV-CLAUDE-HARNESS-01-Final-Integration-Evidence.zip (sha256 7e52397b932c754c9a1bc3a98af82626fd5ff4e8eacfb1758b20d117c439607d, unchanged); unpublished predecessor 189451c08643efa3e33abcb5f799cc133a7574a55016e42356722aafb7104b04 embedded",
+      "distribution_revision": 2,
+      "publication_date_utc": "2026-11-28",
+      "confidentiality_review_status": "NO_SENSITIVE_CONTENT_DETECTED",
+      "internal_integrity_status": "PASS",
+      "independent_review_status": "PENDING_INDEPENDENT_VERIFICATION",
+      "distribution_type": "RUNTIME_TOOL_RESULTS_SYNTHETIC_GUARD_EVENTS_AND_DERIVED_RECORDS",
+      "distribution_manifest_member": "MANIFEST.json",
+      "distribution_sha256sums_member": "SHA256SUMS",
+      "license_compliance_status": "PASS_PROJECT_ORIGINAL_AND_DERIVED_METADATA",
+      "redistribution_inventory_path": "GOV/GOV-CLAUDE-HARNESS-R1/20261128/REDISTRIBUTION_INVENTORY.json",
+      "redistribution_inventory_sha256": "30f8b5c28f68c911ee493cb1fbc25d1af717b8e32d1fed737c79425dad081891",
+      "agent_self_review_status": "PASS_WITH_DISCLOSED_LIMITATIONS"
     }
   ]
 }
