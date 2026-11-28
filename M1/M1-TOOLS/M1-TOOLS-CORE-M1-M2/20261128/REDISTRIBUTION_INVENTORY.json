@@ -1,0 +1,36 @@
+{
+  "classification": "PROJECT_AUTHORED_DERIVED_ONLY",
+  "decision": "OD-M1-TOOLS-CORE-M1-M2-20261128",
+  "members": [
+    {
+      "path": "M1_M2_Decision.json",
+      "size_bytes": 14797,
+      "sha256": "3e45dca2dc600d98223215b0fd79a1e0fd993295003e550e2abeaeaef862298b",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "MANIFEST.json",
+      "size_bytes": 306,
+      "sha256": "3e498d001e37275984bb61fb88fbe18ded3768bb2555b767a218332668c14593",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "Mandatory_Self_Review.md",
+      "size_bytes": 307,
+      "sha256": "12962a32898e4ec654028a728e5c5b2cbadc40162d460952ee275c074ea15f57",
+      "redistribution": "eligible project-authored record"
+    },
+    {
+      "path": "SHA256SUMS",
+      "size_bytes": 257,
+      "sha256": "1114d6fa9bf614a34ba1c0ec0c3d32ae4cbfebcb9a28bbaa23a0277d108a558d",
+      "redistribution": "eligible project-authored record"
+    }
+  ],
+  "excluded": [
+    "third-party CNA originals",
+    "private policy and review originals",
+    "credentials and personal data"
+  ],
+  "technical_acceptance": "HOLD"
+}
